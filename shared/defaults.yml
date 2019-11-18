@@ -1,0 +1,95 @@
+--- # ----- Output Path -----
+# -----------------------
+# -----------------------
+output_path: /network/tmp1/schmidtv/yb_runs/test_v1
+# ----------------
+# ----- Data -----
+# ----------------
+data:
+  dirs:
+    base: /network/tmp1/ccai/data/munit_dataset/mini
+    train:
+      A: train/flooded
+      B: train/non_flooded
+    val:
+      A: val/flooded
+      B: val/non_flooded
+  files: # if one is not none it will override the dirs location
+    base: /network/tmp1/ccai/data/munit_dataset
+    train:
+      A: trainA.txt
+      B: trainB.txt
+    val:
+      A: testA.txt
+      B: testB.txt
+  loaders:
+    batch_size: 2
+    shuffle: false
+    num_workers: 8
+    return_paths: false
+    max_load_size: -1
+    shuffle_before_max_load_size: true
+    transforms:
+      - name: hflip
+        ignore: false
+        p: 0.5
+      - name: resize
+        ignore: false
+        new_size: 256
+      - name: crop
+        ignore: false
+        height: 224
+        width: 224
+# ---------------------
+# ----- Generator -----
+# ---------------------
+gen:
+  input_nc: 3
+  output_nc: 3
+  ngf: 64
+  norm_layer: batch
+  dropout: 0.2
+  n_blocks: 6
+  padding_type: reflect
+  init_type: kaiming
+  init_gain: 0.2
+  lambda_rec: 1
+  lambda_idt: 1
+  opt:
+    lr_policy: false
+    epoch_count: null # for linear decay
+    niter: null # for linear or cosine decay
+    niter_decay: null # for linear decay
+    lr: 0.0005
+    beta1: 0.9
+# -------------------------
+# ----- Discriminator -----
+# -------------------------
+dis:
+  input_nc: 3
+  ndf: 64
+  n_layers: 3
+  norm_layer: instance
+  init_type: kaiming
+  init_gain: 0.2
+  opt:
+    lr_policy: false
+    epoch_count: null # for linear decay
+    niter: null # for linear or cosine decay
+    niter_decay: null # for linear decay
+    lr: 0.0005
+    beta1: 0.5
+# ------------------------
+# ----- Train Params -----
+# ------------------------
+train:
+  epochs: 1000
+# -----------------------------
+# ----- Validation Params -----
+# -----------------------------
+val:
+  max_log_images: 15
+  every_n_steps: 1000
+  store_images: false
+  infer_rec: true
+  infer_idt: true # order: real, translated, rec, idt
