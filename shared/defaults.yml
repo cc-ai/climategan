@@ -1,6 +1,6 @@
---- # ----- Output Path -----
+--- # -----------------------
 # -----------------------
-# -----------------------
+# ----- Output Path -----
 output_path: /network/tmp1/schmidtv/yb_runs/test_v1
 # ----------------
 # ----- Data -----
@@ -44,24 +44,30 @@ data:
 # ----- Generator -----
 # ---------------------
 gen:
-  input_nc: 3
-  output_nc: 3
-  ngf: 64
-  norm_layer: batch
-  dropout: 0.2
-  n_blocks: 6
-  padding_type: reflect
-  init_type: kaiming
-  init_gain: 0.2
-  lambda_rec: 1
-  lambda_idt: 1
   opt:
+    optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
     lr_policy: false
     epoch_count: null # for linear decay
     niter: null # for linear or cosine decay
     niter_decay: null # for linear decay
     lr: 0.0005
     beta1: 0.9
+  decoders: [A, D, H, T, W]
+  default:
+    input_nc: 3
+    output_nc: 3
+    ngf: 64
+    norm_layer: batch
+    dropout: 0.2
+    n_blocks: 6
+    padding_type: reflect
+    init_type: kaiming
+    init_gain: 0.2
+    lambda_rec: 1
+    lambda_idt: 1
+  A:
+    lambda_idt: 5
+# Set gen.A.init_gain to overwrite this parameter for A only
 # -------------------------
 # ----- Discriminator -----
 # -------------------------
@@ -79,6 +85,11 @@ dis:
     niter_decay: null # for linear decay
     lr: 0.0005
     beta1: 0.5
+# -------------------------------
+# -----  Domain Classifier  -----
+# -------------------------------
+classifier:
+  todo: true
 # ------------------------
 # ----- Train Params -----
 # ------------------------
