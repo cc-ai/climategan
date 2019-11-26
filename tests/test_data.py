@@ -3,7 +3,7 @@ from addict import Dict
 import sys
 
 sys.path.append("..")
-import omnigan
+from omnigan.data import OmniListDataset, get_all_loaders
 
 if __name__ == "__main__":
 
@@ -18,8 +18,17 @@ if __name__ == "__main__":
     opts.data.transforms[0].name = "hflip"
     opts.data.transforms[0].p = 0.5
 
-    loaders = omnigan.data.get_all_loaders(opts)
-    ds = omnigan.data.OmniListDataset(opts.data.files.train.rn)
+    loaders = get_all_loaders(opts)
+    ds = OmniListDataset(opts.data.files.train.rn)
 
-    sample = next(iter(ds))
+    sample = ds[0]
     batch = Dict(next(iter(loaders.train.rn)))
+
+    for k in batch:
+        print(
+            k,
+            batch[k].shape,
+            batch[k].dtype,
+            batch[k].min().item(),
+            batch[k].max().item(),
+        )
