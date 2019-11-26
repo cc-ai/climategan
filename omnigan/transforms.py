@@ -1,6 +1,5 @@
 from torchvision import transforms as trsfs
 import numpy as np
-import skimage.transform as sktransform
 from addict import Dict
 
 
