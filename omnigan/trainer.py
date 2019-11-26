@@ -70,10 +70,10 @@ class Trainer:
 
     def update_g(self, batch):
         loss = 0
+
         if "H" in batch["tasks"]:
-            for source, image in batch["images"].items():
-
-
+            for image in batch["images"].items():
+                pass
 
     def update_d(self, batch):
         pass

@@ -42,7 +42,7 @@ class Generator(nn.Module):
 
         if "A" in conf.gen and not conf.gen.A.ignore:
             self.decoders["A"] = nn.ModuleDict(
-                {"real": AdapatationDecoder(conf), "sim": AdapatationDecoder(conf)}
+                {"r": AdapatationDecoder(conf), "s": AdapatationDecoder(conf)}
             )
 
         if "D" in conf.gen and not conf.gen.D.ignore:
@@ -53,7 +53,7 @@ class Generator(nn.Module):
 
         if "T" in conf.gen and not conf.gen.T.ignore:
             self.decoders["T"] = nn.ModuleDict(
-                {"f": TranslationDecoder(conf), "nf": TranslationDecoder(conf)}
+                {"f": TranslationDecoder(conf), "n": TranslationDecoder(conf)}
             )
 
         if "W" in conf.gen and not conf.gen.W.ignore:

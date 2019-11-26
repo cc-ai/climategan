@@ -54,6 +54,12 @@ def load_conf(path):
     with open(path, "r") as stream:
         try:
             conf = Dict(yaml.safe_load(stream))
+            for mode in ["train", "val"]:
+                for domain in conf.data.files[mode]:
+                    conf.data.files[mode][domain]: str(
+                        Path(conf.data.files.base) / conf.data.files[mode][domain]
+                    )
+
             for k in conf.gen.decoders:
                 tmp = copy(conf.gen.default)
                 if k in conf.gen:
