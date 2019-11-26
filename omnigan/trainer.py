@@ -5,6 +5,7 @@ from time import time
 from .generator import get_gen
 from .utils import flatten_conf
 from .optim import get_optimizer
+from .data import get_all_loaders
 
 
 class Trainer:
@@ -15,7 +16,7 @@ class Trainer:
         self.logger = Dict()
         self.logger.lr.g = conf.gen.opt.lr
         self.logger.lr.d = conf.dis.opt.lr
-        self.A_loader = self.B_loader = self.val_loaders = None
+        self.loaders = None
         self.G = self.D = None
 
         self.is_setup = False
@@ -30,9 +31,7 @@ class Trainer:
         start_time = time()
         self.logger.time.start_time = start_time
 
-        self.A_loader, self.B_loader, *self.val_loaders = get_all_loaders(
-            self.conf.data
-        )
+        self.loaders = get_all_loaders(self.conf.data)
 
         self.G = get_gen(self.conf.gen).cuda()
         self.D = get_dis(self.conf.dis).cuda()
@@ -42,14 +41,10 @@ class Trainer:
         self.d_opt = get_optimizer(self.D, self.conf.dis.opt)
 
         if self.verbose > 0:
-            print(
-                "Loaders: A: {}\nB_loarder: {}\nA_val: {}\nB_val: {}".format(
-                    len(self.A_loader),
-                    len(self.B_loader),
-                    len(self.val_loaders[0]) if self.val_loaders[0] is not None else 0,
-                    len(self.val_loaders[1]) if self.val_loaders[1] is not None else 0,
-                )
-            )
+            for mode, mode_dict in self.loaders.items():
+                for domain, domain_loader in mode_dict:
+                    print("Loader {} {} : {}".format(mode, domain, len(domain_loader)))
+
         self.is_setup = True
 
     def run_epoch(self):

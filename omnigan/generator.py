@@ -9,7 +9,7 @@ from torch.nn import init
 
 
 def get_gen(conf):
-    G = Generator(conf)
+    G = OmniGenerator(conf)
     G.init_weights()
     return G
 
@@ -24,7 +24,7 @@ class Encoder(nn.Module):
         return self.project(self.downsample(x))
 
 
-class Generator(nn.Module):
+class OmniGenerator(nn.Module):
     def __init__(self, conf):
         """Creates the generator. All decoders listed in conf.gen will be added
         to the Generator.decoders ModuleDict if conf.gen.DecoderInitial is not True.
@@ -40,23 +40,23 @@ class Generator(nn.Module):
 
         self.decoders = {}
 
-        if "A" in conf.gen and not conf.gen.A.ignore:
+        if "A" in conf.tasks and not conf.gen.A.ignore:
             self.decoders["A"] = nn.ModuleDict(
                 {"r": AdapatationDecoder(conf), "s": AdapatationDecoder(conf)}
             )
 
-        if "D" in conf.gen and not conf.gen.D.ignore:
+        if "D" in conf.tasks and not conf.gen.D.ignore:
             self.decoders["D"] = DepthDecoder(conf)
 
-        if "H" in conf.gen and not conf.gen.H.ignore:
+        if "H" in conf.tasks and not conf.gen.H.ignore:
             self.decoders["H"] = HeightDecoder(conf)
 
-        if "T" in conf.gen and not conf.gen.T.ignore:
+        if "T" in conf.tasks and not conf.gen.T.ignore:
             self.decoders["T"] = nn.ModuleDict(
                 {"f": TranslationDecoder(conf), "n": TranslationDecoder(conf)}
             )
 
-        if "W" in conf.gen and not conf.gen.W.ignore:
+        if "W" in conf.tasks and not conf.gen.W.ignore:
             self.decoders["W"] = WaterDecoder(conf)
 
         self.decoders = nn.ModuleDict(self.decoders)

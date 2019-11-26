@@ -1,7 +1,11 @@
---- # -----------------------
 # -----------------------
 # ----- Output Path -----
+# -----------------------
 output_path: /network/tmp1/schmidtv/yb_runs/test_v1
+# -------------------
+# -----  Tasks  -----
+# -------------------
+tasks: [A, D, H, T, W]
 # ----------------
 # ----- Data -----
 # ----------------
@@ -45,7 +49,6 @@ gen:
     niter_decay: null # for linear decay
     lr: 0.0005
     beta1: 0.9
-  decoders: [A, D, H, T, W]
   default:
     input_nc: 3
     output_nc: 3
@@ -65,19 +68,22 @@ gen:
 # ----- Discriminator -----
 # -------------------------
 dis:
-  input_nc: 3
-  ndf: 64
-  n_layers: 3
-  norm_layer: instance
-  init_type: kaiming
-  init_gain: 0.2
   opt:
+    optimizer: ExtraAdam
     lr_policy: false
     epoch_count: null # for linear decay
     niter: null # for linear or cosine decay
     niter_decay: null # for linear decay
     lr: 0.0005
     beta1: 0.5
+  default:
+    input_nc: 3
+    ndf: 64
+    n_layers: 3
+    norm: instance
+    init_type: kaiming
+    init_gain: 0.2
+    use_sigmoid: false
 # -------------------------------
 # -----  Domain Classifier  -----
 # -------------------------------

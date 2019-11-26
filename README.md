@@ -3,6 +3,7 @@
 
 ## interfaces
 
+### batches
 ```python
 batch = {
     "d": depthmap,
@@ -10,9 +11,10 @@ batch = {
     "w": water_segmentation_map,
     "s": segmentation_map,
     "x": real_flooded_image,
-    "domain": rf | rn | sf | sn
 }
 ```
+
+### data
 
 ```yaml
 # data file ; one for each r|s-f|n
@@ -25,4 +27,28 @@ batch = {
   d: /path/to/depth map
   s: /path/to/segmentation map
 - x: ...
+```
+or
+```
+[
+    {
+        "x": "/Users/victor/Documents/ccai/github/omnigan/example_data/gsv_000005.jpg",
+        "s": "/Users/victor/Documents/ccai/github/omnigan/example_data/gsv_000005.npy",
+        "d": "/Users/victor/Documents/ccai/github/omnigan/example_data/gsv_000005_depth.jpg"
+    },
+    {
+        "x": "/Users/victor/Documents/ccai/github/omnigan/example_data/gsv_000006.jpg",
+        "s": "/Users/victor/Documents/ccai/github/omnigan/example_data/gsv_000006.npy",
+        "d": "/Users/victor/Documents/ccai/github/omnigan/example_data/gsv_000006_depth.jpg"
+    }
+]
+```
+
+loaders
+
+```
+loaders = Dict({
+    train: { rn: loader, rf: loader, sn: loader, sf: loader},
+    val: { rn: loader, rf: loader, sn: loader, sf: loader}
+})
 ```

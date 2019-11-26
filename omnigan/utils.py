@@ -60,11 +60,18 @@ def load_conf(path):
                         Path(conf.data.files.base) / conf.data.files[mode][domain]
                     )
 
-            for k in conf.gen.decoders:
+            for k in conf.tasks:
                 tmp = copy(conf.gen.default)
                 if k in conf.gen:
                     tmp.update(conf.gen[k])
                 conf.gen[k] = tmp
+
+            for k in {"A", "T"} & set(conf.tasks):
+                tmp = copy(conf.dis.default)
+                if k in conf.dis:
+                    tmp.update(conf.dis[k])
+                conf.dis[k] = tmp
+
             return conf
         except yaml.YAMLError as exc:
             print(exc)
