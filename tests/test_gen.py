@@ -2,15 +2,17 @@ import numpy as np
 import torch
 from addict import Dict
 import sys
+
 sys.path.append("..")
 import omnigan
-from omnigan.generator import Generator
+from omnigan.generator import OmniGenerator
 
 if __name__ == "__main__":
 
     np.random.seed(0)
     torch.manual_seed(0)
     conf = Dict()
+    conf.tasks = ["A", "D", "W", "H", "T"]
 
     batch_size = 7
     latent_space_dims = [64, 32, 32]
@@ -27,7 +29,7 @@ if __name__ == "__main__":
         conf.gen.H.ignore = False
         conf.gen.T.ignore = False
         conf.gen.W.ignore = False
-        G = Generator(conf)
+        G = OmniGenerator(conf)
         G.init_weights()
         print("D" in G.decoders)
         print("A" in G.decoders)
@@ -42,7 +44,7 @@ if __name__ == "__main__":
     conf.gen.T.ignore = False
     conf.gen.W.ignore = False
 
-    G = Generator(conf)
+    G = OmniGenerator(conf)
     G.init_weights()
     print(G.decoders)
     print(G.E)
