@@ -86,6 +86,54 @@ def pil_image_loader(path, task):
 
 
 class OmniListDataset(Dataset):
+    def __init__(self, mode, domain, opts, transform=None):
+
+        self.domain = domain
+        self.mode = mode
+
+        file_list_path = Path(opts.data.files[mode][domain])
+
+        if file_list_path.suffix == ".json":
+            self.samples_paths = self.json_load(file_list_path)
+        elif file_list_path.suffix in {".yaml", ".yml"}:
+            self.samples_paths = self.yaml_load(file_list_path)
+        else:
+            raise ValueError("Unknown file list type in {}".format(file_list_path))
+
+        self.check_samples()
+        self.file_list_path = str(file_list_path)
+        self.transform = transform
+
+    def __getitem__(self, i):
+        if self.transform:
+            return Dict(
+                {
+                    "data": self.transform(
+                        {
+                            task: pil_image_loader(path, task)
+                            for task, path in self.samples_paths[i].items()
+                        }
+                    ),
+                    "paths": self.samples_paths[i],
+                    "domain": self.domain,
+                    "mode": self.mode,
+                }
+            )
+            return Dict(
+                {
+                    "data": {
+                        task: pil_image_loader(path, task)
+                        for task, path in self.samples_paths[i].items()
+                    },
+                    "paths": self.samples_paths[i],
+                    "domain": self.domain,
+                    "mode": self.mode,
+                }
+            )
+
+    def __len__(self):
+        return len(self.samples_paths)
+
     def json_load(self, file_path):
         with open(file_path, "r") as f:
             return json.load(f)
@@ -95,51 +143,22 @@ class OmniListDataset(Dataset):
             return yaml.safe_load(f)
 
     def check_samples(self):
+        """Checks that every file listed in samples_paths actually
+        exist on the file-system
+        """
         for s in self.samples_paths:
             for k, v in s.items():
                 assert Path(v).exists(), f"{k} {v} does not exist"
-
-    def __init__(self, file_path, transform=None):
-        if Path(file_path).suffix == ".json":
-            self.samples_paths = self.json_load(file_path)
-        elif Path(file_path).suffix in {".yaml", ".yml"}:
-            self.samples_paths = self.yaml_load(file_path)
-        else:
-            raise ValueError("Unknown file list type in {}".format(file_path))
-
-        self.check_samples()
-
-        self.transform = transform
-
-    def __getitem__(self, i):
-        if self.transform:
-            return self.transform(
-                Dict(
-                    {
-                        task: pil_image_loader(path, task)
-                        for task, path in self.samples_paths[i].items()
-                    }
-                )
-            )
-        return Dict(
-            {
-                task: pil_image_loader(path, task)
-                for task, path in self.samples_paths[i].items()
-            }
-        )
-
-    def __len__(self):
-        return len(self.samples_paths)
 
 
 def get_loader(domain, mode, opts):
     return DataLoader(
         OmniListDataset(
-            opts.data.files[mode][domain],
-            transform=transforms.Compose(get_transforms(opts)),
+            domain, mode, opts, transform=transforms.Compose(get_transforms(opts)),
         ),
         batch_size=opts.data.loaders.get("batch_size", 4),
-        shuffle=opts.data.loaders.get("shuffle", True),
+        # shuffle=opts.data.loaders.get("shuffle", True),
+        shuffle=True,
         num_workers=opts.data.loaders.get("num_workers", 8),
     )
 
@@ -150,5 +169,5 @@ def get_all_loaders(opts):
         for domain in ["rf", "rn", "sf", "sn"]:
             if mode in opts.data.files:
                 if domain in opts.data.files[mode]:
-                    loaders[mode][domain] = get_loader(domain, mode, opts)
+                    loaders[mode][domain] = get_loader(mode, domain, opts)
     return loaders

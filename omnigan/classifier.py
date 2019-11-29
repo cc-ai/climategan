@@ -1,6 +1,5 @@
 from torch import nn
 import numpy as np
-
 from omnigan.utils import init_weights
 
 

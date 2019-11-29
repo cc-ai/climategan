@@ -5,13 +5,25 @@
 
 ### batches
 ```python
-batch = {
-    "d": depthmap,
-    "h": heightmap,
-    "w": water_segmentation_map,
-    "s": segmentation_map,
-    "x": real_flooded_image,
+batch = Dict(
+    "data": {
+        "d": depthmap,
+        "h": heightmap,
+        "w": water_segmentation_map,
+        "s": segmentation_map,
+        "x": real_flooded_image,
+    },
+    "paths":{
+        "d": depthmap_path,
+        "h": heightmap_path,
+        "w": water_segmentation_map_path,
+        "s": segmentation_map_path,
+        "x": real_flooded_image_path,
+    }
+    "domain": rf | rn | sf | sn,
+    "mode": train | val
 }
+)
 ```
 
 ### data

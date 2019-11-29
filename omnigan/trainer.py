@@ -78,6 +78,7 @@ class Trainer:
         self.is_setup = True
 
     def run_epoch(self):
+        assert self.is_setup
         for i, self.batch in enumerate(self.train_loaders):
             self.logger.step += 1
 
@@ -94,11 +95,17 @@ class Trainer:
             self.save()
 
     def update_g(self, batch):
-        # loss = 0
+        if self.logger.steps > self.opts.train.represention_steps:
+            self.update_g_representation(batch)
+        else:
+            self.update_g_translation(batch)
 
-        if "H" in batch["tasks"]:
-            for image in batch["images"].items():
-                pass
+    def update_g_representation(self, batch):
+        self.z = self.G.E(batch.x)
+        pass
+
+    def update_g_translation(self, batch):
+        pass
 
     def update_d(self, batch):
         pass

@@ -16,7 +16,7 @@ if __name__ == "__main__":
 
     loaders = get_all_loaders(opts)
 
-    ds = OmniListDataset(opts.data.files.train.rn)
+    ds = OmniListDataset("train", "rn", opts)
 
     print(transforms_string(loaders.train.rn.dataset.transform))
 
@@ -25,11 +25,28 @@ if __name__ == "__main__":
 
     print("Batch: ", "items, ", " ".join(batch.keys()), "keys")
 
-    for k in batch:
+    for k in batch.data:
         print(
             k,
-            batch[k].shape,
-            batch[k].dtype,
-            batch[k].min().item(),
-            batch[k].max().item(),
+            batch.data[k].shape,
+            batch.data[k].dtype,
+            batch.data[k].min().item(),
+            batch.data[k].max().item(),
+            [Path(p).name for p in batch.paths[k]],
+            batch.domain,
+            batch.mode,
         )
+
+    print(
+        "All Loaders: \n",
+        [
+            Path(loaders[mode][domain].dataset.file_list_path).stem
+            for mode in loaders
+            for domain in loaders[mode]
+        ],
+    )
+
+    for i, multi_batch in enumerate(
+        zip(*[loaders["train"][domain] for domain in loaders["train"]])
+    ):
+        print(i)
