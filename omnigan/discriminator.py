@@ -8,8 +8,17 @@ from omnigan.utils import init_weights
 # mainly from https://github.com/sangwoomo/instagan/blob/master/models/networks.py
 
 
-def get_dis(opts):
-    return OmniDiscriminator(opts)
+def get_dis(opts, verbose):
+    disc = OmniDiscriminator(opts)
+    for task, model in disc.models.items():
+        for domain_model in model.values():
+            init_weights(
+                domain_model,
+                init_type=opts.dis[task].init_type,
+                init_gain=opts.dis[task].init_gain,
+                verbose=verbose,
+            )
+    return disc
 
 
 def define_D(
@@ -26,7 +35,7 @@ def define_D(
     net = NLayerDiscriminator(
         input_nc, ndf, n_layers=3, norm_layer=norm_layer, use_sigmoid=use_sigmoid
     )
-    return init_net(net, init_type, init_gain, gpu_ids)
+    return net
 
 
 def get_norm_layer(norm_type="instance"):
@@ -48,7 +57,7 @@ def init_net(net, init_type="normal", init_gain=0.02, gpu_ids=[]):
         assert torch.cuda.is_available()
         net.to(gpu_ids[0])
         net = torch.nn.DataParallel(net, gpu_ids)
-    init_weights(net, init_type, init_gain=init_gain)
+    init_weights(net, init_type=init_type, init_gain=init_gain)
     return net
 
 

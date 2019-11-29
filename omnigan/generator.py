@@ -7,9 +7,25 @@ from omnigan.utils import init_weights
 # --------------------------------------------------------------------------
 
 
-def get_gen(opts):
+def get_gen(opts, verbose):
     G = OmniGenerator(opts)
-    init_weights(G)
+    for model in G.decoders:
+        net = G.decoders[model]
+        if isinstance(net, nn.ModuleDict):
+            for domain_model in net:
+                init_weights(
+                    net[domain_model],
+                    init_type=opts.gen[model].init_type,
+                    init_gain=opts.gen[model].init_gain,
+                    verbose=verbose,
+                )
+        else:
+            init_weights(
+                G.decoders[model],
+                init_type=opts.gen[model].init_type,
+                init_gain=opts.gen[model].init_gain,
+                verbose=verbose,
+            )
     return G
 
 

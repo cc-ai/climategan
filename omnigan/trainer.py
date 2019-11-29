@@ -56,10 +56,12 @@ class Trainer:
 
         self.loaders = get_all_loaders(self.opts)
 
-        self.G = get_gen(self.opts).to(self.device)
-        self.D = get_dis(self.opts).to(self.device)
+        self.G = get_gen(self.opts, verbose=self.verbose).to(self.device)
+        self.D = get_dis(self.opts, verbose=self.verbose).to(self.device)
         self.latent_shape = self.compute_latent_shape()  # TODO
-        self.C = get_classifier(self.opts, self.latent_shape).to(self.device)
+        self.C = get_classifier(self.opts, self.latent_shape, verbose=self.verbose).to(
+            self.device
+        )
 
         self.g_opt = get_optimizer(self.G, self.opts.gen.opt)
         self.d_opt = get_optimizer(self.D.models, self.opts.dis.opt)

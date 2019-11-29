@@ -4,11 +4,14 @@ import numpy as np
 from omnigan.utils import init_weights
 
 
-def get_classifier(opts, latent_shape):
+def get_classifier(opts, latent_shape, verbose):
     latent_size = np.prod(latent_shape)
     C = OmniClassifier(opts, latent_size)
     init_weights(
-        C, init_type=opts.classifier.init_type, init_gain=opts.classifier.init_gain
+        C,
+        init_type=opts.classifier.init_type,
+        init_gain=opts.classifier.init_gain,
+        verbose=verbose,
     )
     return C
 
