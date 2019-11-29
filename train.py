@@ -1,5 +1,4 @@
 from comet_ml import Experiment
-from copy import copy
 from pathlib import Path
 import torch
 from omnigan.data import get_all_loaders
@@ -8,13 +7,13 @@ from omnigan.utils import (
     get_increasable_name,
     get_optimizer,
     get_scheduler,
-    load_conf,
+    load_opts,
     parsed_args,
     run_val,
     set_requires_grad,
     env_to_path,
     update_learning_rate,
-    flatten_conf,
+    flatten_opts,
 )
 from omnigan.logger import upload_losses, print_step, set_times
 from omnigan.networks import get_dis, get_res_gen, get_flip_res_gen
@@ -38,25 +37,25 @@ if __name__ == "__main__":
     start_time = time()
     logger.time.start_time = start_time
 
-    conf = load_conf(Path(__file__).parent.parent / "shared/defaults.yml")
-    logger.lr.g = conf.gen.opt.lr
-    logger.lr.d = conf.dis.opt.lr
+    opts = load_opts(Path(__file__).parent.parent / "shared/defaults.yml")
+    logger.lr.g = opts.gen.opt.lr
+    logger.lr.d = opts.dis.opt.lr
 
-    conf.output_path = env_to_path(conf.output_path)
-    conf.output_path = get_increasable_name(conf.output_path)
-    Path(conf.output_path).mkdir()
-    print("Running model in", conf.output_path)
+    opts.output_path = env_to_path(opts.output_path)
+    opts.output_path = get_increasable_name(opts.output_path)
+    Path(opts.output_path).mkdir()
+    print("Running model in", opts.output_path)
 
     logger.exp = None
     if args.comet:
         logger.exp = Experiment()
-        logger.exp.log_parameters(flatten_conf(conf))
+        logger.exp.log_parameters(flatten_opts(opts))
 
     # ----------------------------
     # ----- Initialize Model -----
     # ----------------------------
 
-    A_loader, B_loader, *val_loaders = get_all_loaders(conf.data)
+    A_loader, B_loader, *val_loaders = get_all_loaders(opts.data)
     print(
         "A_loader: {}\nB_loarder: {}\nA_val_loader: {}\nB_val_loader: {}".format(
             len(A_loader),
@@ -66,15 +65,15 @@ if __name__ == "__main__":
         )
     )
 
-    # G = get_res_gen(conf.gen).cuda()
-    G = get_flip_res_gen(conf.gen).cuda()
-    D = get_dis(conf.dis).cuda()
+    # G = get_res_gen(opts.gen).cuda()
+    G = get_flip_res_gen(opts.gen).cuda()
+    D = get_dis(opts.dis).cuda()
 
-    g_opt = get_optimizer(G, conf.gen.opt)
-    d_opt = get_optimizer(D, conf.dis.opt)
+    g_opt = get_optimizer(G, opts.gen.opt)
+    d_opt = get_optimizer(D, opts.dis.opt)
 
-    g_scheduler = get_scheduler(g_opt, conf.gen.opt)
-    d_scheduler = get_scheduler(d_opt, conf.gen.opt)
+    g_scheduler = get_scheduler(g_opt, opts.gen.opt)
+    d_scheduler = get_scheduler(d_opt, opts.gen.opt)
 
     ganloss = GANLoss("lsgan").cuda()
 
@@ -82,7 +81,7 @@ if __name__ == "__main__":
     # ----- Train Loop -----
     # ----------------------
 
-    for epoch in range(conf.train.epochs):
+    for epoch in range(opts.train.epochs):
         logger.epoch = epoch
         logger.time.epoch_time = time()
         for i, (real_im_A, real_im_B) in enumerate(zip(B_loader, A_loader)):
@@ -93,7 +92,7 @@ if __name__ == "__main__":
 
             logger.time.step_time = time()
             logger.epoch_step = i
-            if conf.data.return_paths:
+            if opts.data.return_paths:
                 real_im_A, real_im_A_path_list = real_im_A
                 real_im_B, real_im_B_path_list = real_im_B
 
@@ -164,7 +163,7 @@ if __name__ == "__main__":
             )  # Identity loss going to a domain where the image already is
 
             L_G_tot = (
-                L_G + conf.gen.lambda_rec * L_G_rec + conf.gen.lambda_idt * L_G_idt
+                L_G + opts.gen.lambda_rec * L_G_rec + opts.gen.lambda_idt * L_G_idt
             )
 
             logger.losses.L_G = L_G.item()
@@ -182,14 +181,14 @@ if __name__ == "__main__":
             upload_losses(logger)
             set_times(logger)
             print_step(logger)
-            run_val(G, val_loaders, conf, logger)
+            run_val(G, val_loaders, opts, logger)
             logger.step += 1
         # ------------------------
         # ----- End of Epoch -----
         # ------------------------
         print()
-        update_learning_rate(g_scheduler, g_opt, conf.gen.opt, logger, True)
-        update_learning_rate(d_scheduler, d_opt, conf.dis.opt, logger, False)
+        update_learning_rate(g_scheduler, g_opt, opts.gen.opt, logger, True)
+        update_learning_rate(d_scheduler, d_opt, opts.dis.opt, logger, False)
 
     # -----------------------------
     # ----- End of Train Loop -----

@@ -1,4 +1,5 @@
 from torchvision import transforms as trsfs
+import torchvision.transforms.functional as TF
 import numpy as np
 from addict import Dict
 
@@ -7,9 +8,9 @@ class Resize:
     def __init__(self, target_size):
         assert isinstance(target_size, (int, tuple, list))
         if not isinstance(target_size, int):
+            assert len(target_size) == 2
             self.h, self.w = target_size
         else:
-            assert len(target_size == 2)
             self.h = self.w = target_size
 
         self.h = int(self.h)
@@ -17,10 +18,7 @@ class Resize:
 
     def __call__(self, sample):
         return Dict(
-            {
-                task: sktransform.resize(array, (self.h, self.w))
-                for task, array in sample.items()
-            }
+            {task: TF.resize(im, (self.h, self.w)) for task, im in sample.items()}
         )
 
 
@@ -37,25 +35,23 @@ class RandomCrop:
         self.w = int(self.w)
 
     def __call__(self, sample):
-        h, w = sample.x.shape[-2:]
+        h, w = sample.x.size[-2:]
         top = np.random.randint(0, h - self.h)
         left = np.random.randint(0, w - self.w)
 
-        return Dict(
-            {k: v[top : top + self.h, left : left + self.w] for k, v in sample.items()}
-        )
+        return Dict({task: TF.crop(im, top, left, h, w) for task, im in sample.items()})
 
 
 class RandomVerticalFlip:
     def __init__(self, p=0.5):
-        self.flip = trsfs.RandomVerticalFlip(1)
+        self.flip = TF.vflip
         self.p = p
 
     def __call__(self, sample):
         if np.random.rand() > self.p:
             return sample
 
-        return Dict({task: self.flip(array) for task, array in sample.items()})
+        return Dict({task: self.flip(im) for task, im in sample.items()})
 
 
 class ToTensor:
@@ -65,22 +61,22 @@ class ToTensor:
 
     def __call__(self, sample):
         new_sample = Dict()
-        for task, array in sample.items():
+        for task, im in sample.items():
             if task in {"x", "s"}:
-                new_sample[task] = self.ImagetoTensor(array)
+                new_sample[task] = self.ImagetoTensor(im)
             elif task in {"h", "d"}:
-                new_sample[task] = self.MaptoTensor(array)
+                new_sample[task] = self.MaptoTensor(im)
         return new_sample
 
 
 class Normalize:
     def __init__(self):
-        self.normaImage = trsfs.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        self.normImage = trsfs.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         self.normSeg = trsfs.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
         self.normDepth = trsfs.Normalize([1 / 255], [1 / 3])
 
         self.normalize = {
-            "x": self.normaImage,
+            "x": self.normImage,
             "s": self.normSeg,
             "d": self.normDepth,
         }
@@ -88,15 +84,15 @@ class Normalize:
     def __call__(self, sample):
         return Dict(
             {
-                task: self.normalize[task](array) if task in self.normalize else array
-                for task, array in sample.items()
+                task: self.normalize[task](tensor) if task in self.normalize else tensor
+                for task, tensor in sample.items()
             }
         )
 
 
 def get_transform(transform_item):
     """Returns the torchivion transform function associated to a
-    transform_item listed in conf.data.transforms ; transform_item is
+    transform_item listed in opts.data.transforms ; transform_item is
     an addict.Dict
     """
     if transform_item.name == "crop" and not transform_item.ignore:
@@ -112,7 +108,7 @@ def get_transform(transform_item):
 
 
 def get_transforms(opts):
-    """Get all the transform functions listed in conf.data.transforms
+    """Get all the transform functions listed in opts.data.transforms
     using get_transform(transform_item)
     """
     last_transforms = [
@@ -120,8 +116,8 @@ def get_transforms(opts):
         Normalize(),
     ]
 
+    conf_transforms = []
     for t in opts.data.transforms:
-        conf_transforms = []
         conf_transforms.append(get_transform(t))
 
     return conf_transforms + last_transforms

@@ -4,12 +4,8 @@ from argparse import ArgumentParser
 from pathlib import Path
 import subprocess
 from copy import copy
-import numpy as np
-import torch
 import yaml
 from addict import Dict
-from PIL import Image
-from torch.optim import lr_scheduler
 
 
 def parsed_args():
@@ -30,11 +26,11 @@ def parsed_args():
     return parser.parse_args()
 
 
-def load_conf(path):
+def load_opts(path):
     """Loads a configuration Dict from a yaml file
 
-    for all decoder in gen.decoders, conf.gen.{decoder} is created from
-    conf.gen.default and updated with existing specifications in conf.gen.{decoder}
+    for all decoder in gen.decoders, opts.gen.{decoder} is created from
+    opts.gen.default and updated with existing specifications in opts.gen.{decoder}
 
     For instance if the only thing in decoder A which changes from default is the
     init_gain then you only need to set
@@ -50,29 +46,29 @@ def load_conf(path):
         addict.Dict: the configuration object
     """
     path = Path(path).resolve()
-    print("Loading conf from", str(path))
+    print("Loading opts from", str(path))
     with open(path, "r") as stream:
         try:
-            conf = Dict(yaml.safe_load(stream))
+            opts = Dict(yaml.safe_load(stream))
             for mode in ["train", "val"]:
-                for domain in conf.data.files[mode]:
-                    conf.data.files[mode][domain]: str(
-                        Path(conf.data.files.base) / conf.data.files[mode][domain]
+                for domain in opts.data.files[mode]:
+                    opts.data.files[mode][domain] = str(
+                        Path(opts.data.files.base) / opts.data.files[mode][domain]
                     )
 
-            for k in conf.tasks:
-                tmp = copy(conf.gen.default)
-                if k in conf.gen:
-                    tmp.update(conf.gen[k])
-                conf.gen[k] = tmp
+            for k in opts.tasks:
+                tmp = copy(opts.gen.default)
+                if k in opts.gen:
+                    tmp.update(opts.gen[k])
+                opts.gen[k] = tmp
 
-            for k in {"A", "T"} & set(conf.tasks):
-                tmp = copy(conf.dis.default)
-                if k in conf.dis:
-                    tmp.update(conf.dis[k])
-                conf.dis[k] = tmp
+            for k in {"A", "T"} & set(opts.tasks):
+                tmp = copy(opts.dis.default)
+                if k in opts.dis:
+                    tmp.update(opts.dis[k])
+                opts.dis[k] = tmp
 
-            return conf
+            return opts
         except yaml.YAMLError as exc:
             print(exc)
 
@@ -141,7 +137,7 @@ def env_to_path(path):
     return "/".join(new_path)
 
 
-def flatten_conf(conf):
+def flatten_opts(opts):
     values_list = []
 
     def p(d, prefix="", vals=[]):
@@ -159,5 +155,9 @@ def flatten_conf(conf):
                     v = str(v)
                 vals.append((prefix + k, v))
 
-    p(conf, vals=values_list)
+    p(opts, vals=values_list)
     return dict(values_list)
+
+
+def transforms_string(ts):
+    return " -> ".join([t.__class__.__name__ for t in ts.transforms])

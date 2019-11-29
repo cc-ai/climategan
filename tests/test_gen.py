@@ -4,15 +4,14 @@ from addict import Dict
 import sys
 
 sys.path.append("..")
-import omnigan
 from omnigan.generator import OmniGenerator
 
 if __name__ == "__main__":
 
     np.random.seed(0)
     torch.manual_seed(0)
-    conf = Dict()
-    conf.tasks = ["A", "D", "W", "H", "T"]
+    opts = Dict()
+    opts.tasks = ["A", "D", "W", "H", "T"]
 
     batch_size = 7
     latent_space_dims = [64, 32, 32]
@@ -24,12 +23,12 @@ if __name__ == "__main__":
     test_encode_decode = True
 
     if test_partial_decoder:
-        conf.gen.A.ignore = False
-        conf.gen.D.ignore = True
-        conf.gen.H.ignore = False
-        conf.gen.T.ignore = False
-        conf.gen.W.ignore = False
-        G = OmniGenerator(conf)
+        opts.gen.A.ignore = False
+        opts.gen.D.ignore = True
+        opts.gen.H.ignore = False
+        opts.gen.T.ignore = False
+        opts.gen.W.ignore = False
+        G = OmniGenerator(opts)
         G.init_weights()
         print("D" in G.decoders)
         print("A" in G.decoders)
@@ -38,13 +37,13 @@ if __name__ == "__main__":
         print(v.shape)
         print(sum(p.numel() for p in G.decoders.parameters()))
 
-    conf.gen.A.ignore = False
-    conf.gen.D.ignore = False
-    conf.gen.H.ignore = False
-    conf.gen.T.ignore = False
-    conf.gen.W.ignore = False
+    opts.gen.A.ignore = False
+    opts.gen.D.ignore = False
+    opts.gen.H.ignore = False
+    opts.gen.T.ignore = False
+    opts.gen.W.ignore = False
 
-    G = OmniGenerator(conf)
+    G = OmniGenerator(opts)
     G.init_weights()
     print(G.decoders)
     print(G.E)

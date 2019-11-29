@@ -12,18 +12,18 @@ from PIL import Image
 from torch.optim import lr_scheduler
 
 
-def load_conf(path):
+def load_opts(path):
     path = Path(path).resolve()
-    print("Loading conf from", str(path))
+    print("Loading opts from", str(path))
     with open(path, "r") as stream:
         try:
-            conf = Dict(yaml.safe_load(stream))
-            for k in conf.gen.decoders:
-                tmp = copy(conf.gen.default)
-                if k in conf.gen:
-                    tmp.update(conf.gen[k])
-                conf.gen[k] = tmp
-            return conf
+            opts = Dict(yaml.safe_load(stream))
+            for k in opts.gen.decoders:
+                tmp = copy(opts.gen.default)
+                if k in opts.gen:
+                    tmp.update(opts.gen[k])
+                opts.gen[k] = tmp
+            return opts
         except yaml.YAMLError as exc:
             print(exc)
 
@@ -123,15 +123,15 @@ def get_git_revision_hash():
     return subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
 
 
-def run_val(G, val_loaders, conf, logger):
+def run_val(G, val_loaders, opts, logger):
     if not any(val_loaders):
         return
-    if not conf.val:
+    if not opts.val:
         return
-    if not logger.step % conf.val.every_n_steps == 0:
+    if not logger.step % opts.val.every_n_steps == 0:
         return
 
-    with Path(conf.output_path / "hash.txt").open("w") as f:
+    with Path(opts.output_path / "hash.txt").open("w") as f:
         f.write(get_git_revision_hash())
 
     G.eval()
@@ -147,34 +147,34 @@ def run_val(G, val_loaders, conf, logger):
 
     for i, (real_im_A, real_im_B) in enumerate(zip(A_val_loader, B_val_loader)):
 
-        num_images += conf.data.loaders.batch_size
+        num_images += opts.data.loaders.batch_size
 
         if real_im_A is not None:
-            if conf.data.return_paths:
+            if opts.data.return_paths:
                 real_im_A, real_im_A_path_list = real_im_A
             real_im_A = real_im_A.cuda()
             fake_im_AB = G(real_im_A, -1)
             imgs_A = [real_im_A, fake_im_AB]
-            if conf.val.infer_rec:
+            if opts.val.infer_rec:
                 imgs_A.append(G(fake_im_AB, 1))
-            if conf.val.infer_idt:
+            if opts.val.infer_idt:
                 imgs_A.append(G(real_im_A, 1))
-            save_imgs(imgs_A, logger, conf, True, True, i)
+            save_imgs(imgs_A, logger, opts, True, True, i)
 
         if real_im_B is not None:
-            if conf.data.return_paths:
+            if opts.data.return_paths:
                 real_im_B, real_im_B_path_list = real_im_B
 
             real_im_B = real_im_B.cuda()
             fake_im_BA = G(real_im_B, 1)
             imgs_B = [real_im_B, fake_im_BA]
-            if conf.val.infer_rec:
+            if opts.val.infer_rec:
                 imgs_B.append(G(fake_im_BA, -1))
-            if conf.val.infer_idt:
+            if opts.val.infer_idt:
                 imgs_B.append(G(real_im_B, -1))
-            save_imgs(imgs_B, logger, conf, True, True, i)
+            save_imgs(imgs_B, logger, opts, True, True, i)
 
-        if num_images >= conf.val.max_log_images:
+        if num_images >= opts.val.max_log_images:
             break
     print(
         "Done, ran on {} images{}.".format(
@@ -208,8 +208,8 @@ def tensor2im(input_image, imtype=np.uint8):
     return image_numpy.astype(imtype)
 
 
-def save_imgs(imgs_tensors, logger, conf, is_A, is_val, iter):
-    """Saves images to disk in conf.output_path / images / {train or val}
+def save_imgs(imgs_tensors, logger, opts, is_A, is_val, iter):
+    """Saves images to disk in opts.output_path / images / {train or val}
     then uploads horizontally-stacked images to comet if logger.exp is not None
 
     Args:
@@ -217,7 +217,7 @@ def save_imgs(imgs_tensors, logger, conf, is_A, is_val, iter):
         real image
         fake_tensor (torch.Tensor): contains the batch images output by the Generator
         logger (addict.Dict): Logger
-        conf (addict.Dict): Configuration dict
+        opts (addict.Dict): Configuration dict
         is_A (bool): Select domain, A or B (for image names)
         is_val (bool): Select mode, train or val (for image names)
     """
@@ -232,7 +232,7 @@ def save_imgs(imgs_tensors, logger, conf, is_A, is_val, iter):
         # fake_image = Image.fromarray(fake_npy)
         staked_image = Image.fromarray(stacked_npy)
 
-        im_path = Path(conf.output_path) / "images" / "val" / str(logger.epoch)
+        im_path = Path(opts.output_path) / "images" / "val" / str(logger.epoch)
         im_path.mkdir(exist_ok=True, parents=True)
         # real_image_path = im_path / "{}_{}_{}_{}_{}.png".format(
         #     "A" if is_A else "B",
@@ -248,7 +248,7 @@ def save_imgs(imgs_tensors, logger, conf, is_A, is_val, iter):
             "A" if is_A else "B", "val" if is_val else "train", idx, logger.step
         )
 
-        if conf.val.store_images:
+        if opts.val.store_images:
             # real_image.save(str(real_image_path))
             # fake_image.save(str(fake_image_path))
             staked_image.save(str(staked_image_path))
@@ -298,7 +298,7 @@ def env_to_path(path):
     return "/".join(new_path)
 
 
-def flatten_conf(conf):
+def flatten_opts(opts):
     values_list = []
 
     def p(d, prefix="", vals=[]):
@@ -313,5 +313,5 @@ def flatten_conf(conf):
                     v = str(v)
                 vals.append((prefix + k, v))
 
-    p(conf, vals=values_list)
+    p(opts, vals=values_list)
     return dict(values_list)

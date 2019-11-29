@@ -8,14 +8,14 @@ from torch.nn import init
 # --------------------------------------------------------------------------
 
 
-def get_gen(conf):
-    G = OmniGenerator(conf)
+def get_gen(opts):
+    G = OmniGenerator(opts)
     G.init_weights()
     return G
 
 
 class Encoder(nn.Module):
-    def __init__(self, conf):
+    def __init__(self, opts):
         super().__init__()
         self.project = nn.Conv2d(3, 64, 1)
         self.downsample = nn.AdaptiveMaxPool2d(32)
@@ -25,39 +25,39 @@ class Encoder(nn.Module):
 
 
 class OmniGenerator(nn.Module):
-    def __init__(self, conf):
-        """Creates the generator. All decoders listed in conf.gen will be added
-        to the Generator.decoders ModuleDict if conf.gen.DecoderInitial is not True.
+    def __init__(self, opts):
+        """Creates the generator. All decoders listed in opts.gen will be added
+        to the Generator.decoders ModuleDict if opts.gen.DecoderInitial is not True.
         Then can be accessed as G.decoders.T or G.decoders["T"] for instance,
         for the image Translation decoder
 
         Args:
-            conf (addict.Dict): configuration dict
+            opts (addict.Dict): configuration dict
         """
         super().__init__()
 
-        self.E = Encoder(conf)
+        self.E = Encoder(opts)
 
         self.decoders = {}
 
-        if "A" in conf.tasks and not conf.gen.A.ignore:
+        if "A" in opts.tasks and not opts.gen.A.ignore:
             self.decoders["A"] = nn.ModuleDict(
-                {"r": AdapatationDecoder(conf), "s": AdapatationDecoder(conf)}
+                {"r": AdapatationDecoder(opts), "s": AdapatationDecoder(opts)}
             )
 
-        if "D" in conf.tasks and not conf.gen.D.ignore:
-            self.decoders["D"] = DepthDecoder(conf)
+        if "D" in opts.tasks and not opts.gen.D.ignore:
+            self.decoders["D"] = DepthDecoder(opts)
 
-        if "H" in conf.tasks and not conf.gen.H.ignore:
-            self.decoders["H"] = HeightDecoder(conf)
+        if "H" in opts.tasks and not opts.gen.H.ignore:
+            self.decoders["H"] = HeightDecoder(opts)
 
-        if "T" in conf.tasks and not conf.gen.T.ignore:
+        if "T" in opts.tasks and not opts.gen.T.ignore:
             self.decoders["T"] = nn.ModuleDict(
-                {"f": TranslationDecoder(conf), "n": TranslationDecoder(conf)}
+                {"f": TranslationDecoder(opts), "n": TranslationDecoder(opts)}
             )
 
-        if "W" in conf.tasks and not conf.gen.W.ignore:
-            self.decoders["W"] = WaterDecoder(conf)
+        if "W" in opts.tasks and not opts.gen.W.ignore:
+            self.decoders["W"] = WaterDecoder(opts)
 
         self.decoders = nn.ModuleDict(self.decoders)
 
@@ -107,7 +107,7 @@ class Decoder(nn.Module):
     """generic class for decoders
     """
 
-    def __init__(self, conf):
+    def __init__(self, opts):
         super().__init__()
 
     def forward(self, x):
@@ -115,8 +115,8 @@ class Decoder(nn.Module):
 
 
 class HeightDecoder(Decoder):
-    def __init__(self, conf):
-        super().__init__(conf)
+    def __init__(self, opts):
+        super().__init__(opts)
         self.layers = []
         self.layers.append(nn.Conv2d(64, 1, 1))
         self.layers.append(nn.UpsamplingNearest2d(256))
@@ -124,8 +124,8 @@ class HeightDecoder(Decoder):
 
 
 class WaterDecoder(Decoder):
-    def __init__(self, conf):
-        super().__init__(conf)
+    def __init__(self, opts):
+        super().__init__(opts)
         self.layers = []
         self.layers.append(nn.Conv2d(64, 1, 1))
         self.layers.append(nn.UpsamplingNearest2d(256))
@@ -133,8 +133,8 @@ class WaterDecoder(Decoder):
 
 
 class DepthDecoder(Decoder):
-    def __init__(self, conf):
-        super().__init__(conf)
+    def __init__(self, opts):
+        super().__init__(opts)
         self.layers = []
         self.layers.append(nn.Conv2d(64, 1, 1))
         self.layers.append(nn.UpsamplingNearest2d(256))
@@ -142,8 +142,8 @@ class DepthDecoder(Decoder):
 
 
 class TranslationDecoder(Decoder):
-    def __init__(self, conf):
-        super().__init__(conf)
+    def __init__(self, opts):
+        super().__init__(opts)
         self.layers = []
         self.layers.append(nn.Conv2d(64, 3, 1))
         self.layers.append(nn.UpsamplingNearest2d(256))
@@ -151,8 +151,8 @@ class TranslationDecoder(Decoder):
 
 
 class AdapatationDecoder(Decoder):
-    def __init__(self, conf):
-        super().__init__(conf)
+    def __init__(self, opts):
+        super().__init__(opts)
         self.layers = []
         self.layers.append(nn.Conv2d(64, 3, 1))
         self.layers.append(nn.UpsamplingNearest2d(256))

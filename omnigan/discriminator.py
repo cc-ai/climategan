@@ -218,8 +218,9 @@ class OmniDiscriminator(nn.Module):
     def __init__(self, opts):
         super().__init__()
         self.A = self.T = None
+        models = {}
         if "A" in opts.tasks:
-            self.A = nn.ModuleDict(
+            models["A"] = nn.ModuleDict(
                 {
                     "r": define_D(
                         3,
@@ -242,7 +243,7 @@ class OmniDiscriminator(nn.Module):
                 }
             )
         if "T" in opts.tasks:
-            self.T = nn.ModuleDict(
+            models["T"] = nn.ModuleDict(
                 {
                     "f": define_D(
                         3,
@@ -264,4 +265,5 @@ class OmniDiscriminator(nn.Module):
                     ),
                 }
             )
+        self.models = nn.ModuleDict(models)
 

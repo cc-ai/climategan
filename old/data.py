@@ -60,7 +60,7 @@ def is_image_file(filename):
 
 def get_transform(transform_item):
     """Returns the torchivion transform function associated to a
-    transform_item listed in conf.data.loaders.transforms
+    transform_item listed in opts.data.loaders.transforms
     """
     if transform_item.name == "crop" and not transform_item.ignore:
         return trsf.RandomCrop((transform_item.height, transform_item.width))
@@ -75,7 +75,7 @@ def get_transform(transform_item):
 
 
 def get_all_transforms(transform_items):
-    """Get all the transform functions listed in conf.data.loaders.transforms
+    """Get all the transform functions listed in opts.data.loaders.transforms
     using get_transform(transform_item)
     """
     last_transforms = [
@@ -94,42 +94,42 @@ def get_all_transforms(transform_items):
 # -------------------------------
 
 
-def get_all_loaders(conf):
-    B_conf = copy(conf.loaders)
-    A_conf = copy(conf.loaders)
+def get_all_loaders(opts):
+    B_conf = copy(opts.loaders)
+    A_conf = copy(opts.loaders)
     B_val_loader = A_val_loader = None
 
-    if conf.dirs.base:
-        B_conf.data_dir = env_to_path(str(Path(conf.dirs.base) / conf.dirs.train.B))
-        A_conf.data_dir = env_to_path(str(Path(conf.dirs.base) / conf.dirs.train.A))
-    if conf.files.base:
-        B_conf.data_file = str(Path(conf.files.base) / conf.files.train.B)
-        A_conf.data_file = env_to_path(str(Path(conf.files.base) / conf.files.train.A))
+    if opts.dirs.base:
+        B_conf.data_dir = env_to_path(str(Path(opts.dirs.base) / opts.dirs.train.B))
+        A_conf.data_dir = env_to_path(str(Path(opts.dirs.base) / opts.dirs.train.A))
+    if opts.files.base:
+        B_conf.data_file = str(Path(opts.files.base) / opts.files.train.B)
+        A_conf.data_file = env_to_path(str(Path(opts.files.base) / opts.files.train.A))
 
     A_loader = get_loader(**A_conf)
     B_loader = get_loader(**B_conf)
 
-    if (conf.dirs.val and conf.dirs.val.A) or (conf.files.val and conf.files.val.A):
-        A_val_conf = copy(conf.loaders)
-        if conf.dirs.base:
+    if (opts.dirs.val and opts.dirs.val.A) or (opts.files.val and opts.files.val.A):
+        A_val_conf = copy(opts.loaders)
+        if opts.dirs.base:
             A_val_conf.data_dir = env_to_path(
-                str(Path(conf.dirs.base) / conf.dirs.val.A)
+                str(Path(opts.dirs.base) / opts.dirs.val.A)
             )
-        if conf.files.base:
+        if opts.files.base:
             A_val_conf.data_file = env_to_path(
-                str(Path(conf.files.base) / conf.files.val.A)
+                str(Path(opts.files.base) / opts.files.val.A)
             )
         A_val_loader = get_loader(**A_val_conf)
 
-    if (conf.dirs.val and conf.dirs.val.B) or (conf.files.val and conf.files.val.B):
-        B_val_conf = copy(conf.loaders)
-        if conf.dirs.base:
+    if (opts.dirs.val and opts.dirs.val.B) or (opts.files.val and opts.files.val.B):
+        B_val_conf = copy(opts.loaders)
+        if opts.dirs.base:
             B_val_conf.data_dir = env_to_path(
-                str(Path(conf.dirs.base) / conf.dirs.val.B)
+                str(Path(opts.dirs.base) / opts.dirs.val.B)
             )
-        if conf.files.base:
+        if opts.files.base:
             B_val_conf.data_file = env_to_path(
-                str(Path(conf.files.base) / conf.files.val.B)
+                str(Path(opts.files.base) / opts.files.val.B)
             )
         B_val_loader = get_loader(**B_val_conf)
 

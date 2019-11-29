@@ -2,20 +2,22 @@ from comet_ml import Experiment
 from addict import Dict
 from time import time
 
-from .generator import get_gen
-from .utils import flatten_conf
-from .optim import get_optimizer
-from .data import get_all_loaders
+from omnigan.generator import get_gen
+from omnigan.utils import flatten_opts
+from omnigan.optim import get_optimizer
+from omnigan.data import get_all_loaders
+from omnigan.discriminator import get_dis
+from omnigan.classifier import get_classifier
 
 
 class Trainer:
-    def __init__(self, conf, comet=None, verbose=0):
+    def __init__(self, opts, comet=None, verbose=0):
         super().__init__()
 
-        self.conf = conf
+        self.opts = opts
         self.logger = Dict()
-        self.logger.lr.g = conf.gen.opt.lr
-        self.logger.lr.d = conf.dis.opt.lr
+        self.logger.lr.g = opts.gen.opt.lr
+        self.logger.lr.d = opts.dis.opt.lr
         self.loaders = None
         self.G = self.D = None
 
@@ -24,21 +26,25 @@ class Trainer:
         self.logger.exp = None
         if comet:
             self.logger.exp = Experiment()
-            self.logger.exp.log_parameters(flatten_conf(conf))
+            self.logger.exp.log_parameters(flatten_opts(opts))
+
+    def compute_latent_shape(self):
+        pass
 
     def setup(self):
         self.logger.step = 0
         start_time = time()
         self.logger.time.start_time = start_time
 
-        self.loaders = get_all_loaders(self.conf.data)
+        self.loaders = get_all_loaders(self.opts.data)
 
-        self.G = get_gen(self.conf.gen).cuda()
-        self.D = get_dis(self.conf.dis).cuda()
-        self.C = get_classifier(self.conf.classifier)  # TODO
+        self.G = get_gen(self.opts.gen).cuda()
+        self.D = get_dis(self.opts.dis).cuda()
+        self.latent_shape = self.compute_latent_shape()  # TODO
+        self.C = get_classifier(self.opts.classifier, self.latent_shape)
 
-        self.g_opt = get_optimizer(self.G, self.conf.gen.opt)
-        self.d_opt = get_optimizer(self.D, self.conf.dis.opt)
+        self.g_opt = get_optimizer(self.G, self.opts.gen.opt)
+        self.d_opt = get_optimizer(self.D, self.opts.dis.opt)
 
         if self.verbose > 0:
             for mode, mode_dict in self.loaders.items():
@@ -58,7 +64,7 @@ class Trainer:
     def train(self):
         assert self.is_setup
 
-        for self.logger.epoch in range(self.conf.train.epochs):
+        for self.logger.epoch in range(self.opts.train.epochs):
             self.run_epoch()
             self.eval()
             self.save()

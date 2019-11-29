@@ -4,22 +4,21 @@ import sys
 
 sys.path.append("..")
 from omnigan.data import OmniListDataset, get_all_loaders
+from omnigan.utils import load_opts, transforms_string
 
 if __name__ == "__main__":
 
-    example_path = Path() / "../example_data"
-    opts = Dict()
-    opts.data.files.train.rn = str(example_path / "train_rn.json")
-    opts.data.files.val.rn = str(example_path / "val_rn.json")
+    opts = load_opts("../shared/defaults.yml")
+
     opts.data.loaders.batch_size = 2
     opts.data.loaders.num_workers = 2
     opts.data.loaders.shuffle = True
-    opts.data.transforms = [Dict()]
-    opts.data.transforms[0].name = "hflip"
-    opts.data.transforms[0].p = 0.5
 
     loaders = get_all_loaders(opts)
+
     ds = OmniListDataset(opts.data.files.train.rn)
+
+    print(transforms_string(loaders.train.rn.dataset.transform))
 
     sample = ds[0]
     batch = Dict(next(iter(loaders.train.rn)))

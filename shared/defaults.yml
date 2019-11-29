@@ -1,6 +1,3 @@
-# -----------------------
-# ----- Output Path -----
-# -----------------------
 output_path: /network/tmp1/schmidtv/yb_runs/test_v1
 # -------------------
 # -----  Tasks  -----
@@ -13,15 +10,15 @@ data:
   files: # if one is not none it will override the dirs location
     base: /Users/victor/Documents/ccai/github/omnigan/example_data
     train:
-      rf: train_rf.json
+      #rf: train_rf.json
       rn: train_rn.json
-      sf: train_sf.json
-      sn: train_sn.json
+      #sf: train_sf.json
+      #sn: train_sn.json
     val:
-      rf: val_rf.json
+      #rf: val_rf.json
       rn: val_rn.json
-      sf: val_sf.json
-      sn: val_sn.json
+      #sf: val_sf.json
+      #sn: val_sn.json
   loaders:
     batch_size: 2
     shuffle: false
@@ -37,6 +34,9 @@ data:
       ignore: false
       height: 224
       width: 224
+    - name: resize
+      ignore: false
+      new_size: 256
 # ---------------------
 # ----- Generator -----
 # ---------------------
@@ -88,7 +88,10 @@ dis:
 # -----  Domain Classifier  -----
 # -------------------------------
 classifier:
-  todo: true
+  layers: [100, 100, 20, 20, 4]
+  dropout: 0.4 # pblity of being set to 0
+  init_type: kaiming
+  init_gain: 0.2
 # ------------------------
 # ----- Train Params -----
 # ------------------------
