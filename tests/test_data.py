@@ -23,6 +23,8 @@ if __name__ == "__main__":
     sample = ds[0]
     batch = Dict(next(iter(loaders.train.rn)))
 
+    print("Batch: ", "items, ", " ".join(batch.keys()), "keys")
+
     for k in batch:
         print(
             k,

@@ -1,6 +1,7 @@
 from comet_ml import Experiment
 from addict import Dict
 from time import time
+import torch
 
 from omnigan.generator import get_gen
 from omnigan.utils import flatten_opts
@@ -15,6 +16,7 @@ class Trainer:
         super().__init__()
 
         self.opts = opts
+        self.verbose = verbose
         self.logger = Dict()
         self.logger.lr.g = opts.gen.opt.lr
         self.logger.lr.d = opts.dis.opt.lr
@@ -23,33 +25,53 @@ class Trainer:
 
         self.is_setup = False
 
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
         self.logger.exp = None
         if comet:
             self.logger.exp = Experiment()
             self.logger.exp.log_parameters(flatten_opts(opts))
 
+    def batch_to_device(self, b):
+        for task, tensor in b.items():
+            b[task] = tensor.to(self.device)
+        return b
+
     def compute_latent_shape(self):
-        pass
+        b = None
+        for mode in self.loaders:
+            for domain in self.loaders[mode]:
+                b = next(iter(self.loaders[mode][domain]))
+                break
+        if b is None:
+            raise ValueError("No batch found to compute_latent_shape")
+        b = self.batch_to_device(b)
+        z = self.G.E(b["x"])
+        return z.shape[1:]
 
     def setup(self):
         self.logger.step = 0
         start_time = time()
         self.logger.time.start_time = start_time
 
-        self.loaders = get_all_loaders(self.opts.data)
+        self.loaders = get_all_loaders(self.opts)
 
-        self.G = get_gen(self.opts.gen).cuda()
-        self.D = get_dis(self.opts.dis).cuda()
+        self.G = get_gen(self.opts).to(self.device)
+        self.D = get_dis(self.opts).to(self.device)
         self.latent_shape = self.compute_latent_shape()  # TODO
-        self.C = get_classifier(self.opts.classifier, self.latent_shape)
+        self.C = get_classifier(self.opts, self.latent_shape).to(self.device)
 
         self.g_opt = get_optimizer(self.G, self.opts.gen.opt)
-        self.d_opt = get_optimizer(self.D, self.opts.dis.opt)
+        self.d_opt = get_optimizer(self.D.models, self.opts.dis.opt)
 
         if self.verbose > 0:
             for mode, mode_dict in self.loaders.items():
-                for domain, domain_loader in mode_dict:
-                    print("Loader {} {} : {}".format(mode, domain, len(domain_loader)))
+                for domain, domain_loader in mode_dict.items():
+                    print(
+                        "Loader {} {} : {}".format(
+                            mode, domain, len(domain_loader.dataset)
+                        )
+                    )
 
         self.is_setup = True
 
@@ -70,7 +92,7 @@ class Trainer:
             self.save()
 
     def update_g(self, batch):
-        loss = 0
+        # loss = 0
 
         if "H" in batch["tasks"]:
             for image in batch["images"].items():

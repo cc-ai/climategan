@@ -8,7 +8,6 @@ from addict import Dict
 import numpy as np
 from .transforms import get_transforms
 from PIL import Image
-import pdb
 
 IMG_EXTENSIONS = set(
     [".jpg", ".JPG", ".jpeg", ".JPEG", ".png", ".PNG", ".ppm", ".PPM", ".bmp", ".BMP"]
@@ -136,7 +135,7 @@ class OmniListDataset(Dataset):
 def get_loader(domain, mode, opts):
     return DataLoader(
         OmniListDataset(
-            opts.data.files.train[domain],
+            opts.data.files[mode][domain],
             transform=transforms.Compose(get_transforms(opts)),
         ),
         batch_size=opts.data.loaders.get("batch_size", 4),

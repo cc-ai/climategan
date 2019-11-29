@@ -1,13 +1,15 @@
 from torch import nn
 import numpy as np
 
-from omnigan.discriminator import init_weights
+from omnigan.utils import init_weights
 
 
 def get_classifier(opts, latent_shape):
     latent_size = np.prod(latent_shape)
     C = OmniClassifier(opts, latent_size)
-    init_weights(C, init_type=opts.classifier.init_type, gain=opts.classifier.init_gain)
+    init_weights(
+        C, init_type=opts.classifier.init_type, init_gain=opts.classifier.init_gain
+    )
     return C
 
 
