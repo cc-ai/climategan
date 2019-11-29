@@ -7,7 +7,7 @@ from omnigan.utils import init_weights
 # --------------------------------------------------------------------------
 
 
-def get_gen(opts, verbose):
+def get_gen(opts, verbose=0):
     G = OmniGenerator(opts)
     for model in G.decoders:
         net = G.decoders[model]
@@ -51,28 +51,28 @@ class OmniGenerator(nn.Module):
         """
         super().__init__()
 
-        self.E = Encoder(opts)
+        self.encoder = Encoder(opts)
 
         self.decoders = {}
 
-        if "A" in opts.tasks and not opts.gen.A.ignore:
-            self.decoders["A"] = nn.ModuleDict(
+        if "a" in opts.tasks and not opts.gen.A.ignore:
+            self.decoders["a"] = nn.ModuleDict(
                 {"r": AdapatationDecoder(opts), "s": AdapatationDecoder(opts)}
             )
 
-        if "D" in opts.tasks and not opts.gen.D.ignore:
-            self.decoders["D"] = DepthDecoder(opts)
+        if "d" in opts.tasks and not opts.gen.D.ignore:
+            self.decoders["d"] = DepthDecoder(opts)
 
-        if "H" in opts.tasks and not opts.gen.H.ignore:
-            self.decoders["H"] = HeightDecoder(opts)
+        if "h" in opts.tasks and not opts.gen.H.ignore:
+            self.decoders["h"] = HeightDecoder(opts)
 
-        if "T" in opts.tasks and not opts.gen.T.ignore:
-            self.decoders["T"] = nn.ModuleDict(
+        if "t" in opts.tasks and not opts.gen.T.ignore:
+            self.decoders["t"] = nn.ModuleDict(
                 {"f": TranslationDecoder(opts), "n": TranslationDecoder(opts)}
             )
 
-        if "W" in opts.tasks and not opts.gen.W.ignore:
-            self.decoders["W"] = WaterDecoder(opts)
+        if "w" in opts.tasks and not opts.gen.W.ignore:
+            self.decoders["w"] = WaterDecoder(opts)
 
         self.decoders = nn.ModuleDict(self.decoders)
 

@@ -16,7 +16,7 @@ if __name__ == "__main__":
 
     print(
         "Parameters in each domain Discriminator: ",
-        sum(p.numel() for p in D.models["T"]["n"].parameters()),
+        sum(p.numel() for p in D.models["t"]["n"].parameters()),
     )
 
     image = torch.from_numpy(np.random.rand(5, 3, 512, 512)).to(torch.float32)

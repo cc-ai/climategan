@@ -2,7 +2,7 @@ output_path: /network/tmp1/schmidtv/yb_runs/test_v1
 # -------------------
 # -----  Tasks  -----
 # -------------------
-tasks: [A, D, H, T, W]
+tasks: [a, d, h, t, w]
 # ----------------
 # ----- Data -----
 # ----------------
@@ -61,7 +61,7 @@ gen:
     init_gain: 0.2
     lambda_rec: 1
     lambda_idt: 1
-  A:
+  a:
     lambda_idt: 5
 # Set gen.A.init_gain to overwrite this parameter for A only
 # -------------------------

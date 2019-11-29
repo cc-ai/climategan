@@ -33,20 +33,23 @@ class Trainer:
             self.logger.exp.log_parameters(flatten_opts(opts))
 
     def batch_to_device(self, b):
-        for task, tensor in b.items():
-            b[task] = tensor.to(self.device)
+        for task, tensor in b.data.items():
+            b.data[task] = tensor.to(self.device)
         return b
 
     def compute_latent_shape(self):
         b = None
         for mode in self.loaders:
             for domain in self.loaders[mode]:
-                b = next(iter(self.loaders[mode][domain]))
+                b = Dict(next(iter(self.loaders[mode][domain])))
                 break
         if b is None:
             raise ValueError("No batch found to compute_latent_shape")
+
+        print(b)
+
         b = self.batch_to_device(b)
-        z = self.G.E(b["x"])
+        z = self.G.encoder(b.data.x)
         return z.shape[1:]
 
     def setup(self):
@@ -101,7 +104,8 @@ class Trainer:
             self.update_g_translation(batch)
 
     def update_g_representation(self, batch):
-        self.z = self.G.E(batch.x)
+        self.z = self.G.encoder(batch.data.x)
+
         pass
 
     def update_g_translation(self, batch):

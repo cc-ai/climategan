@@ -39,6 +39,9 @@ def define_D(
 
 
 def get_norm_layer(norm_type="instance"):
+    if not norm_type:
+        print("norm_type is {}, defaulting to instance")
+        norm_type = "instance"
     if norm_type == "batch":
         norm_layer = functools.partial(nn.BatchNorm2d, affine=True)
     elif norm_type == "instance":
@@ -198,51 +201,51 @@ class NLayerDiscriminator(nn.Module):
 class OmniDiscriminator(nn.Module):
     def __init__(self, opts):
         super().__init__()
-        self.A = self.T = None
+        self.a = self.t = None
         models = {}
-        if "A" in opts.tasks:
-            models["A"] = nn.ModuleDict(
+        if "a" in opts.tasks:
+            models["a"] = nn.ModuleDict(
                 {
                     "r": define_D(
                         3,
-                        opts.dis.A.ndf,
-                        n_layers_D=opts.dis.A.n_layers,
-                        norm=opts.dis.A.norm,
-                        use_sigmoid=opts.dis.A.use_sigmoid,
-                        init_type=opts.dis.A.init_type,
-                        init_gain=opts.dis.A.init_gain,
+                        opts.dis.a.ndf,
+                        n_layers_D=opts.dis.a.n_layers,
+                        norm=opts.dis.a.norm,
+                        use_sigmoid=opts.dis.a.use_sigmoid,
+                        init_type=opts.dis.a.init_type,
+                        init_gain=opts.dis.a.init_gain,
                     ),
                     "f": define_D(
                         3,
-                        opts.dis.A.ndf,
-                        n_layers_D=opts.dis.A.n_layers,
-                        norm=opts.dis.A.norm,
-                        use_sigmoid=opts.dis.A.use_sigmoid,
-                        init_type=opts.dis.A.init_type,
-                        init_gain=opts.dis.A.init_gain,
+                        opts.dis.a.ndf,
+                        n_layers_D=opts.dis.a.n_layers,
+                        norm=opts.dis.a.norm,
+                        use_sigmoid=opts.dis.a.use_sigmoid,
+                        init_type=opts.dis.a.init_type,
+                        init_gain=opts.dis.a.init_gain,
                     ),
                 }
             )
-        if "T" in opts.tasks:
-            models["T"] = nn.ModuleDict(
+        if "t" in opts.tasks:
+            models["t"] = nn.ModuleDict(
                 {
                     "f": define_D(
                         3,
-                        opts.dis.T.ndf,
-                        n_layers_D=opts.dis.T.n_layers,
-                        norm=opts.dis.T.norm,
-                        use_sigmoid=opts.dis.T.use_sigmoid,
-                        init_type=opts.dis.T.init_type,
-                        init_gain=opts.dis.T.init_gain,
+                        opts.dis.t.ndf,
+                        n_layers_D=opts.dis.t.n_layers,
+                        norm=opts.dis.t.norm,
+                        use_sigmoid=opts.dis.t.use_sigmoid,
+                        init_type=opts.dis.t.init_type,
+                        init_gain=opts.dis.t.init_gain,
                     ),
                     "n": define_D(
                         3,
-                        opts.dis.T.ndf,
-                        n_layers_D=opts.dis.T.n_layers,
-                        norm=opts.dis.T.norm,
-                        use_sigmoid=opts.dis.T.use_sigmoid,
-                        init_type=opts.dis.T.init_type,
-                        init_gain=opts.dis.T.init_gain,
+                        opts.dis.t.ndf,
+                        n_layers_D=opts.dis.t.n_layers,
+                        norm=opts.dis.t.norm,
+                        use_sigmoid=opts.dis.t.use_sigmoid,
+                        init_type=opts.dis.t.init_type,
+                        init_gain=opts.dis.t.init_gain,
                     ),
                 }
             )
