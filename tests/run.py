@@ -41,7 +41,7 @@ if __name__ == "__main__":
                 print(error)
                 print("=" * len(error))
             else:
-                ok = ">>> Done <<<"
+                ok = ">>> DONE {} <<<".format(test_path.name)
                 print(bcolors.OKGREEN)
                 print("=" * len(ok))
                 print(ok)
