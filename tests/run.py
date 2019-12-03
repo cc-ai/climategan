@@ -2,6 +2,18 @@ import os
 from pathlib import Path
 import argparse
 
+
+class bcolors:
+    HEADER = "\033[95m"
+    OKBLUE = "\033[94m"
+    OKGREEN = "\033[92m"
+    WARNING = "\033[93m"
+    FAIL = "\033[91m"
+    ENDC = "\033[0m"
+    BOLD = "\033[1m"
+    UNDERLINE = "\033[4m"
+
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
@@ -15,6 +27,24 @@ if __name__ == "__main__":
     for test_path in tests:
         name = test_path.stem.split("test_")[1]
         if name not in ignores:
-            print(">>> RUNNING {}".format(test_path.name))
-            os.system("python {}".format(str(test_path)))
-            print("\n\n Done.\n\n")
+            title = ">>> RUNNING {} <<<".format(test_path.name)
+            print(bcolors.OKBLUE)
+            print("=" * len(title))
+            print(title)
+            print("=" * len(title))
+            print(bcolors.ENDC)
+            status = os.system("python {}".format(str(test_path)))
+            if status != 0:
+                error = ">>>>>>>>>> Error <<<<<<<<<<"
+                print(bcolors.FAIL)
+                print("=" * len(error))
+                print(error)
+                print("=" * len(error))
+            else:
+                ok = ">>> Done <<<"
+                print(bcolors.OKGREEN)
+                print("=" * len(ok))
+                print(ok)
+                print("=" * len(ok))
+            print(bcolors.ENDC)
+            print("\n\n\n")
