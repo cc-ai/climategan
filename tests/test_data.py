@@ -48,7 +48,7 @@ if __name__ == "__main__":
     )
 
     for i, multi_batch in enumerate(
-        zip(loaders["train"][domain] for domain in loaders["train"])
+        zip(*[loaders["train"][domain] for domain in loaders["train"]])
     ):
         print(
             "\n\n".join(
