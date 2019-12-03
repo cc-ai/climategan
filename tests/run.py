@@ -29,6 +29,9 @@ if __name__ == "__main__":
 
     tests = Path(__file__).parent.glob("test_*.py")
 
+    passed = []
+    failed = []
+
     for test_path in tests:
         name = test_path.stem.split("test_")[1]
         if name not in ignores:
@@ -45,11 +48,22 @@ if __name__ == "__main__":
                 print("=" * len(error))
                 print(error)
                 print("=" * len(error))
+                failed.append(test_path.name)
             else:
                 ok = ">>> DONE {} <<<".format(test_path.name)
                 print(bcolors.OKGREEN)
                 print("=" * len(ok))
                 print(ok)
                 print("=" * len(ok))
+                passed.append(test_path.name)
             print(bcolors.ENDC)
             print("\n\n\n")
+
+    passed_nb = "all"
+    if failed:
+        passed_nb = len(passed)
+        print(bcolors.FAIL + "{} tests failed".format(len(failed)))
+        for name in failed:
+            print("  - {}".format(name))
+        print(bcolors.ENDC)
+    print(bcolors.OKGREEN + "{} tests passed".format(passed_nb) + bcolors.ENDC)
