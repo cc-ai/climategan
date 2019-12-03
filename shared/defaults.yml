@@ -3,6 +3,7 @@ output_path: /network/tmp1/schmidtv/yb_runs/test_v1
 # -----  Tasks  -----
 # -------------------
 tasks: [a, d, h, s, t, w]
+
 # ----------------
 # ----- Data -----
 # ----------------
@@ -37,6 +38,7 @@ data:
     - name: resize
       ignore: false
       new_size: 256
+
 # ---------------------
 # ----- Generator -----
 # ---------------------
@@ -64,6 +66,7 @@ gen:
   a:
     lambda_idt: 5
 # Set gen.A.init_gain to overwrite this parameter for A only
+
 # -------------------------
 # ----- Discriminator -----
 # -------------------------
@@ -76,7 +79,7 @@ dis:
     niter_decay: null # for linear decay
     lr: 0.0005
     beta1: 0.5
-  default:
+  default: # default setting for discriminators (there are 4 of them for rn rf sn sf)
     input_nc: 3
     ndf: 64
     n_layers: 3
@@ -84,20 +87,29 @@ dis:
     init_type: kaiming
     init_gain: 0.2
     use_sigmoid: false
+
 # -------------------------------
 # -----  Domain Classifier  -----
 # -------------------------------
 classifier:
-  layers: [100, 100, 20, 20, 4]
+  layers: [100, 100, 20, 20, 4] # number of units per hidden layer ; las number is output_dim
   dropout: 0.4 # pblity of being set to 0
   init_type: kaiming
   init_gain: 0.2
+
 # ------------------------
 # ----- Train Params -----
 # ------------------------
 train:
   epochs: 1000
-  represention_steps: 0
+  represention_steps: 0 # for how many steps whould the representation be trained before we train the translation
+  freeze_reprensentaion: False # whether or not to backprop into the representation when doing the translation
+  lambdas: # scaling factors in the total loss
+    default: 1 # default values for all tasks
+    auto: # auto-encoder loss coefficients
+      a: 1
+      t: 1
+
 # -----------------------------
 # ----- Validation Params -----
 # -----------------------------

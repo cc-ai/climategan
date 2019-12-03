@@ -57,17 +57,29 @@ def load_opts(path):
                         Path(opts.data.files.base) / opts.data.files[mode][domain]
                     )
 
+            # set default decoder parameters for all tasks
             for k in opts.tasks:
                 tmp = copy(opts.gen.default)
                 if k in opts.gen:
                     tmp.update(opts.gen[k])
                 opts.gen[k] = tmp
 
+            # set default discriminator parameters
             for k in {"a", "t"} & set(opts.tasks):
                 tmp = copy(opts.dis.default)
                 if k in opts.dis:
                     tmp.update(opts.dis[k])
                 opts.dis[k] = tmp
+
+            # set default loss coefficients for tasks and auto-encoding
+            for k in opts.tasks:
+                default = opts.train.lambdas.default
+                if k not in opts.train.lambdas:
+                    opts.train.lambdas[k] = default
+            if "a" not in opts.train.lambdas.auto:
+                opts.train.lambdas.auto.a = default
+            if "t" not in opts.train.lambdas.auto:
+                opts.train.lambdas.auto.t = default
 
             return opts
         except yaml.YAMLError as exc:
