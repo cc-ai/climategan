@@ -4,6 +4,7 @@ from addict import Dict
 import sys
 
 sys.path.append("..")
+
 from omnigan.trainer import Trainer
 from omnigan.utils import load_opts
 

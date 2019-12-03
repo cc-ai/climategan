@@ -21,7 +21,6 @@ class Trainer:
         self.logger.lr.g = opts.gen.opt.lr
         self.logger.lr.d = opts.dis.opt.lr
         self.loaders = None
-        self.G = self.D = None
 
         self.is_setup = False
 
@@ -45,9 +44,6 @@ class Trainer:
                 break
         if b is None:
             raise ValueError("No batch found to compute_latent_shape")
-
-        print(b)
-
         b = self.batch_to_device(b)
         z = self.G.encoder(b.data.x)
         return z.shape[1:]
@@ -61,7 +57,7 @@ class Trainer:
 
         self.G = get_gen(self.opts, verbose=self.verbose).to(self.device)
         self.D = get_dis(self.opts, verbose=self.verbose).to(self.device)
-        self.latent_shape = self.compute_latent_shape()  # TODO
+        self.latent_shape = self.compute_latent_shape()
         self.C = get_classifier(self.opts, self.latent_shape, verbose=self.verbose).to(
             self.device
         )
@@ -104,7 +100,7 @@ class Trainer:
             self.update_g_translation(batch)
 
     def update_g_representation(self, batch):
-        self.z = self.G.encoder(batch.data.x)
+        self.z = self.G.encoder(batch["data"]["x"])
 
         pass
 

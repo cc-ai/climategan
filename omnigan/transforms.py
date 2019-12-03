@@ -1,7 +1,6 @@
 from torchvision import transforms as trsfs
 import torchvision.transforms.functional as TF
 import numpy as np
-from addict import Dict
 
 
 class Resize:
@@ -16,10 +15,8 @@ class Resize:
         self.h = int(self.h)
         self.w = int(self.w)
 
-    def __call__(self, sample):
-        return Dict(
-            {task: TF.resize(im, (self.h, self.w)) for task, im in sample.items()}
-        )
+    def __call__(self, data):
+        return {task: TF.resize(im, (self.h, self.w)) for task, im in data.items()}
 
 
 class RandomCrop:
@@ -34,12 +31,12 @@ class RandomCrop:
         self.h = int(self.h)
         self.w = int(self.w)
 
-    def __call__(self, sample):
-        h, w = sample.x.size[-2:]
+    def __call__(self, data):
+        h, w = data["x"].size[-2:]
         top = np.random.randint(0, h - self.h)
         left = np.random.randint(0, w - self.w)
 
-        return Dict({task: TF.crop(im, top, left, h, w) for task, im in sample.items()})
+        return {task: TF.crop(im, top, left, h, w) for task, im in data.items()}
 
 
 class RandomVerticalFlip:
@@ -47,11 +44,10 @@ class RandomVerticalFlip:
         self.flip = TF.vflip
         self.p = p
 
-    def __call__(self, sample):
+    def __call__(self, data):
         if np.random.rand() > self.p:
-            return sample
-
-        return Dict({task: self.flip(im) for task, im in sample.items()})
+            return data
+        return {task: self.flip(im) for task, im in data.items()}
 
 
 class ToTensor:
@@ -59,14 +55,14 @@ class ToTensor:
         self.ImagetoTensor = trsfs.ToTensor()
         self.MaptoTensor = self.ImagetoTensor
 
-    def __call__(self, sample):
-        new_sample = Dict()
-        for task, im in sample.items():
-            if task in {"x", "s"}:
-                new_sample[task] = self.ImagetoTensor(im)
-            elif task in {"h", "d"}:
-                new_sample[task] = self.MaptoTensor(im)
-        return new_sample
+    def __call__(self, data):
+        new_data = {}
+        for task, im in data.items():
+            if task in {"x", "s", "a"}:
+                new_data[task] = self.ImagetoTensor(im)
+            elif task in {"h", "d", "w"}:
+                new_data[task] = self.MaptoTensor(im)
+        return new_data
 
 
 class Normalize:
@@ -81,13 +77,11 @@ class Normalize:
             "d": self.normDepth,
         }
 
-    def __call__(self, sample):
-        return Dict(
-            {
-                task: self.normalize[task](tensor) if task in self.normalize else tensor
-                for task, tensor in sample.items()
-            }
-        )
+    def __call__(self, data):
+        return {
+            task: self.normalize[task](tensor) if task in self.normalize else tensor
+            for task, tensor in data.items()
+        }
 
 
 def get_transform(transform_item):

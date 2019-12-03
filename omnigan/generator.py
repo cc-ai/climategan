@@ -66,6 +66,9 @@ class OmniGenerator(nn.Module):
         if "h" in opts.tasks and not opts.gen.H.ignore:
             self.decoders["h"] = HeightDecoder(opts)
 
+        if "s" in opts.tasks and not opts.gen.H.ignore:
+            self.decoders["s"] = SegmentationDecoder(opts)
+
         if "t" in opts.tasks and not opts.gen.T.ignore:
             self.decoders["t"] = nn.ModuleDict(
                 {"f": TranslationDecoder(opts), "n": TranslationDecoder(opts)}
@@ -116,6 +119,15 @@ class DepthDecoder(Decoder):
 
 
 class TranslationDecoder(Decoder):
+    def __init__(self, opts):
+        super().__init__(opts)
+        self.layers = []
+        self.layers.append(nn.Conv2d(64, 3, 1))
+        self.layers.append(nn.UpsamplingNearest2d(256))
+        self.layers = nn.Sequential(*self.layers)
+
+
+class SegmentationDecoder(Decoder):
     def __init__(self, opts):
         super().__init__(opts)
         self.layers = []

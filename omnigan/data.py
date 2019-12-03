@@ -4,7 +4,6 @@ import json
 from torch.utils.data import DataLoader, Dataset
 from imageio import imread
 from torchvision import transforms
-from addict import Dict
 import numpy as np
 from .transforms import get_transforms
 from PIL import Image
@@ -106,30 +105,27 @@ class OmniListDataset(Dataset):
 
     def __getitem__(self, i):
         if self.transform:
-            return Dict(
-                {
-                    "data": self.transform(
-                        {
-                            task: pil_image_loader(path, task)
-                            for task, path in self.samples_paths[i].items()
-                        }
-                    ),
-                    "paths": self.samples_paths[i],
-                    "domain": self.domain,
-                    "mode": self.mode,
-                }
-            )
-            return Dict(
-                {
-                    "data": {
+            return {
+                "data": self.transform(
+                    {
                         task: pil_image_loader(path, task)
                         for task, path in self.samples_paths[i].items()
-                    },
-                    "paths": self.samples_paths[i],
-                    "domain": self.domain,
-                    "mode": self.mode,
-                }
-            )
+                    }
+                ),
+                "paths": self.samples_paths[i],
+                "domain": self.domain,
+                "mode": self.mode,
+            }
+
+        return {
+            "data": {
+                task: pil_image_loader(path, task)
+                for task, path in self.samples_paths[i].items()
+            },
+            "paths": self.samples_paths[i],
+            "domain": self.domain,
+            "mode": self.mode,
+        }
 
     def __len__(self):
         return len(self.samples_paths)
@@ -164,8 +160,9 @@ def get_loader(domain, mode, opts):
 
 
 def get_all_loaders(opts):
-    loaders = Dict()
+    loaders = {}
     for mode in ["train", "val"]:
+        loaders[mode] = {}
         for domain in ["rf", "rn", "sf", "sn"]:
             if mode in opts.data.files:
                 if domain in opts.data.files[mode]:

@@ -2,7 +2,7 @@ output_path: /network/tmp1/schmidtv/yb_runs/test_v1
 # -------------------
 # -----  Tasks  -----
 # -------------------
-tasks: [a, d, h, t, w]
+tasks: [a, d, h, s, t, w]
 # ----------------
 # ----- Data -----
 # ----------------

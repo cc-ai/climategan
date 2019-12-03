@@ -3,6 +3,7 @@ import torch
 import numpy as np
 
 sys.path.append("..")
+
 from omnigan.discriminator import OmniDiscriminator
 from omnigan.utils import load_opts
 from omnigan.losses import GANLoss
