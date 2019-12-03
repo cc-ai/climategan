@@ -53,27 +53,28 @@ class Trainer:
 
         # translation losses
         if "a" in self.opts.tasks:
-            self.losses["a"] = lambda x: -1
+            self.losses["a"] = lambda x, y: (x + y).mean()
 
         if "t" in self.opts.tasks:
-            self.losses["a"] = lambda x: -1
+            self.losses["t"] = lambda x, y: (x + y).mean()
 
         # task losses
         if "d" in self.opts.tasks:
-            self.losses["d"] = lambda x: -1
+            self.losses["d"] = lambda x, y: (x + y).mean()
 
         if "h" in self.opts.tasks:
-            self.losses["a"] = lambda x: -1
+            self.losses["h"] = lambda x, y: (x + y).mean()
 
         if "s" in self.opts.tasks:
-            self.losses["a"] = lambda x: -1
+            self.losses["s"] = lambda x, y: (x + y).mean()
 
         if "w" in self.opts.tasks:
-            self.losses["a"] = lambda x: -1
+            self.losses["w"] = lambda x, y: (x + y).mean()
 
         # auto-encoder losses
-        self.losses["auto"]["a"] = lambda x: -1
-        self.losses["auto"]["t"] = lambda x: -1
+        self.losses["auto"] = {}
+        self.losses["auto"]["a"] = lambda x, y: (x + y).mean()
+        self.losses["auto"]["t"] = lambda x, y: (x + y).mean()
 
     def setup(self):
         self.logger.step = 0
@@ -105,11 +106,21 @@ class Trainer:
 
         self.is_setup = True
 
+    def g_opt_step(self):
+        if "extra" in self.opts.gen.opt.optimizer.lower() and (
+            self.logger.step % 2 == 0
+        ):
+            self.g_opt.extrapolation()
+        else:
+            self.g_opt.step()
+
+    @property
+    def train_loaders(self):
+        return zip(*[self.loaders["train"][domain] for domain in self.loaders["train"]])
+
     def run_epoch(self):
         assert self.is_setup
-        for i, multi_batch_tuple in enumerate(
-            zip(*[self.loaders["train"][domain] for domain in self.loaders["train"]])
-        ):
+        for i, multi_batch_tuple in enumerate(self.train_loaders):
             domain_batch = {batch["domain"][0]: batch for batch in multi_batch_tuple}
             self.update_g(domain_batch)
             self.update_d(domain_batch)
@@ -137,44 +148,73 @@ class Trainer:
 
     def update_g_representation(self, domain_batch):
         step_loss = 0
+        self.g_opt.zero_grad()
         for batch in domain_batch.values():
             self.z = self.G.encoder(batch["data"]["x"])
-            self.predictions = {}
-            domain = batch["domain"][0]
+            predictions = {}
+            batch_domain = batch["domain"][0]
             # task-specific regression losses
-            for task, target in batch["data"].items():
+            for update_task, update_target in batch["data"].items():
                 # task t (=translation) will be done in update_g_translation
-                # task a (= adaptation) will be done hereafter
-                if task in {"t", "a", "x"}:
+                # task a (=adaptation) will be done hereafter
+                if update_task in {"t", "a", "x"}:
                     continue
                 else:
-                    self.predictions[task] = self.G.decoders[task](self.z)
-                    loss = self.losses[task](target, self.predictions[task])
-                    step_loss += self.opts.train.lambdas[task] * loss
+                    predictions[update_task] = self.G.decoders[update_task](self.z)
+                    update_loss = self.losses[update_task](
+                        update_target, predictions[update_task]
+                    )
+                    step_loss += self.opts.train.lambdas[update_task] * update_loss
+
+                    self.debug("update_g_representation", locals(), 0)
 
             # auto-encoding update for translation
-            translation_decoder = domain[-1]
+            translation_decoder = batch_domain[-1]
             reconstruction = self.G.decoders["t"][translation_decoder](self.z)
-            loss = self.losses["auto"]["t"](target, reconstruction)
-            step_loss += self.opts.train.lambdas["auto"]["t"] * loss
+            update_loss = self.losses["auto"]["t"](batch["data"]["x"], reconstruction)
+            step_loss += self.opts.train.lambdas["auto"]["t"] * update_loss
+            self.debug("update_g_representation", locals(), 1)
 
             # auto-encoding update for adaptation
-            adaptation_decoder = domain[0]
+            adaptation_decoder = batch_domain[0]
             reconstruction = self.G.decoders["a"][adaptation_decoder](self.z)
-            loss = self.losses["auto"]["a"](target, reconstruction)
-            step_loss += self.opts.train.lambdas["auto"]["a"] * loss
+            update_loss = self.losses["auto"]["a"](batch["data"]["x"], reconstruction)
+            step_loss += self.opts.train.lambdas.auto.a * update_loss
+            self.debug("update_g_representation", locals(), 2)
 
         if "a" in self.opts.tasks:
-            # adaptaion task
+            # Adversarial adaptaion task
+            adaptation_tasks = []
             if "rn" in domain_batch and "sn" in domain_batch:
-                self.z_rn = self.G.encoder(domain_batch["rn"]["data"]["x"])
-                self.fake_sn = self.G.A["s"](self.z_rn)
-
-                self.z_sn = self.G.encoder(domain_batch["rn"]["data"]["x"])
-                self.fake_sn = self.G.A["s"](self.z_rn)
-
+                adaptation_tasks.append(("rn", "sn"))
             if "rf" in domain_batch and "sf" in domain_batch:
-                pass
+                adaptation_tasks.append(("rf", "sf"))
+
+            # adaptation_tasks = [("rn", "sn"), ("rf", "sf")]
+
+            assert len(adaptation_tasks) > 0
+
+            for source_domain, target_domain in adaptation_tasks:
+
+                real_source = domain_batch[source_domain]["data"]["x"]
+                real_target = domain_batch[target_domain]["data"]["x"]
+
+                z_real_source = self.G.encoder(real_source)
+                z_real_target = self.G.encoder(real_target)
+
+                fake_source = self.G.decoders["a"][source_domain[0]](z_real_target)
+                fake_target = self.G.decoders["a"][target_domain[0]](z_real_source)
+
+                self.debug("update_g_representation", locals(), 3)
+
+                for real, fake in [
+                    (real_source, fake_source),
+                    (real_target, fake_target),
+                ]:
+                    update_loss = self.losses["auto"]["a"](real, fake)
+                    step_loss += self.opts.train.lambdas.auto.a * update_loss
+        step_loss.backward()
+        self.g_opt_step()
 
     def update_g_translation(self, batch):
         pass
@@ -193,3 +233,43 @@ class Trainer:
 
     def resume(self):
         pass
+
+    def debug(self, func_name, local_vars, index=None):
+        if self.verbose == 0:
+            return
+
+        # pdb.set_trace()
+
+        if func_name == "update_g_representation":
+            if index == 0:
+                print(
+                    "Domain {} Task {} Pred {} Loss {}".format(
+                        local_vars["batch_domain"],
+                        local_vars["update_task"],
+                        local_vars["predictions"][local_vars["update_task"]].shape,
+                        local_vars["update_loss"],
+                    )
+                )
+            if index == 1:
+                print(
+                    "Translation reconstruction {} Loss {}".format(
+                        local_vars["reconstruction"].shape, local_vars["update_loss"]
+                    )
+                )
+            if index == 2:
+                print(
+                    "Adaptation reconstruction {} Loss {}".format(
+                        local_vars["reconstruction"].shape, local_vars["update_loss"]
+                    )
+                )
+            if index == 3:
+                print("{}: {}".format("real_source", local_vars["real_source"].shape))
+                print("{}: {}".format("real_target", local_vars["real_target"].shape))
+                print(
+                    "{}: {}".format("z_real_source", local_vars["z_real_source"].shape)
+                )
+                print(
+                    "{}: {}".format("z_real_target", local_vars["z_real_target"].shape)
+                )
+                print("{}: {}".format("fake_source", local_vars["fake_source"].shape))
+                print("{}: {}".format("fake_target", local_vars["fake_target"].shape))

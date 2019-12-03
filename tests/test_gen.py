@@ -5,8 +5,10 @@ import sys
 
 sys.path.append("..")
 
-from omnigan.generator import OmniGenerator, get_gen
-from omnigan.utils import init_weights, load_opts
+from omnigan.generator import get_gen
+from omnigan.utils import load_opts
+from run import print_header
+
 
 if __name__ == "__main__":
 
@@ -25,7 +27,7 @@ if __name__ == "__main__":
     test_encode_decode = True
 
     if test_partial_decoder:
-        print("\n --- test_partial_decoder")
+        print_header("test_partial_decoder")
         opts.gen.a.ignore = False
         opts.gen.d.ignore = True
         opts.gen.h.ignore = False
@@ -51,12 +53,12 @@ if __name__ == "__main__":
     print("ENCODER:", G.encoder)
 
     if test_encoder:
-        print("\n --- test_encoder")
+        print_header("test_encoder")
         encoded = G.encoder(image)
         print(encoded.shape)
 
     if test_encode_decode:
-        print("\n --- test_encode_decode")
+        print_header("test_encode_decode")
         z = G.encoder(image)
         for dec in "adhtw":
             if dec in G.decoders:

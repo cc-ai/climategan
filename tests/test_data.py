@@ -1,7 +1,6 @@
 from pathlib import Path
 from addict import Dict
 import sys
-import torch
 
 sys.path.append("..")
 

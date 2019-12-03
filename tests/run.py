@@ -14,6 +14,11 @@ class bcolors:
     UNDERLINE = "\033[4m"
 
 
+def print_header(*args):
+    s = " ".join(args)
+    print(bcolors.HEADER + "\n --- " + s + "\n" + bcolors.ENDC)
+
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
