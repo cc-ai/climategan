@@ -96,7 +96,7 @@ def get_git_revision_hash():
 
 
 def get_increased_path(path):
-    """Retuns an increased path: if dir exists, returns `dir (1)`.
+    """Returns an increased path: if dir exists, returns `dir (1)`.
     If `dir (i)` exists, returns `dir (max(i) + 1)`
 
     get_increased_path("test").mkdir() creates `test/`

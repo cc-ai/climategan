@@ -155,7 +155,7 @@ class Trainer:
         Args:
             domain_batch (dict): dictionnary of domain batches
         """
-        r_loss = t_loss = loss = None
+        r_loss = t_loss = None
         if (
             not self.opts.train.representational_training
             or self.logger.global_step < self.opts.train.representation_steps
