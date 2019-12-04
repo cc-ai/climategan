@@ -224,3 +224,8 @@ def init_weights(net, init_type="normal", init_gain=0.02, verbose=0):
     if verbose > 0:
         print("initialize %s with %s" % (net.__class__.__name__, init_type))
     net.apply(init_func)
+
+
+def freeze(self, net):
+    for p in net.parameters():
+        p.requires_grad = False

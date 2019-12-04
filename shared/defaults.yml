@@ -92,6 +92,10 @@ dis:
 # -----  Domain Classifier  -----
 # -------------------------------
 classifier:
+  opt:
+    optimizer: ExtraAdam
+    lr: 0.0005
+    beta1: 0.5
   layers: [100, 100, 20, 20, 4] # number of units per hidden layer ; las number is output_dim
   dropout: 0.4 # probability of being set to 0
   init_type: kaiming
@@ -102,6 +106,7 @@ classifier:
 # ------------------------
 train:
   epochs: 1000
+  representational_training: False
   representation_steps: 0 # for how many steps would the representation be trained before we train the translation
   freeze_representation: False # whether or not to backprop into the representation when doing the translation
   lambdas: # scaling factors in the total loss
