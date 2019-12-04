@@ -60,6 +60,11 @@ class OmniGenerator(nn.Module):
                 {"r": AdapatationDecoder(opts), "s": AdapatationDecoder(opts)}
             )
 
+        if "t" in opts.tasks and not opts.gen.T.ignore:
+            self.decoders["t"] = nn.ModuleDict(
+                {"f": TranslationDecoder(opts), "n": TranslationDecoder(opts)}
+            )
+
         if "d" in opts.tasks and not opts.gen.D.ignore:
             self.decoders["d"] = DepthDecoder(opts)
 
@@ -68,11 +73,6 @@ class OmniGenerator(nn.Module):
 
         if "s" in opts.tasks and not opts.gen.H.ignore:
             self.decoders["s"] = SegmentationDecoder(opts)
-
-        if "t" in opts.tasks and not opts.gen.T.ignore:
-            self.decoders["t"] = nn.ModuleDict(
-                {"f": TranslationDecoder(opts), "n": TranslationDecoder(opts)}
-            )
 
         if "w" in opts.tasks and not opts.gen.W.ignore:
             self.decoders["w"] = WaterDecoder(opts)

@@ -8,6 +8,8 @@ import numpy as np
 from .transforms import get_transforms
 from PIL import Image
 
+# ? paired dataset
+
 IMG_EXTENSIONS = set(
     [".jpg", ".JPG", ".jpeg", ".JPEG", ".png", ".PNG", ".ppm", ".PPM", ".bmp", ".BMP"]
 )

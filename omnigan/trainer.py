@@ -59,6 +59,8 @@ class Trainer:
             self.losses["t"] = lambda x, y: (x + y).mean()
 
         # task losses
+        # ? add discriminator and gan loss to these task when no ground truth
+        # ? instead of noisy label
         if "d" in self.opts.tasks:
             self.losses["d"] = lambda x, y: (x + y).mean()
 
@@ -130,7 +132,7 @@ class Trainer:
         Returns:
             generator: zip generator
         """
-        return zip(*[self.loaders["train"][domain] for domain in self.loaders["train"]])
+        return zip(*list(self.loaders["train"].values()))
 
     def run_epoch(self):
         assert self.is_setup
@@ -170,8 +172,10 @@ class Trainer:
         assert any(l is not None for l in [r_loss, t_loss])
 
         g_loss = sum(filter(lambda x: x is not None, [r_loss, t_loss]))
-        self.logger.losses.representation = r_loss.item()
-        self.logger.losses.translation = t_loss.item()
+        if r_loss is not None:
+            self.logger.losses.representation = r_loss.item()
+        if t_loss is not None:
+            self.logger.losses.translation = t_loss.item()
         self.logger.losses.generator = g_loss.item()
         g_loss.backward()
         self.g_opt_step()
@@ -195,9 +199,8 @@ class Trainer:
             for update_task, update_target in batch["data"].items():
                 # task t (=translation) will be done in get_translation_loss
                 # task a (=adaptation) and x (=auto-encoding) will be done hereafter
-                if update_task in {"t", "a", "x"}:
-                    continue
-                else:
+                if update_task not in {"t", "a", "x"}:
+                    # ? output features classifier
                     predictions[update_task] = self.G.decoders[update_task](self.z)
                     update_loss = self.losses[update_task](
                         update_target, predictions[update_task]
@@ -231,6 +234,9 @@ class Trainer:
         # -----  Adversarial adaptaion task  -----
         # ----------------------------------------
         # ? Is this really part of the representation phase
+        # TODO include semantic matching loss
+        # ? freeze second pass
+        # ? noisy labels Alex Lamb ICT
         if "a" in self.opts.tasks:
             adaptation_tasks = []
             if "rn" in domain_batch and "sn" in domain_batch:
@@ -255,7 +261,7 @@ class Trainer:
 
                 self.debug("get_representation_loss", locals(), 3)
 
-                for real, fake in [
+                for real, fake in [  # TODO probably no need for real data  in update
                     (real_source, fake_source),
                     (real_target, fake_target),
                 ]:
