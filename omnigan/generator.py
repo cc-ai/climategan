@@ -1,6 +1,9 @@
 import torch.nn as nn
 from omnigan.utils import init_weights
 
+# * https://docs.fast.ai/vision.models.unet.html
+# * Dynamic UNet FastAI
+
 # --------------------------------------------------------------------------
 # -----  For now no network structure, just project in a 64 x 32 x 32  -----
 # -----   latent space and decode to (3 or 1) x 256 x 256              -----
