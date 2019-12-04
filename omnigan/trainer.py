@@ -59,8 +59,8 @@ class Trainer:
             self.losses["t"] = lambda x, y: (x + y).mean()
 
         # task losses
-        # ? add discriminator and gan loss to these task when no ground truth
-        # ? instead of noisy label
+        # ? * add discriminator and gan loss to these task when no ground truth
+        # ?   instead of noisy label
         if "d" in self.opts.tasks:
             self.losses["d"] = lambda x, y: (x + y).mean()
 
@@ -233,10 +233,11 @@ class Trainer:
         # ----------------------------------------
         # -----  Adversarial adaptaion task  -----
         # ----------------------------------------
-        # ? Is this really part of the representation phase
         # TODO include semantic matching loss
-        # ? freeze second pass
-        # ? noisy labels Alex Lamb ICT
+        # ? * Is this really part of the representation phase
+        # ? * freeze second pass => yes
+        # ? * how to use noisy labels Alex Lamb ICT (we don't have ground truth in the real
+        # ?   so is it better to use noisy, noisy + ICT or no label in this case?)
         if "a" in self.opts.tasks:
             adaptation_tasks = []
             if "rn" in domain_batch and "sn" in domain_batch:
@@ -287,8 +288,8 @@ class Trainer:
             translation_tasks.append(("sn", "sf"))
             translation_tasks.append(("sf", "sn"))
 
-        # ? same loop as in representation task but could be different
-        # ? when there's the spade components
+        # ? * same loop as in representation task but could be different
+        # ?   when there's the spade components
         for source_domain, target_domain in translation_tasks:
             real_source = domain_batch[source_domain]["data"]["x"]
             real_target = domain_batch[target_domain]["data"]["x"]
@@ -298,6 +299,13 @@ class Trainer:
 
             fake_source = self.G.decoders["t"][source_domain[1]](z_real_target)
             fake_target = self.G.decoders["t"][target_domain[1]](z_real_source)
+
+            # ? use this as more training data for classifier
+            z_fake_source = self.G.encoder(fake_source)
+            z_fake_target = self.G.encoder(fake_target)
+
+            cycle_source = self.G.decoders["t"][source_domain[1]](z_fake_target)
+            cycle_target = self.G.decoders["t"][target_domain[1]](z_fake_source)
 
             self.debug("get_translation_loss", locals())
 
