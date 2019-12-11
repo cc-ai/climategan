@@ -7,6 +7,7 @@ from copy import copy
 import yaml
 from addict import Dict
 from torch.nn import init
+import torch
 
 
 def parsed_args():
@@ -227,5 +228,39 @@ def init_weights(net, init_type="normal", init_gain=0.02, verbose=0):
 
 
 def freeze(self, net):
+    """Sets requires_grad = False to all the net's parameters
+
+    Args:
+        net (nn.Module): Network to freeze
+    """
     for p in net.parameters():
         p.requires_grad = False
+
+
+def domains_to_class_tensor(domains):
+    """Converts a list of strings to a 1D Tensor representing the domains
+
+    domain_to_class_tensor(["sf", "rn"])
+    >>> torch.Tensor([2, ])
+
+
+    Args:
+        domain (str): rf, rn, sf, sn
+        n (int): batch size
+
+    Raises:
+        ValueError: [description]
+
+    Returns:
+        [type]: [description]
+    """
+    assert isinstance(n, int)
+
+    mapping = {"rf": 0, "rn": 1, "sf": 2, "sn": 3}
+
+    if domain not in mapping:
+        raise ValueError(
+            "Unknown domain {} should be in {}".format(domain, list(mapping.keys()))
+        )
+
+    return torch.Tensor([mapping[domain]] * n)

@@ -111,9 +111,17 @@ train:
   freeze_representation: False # whether or not to backprop into the representation when doing the translation
   lambdas: # scaling factors in the total loss
     default: 1 # default values for all tasks
-    auto: # auto-encoder loss coefficients
-      a: 1
-      t: 1
+    G:
+      auto: # auto-encoder loss coefficients
+        a: 1
+        t: 1
+      gan: # auto-encoder loss coefficients
+        a: 1
+        t: 1
+      cycle: # auto-encoder loss coefficients
+        a: 1
+        t: 1
+      classifier: 1
 
 # -----------------------------
 # ----- Validation Params -----
