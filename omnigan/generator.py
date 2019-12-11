@@ -134,7 +134,7 @@ class SegmentationDecoder(Decoder):
     def __init__(self, opts):
         super().__init__(opts)
         self.layers = []
-        self.layers.append(nn.Conv2d(64, 3, 1))
+        self.layers.append(nn.Conv2d(64, opts.gen.s.num_classes, 1))
         self.layers.append(nn.UpsamplingNearest2d(256))
         self.layers = nn.Sequential(*self.layers)
 

@@ -5,7 +5,8 @@ from torch.autograd import Variable
 import torch.nn as nn
 
 
-# source: https://github.com/sangwoomo/instagan/blob/b67e9008fcdd6c41652f8805f0b36bcaa8b632d6/models/networks.py
+# source: https://github.com/sangwoomo/instagan/blob
+#   /b67e9008fcdd6c41652f8805f0b36bcaa8b632d6/models/networks.py
 # Defines the GAN loss which uses either LSGAN or the regular GAN.
 # When LSGAN is used, it is basically same as MSELoss,
 # but it abstracts away the need to create the target label tensor

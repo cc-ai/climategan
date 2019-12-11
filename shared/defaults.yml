@@ -65,6 +65,8 @@ gen:
     lambda_idt: 1
   a:
     lambda_idt: 5
+  s:
+    num_classes: 19
 # Set gen.A.init_gain to overwrite this parameter for A only
 
 # -------------------------

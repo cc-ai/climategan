@@ -1,3 +1,4 @@
+import torch
 from torchvision import transforms as trsfs
 import torchvision.transforms.functional as TF
 import numpy as np
@@ -58,22 +59,24 @@ class ToTensor:
     def __call__(self, data):
         new_data = {}
         for task, im in data.items():
-            if task in {"x", "s", "a"}:
+            if task in {"x", "a"}:
                 new_data[task] = self.ImagetoTensor(im)
             elif task in {"h", "d", "w"}:
                 new_data[task] = self.MaptoTensor(im)
+            elif task == "s":
+                new_data[task] = torch.squeeze(self.ImagetoTensor(im)).to(torch.int64)
         return new_data
 
 
 class Normalize:
     def __init__(self):
         self.normImage = trsfs.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        self.normSeg = trsfs.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+        # self.normSeg = trsfs.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
         self.normDepth = trsfs.Normalize([1 / 255], [1 / 3])
 
         self.normalize = {
             "x": self.normImage,
-            "s": self.normSeg,
+            # "s": self.normSeg,
             "d": self.normDepth,
         }
 

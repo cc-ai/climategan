@@ -241,26 +241,23 @@ def domains_to_class_tensor(domains):
     """Converts a list of strings to a 1D Tensor representing the domains
 
     domain_to_class_tensor(["sf", "rn"])
-    >>> torch.Tensor([2, ])
+    >>> torch.Tensor([2, 1])
 
 
     Args:
-        domain (str): rf, rn, sf, sn
-        n (int): batch size
-
+        domain (list(str)): each element of the list should be in {rf, rn, sf, sn}
     Raises:
-        ValueError: [description]
+        ValueError: One of the domains listed is not in {rf, rn, sf, sn}
 
     Returns:
-        [type]: [description]
+        torch.Tensor: 1D tensor mapping a domain to an int (not 1-hot)
     """
-    assert isinstance(n, int)
 
     mapping = {"rf": 0, "rn": 1, "sf": 2, "sn": 3}
 
-    if domain not in mapping:
+    if not all(domain in mapping for domain in domains):
         raise ValueError(
-            "Unknown domain {} should be in {}".format(domain, list(mapping.keys()))
+            "Unknown domains {} should be in {}".format(domains, list(mapping.keys()))
         )
 
-    return torch.Tensor([mapping[domain]] * n)
+    return torch.Tensor([mapping[domain] for domain in domains])
