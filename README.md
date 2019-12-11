@@ -44,14 +44,14 @@ or
 ```
 [
     {
-        "x": "/home/adrien/Bureau/MILA/omnigan/example_data/gsv_000005.jpg",
-        "s": "/home/adrien/Bureau/MILA/omnigan/example_data/gsv_000005.npy",
-        "d": "/home/adrien/Bureau/MILA/omnigan/example_data/gsv_000005_depth.jpg"
+        "x": "/Users/victor/Documents/ccai/github/omnigan/example_data/gsv_000005.jpg",
+        "s": "/Users/victor/Documents/ccai/github/omnigan/example_data/gsv_000005.npy",
+        "d": "/Users/victor/Documents/ccai/github/omnigan/example_data/gsv_000005_depth.jpg"
     },
     {
-        "x": "/home/adrien/Bureau/MILA/omnigan/example_data/gsv_000006.jpg",
-        "s": "/home/adrien/Bureau/MILA/omnigan/example_data/gsv_000006.npy",
-        "d": "/home/adrien/Bureau/MILA/omnigan/example_data/gsv_000006_depth.jpg"
+        "x": "/Users/victor/Documents/ccai/github/omnigan/example_data/gsv_000006.jpg",
+        "s": "/Users/victor/Documents/ccai/github/omnigan/example_data/gsv_000006.npy",
+        "d": "/Users/victor/Documents/ccai/github/omnigan/example_data/gsv_000006_depth.jpg"
     }
 ]
 ```
