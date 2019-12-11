@@ -9,7 +9,7 @@ tasks: [a, d, h, s, t, w]
 # ----------------
 data:
   files: # if one is not none it will override the dirs location
-    base: /Users/victor/Documents/ccai/github/omnigan/example_data
+    base: /home/adrien/Bureau/MILA/omnigan/example_data
     train:
       rf: train_rf.json
       rn: train_rn.json

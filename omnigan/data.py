@@ -19,7 +19,7 @@ def decode_segmap(image, nc=19):
     """Creates a label colormap used in CITYSCAPES segmentation benchmark.
     Arguments:
         image {array} -- segmented image
-        (array of image size containing class at each pixel)
+        (array of image size containing classat each pixel)
     Returns:
         array of size 3*nc -- A colormap for visualizing segmentation results.
     """
@@ -76,10 +76,12 @@ def pil_image_loader(path, task):
         arr = arr.astype(np.float32)
         arr[arr != 0] = 1 / arr[arr != 0]
 
-    # ? decode segmap or not?
-    # ? if yes, remember to uncomment self.normSeg in transforms.Normalize
-    # if task == "s":
-    #     arr = decode_segmap(arr)
+    if task == "s":
+        arr = decode_segmap(arr)
+
+    # assert len(arr.shape) == 3, (path, task, arr.shape)
+
+    # pdb.set_trace()
 
     return Image.fromarray(arr)
 
