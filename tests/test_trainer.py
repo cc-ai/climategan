@@ -7,7 +7,7 @@ from omnigan.utils import load_opts
 from run import print_header
 
 if __name__ == "__main__":
-    opts = load_opts("../shared/defaults.yml")
+    opts = load_opts("../config/local_tests.yaml", default="../shared/defaults.yml")
     trainer = Trainer(opts, verbose=1)
 
     test_setup = True

@@ -9,7 +9,7 @@ from omnigan.utils import load_opts, transforms_string
 
 if __name__ == "__main__":
 
-    opts = load_opts("../shared/defaults.yml")
+    opts = load_opts("../config/local_tests.yaml", default="../shared/defaults.yml")
 
     opts.data.loaders.batch_size = 2
     opts.data.loaders.num_workers = 2

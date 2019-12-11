@@ -13,14 +13,13 @@ from omnigan.utils import (
     env_to_path,
     get_increased_path,
     load_opts,
-    transforms_string,
 )
-from omnigan.data import OmniListDataset, get_all_loaders
+from omnigan.data import get_all_loaders
 
 if __name__ == "__main__":
     print_header("test_domains_to_class_tensor")
 
-    opts = load_opts("../shared/defaults.yml")
+    opts = load_opts("../config/local_tests.yaml", default="../shared/defaults.yml")
     opts.data.loaders.batch_size = 2
     opts.data.loaders.num_workers = 2
     opts.data.loaders.shuffle = True

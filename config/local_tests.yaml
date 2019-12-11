@@ -1,0 +1,7 @@
+output_path: /Users/victor/Documents/ccai/github/omnigan/example_data
+# ----------------
+# ----- Data -----
+# ----------------
+data:
+  files: # if one is not none it will override the dirs location
+    base: /Users/victor/Documents/ccai/github/omnigan/example_data

@@ -13,3 +13,5 @@
 4. Use `questions.md` for anything that crosses your mind, really, use it
 5. Open an Issue if something's odd, or to assign yourself a todo
 6. **Format your code** with [black](https://github.com/psf/black)
+7. Only update `defaults.yaml` with values that should be shared across runs and users
+   1. use `config/local_tests.yaml` or any other to setup your particular config overriding `defaults.yaml`
