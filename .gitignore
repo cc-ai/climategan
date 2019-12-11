@@ -3,6 +3,7 @@ example_data/
 .vscode/
 .comet.config
 .DS_Store
+config/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
