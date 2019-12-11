@@ -73,14 +73,23 @@ def load_opts(path):
                 opts.dis[k] = tmp
 
             # set default loss coefficients for tasks and auto-encoding
+            default = opts.train.lambdas.default
             for k in opts.tasks:
-                default = opts.train.lambdas.default
-                if k not in opts.train.lambdas:
-                    opts.train.lambdas[k] = default
+                if k not in opts.train.lambdas.tasks:
+                    opts.train.lambdas.G.tasks[k] = default
             if "a" not in opts.train.lambdas.auto:
                 opts.train.lambdas.auto.a = default
+            if "a" not in opts.train.lambdas.gan:
+                opts.train.lambdas.gan.a = default
+            if "a" not in opts.train.lambdas.cycle:
+                opts.train.lambdas.cycle.a = default
+
             if "t" not in opts.train.lambdas.auto:
                 opts.train.lambdas.auto.t = default
+            if "t" not in opts.train.lambdas.gan:
+                opts.train.lambdas.gan.t = default
+            if "t" not in opts.train.lambdas.cycle:
+                opts.train.lambdas.cycle.t = default
 
             return opts
         except yaml.YAMLError as exc:

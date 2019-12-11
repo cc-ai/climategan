@@ -504,7 +504,7 @@ class Trainer:
                     "Domain {} Task {} Pred {} Loss {}".format(
                         local_vars["batch_domain"],
                         local_vars["update_task"],
-                        local_vars["predictions"][local_vars["update_task"]].shape,
+                        local_vars["prediction"].shape,
                         local_vars["update_loss"],
                     )
                 )
