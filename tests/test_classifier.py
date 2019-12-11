@@ -10,7 +10,7 @@ from omnigan.losses import cross_entropy
 
 if __name__ == "__main__":
     z = torch.from_numpy(np.random.rand(4, 128, 32, 32)).to(torch.float32)
-    opts = load_opts("../shared/defaults.yml")
+    opts = load_opts("../config/local_tests.yaml", default="../shared/defaults.yml")
     C = get_classifier(opts, (128, 32, 32), 0)
 
     rf_target = np.array([1, 0, 0, 0])

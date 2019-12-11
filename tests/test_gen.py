@@ -47,7 +47,7 @@ if __name__ == "__main__":
     opts.gen.t.ignore = False
     opts.gen.w.ignore = False
 
-    opts = load_opts("../shared/defaults.yml")
+    opts = load_opts("../config/local_tests.yaml", default="../shared/defaults.yml")
     G = get_gen(opts)
     print("DECODERS:", G.decoders)
     print("ENCODER:", G.encoder)

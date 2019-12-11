@@ -63,8 +63,6 @@ gen:
     init_gain: 0.2
     lambda_rec: 1
     lambda_idt: 1
-  a:
-    lambda_idt: 5
   s:
     num_classes: 19
 # Set gen.A.init_gain to overwrite this parameter for A only

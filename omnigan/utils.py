@@ -28,7 +28,33 @@ def parsed_args():
     return parser.parse_args()
 
 
-def load_opts(path):
+def load_opts(path, default=None):
+    """Loads a configuration Dict from 2 files:
+    1. default files with shared values across runs and users
+    2. an overriding file with run- and user-specific values
+
+    Args:
+        path (pathlib.Path): where to find the overriding configuration
+            default (pathlib.Path, optional): Where to find the default opts.
+            Defaults to None. In which case it is assumed to be a default config
+            which needs processing such as setting default values for lambdas and gen
+            fields
+
+    Returns:
+        [type]: [description]
+    """
+    if default is None:
+        return load_default_opts(path)
+
+    default_opts = load_default_opts(default)
+    with open(path, "r") as f:
+        overriding_opts = Dict(yaml.safe_load(f))
+    default_opts.update(overriding_opts)
+
+    return default_opts
+
+
+def load_default_opts(path):
     """Loads a configuration Dict from a yaml file
 
     for all decoder in gen.decoders, opts.gen.{decoder} is created from
@@ -47,6 +73,7 @@ def load_opts(path):
     Returns:
         addict.Dict: the configuration object
     """
+
     path = Path(path).resolve()
     print("Loading opts from", str(path))
     with open(path, "r") as stream:
@@ -73,14 +100,23 @@ def load_opts(path):
                 opts.dis[k] = tmp
 
             # set default loss coefficients for tasks and auto-encoding
+            default = opts.train.lambdas.default
             for k in opts.tasks:
-                default = opts.train.lambdas.default
-                if k not in opts.train.lambdas:
-                    opts.train.lambdas[k] = default
+                if k not in opts.train.lambdas.tasks:
+                    opts.train.lambdas.G.tasks[k] = default
             if "a" not in opts.train.lambdas.auto:
                 opts.train.lambdas.auto.a = default
+            if "a" not in opts.train.lambdas.gan:
+                opts.train.lambdas.gan.a = default
+            if "a" not in opts.train.lambdas.cycle:
+                opts.train.lambdas.cycle.a = default
+
             if "t" not in opts.train.lambdas.auto:
                 opts.train.lambdas.auto.t = default
+            if "t" not in opts.train.lambdas.gan:
+                opts.train.lambdas.gan.t = default
+            if "t" not in opts.train.lambdas.cycle:
+                opts.train.lambdas.cycle.t = default
 
             return opts
         except yaml.YAMLError as exc:
