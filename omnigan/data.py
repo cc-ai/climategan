@@ -19,7 +19,7 @@ def decode_segmap(image, nc=19):
     """Creates a label colormap used in CITYSCAPES segmentation benchmark.
     Arguments:
         image {array} -- segmented image
-        (array of image size containing classat each pixel)
+        (array of image size containing class at each pixel)
     Returns:
         array of size 3*nc -- A colormap for visualizing segmentation results.
     """
