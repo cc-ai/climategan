@@ -52,33 +52,33 @@ if __name__ == "__main__":
         trainer.opts.train.representational_training = True
         trainer.opts.train.representation_steps = 100
         trainer.logger.step = 0
-
+        print(True, 100, 0)
         trainer.update_g(domain_batch)
 
         # Using repr_tr and step < repr_step and step % 2 == 1
         trainer.opts.train.representational_training = True
         trainer.opts.train.representation_steps = 100
         trainer.logger.step = 1
-
+        print(True, 100, 1)
         trainer.update_g(domain_batch)
 
         # Using repr_tr and step > repr_step
         trainer.opts.train.representational_training = True
         trainer.opts.train.representation_steps = 100
         trainer.logger.step = 200
-
+        print(True, 100, 200)
         trainer.update_g(domain_batch)
 
         # Not Using repr_tr and step < repr_step and step % 2 == 0
         trainer.opts.train.representational_training = False
         trainer.opts.train.representation_steps = 100
         trainer.logger.step = 200
-
+        print(False, 100, 200)
         trainer.update_g(domain_batch)
 
         # Not Using repr_tr and step > repr_step and step % 2 == 1
         trainer.opts.train.representational_training = False
         trainer.opts.train.representation_steps = 100
         trainer.logger.step = 201
-
+        print(False, 100, 201)
         trainer.update_g(domain_batch)
