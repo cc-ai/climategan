@@ -14,7 +14,6 @@ if __name__ == "__main__":
     opts.data.loaders.batch_size = 2
     opts.data.loaders.num_workers = 2
     opts.data.loaders.shuffle = True
-
     loaders = get_all_loaders(opts)
 
     ds = OmniListDataset("train", "rn", opts)

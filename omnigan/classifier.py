@@ -1,11 +1,10 @@
 from torch import nn
-import numpy as np
 from omnigan.utils import init_weights
 
 
 def get_classifier(opts, latent_shape, verbose):
-    latent_size = np.prod(latent_shape)
-    C = OmniClassifier(opts, latent_size)
+    print(latent_shape.shape)
+    C = OmniClassifier(latent_shape)
     init_weights(
         C,
         init_type=opts.classifier.init_type,
@@ -16,16 +15,20 @@ def get_classifier(opts, latent_shape, verbose):
 
 
 class OmniClassifier(nn.Module):
-    def __init__(self, dim):
+    def __init__(self, latent_space):
         super(OmniClassifier, self).__init__()
+        print(len(latent_space.shape))
+        assert len(latent_space.shape) == 3
 
+        self.channels = latent_space.shape[0]
+        self.feature_size = latent_space.shape[1]
         self.max_pool1 = nn.MaxPool2d(2)
-        self.BasicBlock1 = BasicBlock(256, 128, True)
+        self.BasicBlock1 = BasicBlock(self.channels, int(self.channels / 2), True)
         self.max_pool2 = nn.MaxPool2d(2)
-        self.BasicBlock2 = BasicBlock(128, 64, True)
-        self.avg_pool = nn.AvgPool2d((16, 16))
-        self.fc = nn.Linear(64, 2)
-        self.output_dim = dim
+        self.BasicBlock2 = BasicBlock(int(self.channels / 2), int(self.channels / 4), True)
+        self.avg_pool = nn.AvgPool2d((int(self.feature_size / 4), int(self.feature_size / 4)))
+        self.fc = nn.Linear(int(self.channels / 4), 4)
+        # self.output_dim = dim
 
     def forward(self, x):
         max_pooled1 = self.max_pool1(x)
@@ -60,7 +63,7 @@ class BasicBlock(nn.Module):
             raise ValueError("BasicBlock only supports groups=1 and base_width=64")
         if dilation > 1:
             raise NotImplementedError("Dilation > 1 not supported in BasicBlock")
-        #Both conv1 and downsample layers downsample the input when stride != 1
+        # Both conv1 and downsample layers downsample the input when stride != 1
         self.conv1 = conv3x3(inplanes, planes, stride)
         self.bn1 = norm_layer(planes)
         self.relu = nn.ReLU(inplace=True)
