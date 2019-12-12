@@ -2,9 +2,8 @@ from torch import nn
 from omnigan.utils import init_weights
 
 
-def get_classifier(opts, latent_shape, verbose):
-    print(latent_shape.shape)
-    C = OmniClassifier(latent_shape)
+def get_classifier(opts, latent_space, verbose):
+    C = OmniClassifier(latent_space)
     init_weights(
         C,
         init_type=opts.classifier.init_type,
@@ -17,7 +16,6 @@ def get_classifier(opts, latent_shape, verbose):
 class OmniClassifier(nn.Module):
     def __init__(self, latent_space):
         super(OmniClassifier, self).__init__()
-        print(len(latent_space.shape))
         assert len(latent_space.shape) == 3
 
         self.channels = latent_space.shape[0]

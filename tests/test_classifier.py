@@ -32,3 +32,15 @@ if __name__ == "__main__":
     print(y.shape)
 
     print(loss(y, labels))
+
+    latent_space = torch.zeros((256, 64, 64))
+    C = get_classifier(opts, latent_space, 0)
+    z = torch.from_numpy(np.random.rand(4, 256, 64, 64)).to(torch.float32)
+    y = C(z)
+    print(y.shape)
+    
+    latent_space = torch.zeros((64, 16, 16))
+    C = get_classifier(opts, latent_space, 0)
+    z = torch.from_numpy(np.random.rand(4, 64, 16, 16)).to(torch.float32)
+    y = C(z)
+    print(y.shape)
