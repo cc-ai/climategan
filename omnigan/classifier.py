@@ -16,10 +16,10 @@ def get_classifier(opts, latent_space, verbose):
 class OmniClassifier(nn.Module):
     def __init__(self, latent_space):
         super(OmniClassifier, self).__init__()
-        assert len(latent_space.shape) == 3
+        assert len(latent_space) == 3
 
-        self.channels = latent_space.shape[0]
-        self.feature_size = latent_space.shape[1]
+        self.channels = latent_space[0]
+        self.feature_size = latent_space[1]
         self.max_pool1 = nn.MaxPool2d(2)
         self.BasicBlock1 = BasicBlock(self.channels, int(self.channels / 2), True)
         self.max_pool2 = nn.MaxPool2d(2)
@@ -80,7 +80,6 @@ class BasicBlock(nn.Module):
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.relu(out)
-
         out = self.conv2(out)
         out = self.bn2(out)
 
@@ -145,6 +144,7 @@ def conv1x1(in_planes, out_planes, stride=1):
         out_planes {int} -- Number of channels produced by the convolution
     
     Keyword Arguments:
-        stride {int or tuple, optional} -- Stride of the convolution. Default: 1 (default: {1})
+        stride {int or tuple, optional} -- Stride of the convolution. 
+        Default: 1 (default: {1})
     """
     return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)

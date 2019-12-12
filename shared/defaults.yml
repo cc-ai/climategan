@@ -122,6 +122,8 @@ train:
         a: 1
         t: 1
       classifier: 1
+    C: 1 
+
 
 # -----------------------------
 # ----- Validation Params -----

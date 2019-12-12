@@ -94,6 +94,11 @@ class OmniListDataset(Dataset):
 
         file_list_path = Path(opts.data.files[mode][domain])
 
+        if "/" not in str(file_list_path):
+            file_list_path = Path(opts.data.files.base) / Path(
+                opts.data.files[mode][domain]
+            )
+
         if file_list_path.suffix == ".json":
             self.samples_paths = self.json_load(file_list_path)
         elif file_list_path.suffix in {".yaml", ".yml"}:
@@ -152,7 +157,7 @@ class OmniListDataset(Dataset):
 def get_loader(domain, mode, opts):
     return DataLoader(
         OmniListDataset(
-            domain, mode, opts, transform=transforms.Compose(get_transforms(opts)),
+            domain, mode, opts, transform=transforms.Compose(get_transforms(opts))
         ),
         batch_size=opts.data.loaders.get("batch_size", 4),
         # shuffle=opts.data.loaders.get("shuffle", True),

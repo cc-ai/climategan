@@ -9,11 +9,7 @@ from omnigan.classifier import get_classifier
 from omnigan.losses import cross_entropy
 
 if __name__ == "__main__":
-    z = torch.from_numpy(np.random.rand(4, 128, 32, 32)).to(torch.float32)
     opts = load_opts("../config/local_tests.yaml", default="../shared/defaults.yml")
-
-    latent_space = torch.zeros((128, 32, 32))
-    C = get_classifier(opts, latent_space, 0)
 
     rf_target = np.array([1, 0, 0, 0])
     rn_target = np.array([0, 1, 0, 0])
@@ -25,22 +21,24 @@ if __name__ == "__main__":
 
     loss = cross_entropy()
 
-    print(C)
-
+    z = torch.ones(4, 128, 32, 32)
+    latent_space = (128, 32, 32)
+    C = get_classifier(opts, latent_space, 0)
     y = C(z)
 
     print(y.shape)
-
     print(loss(y, labels))
 
-    latent_space = torch.zeros((256, 64, 64))
+    z = torch.ones(4, 256, 64, 64)
+    latent_space = (256, 64, 64)
     C = get_classifier(opts, latent_space, 0)
-    z = torch.from_numpy(np.random.rand(4, 256, 64, 64)).to(torch.float32)
     y = C(z)
     print(y.shape)
-    
-    latent_space = torch.zeros((64, 16, 16))
+    print(loss(y, labels))
+
+    z = torch.ones(4, 64, 16, 16)
+    latent_space = (64, 16, 16)
     C = get_classifier(opts, latent_space, 0)
-    z = torch.from_numpy(np.random.rand(4, 64, 16, 16)).to(torch.float32)
     y = C(z)
     print(y.shape)
+    print(loss(y, labels))

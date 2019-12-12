@@ -296,4 +296,33 @@ def domains_to_class_tensor(domains):
             "Unknown domains {} should be in {}".format(domains, list(mapping.keys()))
         )
 
-    return torch.Tensor([mapping[domain] for domain in domains])
+    return torch.tensor([mapping[domain] for domain in domains]) 
+    # torch.tensor infers the dtype automatically, 
+    # while torch.Tensor returns a torch.FloatTensor (uncomp with nn.ce)
+
+
+def fake_domains_to_class_tensor(domains):
+    """Converts a list of strings to a 1D Tensor representing the fake domains
+    (real or sim only)
+
+    domain_to_class_tensor(["sf", "rn"])
+    >>> torch.Tensor([0, 3])
+
+
+    Args:
+        domain (list(str)): each element of the list should be in {rf, rn, sf, sn}
+    Raises:
+        ValueError: One of the domains listed is not in {rf, rn, sf, sn}
+
+    Returns:
+        torch.Tensor: 1D tensor mapping a domain to an int (not 1-hot)
+    """
+
+    mapping = {"rf": 2, "rn": 3, "sf": 0, "sn": 1}
+
+    if not all(domain in mapping for domain in domains):
+        raise ValueError(
+            "Unknown domains {} should be in {}".format(domains, list(mapping.keys()))
+        )
+
+    return torch.tensor([mapping[domain] for domain in domains])  
