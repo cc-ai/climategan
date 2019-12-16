@@ -41,7 +41,7 @@ def load_opts(path, default=None):
             fields
 
     Returns:
-        [type]: [description]
+        addict.Dict: options dictionnary, with overwritten default values
     """
     if default is None:
         default_opts = Dict()
