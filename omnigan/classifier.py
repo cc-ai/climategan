@@ -17,27 +17,30 @@ class OmniClassifier(nn.Module):
     def __init__(self, latent_space):
         super(OmniClassifier, self).__init__()
         assert len(latent_space) == 3
-
         self.channels = latent_space[0]
         self.feature_size = latent_space[1]
-        self.max_pool1 = nn.MaxPool2d(2)
-        self.BasicBlock1 = BasicBlock(self.channels, int(self.channels / 2), True)
-        self.max_pool2 = nn.MaxPool2d(2)
-        self.BasicBlock2 = BasicBlock(int(self.channels / 2), int(self.channels / 4), True)
-        self.avg_pool = nn.AvgPool2d((int(self.feature_size / 4), int(self.feature_size / 4)))
-        self.fc = nn.Linear(int(self.channels / 4), 4)
-        # self.output_dim = dim
+        self.model = nn.Sequential(
+            *[
+                nn.MaxPool2d(2),
+                BasicBlock(self.channels, int(self.channels / 2), True),
+                nn.MaxPool2d(2),
+                BasicBlock(int(self.channels / 2), int(self.channels / 4), True),
+                nn.AvgPool2d((int(self.feature_size / 4), int(self.feature_size / 4))),
+                Squeeze(),
+                nn.Linear(int(self.channels / 4), 4),
+            ]
+        )
 
     def forward(self, x):
-        max_pooled1 = self.max_pool1(x)
-        res_block1 = self.BasicBlock1(max_pooled1)
-        max_pooled2 = self.max_pool2(res_block1)
-        res_block2 = self.BasicBlock2(max_pooled2)
-        avg_pool = self.avg_pool(res_block2)
-        fc_output = self.fc(avg_pool.squeeze())
+        fc_output = self.model(x)
         # logits = nn.functional.softmax(fc_output)
         # return logits
         return fc_output
+
+
+class Squeeze(nn.Module):
+    def forward(self, x):
+        return x.squeeze()
 
 
 class BasicBlock(nn.Module):
