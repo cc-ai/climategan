@@ -4,7 +4,12 @@ from time import time
 import torch
 
 from omnigan.generator import get_gen
-from omnigan.utils import flatten_opts, freeze, fake_domains_to_class_tensor, domains_to_class_tensor
+from omnigan.utils import (
+    flatten_opts,
+    freeze,
+    fake_domains_to_class_tensor,
+    domains_to_class_tensor,
+)
 from omnigan.optim import get_optimizer
 from omnigan.data import get_all_loaders
 from omnigan.discriminator import get_dis
@@ -96,7 +101,7 @@ class Trainer:
         }
         """
         self.losses = {"G": {"gan": {}, "cycle": {}, "tasks": {}}, "D": {}, "C": {}}
-        # ? 
+        # ?
         # ------------------------------
         # -----  Generator Losses  -----
         # ------------------------------
@@ -297,7 +302,7 @@ class Trainer:
             # ---------------------------------
             # -----  classifier loss (1)  -----
             # ---------------------------------
-            # Forward pass through classifier, output : (batch_size, 4)  
+            # Forward pass through classifier, output : (batch_size, 4)
             output_classifier = self.C(self.z)
             # Cross entropy loss (with sigmoid) with fake labels to fool C
             update_loss = self.losses["G"]["classifier"](
@@ -509,9 +514,9 @@ class Trainer:
 
         for batch_domain, batch in multi_domain_batch.items():
             self.z = self.G.encoder(batch["data"]["x"])
-            # Forward through classifier, output classifier = (batch_size, 4)  
+            # Forward through classifier, output classifier = (batch_size, 4)
             output_classifier = self.C(self.z)
-            # Cross entropy loss (with sigmoid) 
+            # Cross entropy loss (with sigmoid)
             update_loss = self.losses["C"](
                 output_classifier, domains_to_class_tensor(batch["domain"])
             )

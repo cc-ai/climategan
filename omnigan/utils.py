@@ -296,8 +296,8 @@ def domains_to_class_tensor(domains):
             "Unknown domains {} should be in {}".format(domains, list(mapping.keys()))
         )
 
-    return torch.tensor([mapping[domain] for domain in domains]) 
-    # torch.tensor infers the dtype automatically, 
+    return torch.tensor([mapping[domain] for domain in domains])
+    # torch.tensor infers the dtype automatically,
     # while torch.Tensor returns a torch.FloatTensor (uncomp with nn.ce)
 
 
@@ -325,4 +325,4 @@ def fake_domains_to_class_tensor(domains):
             "Unknown domains {} should be in {}".format(domains, list(mapping.keys()))
         )
 
-    return torch.tensor([mapping[domain] for domain in domains])  
+    return torch.tensor([mapping[domain] for domain in domains])
