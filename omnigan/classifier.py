@@ -32,3 +32,6 @@ class OmniClassifier(nn.Module):
             self.model += layer
             prev = l
         self.model = nn.Sequential(*self.model)
+
+    def forward(self, x):
+        return self.model(x)
