@@ -71,7 +71,7 @@ def set_opts_values(opts):
         init_gain: 0.1
 
     Args:
-        path ([type]): [description]
+        opts (addict.Dict): Options to set up the default values for
 
     Returns:
         addict.Dict: the configuration object
