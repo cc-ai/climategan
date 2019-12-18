@@ -64,7 +64,9 @@ class ToTensor:
             elif task in {"h", "d", "w"}:
                 new_data[task] = self.MaptoTensor(im)
             elif task == "s":
-                new_data[task] = torch.squeeze(self.ImagetoTensor(im)).to(torch.int64)
+                new_data[task] = torch.squeeze(torch.from_numpy(np.array(im))).to(
+                    torch.int64
+                )
         return new_data
 
 
@@ -82,7 +84,7 @@ class Normalize:
 
     def __call__(self, data):
         return {
-            task: self.normalize[task](tensor) if task in self.normalize else tensor
+            task: self.normalize.get(task, lambda x: x)(tensor)
             for task, tensor in data.items()
         }
 
