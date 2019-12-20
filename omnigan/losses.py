@@ -100,8 +100,16 @@ def entropy_loss(v):
 
 
 def mse_loss():
+    """
+    Creates a criterion that measures the mean squared error 
+    (squared L2 norm) between each element in the input x and target y .
+    """
     return torch.nn.MSELoss()
 
 
 def l1_loss():
+    """
+    Creates a criterion that measures the mean absolute error 
+    (MAE) between each element in the input x and target y
+    """
     return torch.nn.L1Loss()

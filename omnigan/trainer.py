@@ -14,7 +14,7 @@ from omnigan.optim import get_optimizer
 from omnigan.data import get_all_loaders
 from omnigan.discriminator import get_dis
 from omnigan.classifier import get_classifier
-from omnigan.losses import cross_entropy_2d, cross_entropy
+from omnigan.losses import cross_entropy_2d, cross_entropy, mse_loss, l1_loss
 
 
 class Trainer:
@@ -100,6 +100,7 @@ class Trainer:
             "C": ...
         }
         """
+
         self.losses = {"G": {"gan": {}, "cycle": {}, "tasks": {}}, "D": {}, "C": {}}
         # ------------------------------
         # -----  Generator Losses  -----
@@ -124,7 +125,7 @@ class Trainer:
             self.losses["G"]["tasks"]["h"] = lambda x, y: (x + y).mean()
 
         if "s" in self.opts.tasks:
-            self.losses["G"]["tasks"]["s"] = cross_entropy_2d
+            self.losses["G"]["tasks"]["s"] = lambda x, y: (x + y).mean()
 
         if "w" in self.opts.tasks:
             self.losses["G"]["tasks"]["w"] = lambda x, y: (x + y).mean()
@@ -136,11 +137,19 @@ class Trainer:
         }
 
         # undistinguishable features loss
-        self.losses["G"]["classifier"] = cross_entropy()
+        # TODO setup a get_losses func to assign the right loss according to the yaml
+        if self.opts.classifier.loss == "l1":
+            loss_classifier = l1_loss()
+        elif self.opts.classifier.loss == "l2":
+            loss_classifier = mse_loss()
+        else:
+            loss_classifier = cross_entropy()
+
+        self.losses["G"]["classifier"] = loss_classifier
         # -------------------------------
         # -----  Classifier Losses  -----
         # -------------------------------
-        self.losses["C"] = cross_entropy()
+        self.losses["C"] = loss_classifier
         # ----------------------------------
         # -----  Discriminator Losses  -----
         # ----------------------------------
@@ -305,8 +314,12 @@ class Trainer:
             output_classifier = self.C(self.z)
             # Cross entropy loss (with sigmoid) with fake labels to fool C
             update_loss = self.losses["G"]["classifier"](
-                output_classifier, fake_domains_to_class_tensor(batch["domain"])
+                output_classifier,
+                fake_domains_to_class_tensor(
+                    batch["domain"], self.opts.classifier.loss
+                ),
             )
+            print(update_loss)
             step_loss += lambdas.G.classifier * update_loss
             # -------------------------------------------------
             # -----  task-specific regression losses (2)  -----
@@ -509,6 +522,7 @@ class Trainer:
         Returns:
             torch.Tensor: scalar loss tensor, weighted according to opts.train.lambdas.C
         """
+        loss = 0
         lambdas = self.opts.train.lambdas
 
         for batch_domain, batch in multi_domain_batch.items():
@@ -517,9 +531,12 @@ class Trainer:
             output_classifier = self.C(self.z)
             # Cross entropy loss (with sigmoid)
             update_loss = self.losses["C"](
-                output_classifier, domains_to_class_tensor(batch["domain"])
+                output_classifier,
+                domains_to_class_tensor(batch["domain"], self.opts.classifier.loss),
             )
-            return lambdas.C * update_loss
+            loss += update_loss
+
+        return lambdas.C * loss
 
     def eval(self):
         pass

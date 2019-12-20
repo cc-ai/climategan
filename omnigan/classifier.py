@@ -3,7 +3,7 @@ from omnigan.utils import init_weights
 
 
 def get_classifier(opts, latent_space, verbose):
-    C = OmniClassifier(latent_space)
+    C = OmniClassifier(latent_space, opts.classifier.loss)
     init_weights(
         C,
         init_type=opts.classifier.init_type,
@@ -14,11 +14,12 @@ def get_classifier(opts, latent_space, verbose):
 
 
 class OmniClassifier(nn.Module):
-    def __init__(self, latent_space):
+    def __init__(self, latent_space, loss):
         super(OmniClassifier, self).__init__()
         assert len(latent_space) == 3
         self.channels = latent_space[0]
         self.feature_size = latent_space[1]
+        self.loss = loss
         self.model = nn.Sequential(
             *[
                 nn.MaxPool2d(2),
@@ -33,8 +34,9 @@ class OmniClassifier(nn.Module):
 
     def forward(self, x):
         fc_output = self.model(x)
-        # logits = nn.functional.softmax(fc_output)
-        # return logits
+        if (self.loss == "l1") or (self.loss == "l2"):
+            fc_output = nn.functional.softmax(fc_output)
+
         return fc_output
 
 
@@ -96,7 +98,7 @@ class BasicBlock(nn.Module):
 
 def conv_block(in_channels, out_channels):
     """returns a block Convolution - batch normalization - ReLU - Pooling
-
+                                                                                  
     Arguments:
         in_channels {int} -- Number of channels in the input image
         out_channels {int} -- Number of channels produced by the convolution

@@ -273,7 +273,7 @@ def freeze(self, net):
         p.requires_grad = False
 
 
-def domains_to_class_tensor(domains):
+def domains_to_class_tensor(domains, loss):
     """Converts a list of strings to a 1D Tensor representing the domains
 
     domain_to_class_tensor(["sf", "rn"])
@@ -282,11 +282,13 @@ def domains_to_class_tensor(domains):
 
     Args:
         domain (list(str)): each element of the list should be in {rf, rn, sf, sn}
+        loss (str): loss to use according to the config file
     Raises:
         ValueError: One of the domains listed is not in {rf, rn, sf, sn}
 
     Returns:
-        torch.Tensor: 1D tensor mapping a domain to an int (not 1-hot)
+        torch.Tensor: 1D tensor mapping a domain to an int (not 1-hot) if loss is CE
+        or 2D tensor mapping a domain to an int (one-hot) if loss is L1 or L2
     """
 
     mapping = {"rf": 0, "rn": 1, "sf": 2, "sn": 3}
@@ -296,12 +298,18 @@ def domains_to_class_tensor(domains):
             "Unknown domains {} should be in {}".format(domains, list(mapping.keys()))
         )
 
-    return torch.tensor([mapping[domain] for domain in domains])
-    # torch.tensor infers the dtype automatically,
-    # while torch.Tensor returns a torch.FloatTensor (uncomp with nn.ce)
+    target = torch.tensor([mapping[domain] for domain in domains])
+
+    if (loss == "l1") or (loss == "l2"):
+        one_hot_target = torch.FloatTensor(len(target), 4)  # 4 domains
+        one_hot_target.zero_()
+        one_hot_target.scatter_(1, target.unsqueeze(1), 1)
+        # https://discuss.pytorch.org/t/convert-int-into-one-hot-format/507
+        target = one_hot_target
+    return target
 
 
-def fake_domains_to_class_tensor(domains):
+def fake_domains_to_class_tensor(domains, loss):
     """Converts a list of strings to a 1D Tensor representing the fake domains
     (real or sim only)
 
@@ -315,14 +323,23 @@ def fake_domains_to_class_tensor(domains):
         ValueError: One of the domains listed is not in {rf, rn, sf, sn}
 
     Returns:
-        torch.Tensor: 1D tensor mapping a domain to an int (not 1-hot)
+        torch.Tensor: 1D tensor mapping a domain to an int (not 1-hot) if loss is CE 
+        or a 2D tensor filled with 0.5 to fool the 
     """
+    if (loss == "l1") or (loss == "l2"):
+        target = torch.FloatTensor(len(domains), 4)
+        target.fill_(0.25)
 
-    mapping = {"rf": 2, "rn": 3, "sf": 0, "sn": 1}
+    else:
+        mapping = {"rf": 2, "rn": 3, "sf": 0, "sn": 1}
 
-    if not all(domain in mapping for domain in domains):
-        raise ValueError(
-            "Unknown domains {} should be in {}".format(domains, list(mapping.keys()))
-        )
+        if not all(domain in mapping for domain in domains):
+            raise ValueError(
+                "Unknown domains {} should be in {}".format(
+                    domains, list(mapping.keys())
+                )
+            )
 
-    return torch.tensor([mapping[domain] for domain in domains])
+        target = torch.tensor([mapping[domain] for domain in domains])
+    return target
+
