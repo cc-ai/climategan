@@ -309,7 +309,7 @@ def fake_domains_to_class_tensor(domains, loss):
     """Converts a list of strings to a 1D Tensor representing the fake domains
     (real or sim only)
 
-    domain_to_class_tensor(["sf", "rn"])
+    domain_to_class_tensor(["sf", "rn"], "cross_entropy")
     >>> torch.Tensor([0, 3])
 
 
@@ -320,7 +320,7 @@ def fake_domains_to_class_tensor(domains, loss):
 
     Returns:
         torch.Tensor: 1D tensor mapping a domain to an int (not 1-hot) if loss is CE 
-        or a 2D tensor filled with 0.5 to fool the 
+        it will return a 2D tensor filled with 0.25 to fool the classifier (Equiprobability for each domain).
     """
     if (loss == "l1") or (loss == "l2"):
         target = torch.FloatTensor(len(domains), 4)
