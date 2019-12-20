@@ -41,20 +41,23 @@ def load_opts(path, default=None):
             fields
 
     Returns:
-        [type]: [description]
+        addict.Dict: options dictionnary, with overwritten default values
     """
     if default is None:
-        return load_default_opts(path)
+        default_opts = Dict()
+    else:
+        with open(default, "r") as f:
+            default_opts = Dict(yaml.safe_load(f))
 
-    default_opts = load_default_opts(default)
     with open(path, "r") as f:
         overriding_opts = Dict(yaml.safe_load(f))
+
     default_opts.update(overriding_opts)
 
-    return default_opts
+    return set_opts_values(default_opts)
 
 
-def load_default_opts(path):
+def set_opts_values(opts):
     """Loads a configuration Dict from a yaml file
 
     for all decoder in gen.decoders, opts.gen.{decoder} is created from
@@ -68,59 +71,52 @@ def load_default_opts(path):
         init_gain: 0.1
 
     Args:
-        path ([type]): [description]
+        opts (addict.Dict): Options to set up the default values for
 
     Returns:
         addict.Dict: the configuration object
     """
 
-    path = Path(path).resolve()
-    print("Loading opts from", str(path))
-    with open(path, "r") as stream:
-        try:
-            opts = Dict(yaml.safe_load(stream))
-            for mode in ["train", "val"]:
-                for domain in opts.data.files[mode]:
-                    opts.data.files[mode][domain] = str(
-                        Path(opts.data.files.base) / opts.data.files[mode][domain]
-                    )
+    for mode in ["train", "val"]:
+        for domain in opts.data.files[mode]:
+            opts.data.files[mode][domain] = str(
+                Path(opts.data.files.base) / opts.data.files[mode][domain]
+            )
 
-            # set default decoder parameters for all tasks
-            for k in opts.tasks:
-                tmp = copy(opts.gen.default)
-                if k in opts.gen:
-                    tmp.update(opts.gen[k])
-                opts.gen[k] = tmp
+    # set default decoder parameters for all tasks
+    for k in opts.tasks:
+        tmp = copy(opts.gen.default)
+        if k in opts.gen:
+            tmp.update(opts.gen[k])
+        opts.gen[k] = tmp
 
-            # set default discriminator parameters
-            for k in {"a", "t"} & set(opts.tasks):
-                tmp = copy(opts.dis.default)
-                if k in opts.dis:
-                    tmp.update(opts.dis[k])
-                opts.dis[k] = tmp
+    # set default discriminator parameters
+    for k in {"a", "t"} & set(opts.tasks):
+        tmp = copy(opts.dis.default)
+        if k in opts.dis:
+            tmp.update(opts.dis[k])
+        opts.dis[k] = tmp
 
-            # set default loss coefficients for tasks and auto-encoding
-            default = opts.train.lambdas.default
-            for k in opts.tasks:
-                if k not in opts.train.lambdas.tasks:
-                    opts.train.lambdas.G.tasks[k] = default
-            if "a" not in opts.train.lambdas.auto:
-                opts.train.lambdas.auto.a = default
-            if "a" not in opts.train.lambdas.gan:
-                opts.train.lambdas.gan.a = default
-            if "a" not in opts.train.lambdas.cycle:
-                opts.train.lambdas.cycle.a = default
+    # set default loss coefficients for tasks and auto-encoding
+    default = opts.train.lambdas.default
+    for k in opts.tasks:
+        if k not in opts.train.lambdas.tasks:
+            opts.train.lambdas.G.tasks[k] = default
+    if "a" not in opts.train.lambdas.auto:
+        opts.train.lambdas.auto.a = default
+    if "a" not in opts.train.lambdas.gan:
+        opts.train.lambdas.gan.a = default
+    if "a" not in opts.train.lambdas.cycle:
+        opts.train.lambdas.cycle.a = default
 
-            if "t" not in opts.train.lambdas.auto:
-                opts.train.lambdas.auto.t = default
-            if "t" not in opts.train.lambdas.gan:
-                opts.train.lambdas.gan.t = default
-            if "t" not in opts.train.lambdas.cycle:
-                opts.train.lambdas.cycle.t = default
+    if "t" not in opts.train.lambdas.auto:
+        opts.train.lambdas.auto.t = default
+    if "t" not in opts.train.lambdas.gan:
+        opts.train.lambdas.gan.t = default
+    if "t" not in opts.train.lambdas.cycle:
+        opts.train.lambdas.cycle.t = default
 
-            return opts
-        except yaml.YAMLError as exc:
-            print(exc)
+    return opts
 
 
 def get_git_revision_hash():

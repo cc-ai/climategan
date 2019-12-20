@@ -76,8 +76,8 @@ def pil_image_loader(path, task):
         arr = arr.astype(np.float32)
         arr[arr != 0] = 1 / arr[arr != 0]
 
-    if task == "s":
-        arr = decode_segmap(arr)
+    # if task == "s":
+    #     arr = decode_segmap(arr)
 
     # assert len(arr.shape) == 3, (path, task, arr.shape)
 
@@ -111,25 +111,40 @@ class OmniListDataset(Dataset):
         self.transform = transform
 
     def __getitem__(self, i):
+        """Return an item in the dataset with fields:
+        {
+            data: transform({
+                domains: values
+            }),
+            paths: [{task: path}],
+            domain: [domain],
+            mode: [train|val]
+        }
+
+        Args:
+            i (int): index of item to retrieve
+
+        Returns:
+            dict: dataset item where tensors of data are in item["data"] which is a dict
+                  {task: tensor}
+        """
+        paths = self.samples_paths[i]
+
         if self.transform:
             return {
                 "data": self.transform(
-                    {
-                        task: pil_image_loader(path, task)
-                        for task, path in self.samples_paths[i].items()
-                    }
+                    {task: pil_image_loader(path, task) for task, path in paths.items()}
                 ),
-                "paths": self.samples_paths[i],
+                "paths": paths,
                 "domain": self.domain,
                 "mode": self.mode,
             }
 
         return {
             "data": {
-                task: pil_image_loader(path, task)
-                for task, path in self.samples_paths[i].items()
+                task: pil_image_loader(path, task) for task, path in paths.items()
             },
-            "paths": self.samples_paths[i],
+            "paths": paths,
             "domain": self.domain,
             "mode": self.mode,
         }
