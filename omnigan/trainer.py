@@ -43,8 +43,12 @@ class Trainer:
 
         self.logger.exp = None
         if comet:
-            self.logger.exp = Experiment()
+            self.logger.exp = Experiment(project_name="OmniGAN")
             self.logger.exp.log_parameters(flatten_opts(opts))
+
+    def log_losses(self):
+        # TODO
+        pass
 
     def batch_to_device(self, b):
         """sends the data in b to self.device
@@ -317,8 +321,8 @@ class Trainer:
                     update_loss = self.losses["G"]["tasks"][update_task](
                         prediction, update_target
                     )
-                    self.logger.task_loss[update_task] = update_loss.item()
-                    step_loss += lambdas.G.tasks[update_task] * update_loss
+                    self.logger.losses.task_loss[update_task][batch_domain] = update_loss.item()
+                    step_loss += lambdas.G.tasks[update_task][batch_domain] * update_loss
 
                     self.debug("get_representation_loss", locals(), 0)
 
@@ -330,7 +334,7 @@ class Trainer:
             update_loss = self.losses["G"]["auto"]["t"](
                 batch["data"]["x"], reconstruction
             )
-            self.logger.losses.auto.t = update_loss.item()
+            self.logger.losses.auto.t[batch_domain] = update_loss.item()
             step_loss += lambdas.G["auto"]["t"] * update_loss
             self.debug("get_representation_loss", locals(), 1)
 
@@ -342,7 +346,7 @@ class Trainer:
             update_loss = self.losses["G"]["auto"]["a"](
                 batch["data"]["x"], reconstruction
             )
-            self.logger.losses.auto.a = update_loss.item()
+            self.logger.losses.auto.a[batch_domain] = update_loss.item()
             step_loss += lambdas.G.auto.a * update_loss
             self.debug("get_representation_loss", locals(), 2)
 
@@ -478,6 +482,9 @@ class Trainer:
         return step_loss
 
     def update_d(self, batch):
+        # ? split representational as in update_g
+        # ? repr: domain-adaptation traduction
+        # ?
         pass
 
     def update_c(self, batch):
