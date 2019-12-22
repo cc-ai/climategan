@@ -97,3 +97,19 @@ def entropy_loss(v):
     assert v.dim() == 4
     n, c, h, w = v.size()
     return -torch.sum(torch.mul(v, torch.log2(v + 1e-30))) / (n * h * w * np.log2(c))
+
+
+def mse_loss():
+    """
+    Creates a criterion that measures the mean squared error 
+    (squared L2 norm) between each element in the input x and target y .
+    """
+    return torch.nn.MSELoss()
+
+
+def l1_loss():
+    """
+    Creates a criterion that measures the mean absolute error 
+    (MAE) between each element in the input x and target y
+    """
+    return torch.nn.L1Loss()

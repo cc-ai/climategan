@@ -11,9 +11,10 @@ if __name__ == "__main__":
     trainer = Trainer(opts, verbose=1)
 
     test_setup = True
-    test_get_representation_loss = True
-    test_get_translation_loss = True
+    test_get_representation_loss = False
+    test_get_translation_loss = False
     test_update_g = True
+    test_get_classifier_loss = True
 
     if test_setup:
         print_header("test_setup")
@@ -36,6 +37,26 @@ if __name__ == "__main__":
         multi_batch_tuple = next(iter(trainer.train_loaders))
         domain_batch = {batch["domain"][0]: batch for batch in multi_batch_tuple}
         loss = trainer.get_translation_loss(domain_batch)
+        print("Loss {}".format(loss.item()))
+
+    if test_get_classifier_loss:
+        print_header("test classifier loss")
+        if not trainer.is_setup:
+            trainer.setup()
+
+        multi_batch_tuple = next(iter(trainer.train_loaders))
+        domain_batch = {batch["domain"][0]: batch for batch in multi_batch_tuple}
+        trainer.opts.classifier.loss = "l1"
+        trainer.setup()
+        loss = trainer.get_classifier_loss(domain_batch)
+        print("Loss {}".format(loss.item()))
+        trainer.opts.classifier.loss = "l2"
+        trainer.setup()
+        loss = trainer.get_classifier_loss(domain_batch)
+        print("Loss {}".format(loss.item()))
+        trainer.opts.classifier.loss = "cross_entropy"
+        trainer.setup()
+        loss = trainer.get_classifier_loss(domain_batch)
         print("Loss {}".format(loss.item()))
 
     if test_update_g:

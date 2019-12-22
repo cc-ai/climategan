@@ -4,12 +4,17 @@ from time import time
 import torch
 
 from omnigan.generator import get_gen
-from omnigan.utils import flatten_opts, freeze, domains_to_class_tensor
+from omnigan.utils import (
+    flatten_opts,
+    freeze,
+    fake_domains_to_class_tensor,
+    domains_to_class_tensor,
+)
 from omnigan.optim import get_optimizer
 from omnigan.data import get_all_loaders
 from omnigan.discriminator import get_dis
 from omnigan.classifier import get_classifier
-from omnigan.losses import cross_entropy_2d
+from omnigan.losses import cross_entropy_2d, cross_entropy, mse_loss, l1_loss
 
 
 class Trainer:
@@ -99,8 +104,8 @@ class Trainer:
             "C": ...
         }
         """
-        self.losses = {"G": {"gan": {}, "cycle": {}, "tasks": {}}, "D": {}, "C": {}}
 
+        self.losses = {"G": {"gan": {}, "cycle": {}, "tasks": {}}, "D": {}, "C": {}}
         # ------------------------------
         # -----  Generator Losses  -----
         # ------------------------------
@@ -124,7 +129,7 @@ class Trainer:
             self.losses["G"]["tasks"]["h"] = lambda x, y: (x + y).mean()
 
         if "s" in self.opts.tasks:
-            self.losses["G"]["tasks"]["s"] = cross_entropy_2d
+            self.losses["G"]["tasks"]["s"] = lambda x, y: (x + y).mean()
 
         if "w" in self.opts.tasks:
             self.losses["G"]["tasks"]["w"] = lambda x, y: (x + y).mean()
@@ -136,13 +141,19 @@ class Trainer:
         }
 
         # undistinguishable features loss
-        self.losses["G"]["classifier"] = lambda x, y: x.mean() + y.mean()
+        # TODO setup a get_losses func to assign the right loss according to the yaml
+        if self.opts.classifier.loss == "l1":
+            loss_classifier = l1_loss()
+        elif self.opts.classifier.loss == "l2":
+            loss_classifier = mse_loss()
+        else:
+            loss_classifier = cross_entropy()
 
+        self.losses["G"]["classifier"] = loss_classifier
         # -------------------------------
         # -----  Classifier Losses  -----
         # -------------------------------
-        # TODO @Adrien
-
+        self.losses["C"] = loss_classifier
         # ----------------------------------
         # -----  Discriminator Losses  -----
         # ----------------------------------
@@ -282,7 +293,7 @@ class Trainer:
         but the translation part
 
         * for each batch in available domains:
-            * compute latent classifier loss (1)
+            * compute latent classifier loss with fake labels(1)
             * compute task-specific losses (2)
             * compute the adaptation and translation decoders' auto-encoding losses (3)
             * compute the adaptation decoder's translation losses (GAN and Cycle) (4)
@@ -303,12 +314,17 @@ class Trainer:
             # ---------------------------------
             # -----  classifier loss (1)  -----
             # ---------------------------------
-            # TODO: classifier issue @Adrien
+            # Forward pass through classifier, output : (batch_size, 4)
+            output_classifier = self.C(self.z)
+            # Cross entropy loss (with sigmoid) with fake labels to fool C
             update_loss = self.losses["G"]["classifier"](
-                self.z, domains_to_class_tensor(batch["domain"])
+                output_classifier,
+                fake_domains_to_class_tensor(
+                    batch["domain"], self.opts.classifier.loss
+                ),
             )
+            print(update_loss)
             step_loss += lambdas.G.classifier * update_loss
-
             # -------------------------------------------------
             # -----  task-specific regression losses (2)  -----
             # -------------------------------------------------
@@ -487,8 +503,47 @@ class Trainer:
         # ?
         pass
 
-    def update_c(self, batch):
-        pass
+    def update_c(self, multi_domain_batch):
+        """
+        Update the classifier using normal labels
+
+        Args:
+            multi_domain_batch (dict): dictionnary mapping domain names to batches from
+            the trainer's loaders
+
+        """
+        self.c_opt.zero_grad()
+        c_loss = self.get_classifier_loss(multi_domain_batch)
+        # ? Log policy
+        self.logger.losses.classifier = c_loss.item()
+        c_loss.backward()
+        self.c_opt_step()
+
+    def get_classifier_loss(self, multi_domain_batch):
+        """Compute the loss of the domain classifier with real labels
+
+        Args:
+            multi_domain_batch (dict): dictionnary mapping domain names to batches from
+            the trainer's loaders
+
+        Returns:
+            torch.Tensor: scalar loss tensor, weighted according to opts.train.lambdas.C
+        """
+        loss = 0
+        lambdas = self.opts.train.lambdas
+
+        for batch_domain, batch in multi_domain_batch.items():
+            self.z = self.G.encoder(batch["data"]["x"])
+            # Forward through classifier, output classifier = (batch_size, 4)
+            output_classifier = self.C(self.z)
+            # Cross entropy loss (with sigmoid)
+            update_loss = self.losses["C"](
+                output_classifier,
+                domains_to_class_tensor(batch["domain"], self.opts.classifier.loss),
+            )
+            loss += update_loss
+
+        return lambdas.C * loss
 
     def eval(self):
         pass
