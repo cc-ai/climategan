@@ -11,8 +11,8 @@ if __name__ == "__main__":
     trainer = Trainer(opts, verbose=1)
 
     test_setup = True
-    test_get_representation_loss = False
-    test_get_translation_loss = False
+    test_get_representation_loss = True
+    test_get_translation_loss = True
     test_update_g = True
     test_get_classifier_loss = True
 

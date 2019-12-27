@@ -21,7 +21,6 @@ if __name__ == "__main__":
     C = get_classifier(opts, latent_space, 0)
     y = C(z)
 
-
     print(y.shape)
     print(loss(y, labels))
     print(loss_l1(y, labels_float))

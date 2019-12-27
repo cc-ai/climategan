@@ -129,7 +129,7 @@ class Trainer:
             self.losses["G"]["tasks"]["h"] = lambda x, y: (x + y).mean()
 
         if "s" in self.opts.tasks:
-            self.losses["G"]["tasks"]["s"] = lambda x, y: (x + y).mean()
+            self.losses["G"]["tasks"]["s"] = cross_entropy_2d
 
         if "w" in self.opts.tasks:
             self.losses["G"]["tasks"]["w"] = lambda x, y: (x + y).mean()
@@ -337,8 +337,10 @@ class Trainer:
                     update_loss = self.losses["G"]["tasks"][update_task](
                         prediction, update_target
                     )
-                    self.logger.losses.task_loss[update_task][batch_domain] = update_loss.item()
-                    step_loss += lambdas.G.tasks[update_task][batch_domain] * update_loss
+                    self.logger.losses.task_loss[update_task][
+                        batch_domain
+                    ] = update_loss.item()
+                    step_loss += lambdas.G.tasks[update_task] * update_loss
 
                     self.debug("get_representation_loss", locals(), 0)
 
