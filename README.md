@@ -5,7 +5,7 @@
 
 ### batches
 ```python
-batch = Dict(
+batch = Dict({
     "data": {
         "d": depthmap,
         "h": heightmap,
@@ -22,8 +22,7 @@ batch = Dict(
     }
     "domain": rf | rn | sf | sn,
     "mode": train | val
-}
-)
+})
 ```
 
 ### data
@@ -40,8 +39,10 @@ batch = Dict(
   s: /path/to/segmentation map
 - x: ...
 ```
+
 or
-```
+
+```json
 [
     {
         "x": "/Users/victor/Documents/ccai/github/omnigan/example_data/gsv_000005.jpg",
@@ -63,6 +64,38 @@ loaders = Dict({
     train: { rn: loader, rf: loader, sn: loader, sf: loader},
     val: { rn: loader, rf: loader, sn: loader, sf: loader}
 })
+```
+
+### losses
+
+`trainer.losses` is a dictionary mapping to loss functions to optimize for the 3 main parts of the architecture: generator `G`, discriminators `D`, domain classifier `C`:
+
+```python
+trainer.losses = {
+    "G":{ # generator
+        "gan": { # gan loss from the discriminators
+            "a": func, # adaptation decoder
+            "t": func # translation decoder
+        },
+        "cycle": { # cycle-consistency loss
+            "a": func,
+            "t": func
+        },
+        "auto": { # auto-encoding loss a.k.a. reconstruction loss
+            "a": l1 | l2,
+            "t": l1 | l2
+        },
+        "tasks": {  # specific losses for each auxillary task
+            "d": func, # depth estimation
+            "h": func, # height estimation
+            "s": cross_entropy_2d, # segmentation
+            "w": func, # water generation
+        },
+        "classifier": l1 | l2 | CE # loss from fooling the classifier
+    },
+    "D":{}, # discriminator losses from the generator and true data
+    "C": l1 | l2 | CE # classifier should predict the right 1-h vector [rf, rn, sf, sn]
+}
 ```
 
 ## Logging on comet
