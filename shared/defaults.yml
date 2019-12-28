@@ -51,6 +51,10 @@ gen:
     niter_decay: null # for linear decay
     lr: 0.0005
     beta1: 0.9
+  encoder:
+    n_blocks: 4 # number of UNet blocks
+    bilinear: True # False to use transpose convs instead of bilinear upsampling
+    base_channels: 64 # number of channels to double from in the Unet
   default:
     input_nc: 3
     output_nc: 3
@@ -96,7 +100,7 @@ classifier:
     optimizer: ExtraAdam
     lr: 0.0005
     beta1: 0.5
-  loss: cross_entropy    #Loss can be l1, l2, cross_entropy.  default cross_entropy
+  loss: cross_entropy #Loss can be l1, l2, cross_entropy.  default cross_entropy
   layers: [100, 100, 20, 20, 4] # number of units per hidden layer ; las number is output_dim
   dropout: 0.4 # probability of being set to 0
   init_type: kaiming
@@ -125,7 +129,6 @@ train:
       classifier: 1
     C: 1
   log_level: 1 # 0: no log, 1: only aggregated losses, >1 detailed losses
-
 
 # -----------------------------
 # ----- Validation Params -----

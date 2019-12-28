@@ -5,7 +5,7 @@ import sys
 
 sys.path.append("..")
 
-from omnigan.generator import get_gen
+from omnigan.generator import get_gen, UnetEncoder, UnetDecoder
 from omnigan.utils import load_opts
 from run import print_header
 
@@ -25,6 +25,7 @@ if __name__ == "__main__":
     test_partial_decoder = True
     test_encoder = True
     test_encode_decode = True
+    test_unets = True
 
     if test_partial_decoder:
         print_header("test_partial_decoder")
@@ -67,3 +68,14 @@ if __name__ == "__main__":
                         print(dec, d, G.decoders[dec][d](z).shape)
                 else:
                     print(dec, G.decoders[dec](z).shape)
+
+    if test_unets:
+        print_header("test_unets")
+        x = torch.rand((2, 3, 128, 128))
+        ue = UnetEncoder(opts)
+        ud = UnetDecoder(opts, 3)
+        z = ue(x)
+        print(x.shape)
+        print(len(z))
+        print([tuple(a.shape) for a in z])
+        print(ud(z).shape)
