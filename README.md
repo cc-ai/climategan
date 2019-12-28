@@ -64,3 +64,30 @@ loaders = Dict({
     val: { rn: loader, rf: loader, sn: loader, sf: loader}
 })
 ```
+
+## Logging on comet
+
+Comet.ml will look for api keys in the following order: argument to the `Experiment(api_key=...)` call, `COMET_API_KEY` environment variable, `.comet.config` file in the current working directory, `.comet.config` in the current user's home directory.
+
+If your not managing several comet accounts at the same time, I recommend putting `.comet.config` in your home as such:
+
+```
+[comet]
+api_key=<api_key>
+workspace=vict0rsch
+rest_api_key=<rest_api_key>
+```
+
+### Parameters
+
+Set `train.log_level` in your configuration file to control the amount of logging on comet:
+
+* `0`: no logging on comet
+* `1`: only aggregated losses (representational loss, translation loss, total loss)
+* `2`: all losses (aggregated + task losses + auto-encoding losses)
+
+### Tests
+
+There's a `test_comet.py` test which will automatically start and stop an experiment, check that logging works and so on. Not to pollute your workspace, such functional tests are deleted when the test is passed through Comet's REST API which is why you need to specify this `rest_api_key` field.
+
+Set `should_delete` to False in the file not to delete the test experiment once it has ended. You'll be able to find all your test experiments which were not deleted using the `is_functional_test` parameter on Comet's web interface.

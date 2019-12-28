@@ -47,7 +47,7 @@ class Trainer:
 
         self.exp = None
         if comet:
-            self.exp = Experiment(project_name="omnigan")
+            self.exp = Experiment(project_name="omnigan", auto_metric_logging=False)
             self.exp.log_parameters(flatten_opts(opts))
 
     def log_losses(self, model_to_update="G"):
