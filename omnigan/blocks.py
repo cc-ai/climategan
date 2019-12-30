@@ -471,7 +471,7 @@ class SpadeDecoder(nn.Module):
         return x
 
 
-class Decoder(nn.Module):
+class BaseDecoder(nn.Module):
     def __init__(
         self,
         n_upsample,

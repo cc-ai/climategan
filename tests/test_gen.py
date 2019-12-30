@@ -71,18 +71,7 @@ if __name__ == "__main__":
 
     if test_translation:
         print_header("test_translation")
-        print("Encoding...", end="")
-        z = G.encoder(image)
-        print("Ok.")
-        print("Decoding tasks...", end="")
-        h = G.decoders["h"](z)
-        d = G.decoders["d"](z)
-        s = G.decoders["s"](z)
-        w = G.decoders["w"](z)
-        print("h, d, s, w: Ok.")
-        print("Translating...", end="")
-        im = G.decoders["t"]["f"](z, torch.cat([h, d, s, w], dim=1))
-        print("Decoded.")
+        print(G.forward(image, translate_to="f").shape)
 
     if test_summary:
         print_header("Generator summary")

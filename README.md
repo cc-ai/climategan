@@ -1,6 +1,19 @@
 # omnigan
+- [omnigan](#omnigan)
+  - [Current Model](#current-model)
+    - [Summary](#summary)
+    - [Generator](#generator)
+  - [interfaces](#interfaces)
+    - [batches](#batches)
+    - [data](#data)
+    - [losses](#losses)
+  - [Logging on comet](#logging-on-comet)
+    - [Parameters](#parameters)
+    - [Tests](#tests)
 
 ## Current Model
+
+### Summary
 
 Extract summary from `torchsummary`:
 
@@ -20,6 +33,22 @@ Estimated Total Size (MB): 4401.17
 Set `test_summary` to `True` in `tests/test_gen.py` to view the full summary.
 
 **n.b.**: the adaptation decoder is not taken into account in the summary as its computations are not used in `OmniGenerator.forward(...)` and only one translation decoder is used so numbers above are a lower bound.
+
+### Generator
+
+High-level model in `generator.py`, building-blocks in `blocks.py`
+
+* **Encoder**: Resnet-based Content Encoder from MUNIT
+  * image => 64 (=`encoder.dim`) channels with 1 conv layer, same size
+  * conv-based downsamplings (`encoder.n_downsample` times)
+  * resblocks (`encoder.n_res` blocks)
+* **Decoders**: Resnet-based Decoders from MUNIT for all tasks but the translation
+  * resblocks projections (`decoder.n_res` blocks)
+  * Sequence of `nn.Upsampling > Conv2dBlock` (`decoder.n_upsample` times)
+    * should match `encoder.n_downsample`
+  * final conv to get a feature map with 1 (`h`, `d`, `w`), 3 (`a`) or 19 (`s`) channels
+* **Translation decoder**: SPADEResnet-based Decoder inspired by MUNIT and SPADE
+  * Conditioning the translation by `SPADE([h, d, s, w])`
 
 ## interfaces
 

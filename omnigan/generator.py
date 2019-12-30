@@ -1,15 +1,14 @@
 import torch
 import torch.nn as nn
 from omnigan.utils import init_weights
-from omnigan.blocks import Conv2dBlock, ResBlocks, SpadeDecoder, Decoder
-
-# * https://docs.fast.ai/vision.models.unet.html
-# * Dynamic UNet FastAI
+from omnigan.blocks import Conv2dBlock, ResBlocks, SpadeDecoder, BaseDecoder
 
 # --------------------------------------------------------------------------
 # -----  For now no network structure, just project in a 64 x 32 x 32  -----
 # -----   latent space and decode to (3 or 1) x 256 x 256              -----
 # --------------------------------------------------------------------------
+
+# TODO think about how to use the classifier probs at inference
 
 
 def get_gen(opts, verbose=0):
@@ -32,6 +31,61 @@ def get_gen(opts, verbose=0):
                 verbose=verbose,
             )
     return G
+
+
+class OmniGenerator(nn.Module):
+    def __init__(self, opts):
+        """Creates the generator. All decoders listed in opts.gen will be added
+        to the Generator.decoders ModuleDict if opts.gen.DecoderInitial is not True.
+        Then can be accessed as G.decoders.T or G.decoders["T"] for instance,
+        for the image Translation decoder
+
+        Args:
+            opts (addict.Dict): configuration dict
+        """
+        super().__init__()
+
+        self.encoder = Encoder(opts)
+
+        self.decoders = {}
+
+        if "a" in opts.tasks and not opts.gen.A.ignore:
+            self.decoders["a"] = nn.ModuleDict(
+                {"r": AdapatationDecoder(opts), "s": AdapatationDecoder(opts)}
+            )
+
+        if "t" in opts.tasks and not opts.gen.T.ignore:
+            self.decoders["t"] = nn.ModuleDict(
+                {"f": TranslationDecoder(opts), "n": TranslationDecoder(opts)}
+            )
+
+        if "d" in opts.tasks and not opts.gen.D.ignore:
+            self.decoders["d"] = DepthDecoder(opts)
+
+        if "h" in opts.tasks and not opts.gen.H.ignore:
+            self.decoders["h"] = HeightDecoder(opts)
+
+        if "s" in opts.tasks and not opts.gen.H.ignore:
+            self.decoders["s"] = SegmentationDecoder(opts)
+
+        if "w" in opts.tasks and not opts.gen.W.ignore:
+            self.decoders["w"] = WaterDecoder(opts)
+
+        self.decoders = nn.ModuleDict(self.decoders)
+
+    def forward(self, x, translate_to="f", classifier_probs=None):
+        z = self.encoder(x)
+        h = self.decoders["h"](z)
+        d = self.decoders["d"](z)
+        s = self.decoders["s"](z)
+        w = self.decoders["w"](z)
+        if classifier_probs is None:
+            classifier_probs = torch.Tensor([0, 1, 0, 0]).detach().to(torch.float32)
+        bit = torch.ones(x.shape[0], 4, *x.shape[-2:]).detach().to(x.device)
+        bit = classifier_probs[None, :, None, None] * bit
+
+        y = self.decoders["t"][translate_to](z, torch.cat([h, d, s, w, bit], dim=1))
+        return y
 
 
 class Encoder(nn.Module):
@@ -84,57 +138,7 @@ class Encoder(nn.Module):
         return self.model(x)
 
 
-class OmniGenerator(nn.Module):
-    def __init__(self, opts):
-        """Creates the generator. All decoders listed in opts.gen will be added
-        to the Generator.decoders ModuleDict if opts.gen.DecoderInitial is not True.
-        Then can be accessed as G.decoders.T or G.decoders["T"] for instance,
-        for the image Translation decoder
-
-        Args:
-            opts (addict.Dict): configuration dict
-        """
-        super().__init__()
-
-        self.encoder = Encoder(opts)
-
-        self.decoders = {}
-
-        if "a" in opts.tasks and not opts.gen.A.ignore:
-            self.decoders["a"] = nn.ModuleDict(
-                {"r": AdapatationDecoder(opts), "s": AdapatationDecoder(opts)}
-            )
-
-        if "t" in opts.tasks and not opts.gen.T.ignore:
-            self.decoders["t"] = nn.ModuleDict(
-                {"f": TranslationDecoder(opts), "n": TranslationDecoder(opts)}
-            )
-
-        if "d" in opts.tasks and not opts.gen.D.ignore:
-            self.decoders["d"] = DepthDecoder(opts)
-
-        if "h" in opts.tasks and not opts.gen.H.ignore:
-            self.decoders["h"] = HeightDecoder(opts)
-
-        if "s" in opts.tasks and not opts.gen.H.ignore:
-            self.decoders["s"] = SegmentationDecoder(opts)
-
-        if "w" in opts.tasks and not opts.gen.W.ignore:
-            self.decoders["w"] = WaterDecoder(opts)
-
-        self.decoders = nn.ModuleDict(self.decoders)
-
-    def forward(self, x, translate_to="f"):
-        z = self.encoder(x)
-        h = self.decoders["h"](z)
-        d = self.decoders["d"](z)
-        s = self.decoders["s"](z)
-        w = self.decoders["w"](z)
-        y = self.decoders["t"][translate_to](z, torch.cat([h, d, s, w], dim=1))
-        return y
-
-
-class HeightDecoder(Decoder):
+class HeightDecoder(BaseDecoder):
     def __init__(self, opts):
         super().__init__(
             opts.gen.h.n_upsample,
@@ -147,7 +151,7 @@ class HeightDecoder(Decoder):
         )
 
 
-class WaterDecoder(Decoder):
+class WaterDecoder(BaseDecoder):
     def __init__(self, opts):
         super().__init__(
             opts.gen.w.n_upsample,
@@ -160,7 +164,7 @@ class WaterDecoder(Decoder):
         )
 
 
-class DepthDecoder(Decoder):
+class DepthDecoder(BaseDecoder):
     def __init__(self, opts):
         super().__init__(
             opts.gen.d.n_upsample,
@@ -173,7 +177,7 @@ class DepthDecoder(Decoder):
         )
 
 
-class SegmentationDecoder(Decoder):
+class SegmentationDecoder(BaseDecoder):
     def __init__(self, opts):
         super().__init__(
             opts.gen.s.n_upsample,
@@ -186,7 +190,7 @@ class SegmentationDecoder(Decoder):
         )
 
 
-class AdapatationDecoder(Decoder):
+class AdapatationDecoder(BaseDecoder):
     def __init__(self, opts):
         super().__init__(
             opts.gen.a.n_upsample,
@@ -201,7 +205,7 @@ class AdapatationDecoder(Decoder):
 
 class TranslationDecoder(SpadeDecoder):
     def __init__(self, opts):
-        cond_nc = 0
+        cond_nc = 4  # 4 domains => 4-channel bitmap
         if "d" in opts.tasks:
             cond_nc += 1
         if "h" in opts.tasks:
