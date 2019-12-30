@@ -84,7 +84,7 @@ def set_opts_values(opts):
             )
 
     # set default decoder parameters for all tasks
-    for k in opts.tasks:
+    for k in opts.tasks + ["encoder"]:
         tmp = copy(opts.gen.default)
         if k in opts.gen:
             tmp.update(opts.gen[k])
@@ -398,3 +398,20 @@ def get_comet_rest_api_key(path_to_config_file=None):
             if "rest_api_key" in l:
                 return l.strip().split("=")[-1].strip()
     raise ValueError("Unable to find your COMET_REST_API_KEY in {}".format(str(p)))
+
+
+def show_tanh_tensor(tensor):
+    import skimage
+
+    if isinstance(tensor, torch.Tensor):
+        image = tensor.permute(1, 2, 0).detach().numpy()
+    else:
+        if tensor.shape[-1] != 3:
+            image = tensor.transpose(1, 2, 0)
+
+    if image.min() < 0 and image.min() > -1:
+        image = image / 2 + 0.5
+    elif image.min() < -1:
+        raise ValueError("can't handle this data")
+
+    skimage.io.imshow(image)

@@ -1,5 +1,25 @@
 # omnigan
 
+## Current Model
+
+Extract summary from `torchsummary`:
+
+```
+================================================================
+Total params: 39,114,905
+Trainable params: 39,114,905
+Non-trainable params: 0
+----------------------------------------------------------------
+Input size (MB): 0.75
+Forward/backward pass size (MB): 4251.21
+Params size (MB): 149.21
+Estimated Total Size (MB): 4401.17
+----------------------------------------------------------------
+```
+
+Set `test_summary` to `True` in `tests/test_gen.py` to view the full summary.
+
+**n.b.**: the adaptation decoder is not taken into account in the summary as its computations are not used in `OmniGenerator.forward(...)` and only one translation decoder is used so numbers above are a lower bound.
 
 ## interfaces
 
