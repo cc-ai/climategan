@@ -1,8 +1,8 @@
 import sys
-import torch
 import os
 from pathlib import Path
 import uuid
+import addict
 
 sys.path.append("..")
 
@@ -13,6 +13,7 @@ from omnigan.utils import (
     env_to_path,
     get_increased_path,
     load_opts,
+    flatten_opts,
 )
 from omnigan.data import get_all_loaders
 
@@ -57,3 +58,17 @@ if __name__ == "__main__":
     print("ok.")
     for d in Path().glob(uid + "*"):
         d.rmdir()
+
+    print_header("test_flatten_opts")
+    d = addict.Dict()
+    d.a.b.c = 2
+    d.a.b.d = 3
+    d.a.e = 4
+    d.f = 5
+    assert flatten_opts(d) == {
+        "a.b.c": 2,
+        "a.b.d": 3,
+        "a.e": 4,
+        "f": 5,
+    }
+    print("ok.")

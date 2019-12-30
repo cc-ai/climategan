@@ -5,7 +5,7 @@
 
 ### batches
 ```python
-batch = Dict(
+batch = Dict({
     "data": {
         "d": depthmap,
         "h": heightmap,
@@ -22,8 +22,7 @@ batch = Dict(
     }
     "domain": rf | rn | sf | sn,
     "mode": train | val
-}
-)
+})
 ```
 
 ### data
@@ -40,8 +39,10 @@ batch = Dict(
   s: /path/to/segmentation map
 - x: ...
 ```
+
 or
-```
+
+```json
 [
     {
         "x": "/Users/victor/Documents/ccai/github/omnigan/example_data/gsv_000005.jpg",
@@ -64,3 +65,62 @@ loaders = Dict({
     val: { rn: loader, rf: loader, sn: loader, sf: loader}
 })
 ```
+
+### losses
+
+`trainer.losses` is a dictionary mapping to loss functions to optimize for the 3 main parts of the architecture: generator `G`, discriminators `D`, domain classifier `C`:
+
+```python
+trainer.losses = {
+    "G":{ # generator
+        "gan": { # gan loss from the discriminators
+            "a": func, # adaptation decoder
+            "t": func # translation decoder
+        },
+        "cycle": { # cycle-consistency loss
+            "a": func,
+            "t": func
+        },
+        "auto": { # auto-encoding loss a.k.a. reconstruction loss
+            "a": l1 | l2,
+            "t": l1 | l2
+        },
+        "tasks": {  # specific losses for each auxillary task
+            "d": func, # depth estimation
+            "h": func, # height estimation
+            "s": cross_entropy_2d, # segmentation
+            "w": func, # water generation
+        },
+        "classifier": l1 | l2 | CE # loss from fooling the classifier
+    },
+    "D":{}, # discriminator losses from the generator and true data
+    "C": l1 | l2 | CE # classifier should predict the right 1-h vector [rf, rn, sf, sn]
+}
+```
+
+## Logging on comet
+
+Comet.ml will look for api keys in the following order: argument to the `Experiment(api_key=...)` call, `COMET_API_KEY` environment variable, `.comet.config` file in the current working directory, `.comet.config` in the current user's home directory.
+
+If your not managing several comet accounts at the same time, I recommend putting `.comet.config` in your home as such:
+
+```
+[comet]
+api_key=<api_key>
+workspace=vict0rsch
+rest_api_key=<rest_api_key>
+```
+
+### Parameters
+
+Set `train.log_level` in your configuration file to control the amount of logging on comet:
+
+* `0`: no logging on comet
+* `1`: only aggregated losses (representational loss, translation loss, total loss)
+* `2`: all losses (aggregated + task losses + auto-encoding losses)
+
+### Tests
+
+There's a `test_comet.py` test which will automatically start and stop an experiment, check that logging works and so on. Not to pollute your workspace, such functional tests are deleted when the test is passed through Comet's REST API which is why you need to specify this `rest_api_key` field.
+
+Set `should_delete` to False in the file not to delete the test experiment once it has ended. You'll be able to find all your test experiments which were not deleted using the `is_functional_test` parameter on Comet's web interface.

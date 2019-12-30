@@ -2,7 +2,6 @@ from comet_ml import Experiment
 from addict import Dict
 from time import time
 import torch
-
 from omnigan.generator import get_gen
 from omnigan.utils import (
     flatten_opts,
@@ -46,14 +45,40 @@ class Trainer:
 
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-        self.logger.exp = None
+        self.exp = None
         if comet:
-            self.logger.exp = Experiment(project_name="OmniGAN")
-            self.logger.exp.log_parameters(flatten_opts(opts))
+            self.exp = Experiment(project_name="omnigan", auto_metric_logging=False)
+            self.exp.log_parameters(flatten_opts(opts))
 
-    def log_losses(self):
-        # TODO
-        pass
+    def log_losses(self, model_to_update="G"):
+        """Logs metrics on comet.ml
+
+        Args:
+            model_to_update (str, optional): One of "G", "D" or "C". Defaults to "G".
+        """
+        if self.opts.train.log_level < 1:
+            return
+
+        if self.exp is None:
+            return
+
+        assert model_to_update in {
+            "G",
+            "D",
+            "C",
+        }, "unknown model to log losses {}".format(model_to_update)
+
+        losses = self.logger.losses.copy()
+        if self.opts.train.log_level == 1:
+            # Only log aggregated losses: delete other keys in losses
+            for k in self.logger.losses:
+                if k not in {"representation", "generator", "translation"}:
+                    del losses[k]
+        # convert losses into a single-level dictionnary
+        losses = flatten_opts(losses)
+        self.exp.log_metrics(
+            losses, prefix=model_to_update, step=self.logger.global_step
+        )
 
     def batch_to_device(self, b):
         """sends the data in b to self.device
@@ -234,6 +259,7 @@ class Trainer:
             self.update_g(multi_domain_batch)
             self.update_d(multi_domain_batch)
             self.update_c(multi_domain_batch)
+            self.logger.global_step += 1
 
     def train(self):
         """For each epoch:
@@ -259,7 +285,8 @@ class Trainer:
             * otherwise compute both
         * loss.backward()
         * g_opt_step()
-            * g_opt.step() or .extrapolation() depending
+            * g_opt.step() or .extrapolation() depending on self.logger.global_step
+        * logs losses on comet.ml with self.log_losses(model_to_update="G")
 
         Args:
             multi_domain_batch (dict): dictionnary of domain batches
@@ -287,6 +314,7 @@ class Trainer:
         self.logger.losses.generator = g_loss.item()
         g_loss.backward()
         self.g_opt_step()
+        self.log_losses(model_to_update="G")
 
     def get_representation_loss(self, multi_domain_batch):
         """Only update the representation part of the model, meaning everything
@@ -323,7 +351,6 @@ class Trainer:
                     batch["domain"], self.opts.classifier.loss
                 ),
             )
-            print(update_loss)
             step_loss += lambdas.G.classifier * update_loss
             # -------------------------------------------------
             # -----  task-specific regression losses (2)  -----

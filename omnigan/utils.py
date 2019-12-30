@@ -184,14 +184,37 @@ def env_to_path(path):
 
 
 def flatten_opts(opts):
+    """Flattens a multi-level addict.Dict or native dictionnary into a single
+    level native dict with string keys representing the keys sequence to reach
+    a value in the original argument.
+
+    d = addict.Dict()
+    d.a.b.c = 2
+    d.a.b.d = 3
+    d.a.e = 4
+    d.f = 5
+    flatten_opts(d)
+    >>> {
+        "a.b.c": 2,
+        "a.b.d": 3,
+        "a.e": 4,
+        "f": 5,
+    }
+
+    Args:
+        opts (addict.Dict or dict): addict dictionnary to flatten
+
+    Returns:
+        dict: flattened dictionnary
+    """
     values_list = []
 
     def p(d, prefix="", vals=[]):
         for k, v in d.items():
-            if isinstance(v, Dict):
+            if isinstance(v, (Dict, dict)):
                 p(v, prefix + k + ".", vals)
             elif isinstance(v, list):
-                if isinstance(v[0], Dict):
+                if isinstance(v[0], (Dict, dict)):
                     for i, m in enumerate(v):
                         p(m, prefix + k + "." + str(i) + ".", vals)
                 else:
@@ -338,3 +361,40 @@ def fake_domains_to_class_tensor(domains, loss):
 
         target = torch.tensor([mapping[domain] for domain in domains])
     return target
+
+
+def get_comet_rest_api_key(path_to_config_file=None):
+    """Gets a comet.ml rest_api_key in the following order:
+    * config file specified as argument
+    * environment variable
+    * .comet.config file in the current working diretory
+    * .comet.config file in your home
+
+    config files must have a line like `rest_api_key=<some api key>`
+
+    Args:
+        path_to_config_file (str or pathlib.Path, optional): config_file to use.
+            Defaults to None.
+
+    Raises:
+        ValueError: can't find a file
+        ValueError: can't find the key in a file
+
+    Returns:
+        str: your comet rest_api_key
+    """
+    if "COMET_REST_API_KEY" in os.environ and path_to_config_file is None:
+        return os.environ["COMET_REST_API_KEY"]
+    if path_to_config_file is not None:
+        p = Path(path_to_config_file)
+    else:
+        p = Path() / ".comet.config"
+        if not p.exists():
+            p = Path.home() / ".comet.config"
+            if not p.exists():
+                raise ValueError("Unable to find your COMET_REST_API_KEY")
+    with p.open("r") as f:
+        for l in f:
+            if "rest_api_key" in l:
+                return l.strip().split("=")[-1].strip()
+    raise ValueError("Unable to find your COMET_REST_API_KEY in {}".format(str(p)))
