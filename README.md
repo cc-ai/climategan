@@ -26,6 +26,11 @@ batch = Dict({
 ```
 
 ### data
+We provide the script `process_data.py` for the preprocessing task. Given a source folder the script will create the appropriate JSON. In the default mode, only one JSON for the whole data folder will be created. If you want to split the dataset into train and validation you can use the `--train_size` argument and specify the percentage, therefore two Jsons (train and val) will be created. 
+
+The data folder must be structured as follows : A specific folder for each category (Semantic, Depth, Height, Flood, etc..), for the same data sample, the name must be the same through all the directories (The ground truth depth of Flood/image_1.jpg is Depth/image_1.jpg), but the extension can change. 
+
+
 
 ```yaml
 # data file ; one for each r|s-f|n
