@@ -30,6 +30,7 @@ We provide the script `process_data.py` for the preprocessing task. Given a sour
 
 The data folder must be structured as follows : A specific folder for each category (Semantic, Depth, Height, Flood, etc..), for the same data sample, the name must be the same through all the directories (The ground truth depth of Flood/image_1.jpg is Depth/image_1.jpg), but the extension can change. 
 
+The default mapping between a folder and the json key is `"Segmentation": "s", "Depth": "d", "Data": "x", "Height": "h"` change it according to your needs in `process_data.py`.
 
 
 ```yaml

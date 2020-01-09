@@ -25,12 +25,17 @@ categories = {}
 sample_list = {}
 
 # Mapping data category to json index
-mapping = {"Segmentation": "s", "Depth": "d", "Normal": "x"}
+mapping = {"Segmentation": "s", "Depth": "d", "Data": "x", "Height": "h"}
 
 # List the files for every category
 if os.path.exists(data_path):
     for key in mapping.keys():
-        categories[key] = [f for f in glob.glob(data_path + key + "/*")]
+        if os.path.exists(data_path + key):
+            categories[key] = [f for f in glob.glob(data_path + key + "/*")]
+        else:
+            raise ValueError(
+                "The folder {} doesn't exist add it or change the mapping".format(key)
+            )
 else:
     raise ValueError("Not a correct path")
 
