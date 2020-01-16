@@ -26,13 +26,10 @@ if __name__ == "__main__":
     opts.data.loaders.shuffle = True
     loaders = get_all_loaders(opts)
     batch = next(iter(loaders["train"]["rn"]))
-    print(domains_to_class_tensor(batch["domain"], "cross_entropy"))
-    print(domains_to_class_tensor(batch["domain"], "l1"))
-    print(domains_to_class_tensor(batch["domain"], "l2"))
-    print(domains_to_class_tensor(batch["domain"], "fhzej"))
+    print(domains_to_class_tensor(batch["domain"], True))
+    print(domains_to_class_tensor(batch["domain"], False))
     domains = ["rn", "rf", "rf", "sn"]
 
-    # assert all(domains_to_class_tensor(domains) == target)
     try:
         domains_to_class_tensor([1, "sg"])
         raise TypeError("Should raise a ValueError")

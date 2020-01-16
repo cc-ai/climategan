@@ -292,21 +292,22 @@ def freeze(self, net):
         p.requires_grad = False
 
 
-def domains_to_class_tensor(domains, loss="cross_entropy"):
+def domains_to_class_tensor(domains, one_hot=False):
     """Converts a list of strings to a 1D Tensor representing the domains
 
-    domain_to_class_tensor(["sf", "rn"])
+    domains_to_class_tensor(["sf", "rn"])
     >>> torch.Tensor([2, 1])
 
     Args:
         domain (list(str)): each element of the list should be in {rf, rn, sf, sn}
-        loss (str): loss to use according to the config file
+        one_hot (bool, optional): whether or not to 1-h encode class labels.
+            Defaults to False.
     Raises:
         ValueError: One of the domains listed is not in {rf, rn, sf, sn}
 
     Returns:
-        torch.Tensor: 1D tensor mapping a domain to an int (not 1-hot) if loss is CE
-        or 2D tensor mapping a domain to an int (one-hot) if loss is L1 or L2
+        torch.Tensor: 1D tensor mapping a domain to an int (not 1-hot) or 1-hot
+            domain labels in a 2D tensor
     """
 
     mapping = {"rf": 0, "rn": 1, "sf": 2, "sn": 3}
@@ -318,7 +319,7 @@ def domains_to_class_tensor(domains, loss="cross_entropy"):
 
     target = torch.tensor([mapping[domain] for domain in domains])
 
-    if (loss == "l1") or (loss == "l2"):
+    if one_hot:
         one_hot_target = torch.FloatTensor(len(target), 4)  # 4 domains
         one_hot_target.zero_()
         one_hot_target.scatter_(1, target.unsqueeze(1), 1)
@@ -327,25 +328,27 @@ def domains_to_class_tensor(domains, loss="cross_entropy"):
     return target
 
 
-def fake_domains_to_class_tensor(domains, loss):
+def fake_domains_to_class_tensor(domains, one_hot=False):
     """Converts a list of strings to a 1D Tensor representing the fake domains
     (real or sim only)
 
-    domain_to_class_tensor(["sf", "rn"], "cross_entropy")
+    fake_domains_to_class_tensor(["sf", "rn"], False)
     >>> torch.Tensor([0, 3])
 
 
     Args:
         domain (list(str)): each element of the list should be in {rf, rn, sf, sn}
+        one_hot (bool, optional): whether or not to 1-h encode class labels.
+            Defaults to False.
     Raises:
         ValueError: One of the domains listed is not in {rf, rn, sf, sn}
 
     Returns:
-        torch.Tensor: 1D tensor mapping a domain to an int (not 1-hot) if loss is CE
-            it will return a 2D tensor filled with 0.25 to fool the classifier
-            (Equiprobability for each domain).
+        torch.Tensor: 1D tensor mapping a domain to an int (not 1-hot) or
+            a 2D tensor filled with 0.25 to fool the classifier (equiprobability
+            for each domain).
     """
-    if (loss == "l1") or (loss == "l2"):
+    if one_hot:
         target = torch.FloatTensor(len(domains), 4)
         target.fill_(0.25)
 
@@ -415,3 +418,34 @@ def show_tanh_tensor(tensor):
         raise ValueError("can't handle this data")
 
     skimage.io.imshow(image)
+
+
+def get_4D_bit(shape, probs):
+    """transforms domain probabilities (batch x # of domains)
+    into a 4D tensor repeating probs as feature maps
+
+    Args:
+        shape (list): batch_size x (useless) x h x w
+        probs (torch.Tensor): probabilities of belonging to a domain
+            (batch x # of domains)
+
+    Returns:
+        torch.Tensor: batch x # of domains x h x w
+    """
+    probs = torch.Tensor(probs)
+    bit = torch.ones(*probs.shape, *shape[-2:])
+    bit *= probs[:, :, None, None]
+    return bit
+
+
+def fake_batch(batch, fake):
+    """create fake batch for the cycle reconstruction: copy all references in batch into
+    cycle_batch BUT overwrite batch["data"]["x"] in order to save memory (instead of
+    just deepcopy(batch) which would unnecessarily duplicate the rest of the data)
+
+    Args:
+        batch (dict): batch dictionnary with keys ['data', 'paths', 'domain', 'mode']
+        fake (torch.Tensor): tensor which should replace batch["data"]["x"], for
+            instance to use in the cycle reconstruction
+    """
+    return {**batch, **{"data": {**batch["data"], **{"x": fake}}}}

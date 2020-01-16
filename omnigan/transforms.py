@@ -37,7 +37,9 @@ class RandomCrop:
         top = np.random.randint(0, h - self.h)
         left = np.random.randint(0, w - self.w)
 
-        return {task: TF.crop(im, top, left, h, w) for task, im in data.items()}
+        return {
+            task: TF.crop(im, top, left, self.h, self.w) for task, im in data.items()
+        }
 
 
 class RandomVerticalFlip:

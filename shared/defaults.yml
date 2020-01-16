@@ -35,9 +35,6 @@ data:
       ignore: false
       height: 224
       width: 224
-    - name: resize
-      ignore: false
-      new_size: 256
 
 # ---------------------
 # ----- Generator -----

@@ -23,3 +23,4 @@ if __name__ == "__main__":
     print_header("test_crossentroy_2d")
     prediction = G.decoders["s"](z)
     print(cross_entropy_2d(prediction, batch["data"]["s"]))
+    # ! error how to infer from cropped data: input: 224 output: 256??

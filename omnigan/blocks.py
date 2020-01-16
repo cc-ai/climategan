@@ -418,10 +418,7 @@ class SpadeDecoder(nn.Module):
 
         super().__init__()
         self.n_res = n_res
-        self.model = []
-
-        # SPADE residual blocks
-        self.model += [
+        self.model = [
             SpadeResBlocks(
                 n_res,
                 res_dim,
@@ -464,9 +461,9 @@ class SpadeDecoder(nn.Module):
 
     def forward(self, x, seg):
         for j in range(len(self.model)):
-            if j == 0:
+            if j == 0:  # spade resblocks
                 x = self.model[j].forward(x, seg)
-            else:
+            else:  # standard upsampling blocks
                 x = self.model[j].forward(x)
         return x
 

@@ -9,10 +9,22 @@ from run import print_header, bcolors
 
 if __name__ == "__main__":
 
+    smaller_data_for_faster_tests = True
+
     rest_api_key = get_comet_rest_api_key()
     comet_api = comet_ml.api.API()
 
     opts = load_opts("../config/local_tests.yaml", default="../shared/defaults.yml")
+
+    if smaller_data_for_faster_tests:
+        opts.data.transforms = list(
+            map(
+                lambda x: Dict({**x, "height": 16, "width": 16})
+                if x["name"] == "crop"
+                else x,
+                opts.data.transforms,
+            )
+        )
     trainer = Trainer(opts, comet=True, verbose=0)
     trainer.exp.log_parameter("is_functional_test", True)
     trainer.setup()

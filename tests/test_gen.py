@@ -37,7 +37,7 @@ if __name__ == "__main__":
         print("d" in G.decoders)
         print("a" in G.decoders)
         x = torch.randn(batch_size, *latent_space_dims, dtype=torch.float32)
-        v = G.decoders["w"](x)
+        v = G.decoders["s"](x)
         print(v.shape)
         print(sum(p.numel() for p in G.decoders.parameters()))
 

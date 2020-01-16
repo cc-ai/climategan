@@ -1,20 +1,31 @@
 import sys
 
 sys.path.append("..")
-
+from addict import Dict
 from omnigan.trainer import Trainer
 from omnigan.utils import load_opts
 from run import print_header
 
 if __name__ == "__main__":
-    opts = load_opts("../config/local_tests.yaml", default="../shared/defaults.yml")
-    trainer = Trainer(opts, verbose=1)
 
     test_setup = True
     test_get_representation_loss = True
     test_get_translation_loss = True
-    test_update_g = True
     test_get_classifier_loss = True
+    test_update_g = True
+    smaller_data_for_faster_tests = True
+
+    opts = load_opts("../config/local_tests.yaml", default="../shared/defaults.yml")
+    if smaller_data_for_faster_tests:
+        opts.data.transforms = list(
+            map(
+                lambda x: Dict({**x, "height": 16, "width": 16})
+                if x["name"] == "crop"
+                else x,
+                opts.data.transforms,
+            )
+        )
+    trainer = Trainer(opts, verbose=1)
 
     if test_setup:
         print_header("test_setup")
@@ -60,6 +71,7 @@ if __name__ == "__main__":
         print("Loss {}".format(loss.item()))
 
     if test_update_g:
+
         print_header("test_update_g")
         if not trainer.is_setup:
             trainer.setup()
@@ -74,32 +86,32 @@ if __name__ == "__main__":
         trainer.opts.train.representation_steps = 100
         trainer.logger.step = 0
         print(True, 100, 0)
-        trainer.update_g(domain_batch)
+        trainer.update_g(domain_batch, 1)
 
         # Using repr_tr and step < repr_step and step % 2 == 1
         trainer.opts.train.representational_training = True
         trainer.opts.train.representation_steps = 100
         trainer.logger.step = 1
         print(True, 100, 1)
-        trainer.update_g(domain_batch)
+        trainer.update_g(domain_batch, 1)
 
         # Using repr_tr and step > repr_step
         trainer.opts.train.representational_training = True
         trainer.opts.train.representation_steps = 100
         trainer.logger.step = 200
         print(True, 100, 200)
-        trainer.update_g(domain_batch)
+        trainer.update_g(domain_batch, 1)
 
         # Not Using repr_tr and step < repr_step and step % 2 == 0
         trainer.opts.train.representational_training = False
         trainer.opts.train.representation_steps = 100
         trainer.logger.step = 200
         print(False, 100, 200)
-        trainer.update_g(domain_batch)
+        trainer.update_g(domain_batch, 1)
 
         # Not Using repr_tr and step > repr_step and step % 2 == 1
         trainer.opts.train.representational_training = False
         trainer.opts.train.representation_steps = 100
         trainer.logger.step = 201
         print(False, 100, 201)
-        trainer.update_g(domain_batch)
+        trainer.update_g(domain_batch, 1)

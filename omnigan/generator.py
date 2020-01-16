@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from omnigan.utils import init_weights
+from omnigan.utils import init_weights, get_4D_bit, domains_to_class_tensor
 from omnigan.blocks import Conv2dBlock, ResBlocks, SpadeDecoder, BaseDecoder
 
 # --------------------------------------------------------------------------
@@ -44,7 +44,7 @@ class OmniGenerator(nn.Module):
             opts (addict.Dict): configuration dict
         """
         super().__init__()
-
+        self.opts = opts
         self.encoder = Encoder(opts)
 
         self.decoders = {}
@@ -73,18 +73,60 @@ class OmniGenerator(nn.Module):
 
         self.decoders = nn.ModuleDict(self.decoders)
 
-    def forward(self, x, translate_to="f", classifier_probs=None):
-        z = self.encoder(x)
-        h = self.decoders["h"](z)
-        d = self.decoders["d"](z)
-        s = self.decoders["s"](z)
-        w = self.decoders["w"](z)
+    def get_conditioning_tensor(self, x, task_tensors, classifier_probs=None):
+        """creates the 4D tensor to condition the translation on by concatenating d, h, s, w
+        and a conditioning bit:
+
+        Args:
+            task_tensors (torch.Tensor): dictionnary task: conditioning tensor
+            classifier_probs (list, optional): 1-hot encoded depending on the
+                domain to use. Defaults to None.
+
+        Returns:
+            torch.Tensor: conditioning tensor, all tensors concatenated
+                on the channel dim
+        """
         if classifier_probs is None:
             classifier_probs = torch.Tensor([0, 1, 0, 0]).detach().to(torch.float32)
-        bit = torch.ones(x.shape[0], 4, *x.shape[-2:]).detach().to(x.device)
-        bit = classifier_probs[None, :, None, None] * bit
+        bit = get_4D_bit(x.shape, classifier_probs).detach().to(x.device)
+        # bit => batchsize * conditioning tensor
+        # conditioning tensor => 4 x h x d, with 0s or 1s as classifier_probs
+        return torch.cat(list(task_tensors.values()) + [bit], dim=1)
 
-        y = self.decoders["t"][translate_to](z, torch.cat([h, d, s, w, bit], dim=1))
+    def translate(self, batch, translator="f", z=None):
+        x = batch["data"]["x"]
+        if z is None:
+            z = self.encoder(x)
+
+        task_tensors = {
+            task: self.decoders[task](z)
+            for task in self.opts.tasks
+            if task not in {"t", "a"}
+        }
+
+        classifier_probs = domains_to_class_tensor(batch["domain"], one_hot=True)
+        cond = self.get_conditioning_tensor(x, task_tensors, classifier_probs)
+        y = self.decoders["t"][translator](z, cond)
+        return y
+
+    def forward(self, x, translator="f", classifier_probs=None):
+        """Computes the translation of an image x to a flooding domain
+
+        Args:
+            x (torch.Tensor): images to translate
+            translator (str, optional): translation translator to use. Defaults to "f".
+            classifier_probs (list, optional): probabilities of belonging to a domain.
+                Defaults to None.
+
+        Returns:
+            torch.Tensor: translated image
+        """
+        z = self.encoder(x)
+        task_tensors = {task: self.decoders[task](z) for task in self.opts.tasks}
+        cond = self.get_conditioning_tensor(
+            x, task_tensors, translator, classifier_probs
+        )
+        y = self.decoders["t"][translator](z, cond)
         return y
 
 

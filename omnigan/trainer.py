@@ -1,19 +1,23 @@
 from comet_ml import Experiment
-from addict import Dict
+
 from time import time
+
 import torch
-from omnigan.generator import get_gen
-from omnigan.utils import (
-    flatten_opts,
-    freeze,
-    fake_domains_to_class_tensor,
-    domains_to_class_tensor,
-)
-from omnigan.optim import get_optimizer
+from addict import Dict
+
+from omnigan.classifier import get_classifier
 from omnigan.data import get_all_loaders
 from omnigan.discriminator import get_dis
-from omnigan.classifier import get_classifier
-from omnigan.losses import cross_entropy_2d, cross_entropy, mse_loss, l1_loss
+from omnigan.generator import get_gen
+from omnigan.losses import cross_entropy, cross_entropy_2d, l1_loss, mse_loss
+from omnigan.optim import get_optimizer
+from omnigan.utils import (
+    domains_to_class_tensor,
+    fake_batch,
+    fake_domains_to_class_tensor,
+    flatten_opts,
+    freeze,
+)
 
 
 class Trainer:
@@ -137,12 +141,12 @@ class Trainer:
 
         # translation losses
         if "a" in self.opts.tasks:
-            self.losses["G"]["gan"]["a"] = lambda x, y: (x + y).mean()
-            self.losses["G"]["cycle"]["a"] = lambda x, y, z: (x + y + z).mean()
+            self.losses["G"]["gan"]["a"] = lambda x: x.mean()
+            self.losses["G"]["cycle"]["a"] = lambda x, y: (x + y).mean()
 
         if "t" in self.opts.tasks:
-            self.losses["G"]["gan"]["t"] = lambda x, y: (x + y).mean()
-            self.losses["G"]["cycle"]["t"] = lambda x, y, z: (x + y + z).mean()
+            self.losses["G"]["gan"]["t"] = lambda x: x.mean()
+            self.losses["G"]["cycle"]["t"] = lambda x, y: (x + y).mean()
 
         # task losses
         # ? * add discriminator and gan loss to these task when no ground truth
@@ -236,7 +240,8 @@ class Trainer:
         """Get a zip of all training loaders
 
         Returns:
-            generator: zip generator
+            generator: zip generator yielding tuples:
+                (batch_rf, batch_rn, batch_sf, batch_sn)
         """
         return zip(*list(self.loaders["train"].values()))
 
@@ -274,7 +279,7 @@ class Trainer:
             self.eval()
             self.save()
 
-    def update_g(self, multi_domain_batch):
+    def update_g(self, multi_domain_batch, verbose=0):
         """Perform an update on g from multi_domain_batch which is a dictionary
         domain => batch
 
@@ -306,11 +311,19 @@ class Trainer:
 
         assert any(l is not None for l in [r_loss, t_loss])
 
-        g_loss = sum(filter(lambda x: x is not None, [r_loss, t_loss]))
+        g_loss = 0
         if r_loss is not None:
+            g_loss += r_loss
+            if verbose > 0:
+                print("adding r_loss {} to g_loss".format(r_loss))
             self.logger.losses.representation = r_loss.item()
         if t_loss is not None:
+            g_loss += t_loss
+            if verbose > 0:
+                print("adding t_loss {} to g_loss".format(t_loss))
             self.logger.losses.translation = t_loss.item()
+        if verbose > 0:
+            print("g_loss is {}".format(g_loss))
         self.logger.losses.generator = g_loss.item()
         g_loss.backward()
         self.g_opt_step()
@@ -335,10 +348,12 @@ class Trainer:
         """
         step_loss = 0
         lambdas = self.opts.train.lambdas
+        one_hot = self.opts.classifier.loss != "cross_entropy"
         # ? should we add all domains to the loss (.backward() and .step() after this
         # ? loop) or update the networks for each domain sequentially?
         for batch_domain, batch in multi_domain_batch.items():
-            self.z = self.G.encoder(batch["data"]["x"])
+            x = batch["data"]["x"]
+            self.z = self.G.encoder(x)
             # ---------------------------------
             # -----  classifier loss (1)  -----
             # ---------------------------------
@@ -347,20 +362,20 @@ class Trainer:
             # Cross entropy loss (with sigmoid) with fake labels to fool C
             update_loss = self.losses["G"]["classifier"](
                 output_classifier,
-                fake_domains_to_class_tensor(
-                    batch["domain"], self.opts.classifier.loss
-                ),
+                fake_domains_to_class_tensor(batch["domain"], one_hot),
             )
             step_loss += lambdas.G.classifier * update_loss
             # -------------------------------------------------
             # -----  task-specific regression losses (2)  -----
             # -------------------------------------------------
+            task_tensors = {}
             for update_task, update_target in batch["data"].items():
                 # task t (=translation) will be done in get_translation_loss
                 # task a (=adaptation) and x (=auto-encoding) will be done hereafter
                 if update_task not in {"t", "a", "x"}:
                     # ? output features classifier
                     prediction = self.G.decoders[update_task](self.z)
+                    task_tensors[update_task] = prediction
                     update_loss = self.losses["G"]["tasks"][update_task](
                         prediction, update_target
                     )
@@ -370,15 +385,15 @@ class Trainer:
                     step_loss += lambdas.G.tasks[update_task] * update_loss
 
                     self.debug("get_representation_loss", locals(), 0)
-
             # ------------------------------------------------------
             # -----  auto-encoding update for translation (3)  -----
             # ------------------------------------------------------
             translation_decoder = batch_domain[-1]
-            reconstruction = self.G.decoders["t"][translation_decoder](self.z)
-            update_loss = self.losses["G"]["auto"]["t"](
-                batch["data"]["x"], reconstruction
+            cond = self.G.get_conditioning_tensor(
+                x, task_tensors, domains_to_class_tensor(batch["domain"], one_hot=True)
             )
+            reconstruction = self.G.decoders["t"][translation_decoder](self.z, cond)
+            update_loss = self.losses["G"]["auto"]["t"](x, reconstruction)
             self.logger.losses.auto.t[batch_domain] = update_loss.item()
             step_loss += lambdas.G["auto"]["t"] * update_loss
             self.debug("get_representation_loss", locals(), 1)
@@ -388,9 +403,7 @@ class Trainer:
             # -----------------------------------------------------
             adaptation_decoder = batch_domain[0]
             reconstruction = self.G.decoders["a"][adaptation_decoder](self.z)
-            update_loss = self.losses["G"]["auto"]["a"](
-                batch["data"]["x"], reconstruction
-            )
+            update_loss = self.losses["G"]["auto"]["a"](x, reconstruction)
             self.logger.losses.auto.a[batch_domain] = update_loss.item()
             step_loss += lambdas.G.auto.a * update_loss
             self.debug("get_representation_loss", locals(), 2)
@@ -420,43 +433,30 @@ class Trainer:
 
             for source_domain, target_domain in adaptation_tasks:
 
-                real_source = multi_domain_batch[source_domain]["data"]["x"]
-                real_target = multi_domain_batch[target_domain]["data"]["x"]
-
-                z_real_source = self.G.encoder(real_source)
-                z_real_target = self.G.encoder(real_target)
-
-                fake_source = self.G.decoders["a"][source_domain[0]](z_real_target)
-                fake_target = self.G.decoders["a"][target_domain[0]](z_real_source)
-
-                z_fake_source = self.G.encoder(fake_source)
-                z_fake_target = self.G.encoder(fake_target)
-
-                cycle_source = self.G.decoders["a"][source_domain[0]](z_fake_target)
-                cycle_target = self.G.decoders["a"][target_domain[0]](z_fake_source)
+                real = multi_domain_batch[source_domain]["data"]["x"]
+                z_real = self.G.encoder(real)
+                fake = self.G.decoders["a"][target_domain[0]](z_real)
+                z_fake = self.G.encoder(fake)
+                cycle = self.G.decoders["a"][source_domain[0]](z_fake)
 
                 self.debug("get_representation_loss", locals(), 3)
 
-                for real, fake, cycle in [
-                    (real_source, fake_source, cycle_source),
-                    (real_target, fake_target, cycle_target),
-                ]:
-                    # ----------------------
-                    # -----  GAN Loss  -----
-                    # ----------------------
-                    update_loss = self.losses["G"]["gan"]["a"](real, fake)
-                    self.logger.losses.gan.a[
-                        "{} > {}".format(source_domain, target_domain)
-                    ] = update_loss.item()
-                    step_loss += lambdas.G.gan.a * update_loss
-                    # --------------------------------------
-                    # -----  Translation (Cycle) Loss  -----
-                    # --------------------------------------
-                    update_loss = self.losses["G"]["cycle"]["a"](real, fake, cycle)
-                    self.logger.losses.cycle.a[
-                        "{} > {}".format(source_domain, target_domain)
-                    ] = update_loss.item()
-                    step_loss += lambdas.G.cycle.a * update_loss
+                # ----------------------
+                # -----  GAN Loss  -----
+                # ----------------------
+                update_loss = self.losses["G"]["gan"]["a"](fake)
+                self.logger.losses.gan.a[
+                    "{} > {}".format(source_domain, target_domain)
+                ] = update_loss.item()
+                step_loss += lambdas.G.gan.a * update_loss
+                # --------------------------------------
+                # -----  Translation (Cycle) Loss  -----
+                # --------------------------------------
+                update_loss = self.losses["G"]["cycle"]["a"](real, cycle)
+                self.logger.losses.cycle.a[
+                    "{} > {}".format(source_domain, target_domain)
+                ] = update_loss.item()
+                step_loss += lambdas.G.cycle.a * update_loss
         return step_loss
 
     def get_translation_loss(self, multi_domain_batch):
@@ -486,44 +486,29 @@ class Trainer:
         # ? * same loop as in representation task but could be different
         # ?   when there's the spade components
         for source_domain, target_domain in translation_tasks:
-            real_source = multi_domain_batch[source_domain]["data"]["x"]
-            real_target = multi_domain_batch[target_domain]["data"]["x"]
 
-            z_real_source = self.G.encoder(real_source)
-            z_real_target = self.G.encoder(real_target)
+            batch = multi_domain_batch[source_domain]
+            real = batch["data"]["x"]
+            fake = self.G.translate(batch, translator=target_domain[1])
+            cycle_batch = fake_batch(batch, fake)
+            cycle = self.G.translate(cycle_batch, translator=source_domain[1])
 
-            fake_source = self.G.decoders["t"][source_domain[1]](z_real_target)
-            fake_target = self.G.decoders["t"][target_domain[1]](z_real_source)
-
-            # ? use this as more training data for classifier
-            z_fake_source = self.G.encoder(fake_source)
-            z_fake_target = self.G.encoder(fake_target)
-
-            cycle_source = self.G.decoders["t"][source_domain[1]](z_fake_target)
-            cycle_target = self.G.decoders["t"][target_domain[1]](z_fake_source)
-
-            self.debug("get_translation_loss", locals())
-
-            for real, fake, cycle in [
-                (real_source, fake_source, cycle_source),
-                (real_target, fake_target, cycle_target),
-            ]:
-                # ----------------------
-                # -----  GAN Loss  -----
-                # ----------------------
-                update_loss = self.losses["G"]["gan"]["t"](real, fake)
-                self.logger.losses.gan.t[
-                    "{} > {}".format(source_domain, target_domain)
-                ] = update_loss.item()
-                step_loss += self.opts.train.lambdas.G.gan.t * update_loss
-                # --------------------------------------
-                # -----  Translation (Cycle) Loss  -----
-                # --------------------------------------
-                update_loss = self.losses["G"]["cycle"]["t"](real, fake, cycle)
-                self.logger.losses.cycle.t[
-                    "{} > {}".format(source_domain, target_domain)
-                ] = update_loss.item()
-                step_loss += self.opts.train.lambdas.G.cycle.t * update_loss
+            # ----------------------
+            # -----  GAN Loss  -----
+            # ----------------------
+            update_loss = self.losses["G"]["gan"]["t"](fake)
+            self.logger.losses.gan.t[
+                "{} > {}".format(source_domain, target_domain)
+            ] = update_loss.item()
+            step_loss += self.opts.train.lambdas.G.gan.t * update_loss
+            # --------------------------------------
+            # -----  Translation (Cycle) Loss  -----
+            # --------------------------------------
+            update_loss = self.losses["G"]["cycle"]["t"](real, cycle)
+            self.logger.losses.cycle.t[
+                "{} > {}".format(source_domain, target_domain)
+            ] = update_loss.item()
+            step_loss += self.opts.train.lambdas.G.cycle.t * update_loss
         return step_loss
 
     def update_d(self, batch):
@@ -560,15 +545,14 @@ class Trainer:
         """
         loss = 0
         lambdas = self.opts.train.lambdas
-
+        one_hot = self.opts.classifier.loss != "cross_entropy"
         for batch_domain, batch in multi_domain_batch.items():
             self.z = self.G.encoder(batch["data"]["x"])
             # Forward through classifier, output classifier = (batch_size, 4)
             output_classifier = self.C(self.z)
             # Cross entropy loss (with sigmoid)
             update_loss = self.losses["C"](
-                output_classifier,
-                domains_to_class_tensor(batch["domain"], self.opts.classifier.loss),
+                output_classifier, domains_to_class_tensor(batch["domain"], one_hot),
             )
             loss += update_loss
 
@@ -586,8 +570,6 @@ class Trainer:
     def debug(self, func_name, local_vars, index=None):
         if self.verbose == 0:
             return
-
-        # pdb.set_trace()
 
         if func_name == "get_representation_loss":
             if index == 0:
@@ -612,21 +594,14 @@ class Trainer:
                     )
                 )
             if index == 3:
-                print("{}: {}".format("real_source", local_vars["real_source"].shape))
-                print("{}: {}".format("real_target", local_vars["real_target"].shape))
-                print(
-                    "{}: {}".format("z_real_source", local_vars["z_real_source"].shape)
-                )
-                print(
-                    "{}: {}".format("z_real_target", local_vars["z_real_target"].shape)
-                )
-                print("{}: {}".format("fake_source", local_vars["fake_source"].shape))
-                print("{}: {}".format("fake_target", local_vars["fake_target"].shape))
+                print("{}: {}".format("real", local_vars["real"].shape))
+                print("{}: {}".format("z_real", local_vars["z_real"].shape))
+                print("{}: {}".format("fake", local_vars["fake"].shape))
 
         if func_name == "get_translation_loss":
-            print("{}: {}".format("real_source", local_vars["real_source"].shape))
-            print("{}: {}".format("real_target", local_vars["real_target"].shape))
-            print("{}: {}".format("z_real_source", local_vars["z_real_source"].shape))
-            print("{}: {}".format("z_real_target", local_vars["z_real_target"].shape))
-            print("{}: {}".format("fake_source", local_vars["fake_source"].shape))
-            print("{}: {}".format("fake_target", local_vars["fake_target"].shape))
+            print("{}: {}".format("real", local_vars["real"].shape))
+            print("{}: {}".format("z_real", local_vars["z_real"].shape))
+            print("{}: {}".format("fake", local_vars["fake"].shape))
+            print("{}: {}".format("cycle", local_vars["cycle"].shape))
+        # print("-------- end {} --------".format(func_name))
+        print()
