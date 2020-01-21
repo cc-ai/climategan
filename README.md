@@ -222,6 +222,7 @@ Set `should_delete` to False in the file not to delete the test experiment once 
 
 [Tricks and Tips for Training a GAN](https://chloes-dl.com/2019/11/19/tricks-and-tips-for-training-a-gan/)
 [GAN Hacks](https://github.com/soumith/ganhacks)
+[Keep Calm and train a GAN. Pitfalls and Tips on training Generative Adversarial Networks](https://medium.com/@utk.is.here/keep-calm-and-train-a-gan-pitfalls-and-tips-on-training-generative-adversarial-networks-edd529764aa9)
 
 ## Model Architecture
 
