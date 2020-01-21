@@ -89,8 +89,8 @@ gen:
 # ----- Discriminator -----
 # -------------------------
 dis:
-  real_label: 0.8 # label smoothing
-  flip_prob: 0.1 # label flipping
+  soft_shift: 0.2 # label smoothing: real in U(1-soft_shift, 1), fake in U(0, soft_shift)
+  flip_prob: 0.05 # label flipping
   opt:
     optimizer: ExtraAdam
     lr_policy: false

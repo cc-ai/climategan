@@ -123,6 +123,7 @@ if __name__ == "__main__":
         print()
 
     if test_update_d:
+        print_header("test update_d")
         if not trainer.is_setup:
             trainer.setup()
         multi_batch_tuple = next(iter(trainer.train_loaders))
@@ -136,3 +137,5 @@ if __name__ == "__main__":
         )
 
         trainer.update_d(domain_batch, 1)
+        trainer.losses["D"].flip_prob = 1.0
+        trainer.update_d(domain_batch)

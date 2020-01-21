@@ -189,8 +189,9 @@ class Trainer:
         # -----  Discriminator Losses  -----
         # ----------------------------------
         self.losses["D"] = GANLoss(
-            target_real_label=self.opts.dis.real_label,
+            soft_shift=self.opts.dis.soft_shift,
             flip_prob=self.opts.dis.flip_prob,
+            verbose=self.verbose,
         )
 
     def setup(self):
