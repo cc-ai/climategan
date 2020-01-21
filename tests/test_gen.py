@@ -20,11 +20,12 @@ if __name__ == "__main__":
 
     image = torch.Tensor(batch_size, 3, 256, 256).uniform_(-1, 1)
 
-    test_partial_decoder = True
-    test_encoder = True
-    test_encode_decode = True
-    test_translation = True
-    test_summary = False
+    test_partial_decoder = False
+    print_architecture = False
+    test_encoder = False
+    test_encode_decode = False
+    test_translation = False
+    test_summary = True
 
     if test_partial_decoder:
         print_header("test_partial_decoder")
@@ -48,8 +49,9 @@ if __name__ == "__main__":
     opts.gen.w.ignore = False
 
     G = get_gen(opts)
-    print("DECODERS:", G.decoders)
-    print("ENCODER:", G.encoder)
+    if print_architecture:
+        print("DECODERS:", G.decoders)
+        print("ENCODER:", G.encoder)
 
     if test_encoder:
         print_header("test_encoder")
@@ -71,7 +73,7 @@ if __name__ == "__main__":
 
     if test_translation:
         print_header("test_translation")
-        print(G.forward(image, translate_to="f").shape)
+        print(G.forward(image, translator="f").shape)
 
     if test_summary:
         print_header("Generator summary")

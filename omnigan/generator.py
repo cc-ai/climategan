@@ -51,7 +51,7 @@ class OmniGenerator(nn.Module):
 
         if "a" in opts.tasks and not opts.gen.A.ignore:
             self.decoders["a"] = nn.ModuleDict(
-                {"r": AdapatationDecoder(opts), "s": AdapatationDecoder(opts)}
+                {"r": AdaptationDecoder(opts), "s": AdaptationDecoder(opts)}
             )
 
         if "t" in opts.tasks and not opts.gen.T.ignore:
@@ -94,22 +94,36 @@ class OmniGenerator(nn.Module):
         return torch.cat(list(task_tensors.values()) + [bit], dim=1)
 
     def translate(self, batch, translator="f", z=None):
+        """Computes the translation of the images in a batch, according amongst
+        other things to batch["domain"]
+
+        Args:
+            batch (dict): Batch dict with keys ['data', 'paths', 'domain', 'mode']
+            translator (str, optional): Translation decoder to use. Defaults to "f".
+            z (torch.Tensor, optional): Precomputed z. Defaults to None.
+
+        Returns:
+            torch.Tensor: 4D image tensor
+        """
         x = batch["data"]["x"]
         if z is None:
             z = self.encoder(x)
 
-        task_tensors = {
-            task: self.decoders[task](z)
-            for task in self.opts.tasks
-            if task not in {"t", "a"}
-        }
+        task_tensors = self.decode_tasks(z)
 
         classifier_probs = domains_to_class_tensor(batch["domain"], one_hot=True)
         cond = self.get_conditioning_tensor(x, task_tensors, classifier_probs)
         y = self.decoders["t"][translator](z, cond)
         return y
 
-    def forward(self, x, translator="f", classifier_probs=None):
+    def decode_tasks(self, z):
+        return {
+            task: self.decoders[task](z)
+            for task in self.opts.tasks
+            if task not in {"t", "a"}
+        }
+
+    def forward(self, x, translator="f", classifier_probs=[1, 0, 0, 0]):
         """Computes the translation of an image x to a flooding domain
 
         Args:
@@ -122,9 +136,10 @@ class OmniGenerator(nn.Module):
             torch.Tensor: translated image
         """
         z = self.encoder(x)
-        task_tensors = {task: self.decoders[task](z) for task in self.opts.tasks}
+        task_tensors = self.decode_tasks(z)
+        classifier_probs = torch.tensor([classifier_probs for _ in range(len(x))])
         cond = self.get_conditioning_tensor(
-            x, task_tensors, translator, classifier_probs
+            x, task_tensors, classifier_probs
         )
         y = self.decoders["t"][translator](z, cond)
         return y
@@ -232,7 +247,7 @@ class SegmentationDecoder(BaseDecoder):
         )
 
 
-class AdapatationDecoder(BaseDecoder):
+class AdaptationDecoder(BaseDecoder):
     def __init__(self, opts):
         super().__init__(
             opts.gen.a.n_upsample,

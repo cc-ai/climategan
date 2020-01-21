@@ -35,6 +35,9 @@ data:
       ignore: false
       height: 224
       width: 224
+    - name: resize # ? this or change generator's output? Or resize larger then crop to 256?
+      ignore: false
+      new_size: 256
 
 # ---------------------
 # ----- Generator -----
@@ -102,6 +105,8 @@ dis:
     init_type: kaiming
     init_gain: 0.2
     use_sigmoid: false
+    real_label: 0.8 # label smoothing
+    flip_prob: 0.1 # label flipping
 
 # -------------------------------
 # -----  Domain Classifier  -----

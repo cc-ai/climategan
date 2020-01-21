@@ -11,7 +11,7 @@ from omnigan.blocks import SpectralNorm
 
 def get_dis(opts, verbose):
     disc = OmniDiscriminator(opts)
-    for task, model in disc.models.items():
+    for task, model in disc.items():
         for domain_model in model.values():
             init_weights(
                 domain_model,
@@ -141,13 +141,11 @@ class NLayerDiscriminator(nn.Module):
         return self.model(input)
 
 
-class OmniDiscriminator(nn.Module):
+class OmniDiscriminator(nn.ModuleDict):
     def __init__(self, opts):
         super().__init__()
-        self.a = self.t = None
-        models = {}
         if "a" in opts.tasks:
-            models["a"] = nn.ModuleDict(
+            self["a"] = nn.ModuleDict(
                 {
                     "r": define_D(
                         3,
@@ -158,7 +156,7 @@ class OmniDiscriminator(nn.Module):
                         init_type=opts.dis.a.init_type,
                         init_gain=opts.dis.a.init_gain,
                     ),
-                    "f": define_D(
+                    "s": define_D(
                         3,
                         opts.dis.a.ndf,
                         n_layers_D=opts.dis.a.n_layers,
@@ -170,7 +168,7 @@ class OmniDiscriminator(nn.Module):
                 }
             )
         if "t" in opts.tasks:
-            models["t"] = nn.ModuleDict(
+            self["t"] = nn.ModuleDict(
                 {
                     "f": define_D(
                         3,
@@ -192,4 +190,3 @@ class OmniDiscriminator(nn.Module):
                     ),
                 }
             )
-        self.models = nn.ModuleDict(models)

@@ -432,7 +432,7 @@ def get_4D_bit(shape, probs):
     Returns:
         torch.Tensor: batch x # of domains x h x w
     """
-    probs = torch.Tensor(probs)
+    probs = probs if isinstance(probs, torch.Tensor) else torch.tensor(probs)
     bit = torch.ones(*probs.shape, *shape[-2:])
     bit *= probs[:, :, None, None]
     return bit

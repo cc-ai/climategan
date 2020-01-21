@@ -1,5 +1,7 @@
-import sys
 import comet_ml
+
+import sys
+from addict import Dict
 
 sys.path.append("..")
 
@@ -9,17 +11,17 @@ from run import print_header, bcolors
 
 if __name__ == "__main__":
 
-    smaller_data_for_faster_tests = True
+    crop_to = 32  # smaller data for faster tests ; -1 for no
 
     rest_api_key = get_comet_rest_api_key()
     comet_api = comet_ml.api.API()
 
     opts = load_opts("../config/local_tests.yaml", default="../shared/defaults.yml")
 
-    if smaller_data_for_faster_tests:
+    if crop_to > 0:
         opts.data.transforms = list(
             map(
-                lambda x: Dict({**x, "height": 16, "width": 16})
+                lambda x: Dict({**x, "height": crop_to, "width": crop_to})
                 if x["name"] == "crop"
                 else x,
                 opts.data.transforms,
@@ -62,7 +64,7 @@ if __name__ == "__main__":
 
     trainer.exp.end()
 
-    should_delete = False
+    should_delete = True
     if should_delete:
         comet_api.delete_experiment(trainer.exp.get_key())
         print(

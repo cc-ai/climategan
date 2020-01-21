@@ -9,7 +9,7 @@ from omnigan.classifier import get_classifier
 from omnigan.data import get_all_loaders
 from omnigan.discriminator import get_dis
 from omnigan.generator import get_gen
-from omnigan.losses import cross_entropy, cross_entropy_2d, l1_loss, mse_loss
+from omnigan.losses import cross_entropy, cross_entropy_2d, l1_loss, mse_loss, GANLoss
 from omnigan.optim import get_optimizer
 from omnigan.utils import (
     domains_to_class_tensor,
@@ -141,21 +141,21 @@ class Trainer:
 
         # translation losses
         if "a" in self.opts.tasks:
-            self.losses["G"]["gan"]["a"] = lambda x: x.mean()
-            self.losses["G"]["cycle"]["a"] = lambda x, y: (x + y).mean()
+            self.losses["G"]["gan"]["a"] = GANLoss()
+            self.losses["G"]["cycle"]["a"] = mse_loss()
 
         if "t" in self.opts.tasks:
-            self.losses["G"]["gan"]["t"] = lambda x: x.mean()
-            self.losses["G"]["cycle"]["t"] = lambda x, y: (x + y).mean()
+            self.losses["G"]["gan"]["t"] = GANLoss()
+            self.losses["G"]["cycle"]["t"] = mse_loss()
 
         # task losses
         # ? * add discriminator and gan loss to these task when no ground truth
         # ?   instead of noisy label
         if "d" in self.opts.tasks:
-            self.losses["G"]["tasks"]["d"] = lambda x, y: (x + y).mean()
+            self.losses["G"]["tasks"]["d"] = mse_loss()
 
         if "h" in self.opts.tasks:
-            self.losses["G"]["tasks"]["h"] = lambda x, y: (x + y).mean()
+            self.losses["G"]["tasks"]["h"] = mse_loss()
 
         if "s" in self.opts.tasks:
             self.losses["G"]["tasks"]["s"] = cross_entropy_2d
@@ -165,8 +165,8 @@ class Trainer:
 
         # auto-encoder losses
         self.losses["G"]["auto"] = {
-            "a": lambda x, y: (x + y).mean(),
-            "t": lambda x, y: (x + y).mean(),
+            "a": mse_loss(),
+            "t": mse_loss(),
         }
 
         # undistinguishable features loss
@@ -208,7 +208,7 @@ class Trainer:
         )
 
         self.g_opt = get_optimizer(self.G, self.opts.gen.opt)
-        self.d_opt = get_optimizer(self.D.models, self.opts.dis.opt)
+        self.d_opt = get_optimizer(self.D, self.opts.dis.opt)
         self.c_opt = get_optimizer(self.C, self.opts.classifier.opt)
 
         self.set_losses()
@@ -279,6 +279,20 @@ class Trainer:
             self.eval()
             self.save()
 
+    def should_compute_r_loss(self):
+        if not self.opts.train.representational_training:
+            return True
+        if self.logger.global_step < self.opts.train.representation_steps:
+            return True
+        return False
+
+    def should_compute_t_loss(self):
+        if not self.opts.train.representational_training:
+            return True
+        if self.logger.global_step >= self.opts.train.representation_steps:
+            return True
+        return False
+
     def update_g(self, multi_domain_batch, verbose=0):
         """Perform an update on g from multi_domain_batch which is a dictionary
         domain => batch
@@ -298,15 +312,11 @@ class Trainer:
         """
         self.g_opt.zero_grad()
         r_loss = t_loss = None
-        if (
-            not self.opts.train.representational_training
-            or self.logger.global_step < self.opts.train.representation_steps
-        ):
+
+        if self.should_compute_r_loss():
             r_loss = self.get_representation_loss(multi_domain_batch)
-        if (
-            not self.opts.train.representational_training
-            or self.logger.global_step >= self.opts.train.representation_steps
-        ):
+
+        if self.should_compute_t_loss():
             t_loss = self.get_translation_loss(multi_domain_batch)
 
         assert any(l is not None for l in [r_loss, t_loss])
@@ -418,7 +428,7 @@ class Trainer:
         # ?   real world so is it better to use noisy, noisy + ICT or no label in this
         # ?   case?)
 
-        # only do this if adaptaion is specified in opts
+        # only do this if adaptation is specified in opts
         if "a" in self.opts.tasks:
             adaptation_tasks = []
             if "rn" in multi_domain_batch and "sn" in multi_domain_batch:
@@ -441,13 +451,22 @@ class Trainer:
 
                 self.debug("get_representation_loss", locals(), 3)
 
+                d_fake = self.D["a"][target_domain[0]](fake)
+                d_cycle = self.D["a"][source_domain[0]](cycle)
+
                 # ----------------------
                 # -----  GAN Loss  -----
                 # ----------------------
-                update_loss = self.losses["G"]["gan"]["a"](fake)
+                update_loss = self.losses["G"]["gan"]["a"](d_fake, True)
                 self.logger.losses.gan.a[
                     "{} > {}".format(source_domain, target_domain)
                 ] = update_loss.item()
+                step_loss += lambdas.G.gan.a * update_loss
+                # ? compute GAN loss on cycle reconstruction?
+                update_loss = self.losses["G"]["gan"]["a"](d_cycle, True)
+                self.logger.losses.gan.a[
+                    "{} > {}".format(source_domain, target_domain)
+                ] += update_loss.item()
                 step_loss += lambdas.G.gan.a * update_loss
                 # --------------------------------------
                 # -----  Translation (Cycle) Loss  -----
@@ -493,13 +512,22 @@ class Trainer:
             cycle_batch = fake_batch(batch, fake)
             cycle = self.G.translate(cycle_batch, translator=source_domain[1])
 
+            d_fake = self.D["t"][target_domain[1]](fake)
+            d_cycle = self.D["t"][source_domain[1]](cycle)
+
             # ----------------------
             # -----  GAN Loss  -----
             # ----------------------
-            update_loss = self.losses["G"]["gan"]["t"](fake)
+            update_loss = self.losses["G"]["gan"]["t"](d_fake, True)
             self.logger.losses.gan.t[
                 "{} > {}".format(source_domain, target_domain)
             ] = update_loss.item()
+            step_loss += self.opts.train.lambdas.G.gan.t * update_loss
+            # ? compute GAN loss on cycle reconstruction?
+            update_loss = self.losses["G"]["gan"]["t"](d_cycle, True)
+            self.logger.losses.gan.t[
+                "{} > {}".format(source_domain, target_domain)
+            ] += update_loss.item()
             step_loss += self.opts.train.lambdas.G.gan.t * update_loss
             # --------------------------------------
             # -----  Translation (Cycle) Loss  -----

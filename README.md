@@ -10,23 +10,26 @@
   - [Logging on comet](#logging-on-comet)
     - [Parameters](#parameters)
     - [Tests](#tests)
+  - [Resources](#resources)
+  - [Model Architecture](#model-architecture)
+    - [Generator](#generator-1)
 
 ## Current Model
 
 ### Summary
 
-Extract summary from `torchsummary`:
+Summary from `torchsummary` with only 1 ResBlock in the encoder and 1 in the decoders:
 
 ```
 ================================================================
-Total params: 39,114,905
-Trainable params: 39,114,905
+Total params: 9,766,807
+Trainable params: 9,766,807
 Non-trainable params: 0
 ----------------------------------------------------------------
 Input size (MB): 0.75
-Forward/backward pass size (MB): 4251.21
-Params size (MB): 149.21
-Estimated Total Size (MB): 4401.17
+Forward/backward pass size (MB): 1746.82
+Params size (MB): 37.26
+Estimated Total Size (MB): 1784.82
 ----------------------------------------------------------------
 ```
 
@@ -173,3 +176,353 @@ Set `train.log_level` in your configuration file to control the amount of loggin
 There's a `test_comet.py` test which will automatically start and stop an experiment, check that logging works and so on. Not to pollute your workspace, such functional tests are deleted when the test is passed through Comet's REST API which is why you need to specify this `rest_api_key` field.
 
 Set `should_delete` to False in the file not to delete the test experiment once it has ended. You'll be able to find all your test experiments which were not deleted using the `is_functional_test` parameter on Comet's web interface.
+
+## Resources
+
+[Tricks and Tips for Training a GAN](https://chloes-dl.com/2019/11/19/tricks-and-tips-for-training-a-gan/)
+[GAN Hacks](https://github.com/soumith/ganhacks)
+
+## Model Architecture
+
+
+### Generator
+
+1 Resblock in Encoder, 1 in each Decoder
+
+```
+OmniGenerator(
+  (encoder): Encoder(
+
+        (model): Sequential(
+        (0): Conv2dBlock(
+            (pad): ReflectionPad2d((3, 3, 3, 3))
+            (activation): LeakyReLU(negative_slope=0.2, inplace=True)
+            (conv): Conv2d(3, 64, kernel_size=(7, 7), stride=(1, 1))
+        )
+        (1): Conv2dBlock(
+            (pad): ReflectionPad2d((1, 1, 1, 1))
+            (activation): LeakyReLU(negative_slope=0.2, inplace=True)
+            (conv): Conv2d(64, 128, kernel_size=(4, 4), stride=(2, 2))
+        )
+        (2): Conv2dBlock(
+            (pad): ReflectionPad2d((1, 1, 1, 1))
+            (activation): LeakyReLU(negative_slope=0.2, inplace=True)
+            (conv): Conv2d(128, 256, kernel_size=(4, 4), stride=(2, 2))
+        )
+        (3): ResBlocks(
+            (model): Sequential(
+            (0): ResBlock(
+                (model): Sequential(
+                (0): Conv2dBlock(
+                    (pad): ReflectionPad2d((1, 1, 1, 1))
+                    (activation): LeakyReLU(negative_slope=0.2, inplace=True)
+                    (conv): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1))
+                )
+                (1): Conv2dBlock(
+                    (pad): ReflectionPad2d((1, 1, 1, 1))
+                    (conv): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1))
+                )
+                )
+            )
+            )
+        )
+        )
+
+  )
+  (decoders): ModuleDict(
+
+    (a): ModuleDict(
+
+        (r): AdaptationDecoder(
+
+            (model): Sequential(
+            (0): ResBlocks(
+                (model): Sequential(
+                (0): ResBlock(
+                    (model): Sequential(
+                    (0): Conv2dBlock(
+                        (pad): ReflectionPad2d((1, 1, 1, 1))
+                        (norm): InstanceNorm2d(256, eps=1e-05, momentum=0.1, affine=False, track_running_stats=False)
+                        (activation): LeakyReLU(negative_slope=0.2, inplace=True)
+                        (conv): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1))
+                    )
+                    (1): Conv2dBlock(
+                        (pad): ReflectionPad2d((1, 1, 1, 1))
+                        (norm): InstanceNorm2d(256, eps=1e-05, momentum=0.1, affine=False, track_running_stats=False)
+                        (conv): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1))
+                    )
+                    )
+                )
+                )
+            )
+            (1): Upsample(scale_factor=2.0, mode=nearest)
+            (2): Conv2dBlock(
+                (pad): ReflectionPad2d((2, 2, 2, 2))
+                (norm): LayerNorm()
+                (activation): LeakyReLU(negative_slope=0.2, inplace=True)
+                (conv): Conv2d(256, 128, kernel_size=(5, 5), stride=(1, 1))
+            )
+            (3): Upsample(scale_factor=2.0, mode=nearest)
+            (4): Conv2dBlock(
+                (pad): ReflectionPad2d((2, 2, 2, 2))
+                (norm): LayerNorm()
+                (activation): LeakyReLU(negative_slope=0.2, inplace=True)
+                (conv): Conv2d(128, 64, kernel_size=(5, 5), stride=(1, 1))
+            )
+            (5): Conv2dBlock(
+                (pad): ReflectionPad2d((3, 3, 3, 3))
+                (activation): Tanh()
+                (conv): Conv2d(64, 3, kernel_size=(7, 7), stride=(1, 1))
+            )
+            )
+
+      )
+
+      (s): AdaptationDecoder(
+
+            (model): Sequential(
+            (0): ResBlocks(
+                (model): Sequential(
+                (0): ResBlock(
+                    (model): Sequential(
+                    (0): Conv2dBlock(
+                        (pad): ReflectionPad2d((1, 1, 1, 1))
+                        (norm): InstanceNorm2d(256, eps=1e-05, momentum=0.1, affine=False, track_running_stats=False)
+                        (activation): LeakyReLU(negative_slope=0.2, inplace=True)
+                        (conv): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1))
+                    )
+                    (1): Conv2dBlock(
+                        (pad): ReflectionPad2d((1, 1, 1, 1))
+                        (norm): InstanceNorm2d(256, eps=1e-05, momentum=0.1, affine=False, track_running_stats=False)
+                        (conv): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1))
+                    )
+                    )
+                )
+                )
+            )
+            (1): Upsample(scale_factor=2.0, mode=nearest)
+            (2): Conv2dBlock(
+                (pad): ReflectionPad2d((2, 2, 2, 2))
+                (norm): LayerNorm()
+                (activation): LeakyReLU(negative_slope=0.2, inplace=True)
+                (conv): Conv2d(256, 128, kernel_size=(5, 5), stride=(1, 1))
+            )
+            (3): Upsample(scale_factor=2.0, mode=nearest)
+            (4): Conv2dBlock(
+                (pad): ReflectionPad2d((2, 2, 2, 2))
+                (norm): LayerNorm()
+                (activation): LeakyReLU(negative_slope=0.2, inplace=True)
+                (conv): Conv2d(128, 64, kernel_size=(5, 5), stride=(1, 1))
+            )
+            (5): Conv2dBlock(
+                (pad): ReflectionPad2d((3, 3, 3, 3))
+                (activation): Tanh()
+                (conv): Conv2d(64, 3, kernel_size=(7, 7), stride=(1, 1))
+            )
+            )
+        )
+
+    )
+
+    (d): DepthDecoder(
+
+        (model): Sequential(
+            (0): ResBlocks(
+            (model): Sequential(
+                (0): ResBlock(
+                (model): Sequential(
+                    (0): Conv2dBlock(
+                    (pad): ReflectionPad2d((1, 1, 1, 1))
+                    (norm): InstanceNorm2d(256, eps=1e-05, momentum=0.1, affine=False, track_running_stats=False)
+                    (activation): LeakyReLU(negative_slope=0.2, inplace=True)
+                    (conv): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1))
+                    )
+                    (1): Conv2dBlock(
+                    (pad): ReflectionPad2d((1, 1, 1, 1))
+                    (norm): InstanceNorm2d(256, eps=1e-05, momentum=0.1, affine=False, track_running_stats=False)
+                    (conv): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1))
+                    )
+                )
+                )
+            )
+            )
+            (1): Upsample(scale_factor=2.0, mode=nearest)
+            (2): Conv2dBlock(
+            (pad): ReflectionPad2d((2, 2, 2, 2))
+            (norm): LayerNorm()
+            (activation): LeakyReLU(negative_slope=0.2, inplace=True)
+            (conv): Conv2d(256, 128, kernel_size=(5, 5), stride=(1, 1))
+            )
+            (3): Upsample(scale_factor=2.0, mode=nearest)
+            (4): Conv2dBlock(
+            (pad): ReflectionPad2d((2, 2, 2, 2))
+            (norm): LayerNorm()
+            (activation): LeakyReLU(negative_slope=0.2, inplace=True)
+            (conv): Conv2d(128, 64, kernel_size=(5, 5), stride=(1, 1))
+            )
+            (5): Conv2dBlock(
+            (pad): ReflectionPad2d((3, 3, 3, 3))
+            (activation): Tanh()
+            (conv): Conv2d(64, 1, kernel_size=(7, 7), stride=(1, 1))
+            )
+        )
+
+    )
+
+    (s): SegmentationDecoder(
+
+        (model): Sequential(
+            (0): ResBlocks(
+            (model): Sequential(
+                (0): ResBlock(
+                (model): Sequential(
+                    (0): Conv2dBlock(
+                    (pad): ReflectionPad2d((1, 1, 1, 1))
+                    (norm): InstanceNorm2d(256, eps=1e-05, momentum=0.1, affine=False, track_running_stats=False)
+                    (activation): LeakyReLU(negative_slope=0.2, inplace=True)
+                    (conv): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1))
+                    )
+                    (1): Conv2dBlock(
+                    (pad): ReflectionPad2d((1, 1, 1, 1))
+                    (norm): InstanceNorm2d(256, eps=1e-05, momentum=0.1, affine=False, track_running_stats=False)
+                    (conv): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1))
+                    )
+                )
+                )
+            )
+            )
+            (1): Upsample(scale_factor=2.0, mode=nearest)
+            (2): Conv2dBlock(
+            (pad): ReflectionPad2d((2, 2, 2, 2))
+            (norm): LayerNorm()
+            (activation): LeakyReLU(negative_slope=0.2, inplace=True)
+            (conv): Conv2d(256, 128, kernel_size=(5, 5), stride=(1, 1))
+            )
+            (3): Upsample(scale_factor=2.0, mode=nearest)
+            (4): Conv2dBlock(
+            (pad): ReflectionPad2d((2, 2, 2, 2))
+            (norm): LayerNorm()
+            (activation): LeakyReLU(negative_slope=0.2, inplace=True)
+            (conv): Conv2d(128, 64, kernel_size=(5, 5), stride=(1, 1))
+            )
+            (5): Conv2dBlock(
+            (pad): ReflectionPad2d((3, 3, 3, 3))
+            (activation): Tanh()
+            (conv): Conv2d(64, 19, kernel_size=(7, 7), stride=(1, 1))
+            )
+        )
+
+    )
+
+    (t): ModuleDict(
+
+      (f): TranslationDecoder(
+
+            (model): Sequential(
+            (0): SpadeResBlocks(
+                (model): Sequential(
+                (0): SPADEResnetBlock(
+                    (conv_0): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+                    (conv_1): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+                    (norm_0): SPADE(
+                    (param_free_norm): InstanceNorm2d(256, eps=1e-05, momentum=0.1, affine=False, track_running_stats=False)
+                    (mlp_shared): Sequential(
+                        (0): Conv2d(24, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+                        (1): ReLU()
+                    )
+                    (mlp_gamma): Conv2d(128, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+                    (mlp_beta): Conv2d(128, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+                    )
+                    (norm_1): SPADE(
+                    (param_free_norm): InstanceNorm2d(256, eps=1e-05, momentum=0.1, affine=False, track_running_stats=False)
+                    (mlp_shared): Sequential(
+                        (0): Conv2d(24, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+                        (1): ReLU()
+                    )
+                    (mlp_gamma): Conv2d(128, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+                    (mlp_beta): Conv2d(128, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+                    )
+                )
+                )
+            )
+            (1): Upsample(scale_factor=2.0, mode=nearest)
+            (2): Conv2dBlock(
+                (pad): ZeroPad2d(padding=(2, 2, 2, 2), value=0.0)
+                (norm): LayerNorm()
+                (activation): LeakyReLU(negative_slope=0.2, inplace=True)
+                (conv): Conv2d(256, 128, kernel_size=(5, 5), stride=(1, 1))
+            )
+            (3): Upsample(scale_factor=2.0, mode=nearest)
+            (4): Conv2dBlock(
+                (pad): ZeroPad2d(padding=(2, 2, 2, 2), value=0.0)
+                (norm): LayerNorm()
+                (activation): LeakyReLU(negative_slope=0.2, inplace=True)
+                (conv): Conv2d(128, 64, kernel_size=(5, 5), stride=(1, 1))
+            )
+            (5): Conv2dBlock(
+                (pad): ReflectionPad2d((3, 3, 3, 3))
+                (activation): Tanh()
+                (conv): Conv2d(64, 3, kernel_size=(7, 7), stride=(1, 1))
+            )
+            )
+
+      )
+
+      (n): TranslationDecoder(
+
+            (model): Sequential(
+            (0): SpadeResBlocks(
+                (model): Sequential(
+                (0): SPADEResnetBlock(
+                    (conv_0): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+                    (conv_1): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+                    (norm_0): SPADE(
+                    (param_free_norm): InstanceNorm2d(256, eps=1e-05, momentum=0.1, affine=False, track_running_stats=False)
+                    (mlp_shared): Sequential(
+                        (0): Conv2d(24, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+                        (1): ReLU()
+                    )
+                    (mlp_gamma): Conv2d(128, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+                    (mlp_beta): Conv2d(128, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+                    )
+                    (norm_1): SPADE(
+                    (param_free_norm): InstanceNorm2d(256, eps=1e-05, momentum=0.1, affine=False, track_running_stats=False)
+                    (mlp_shared): Sequential(
+                        (0): Conv2d(24, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+                        (1): ReLU()
+                    )
+                    (mlp_gamma): Conv2d(128, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+                    (mlp_beta): Conv2d(128, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+                    )
+                )
+                )
+            )
+            (1): Upsample(scale_factor=2.0, mode=nearest)
+            (2): Conv2dBlock(
+                (pad): ZeroPad2d(padding=(2, 2, 2, 2), value=0.0)
+                (norm): LayerNorm()
+                (activation): LeakyReLU(negative_slope=0.2, inplace=True)
+                (conv): Conv2d(256, 128, kernel_size=(5, 5), stride=(1, 1))
+            )
+            (3): Upsample(scale_factor=2.0, mode=nearest)
+            (4): Conv2dBlock(
+                (pad): ZeroPad2d(padding=(2, 2, 2, 2), value=0.0)
+                (norm): LayerNorm()
+                (activation): LeakyReLU(negative_slope=0.2, inplace=True)
+                (conv): Conv2d(128, 64, kernel_size=(5, 5), stride=(1, 1))
+            )
+            (5): Conv2dBlock(
+                (pad): ReflectionPad2d((3, 3, 3, 3))
+                (activation): Tanh()
+                (conv): Conv2d(64, 3, kernel_size=(7, 7), stride=(1, 1))
+            )
+            )
+
+      )
+
+    )
+
+  )
+
+)
+```
