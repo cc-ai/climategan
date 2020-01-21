@@ -399,9 +399,11 @@ class Trainer:
             # -----  auto-encoding update for translation (3)  -----
             # ------------------------------------------------------
             translation_decoder = batch_domain[-1]
-            cond = self.G.get_conditioning_tensor(
-                x, task_tensors, domains_to_class_tensor(batch["domain"], one_hot=True)
-            )
+            cond = None
+            if self.opts.gen.t.use_spade:
+                cond = self.G.get_conditioning_tensor(
+                    x, task_tensors, domains_to_class_tensor(batch["domain"], one_hot=True)
+                )
             reconstruction = self.G.decoders["t"][translation_decoder](self.z, cond)
             update_loss = self.losses["G"]["auto"]["t"](x, reconstruction)
             self.logger.losses.auto.t[batch_domain] = update_loss.item()

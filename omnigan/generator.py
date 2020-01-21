@@ -49,6 +49,12 @@ class OmniGenerator(nn.Module):
 
         self.decoders = {}
 
+        TranslationDecoder = (
+            SpadeTranslationDecoder
+            if self.opts.gen.t.use_spade
+            else BaseTranslationDecoder
+        )
+
         if "a" in opts.tasks and not opts.gen.A.ignore:
             self.decoders["a"] = nn.ModuleDict(
                 {"r": AdaptationDecoder(opts), "s": AdaptationDecoder(opts)}
@@ -109,10 +115,13 @@ class OmniGenerator(nn.Module):
         if z is None:
             z = self.encoder(x)
 
-        task_tensors = self.decode_tasks(z)
+        cond = None
+        if self.opts.gen.t.use_spade:
+            task_tensors = self.decode_tasks(z)
 
-        classifier_probs = domains_to_class_tensor(batch["domain"], one_hot=True)
-        cond = self.get_conditioning_tensor(x, task_tensors, classifier_probs)
+            classifier_probs = domains_to_class_tensor(batch["domain"], one_hot=True)
+            cond = self.get_conditioning_tensor(x, task_tensors, classifier_probs)
+
         y = self.decoders["t"][translator](z, cond)
         return y
 
@@ -136,11 +145,11 @@ class OmniGenerator(nn.Module):
             torch.Tensor: translated image
         """
         z = self.encoder(x)
-        task_tensors = self.decode_tasks(z)
-        classifier_probs = torch.tensor([classifier_probs for _ in range(len(x))])
-        cond = self.get_conditioning_tensor(
-            x, task_tensors, classifier_probs
-        )
+        cond = None
+        if self.opts.gen.t.use_spade:
+            task_tensors = self.decode_tasks(z)
+            classifier_probs = torch.tensor([classifier_probs for _ in range(len(x))])
+            cond = self.get_conditioning_tensor(x, task_tensors, classifier_probs)
         y = self.decoders["t"][translator](z, cond)
         return y
 
@@ -260,7 +269,23 @@ class AdaptationDecoder(BaseDecoder):
         )
 
 
-class TranslationDecoder(SpadeDecoder):
+class BaseTranslationDecoder(BaseDecoder):
+    def __init__(self, opts):
+        super().__init__(
+            opts.gen.t.n_upsample,
+            opts.gen.t.n_res,
+            opts.gen.t.res_dim,
+            opts.gen.t.output_dim,
+            res_norm=opts.gen.t.res_norm,
+            activ=opts.gen.t.activ,
+            pad_type=opts.gen.t.pad_type,
+        )
+
+    def forward(self, z, cond=None):
+        return self.model(z)
+
+
+class SpadeTranslationDecoder(SpadeDecoder):
     def __init__(self, opts):
         cond_nc = 4  # 4 domains => 4-channel bitmap
         if "d" in opts.tasks:

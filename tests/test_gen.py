@@ -20,11 +20,11 @@ if __name__ == "__main__":
 
     image = torch.Tensor(batch_size, 3, 256, 256).uniform_(-1, 1)
 
-    test_partial_decoder = False
-    print_architecture = False
-    test_encoder = False
-    test_encode_decode = False
-    test_translation = False
+    test_partial_decoder = True
+    print_architecture = True
+    test_encoder = True
+    test_encode_decode = True
+    test_translation = True
     test_summary = True
 
     if test_partial_decoder:
@@ -75,6 +75,16 @@ if __name__ == "__main__":
         print_header("test_translation")
         print(G.forward(image, translator="f").shape)
 
+        print_header("test_translation")
+        opts.gen.t.use_spade = False
+        G = get_gen(opts)
+        print(G.forward(image, translator="f").shape)
+
     if test_summary:
-        print_header("Generator summary")
+        print_header("Generator summary no Spades")
+        print(summary(G, input_size=(3, 256, 256)))
+
+        print_header("Generator summary Spades")
+        opts.gen.t.use_spade = True
+        G = get_gen(opts)
         print(summary(G, input_size=(3, 256, 256)))
