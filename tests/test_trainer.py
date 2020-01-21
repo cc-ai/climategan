@@ -17,14 +17,10 @@ if __name__ == "__main__":
 
     opts = load_opts("../config/local_tests.yaml", default="../shared/defaults.yml")
     if crop_to > 0:
-        opts.data.transforms = list(
-            map(
-                lambda x: Dict({**x, "height": crop_to, "width": crop_to})
-                if x["name"] == "crop"
-                else x,
-                opts.data.transforms,
-            )
-        )
+        opts.data.transforms += [
+            Dict({"name": "crop", "ignore": False, "height": crop_to, "width": crop_to})
+        ]
+
     trainer = Trainer(opts, verbose=1)
 
     if test_setup:
