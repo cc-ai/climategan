@@ -360,7 +360,8 @@ class Trainer:
         lambdas = self.opts.train.lambdas
         one_hot = self.opts.classifier.loss != "cross_entropy"
         # ? should we add all domains to the loss (.backward() and .step() after this
-        # ? loop) or update the networks for each domain sequentially?
+        # ? loop) or update the networks for each domain sequentially
+        # ? (.backward() and .step() n times)?
         for batch_domain, batch in multi_domain_batch.items():
             x = batch["data"]["x"]
             self.z = self.G.encoder(x)
