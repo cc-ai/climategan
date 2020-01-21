@@ -3,16 +3,37 @@ import torch
 import torch.nn.functional as F
 from torch.autograd import Variable
 import torch.nn as nn
+from random import random as rand
 
 
-# source: https://github.com/sangwoomo/instagan/blob
-#   /b67e9008fcdd6c41652f8805f0b36bcaa8b632d6/models/networks.py
-# Defines the GAN loss which uses either LSGAN or the regular GAN.
-# When LSGAN is used, it is basically same as MSELoss,
-# but it abstracts away the need to create the target label tensor
-# that has the same size as the input
 class GANLoss(nn.Module):
-    def __init__(self, use_lsgan=True, target_real_label=1.0, target_fake_label=0.0):
+    def __init__(
+        self,
+        use_lsgan=True,
+        target_real_label=1.0,
+        target_fake_label=0.0,
+        flip_prob=0.0,
+    ):
+        """Defines the GAN loss which uses either LSGAN or the regular GAN.
+        When LSGAN is used, it is basically same as MSELoss,
+        but it abstracts away the need to create the target label tensor
+        that has the same size as the input +
+
+        * label smoothing: target_real_label=0.75
+        * label flipping: flip_prob > 0.
+
+        source: https://github.com/sangwoomo/instagan/blob
+        /b67e9008fcdd6c41652f8805f0b36bcaa8b632d6/models/networks.py
+
+        Args:
+            use_lsgan (bool, optional): Use MSE or BCE. Defaults to True.
+            target_real_label (float, optional): Value for the real target.
+                Defaults to 1.0.
+            target_fake_label (float, optional): Value for the fake target.
+                Defaults to 0.0.
+            flip_prob (float, optional): Probability of flipping the label
+                (use for real target in Discriminator only). Defaults to 0.0.
+        """
         super(GANLoss, self).__init__()
         self.register_buffer("real_label", torch.tensor(target_real_label))
         self.register_buffer("fake_label", torch.tensor(target_fake_label))
@@ -20,6 +41,7 @@ class GANLoss(nn.Module):
             self.loss = nn.MSELoss()
         else:
             self.loss = nn.BCELoss()
+        self.flip_prob = flip_prob
 
     def get_target_tensor(self, input, target_is_real):
         if target_is_real:
@@ -29,6 +51,8 @@ class GANLoss(nn.Module):
         return target_tensor.expand_as(input)
 
     def __call__(self, input, target_is_real):
+        if rand() < self.flip_prob:
+            target_is_real = not target_is_real
         target_tensor = self.get_target_tensor(input, target_is_real)
         return self.loss(input, target_tensor)
 
@@ -101,7 +125,7 @@ def entropy_loss(v):
 
 def mse_loss():
     """
-    Creates a criterion that measures the mean squared error 
+    Creates a criterion that measures the mean squared error
     (squared L2 norm) between each element in the input x and target y .
     """
     return torch.nn.MSELoss()
@@ -109,7 +133,7 @@ def mse_loss():
 
 def l1_loss():
     """
-    Creates a criterion that measures the mean absolute error 
+    Creates a criterion that measures the mean absolute error
     (MAE) between each element in the input x and target y
     """
     return torch.nn.L1Loss()

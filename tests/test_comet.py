@@ -1,5 +1,7 @@
-import sys
 import comet_ml
+
+import sys
+from addict import Dict
 
 sys.path.append("..")
 
@@ -9,10 +11,17 @@ from run import print_header, bcolors
 
 if __name__ == "__main__":
 
+    crop_to = 32  # smaller data for faster tests ; -1 for no
+
     rest_api_key = get_comet_rest_api_key()
     comet_api = comet_ml.api.API()
 
     opts = load_opts("../config/local_tests.yaml", default="../shared/defaults.yml")
+
+    if crop_to > 0:
+        opts.data.transforms += [
+            Dict({"name": "crop", "ignore": False, "height": crop_to, "width": crop_to})
+        ]
     trainer = Trainer(opts, comet=True, verbose=0)
     trainer.exp.log_parameter("is_functional_test", True)
     trainer.setup()
@@ -24,6 +33,7 @@ if __name__ == "__main__":
     print_header("test_log_losses")
     trainer.update_g(domain_batch)
     print("update 1")
+
     trainer.logger.global_step += 1
 
     trainer.update_g(domain_batch)
@@ -50,7 +60,7 @@ if __name__ == "__main__":
 
     trainer.exp.end()
 
-    should_delete = False
+    should_delete = True
     if should_delete:
         comet_api.delete_experiment(trainer.exp.get_key())
         print(

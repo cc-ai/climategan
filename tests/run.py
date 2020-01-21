@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import argparse
+import torch
 
 
 class bcolors:
@@ -17,6 +18,21 @@ class bcolors:
 def print_header(*args):
     s = " ".join(args)
     print(bcolors.HEADER + "\n --- " + s + "\n" + bcolors.ENDC)
+
+
+def tprint(*args):
+    to_print = []
+    for a in args:
+        if isinstance(a, torch.Tensor):
+            if len(a.shape) == 0:
+                to_print.append(a.item())
+            else:
+                to_print.append(a.detach().numpy())
+        elif isinstance(a, torch.Size):
+            to_print.append(list(a))
+        else:
+            to_print.append(a)
+    print(" ".join(map(str, to_print)))
 
 
 if __name__ == "__main__":

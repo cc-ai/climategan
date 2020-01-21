@@ -81,8 +81,6 @@ def pil_image_loader(path, task):
 
     # assert len(arr.shape) == 3, (path, task, arr.shape)
 
-    # pdb.set_trace()
-
     return Image.fromarray(arr)
 
 

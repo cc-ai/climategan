@@ -35,7 +35,7 @@ data:
       ignore: false
       height: 224
       width: 224
-    - name: resize
+    - name: resize # ? this or change generator's output? Or resize larger then crop to 256?
       ignore: false
       new_size: 256
 
@@ -51,21 +51,39 @@ gen:
     niter_decay: null # for linear decay
     lr: 0.0005
     beta1: 0.9
-  default:
-    input_nc: 3
-    output_nc: 3
-    ngf: 64
-    norm_layer: batch
-    dropout: 0.2
-    n_blocks: 6
-    padding_type: reflect
-    init_type: kaiming
+  default: # default parameters for the generator (encoder and decoders)
+    activ: lrelu # activation function [relu/lrelu/prelu/selu/tanh]
     init_gain: 0.2
-    lambda_rec: 1
-    lambda_idt: 1
-  s:
+    init_type: kaiming
+    n_res: 4 # number of residual blocks before upsampling
+    n_upsample: 2 # upsampling in spade decoder ; should match encoder.n_downsample
+    pad_type: reflect # padding type [zero/reflect]
+    res_dim: 256 # Resblock number of channels (=latent space's)
+    res_norm: "instance" # normalization to apply
+  a: # specific params for the adaptation decoder
+    output_dim: 3
+  d: # specific params for the depth estimation decoder
+    output_dim: 1
+  h: # specific params for the height estimation decoder
+    output_dim: 1
+  s: # specific params for the semantic segmentation decoder
     num_classes: 19
-# Set gen.A.init_gain to overwrite this parameter for A only
+    output_dim: 19
+  t: # specific params for the translation SPADE decoder
+    output_dim: 3 # output dimension
+    pad_type: zero # padding type [zero/reflect]
+    use_spade: True # whether to condition the decoding on other inferences, à la SPADE or not
+    spade_kernel_size: 3 # kernel size within SPADE norm layers
+    spade_param_free_norm: "instance" # what param-free normalization to apply in SPADE normalization
+    spade_use_spectral_norm: True #
+  w: # specific params for the water-segmentation decoder
+    output_dim: 1
+  encoder: # specific params for the encoder
+    dim: 64 # dimension of the first projection before downsamplings
+    input_dim: 3 # input number of channels
+    n_downsample: 2 # number of downsampling layers in encoder
+    n_res: 4 # number of residual blocks in content encoder/decoder
+    norm: "none"
 
 # -------------------------
 # ----- Discriminator -----
@@ -87,6 +105,8 @@ dis:
     init_type: kaiming
     init_gain: 0.2
     use_sigmoid: false
+    real_label: 0.8 # label smoothing
+    flip_prob: 0.1 # label flipping
 
 # -------------------------------
 # -----  Domain Classifier  -----
@@ -96,7 +116,7 @@ classifier:
     optimizer: ExtraAdam
     lr: 0.0005
     beta1: 0.5
-  loss: cross_entropy    #Loss can be l1, l2, cross_entropy.  default cross_entropy
+  loss: cross_entropy #Loss can be l1, l2, cross_entropy.  default cross_entropy
   layers: [100, 100, 20, 20, 4] # number of units per hidden layer ; las number is output_dim
   dropout: 0.4 # probability of being set to 0
   init_type: kaiming
@@ -116,16 +136,15 @@ train:
       auto: # auto-encoder loss coefficients
         a: 1
         t: 1
-      gan: # auto-encoder loss coefficients
+      gan: # gan loss coefficients
         a: 1
         t: 1
-      cycle: # auto-encoder loss coefficients
+      cycle: # cycle reconstruction loss coefficients
         a: 1
         t: 1
       classifier: 1
     C: 1
   log_level: 1 # 0: no log, 1: only aggregated losses, >1 detailed losses
-
 
 # -----------------------------
 # ----- Validation Params -----
