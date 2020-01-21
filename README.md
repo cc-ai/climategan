@@ -3,6 +3,8 @@
   - [Current Model](#current-model)
     - [Summary](#summary)
     - [Generator](#generator)
+    - [Discriminator](#discriminator)
+  - [updates](#updates)
   - [interfaces](#interfaces)
     - [batches](#batches)
     - [data](#data)
@@ -53,6 +55,39 @@ High-level model in `generator.py`, building-blocks in `blocks.py`
 * **Translation decoder**: SPADEResnet-based Decoder inspired by MUNIT and SPADE
   * Conditioning the translation by `SPADE([h, d, s, w])`
 
+### Discriminator
+
+## updates
+
+For a multi-batch like:
+```
+{"rf: batch0, "rn": batch1, "sf": batch2 "sn": batch3}
+```
+
+Updates will be:
+
+```
+- real D["a"]["r"] (batch0)
+- fake D["a"]["s"] (batch0)
+- real D["t"]["f"] (batch0)
+- fake D["t"]["n"] (batch0)
+
+- real D["a"]["r"] (batch1)
+- fake D["a"]["s"] (batch1)
+- real D["t"]["n"] (batch1)
+- fake D["t"]["f"] (batch1)
+
+- real D["a"]["s"] (batch2)
+- fake D["a"]["r"] (batch2)
+- real D["t"]["f"] (batch2)
+- fake D["t"]["n"] (batch2)
+
+- real D["a"]["s"] (batch3)
+- fake D["a"]["r"] (batch3)
+- real D["t"]["n"] (batch3)
+- fake D["t"]["f"] (batch3)
+```
+
 ## interfaces
 
 ### batches
@@ -78,9 +113,9 @@ batch = Dict({
 ```
 
 ### data
-We provide the script `process_data.py` for the preprocessing task. Given a source folder the script will create the appropriate JSON. In the default mode, only one JSON for the whole data folder will be created. If you want to split the dataset into train and validation you can use the `--train_size` argument and specify the percentage, therefore two Jsons (train and val) will be created. 
+We provide the script `process_data.py` for the preprocessing task. Given a source folder the script will create the appropriate JSON. In the default mode, only one JSON for the whole data folder will be created. If you want to split the dataset into train and validation you can use the `--train_size` argument and specify the percentage, therefore two Jsons (train and val) will be created.
 
-The data folder must be structured as follows : A specific folder for each category (Semantic, Depth, Height, Flood, etc..), for the same data sample, the name must be the same through all the directories (The ground truth depth of Flood/image_1.jpg is Depth/image_1.jpg), but the extension can change. 
+The data folder must be structured as follows : A specific folder for each category (Semantic, Depth, Height, Flood, etc..), for the same data sample, the name must be the same through all the directories (The ground truth depth of Flood/image_1.jpg is Depth/image_1.jpg), but the extension can change.
 
 The default mapping between a folder and the json key is `"Segmentation": "s", "Depth": "d", "Data": "x", "Height": "h"` change it according to your needs in `process_data.py`.
 
@@ -132,12 +167,12 @@ loaders = Dict({
 trainer.losses = {
     "G":{ # generator
         "gan": { # gan loss from the discriminators
-            "a": func, # adaptation decoder
-            "t": func # translation decoder
+            "a": GANLoss, # adaptation decoder
+            "t": GANLoss # translation decoder
         },
         "cycle": { # cycle-consistency loss
-            "a": func,
-            "t": func
+            "a": l1 | l2,,
+            "t": l1 | l2,
         },
         "auto": { # auto-encoding loss a.k.a. reconstruction loss
             "a": l1 | l2,
@@ -151,7 +186,7 @@ trainer.losses = {
         },
         "classifier": l1 | l2 | CE # loss from fooling the classifier
     },
-    "D":{}, # discriminator losses from the generator and true data
+    "D": GANLoss, # discriminator losses from the generator and true data
     "C": l1 | l2 | CE # classifier should predict the right 1-h vector [rf, rn, sf, sn]
 }
 ```

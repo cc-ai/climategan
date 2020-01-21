@@ -8,11 +8,12 @@ from run import print_header
 
 if __name__ == "__main__":
 
-    test_setup = True
-    test_get_representation_loss = True
-    test_get_translation_loss = True
-    test_get_classifier_loss = True
-    test_update_g = True
+    test_setup = False
+    test_get_representation_loss = False
+    test_get_translation_loss = False
+    test_get_classifier_loss = False
+    test_update_g = False
+    test_update_d = True
     crop_to = 32  # smaller data for faster tests ; -1 for no
 
     opts = load_opts("../config/local_tests.yaml", default="../shared/defaults.yml")
@@ -120,3 +121,18 @@ if __name__ == "__main__":
         )
         trainer.update_g(domain_batch, 1)
         print()
+
+    if test_update_d:
+        if not trainer.is_setup:
+            trainer.setup()
+        multi_batch_tuple = next(iter(trainer.train_loaders))
+        domain_batch = {batch["domain"][0]: batch for batch in multi_batch_tuple}
+        print("Decoding using G.decoders[decoder][target_domain]")
+        print(
+            "Printing \n  {} and \n  {}\n".format(
+                "Batch {batch_domain} > {decoder}: {source_domain} to real",
+                "Batch {batch_domain} > {decoder}: {target_domain} to fake",
+            )
+        )
+
+        trainer.update_d(domain_batch, 1)

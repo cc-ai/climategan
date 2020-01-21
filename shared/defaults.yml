@@ -89,6 +89,8 @@ gen:
 # ----- Discriminator -----
 # -------------------------
 dis:
+  real_label: 0.8 # label smoothing
+  flip_prob: 0.1 # label flipping
   opt:
     optimizer: ExtraAdam
     lr_policy: false
@@ -105,9 +107,6 @@ dis:
     init_type: kaiming
     init_gain: 0.2
     use_sigmoid: false
-    real_label: 0.8 # label smoothing
-    flip_prob: 0.1 # label flipping
-
 # -------------------------------
 # -----  Domain Classifier  -----
 # -------------------------------
