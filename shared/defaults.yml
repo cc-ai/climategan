@@ -72,7 +72,7 @@ gen:
   t: # specific params for the translation SPADE decoder
     output_dim: 3 # output dimension
     pad_type: zero # padding type [zero/reflect]
-    use_spade: False # whether to condition the decoding on other inferences, à la SPADE or not
+    use_spade: True # whether to condition the decoding on other inferences, à la SPADE or not
     spade_kernel_size: 3 # kernel size within SPADE norm layers
     spade_param_free_norm: "instance" # what param-free normalization to apply in SPADE normalization
     spade_use_spectral_norm: True #
