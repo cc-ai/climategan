@@ -1,8 +1,9 @@
 import sys
 import torch
 
-sys.path.append("..")
+from pathlib import Path
 
+sys.path.append(str(Path(__file__).parent.parent.resolve()))
 
 from run import tprint
 
@@ -11,7 +12,8 @@ from omnigan.classifier import get_classifier
 from omnigan.losses import cross_entropy, l1_loss
 
 if __name__ == "__main__":
-    opts = load_opts("../config/local_tests.yaml", default="../shared/defaults.yml")
+    root = Path(__file__).parent.parent
+    opts = load_opts(root / "config/local_tests.yaml", default=root / "shared/defaults.yml")
 
     target_domains = ["rf", "rn", "sf", "sn", "rf"]
     labels = domains_to_class_tensor(target_domains, one_hot=False)

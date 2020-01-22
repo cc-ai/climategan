@@ -1,6 +1,8 @@
 import sys
 
-sys.path.append("..")
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).parent.parent.resolve()))
 from addict import Dict
 from omnigan.trainer import Trainer
 from omnigan.utils import load_opts
@@ -15,7 +17,10 @@ if __name__ == "__main__":
     test_update_g = True
     crop_to = 32  # smaller data for faster tests ; -1 for no
 
-    opts = load_opts("../config/local_tests.yaml", default="../shared/defaults.yml")
+    root = Path(__file__).parent.parent
+    opts = load_opts(
+        root / "config/local_tests.yaml", default=root / "shared/defaults.yml"
+    )
     if crop_to > 0:
         opts.data.transforms += [
             Dict({"name": "crop", "ignore": False, "height": crop_to, "width": crop_to})
@@ -32,8 +37,9 @@ if __name__ == "__main__":
         if not trainer.is_setup:
             trainer.setup()
         multi_batch_tuple = next(iter(trainer.train_loaders))
-        domain_batch = {batch["domain"][0]: batch for batch in multi_batch_tuple}
-        loss = trainer.get_representation_loss(domain_batch)
+        multi_domain_batch = {batch["domain"][0]: batch for batch in multi_batch_tuple}
+
+        loss = trainer.get_representation_loss(multi_domain_batch)
         print("Loss {}".format(loss.item()))
 
     if test_get_translation_loss:
@@ -42,8 +48,9 @@ if __name__ == "__main__":
             trainer.setup()
 
         multi_batch_tuple = next(iter(trainer.train_loaders))
-        domain_batch = {batch["domain"][0]: batch for batch in multi_batch_tuple}
-        loss = trainer.get_translation_loss(domain_batch)
+        multi_domain_batch = {batch["domain"][0]: batch for batch in multi_batch_tuple}
+
+        loss = trainer.get_translation_loss(multi_domain_batch)
         print("Loss {}".format(loss.item()))
 
     if test_get_classifier_loss:
@@ -52,18 +59,19 @@ if __name__ == "__main__":
             trainer.setup()
 
         multi_batch_tuple = next(iter(trainer.train_loaders))
-        domain_batch = {batch["domain"][0]: batch for batch in multi_batch_tuple}
+        multi_domain_batch = {batch["domain"][0]: batch for batch in multi_batch_tuple}
+
         trainer.opts.classifier.loss = "l1"
         trainer.setup()
-        loss = trainer.get_classifier_loss(domain_batch)
+        loss = trainer.get_classifier_loss(multi_domain_batch)
         print("Loss {}".format(loss.item()))
         trainer.opts.classifier.loss = "l2"
         trainer.setup()
-        loss = trainer.get_classifier_loss(domain_batch)
+        loss = trainer.get_classifier_loss(multi_domain_batch)
         print("Loss {}".format(loss.item()))
         trainer.opts.classifier.loss = "cross_entropy"
         trainer.setup()
-        loss = trainer.get_classifier_loss(domain_batch)
+        loss = trainer.get_classifier_loss(multi_domain_batch)
         print("Loss {}".format(loss.item()))
 
     if test_update_g:
@@ -75,14 +83,14 @@ if __name__ == "__main__":
         trainer.verbose = 0
 
         multi_batch_tuple = next(iter(trainer.train_loaders))
-        domain_batch = {batch["domain"][0]: batch for batch in multi_batch_tuple}
+        multi_domain_batch = {batch["domain"][0]: batch for batch in multi_batch_tuple}
 
         # Using repr_tr and step < repr_step and step % 2 == 0
         trainer.opts.train.representational_training = True
         trainer.opts.train.representation_steps = 100
         trainer.logger.global_step = 0
         print(True, 100, 0, "Using repr_tr and step < repr_step and step % 2 == 0")
-        trainer.update_g(domain_batch, 1)
+        trainer.update_g(multi_domain_batch, 1)
         print()
 
         # Using repr_tr and step < repr_step and step % 2 == 1
@@ -90,7 +98,7 @@ if __name__ == "__main__":
         trainer.opts.train.representation_steps = 100
         trainer.logger.global_step = 1
         print(True, 100, 1, "Using repr_tr and step < repr_step and step % 2 == 1")
-        trainer.update_g(domain_batch, 1)
+        trainer.update_g(multi_domain_batch, 1)
         print()
 
         # Using repr_tr and step > repr_step
@@ -98,7 +106,7 @@ if __name__ == "__main__":
         trainer.opts.train.representation_steps = 100
         trainer.logger.global_step = 200
         print(True, 100, 200, "Using repr_tr and step > repr_step")
-        trainer.update_g(domain_batch, 1)
+        trainer.update_g(multi_domain_batch, 1)
         print()
 
         # Not Using repr_tr and step < repr_step and step % 2 == 0
@@ -108,7 +116,7 @@ if __name__ == "__main__":
         print(
             False, 100, 200, "Not Using repr_tr and step < repr_step and step % 2 == 0"
         )
-        trainer.update_g(domain_batch, 1)
+        trainer.update_g(multi_domain_batch, 1)
         print()
 
         # Not Using repr_tr and step > repr_step and step % 2 == 1
@@ -118,5 +126,5 @@ if __name__ == "__main__":
         print(
             False, 100, 201, "Not Using repr_tr and step > repr_step and step % 2 == 1"
         )
-        trainer.update_g(domain_batch, 1)
+        trainer.update_g(multi_domain_batch, 1)
         print()

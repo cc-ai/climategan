@@ -2,14 +2,16 @@ from pathlib import Path
 from addict import Dict
 import sys
 
-sys.path.append("..")
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent.resolve()))
 
 from omnigan.data import OmniListDataset, get_all_loaders
 from omnigan.utils import load_opts, transforms_string
 
 if __name__ == "__main__":
 
-    opts = load_opts("../config/local_tests.yaml", default="../shared/defaults.yml")
+    root = Path(__file__).parent.parent
+    opts = load_opts(root / "config/local_tests.yaml", default=root / "shared/defaults.yml")
 
     opts.data.loaders.batch_size = 2
     opts.data.loaders.num_workers = 2

@@ -245,6 +245,16 @@ class Trainer:
         """
         return zip(*list(self.loaders["train"].values()))
 
+    @property
+    def val_loaders(self):
+        """Get a zip of all validation loaders
+
+        Returns:
+            generator: zip generator yielding tuples:
+                (batch_rf, batch_rn, batch_sf, batch_sn)
+        """
+        return zip(*list(self.loaders["val"].values()))
+
     def run_epoch(self):
         """Runs an epoch:
         * checks trainer is setup
@@ -403,7 +413,9 @@ class Trainer:
             cond = None
             if self.opts.gen.t.use_spade:
                 cond = self.G.get_conditioning_tensor(
-                    x, task_tensors, domains_to_class_tensor(batch["domain"], one_hot=True)
+                    x,
+                    task_tensors,
+                    domains_to_class_tensor(batch["domain"], one_hot=True),
                 )
             reconstruction = self.G.decoders["t"][translation_decoder](self.z, cond)
             update_loss = self.losses["G"]["auto"]["t"](x, reconstruction)
