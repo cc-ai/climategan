@@ -252,6 +252,17 @@ class Trainer:
         else:
             self.d_opt.step()
 
+    def c_opt_step(self):
+        """Run an optimizing step ; if using ExtraAdam, there needs to be an extrapolation
+        step every other step
+        """
+        if "extra" in self.opts.classifier.opt.optimizer.lower() and (
+            self.logger.global_step % 2 == 0
+        ):
+            self.c_opt.extrapolation()
+        else:
+            self.c_opt.step()
+
     @property
     def train_loaders(self):
         """Get a zip of all training loaders
