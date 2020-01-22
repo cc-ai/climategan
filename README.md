@@ -35,9 +35,24 @@ Estimated Total Size (MB): 1784.82
 ----------------------------------------------------------------
 ```
 
+
+
 Set `test_summary` to `True` in `tests/test_gen.py` to view the full summary.
 
 **n.b.**: the adaptation decoder is not taken into account in the summary as its computations are not used in `OmniGenerator.forward(...)` and only one translation decoder is used so numbers above are a lower bound.
+
+Also:
+
+```python
+sum(np.prod(p.shape) for p in trainer.G.parameters())
+>>> 17 646 624
+
+sum(np.prod(p.shape) for p in trainer.D.parameters())
+>>> 11 124 424
+
+sum(np.prod(p.shape) for p in trainer.C.parameters())
+>>> 595 332
+```
 
 ### Generator
 
