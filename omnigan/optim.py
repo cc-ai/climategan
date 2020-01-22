@@ -1,17 +1,56 @@
 import torch
 import math
-import torch.optim as optim
-from torch.optim import Optimizer
+from torch.optim import Optimizer, Adam, lr_scheduler
 
 
-def get_optimizer(net, opt_conf):
+def get_scheduler(optimizer, hyperparameters, iterations=-1):
+    """Get an optimizer's learning rate scheduler based on opts
 
-    if opt_conf.optimizer == "ExtraAdam":
-        return ExtraAdam(
-            net.parameters(), lr=opt_conf.lr, betas=(opt_conf.beta1, 0.999)
+    Args:
+        optimizer (torch.Optimizer): optimizer for which to schedule the learning rate
+        hyperparameters (addict.Dict): configuration options
+        iterations (int, optional): The index of last epoch. Defaults to -1.
+            When last_epoch=-1, sets initial lr as lr.
+
+    Returns:
+        [type]: [description]
+    """
+    if "lr_policy" not in hyperparameters or hyperparameters["lr_policy"] == "constant":
+        scheduler = None  # constant scheduler
+    elif hyperparameters["lr_policy"] == "step":
+        scheduler = lr_scheduler.StepLR(
+            optimizer,
+            step_size=hyperparameters["lr_step_size"],
+            gamma=hyperparameters["lr_gamma"],
+            last_epoch=iterations,
         )
+    else:
+        return NotImplementedError(
+            "learning rate policy [%s] is not implemented", hyperparameters["lr_policy"]
+        )
+    return scheduler
 
-    return optim.Adam(net.parameters(), lr=opt_conf.lr, betas=(opt_conf.beta1, 0.999))
+
+def get_optimizer(net, opt_conf, iterations=-1):
+    """Returns a tuple (optimizer, scheduler) according to opt_conf which
+    should come from the trainer's opts as: trainer.opts.<model>.opt
+
+    Args:
+        net (nn.Module): Network to update
+        opt_conf (addict.Dict): optimizer and scheduler options
+        iterations (int, optional): Last epoch number. Defaults to -1, meaning
+            start with base lr.
+
+    Returns:
+        Tuple: (torch.Optimizer, torch._LRScheduler)
+    """
+    opt = scheduler = None
+    if opt_conf.optimizer == "ExtraAdam":
+        opt = ExtraAdam(net.parameters(), lr=opt_conf.lr, betas=(opt_conf.beta1, 0.999))
+    else:
+        opt = Adam(net.parameters(), lr=opt_conf.lr, betas=(opt_conf.beta1, 0.999))
+    scheduler = get_scheduler(opt, opt_conf, iterations)
+    return opt, scheduler
 
 
 """
