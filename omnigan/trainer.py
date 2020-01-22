@@ -280,6 +280,16 @@ class Trainer:
         if self.c_scheduler is not None:
             self.c_scheduler.step()
 
+    @property
+    def val_loaders(self):
+        """Get a zip of all validation loaders
+
+        Returns:
+            generator: zip generator yielding tuples:
+                (batch_rf, batch_rn, batch_sf, batch_sn)
+        """
+        return zip(*list(self.loaders["val"].values()))
+
     def run_epoch(self):
         """Runs an epoch:
         * checks trainer is setup

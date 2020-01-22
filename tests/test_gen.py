@@ -3,7 +3,8 @@ import torch
 import sys
 from torchsummary import summary
 
-sys.path.append("..")
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent.resolve()))
 
 from omnigan.generator import get_gen
 from omnigan.utils import load_opts
@@ -14,7 +15,8 @@ if __name__ == "__main__":
 
     np.random.seed(0)
     torch.manual_seed(0)
-    opts = load_opts("../config/local_tests.yaml", default="../shared/defaults.yml")
+    root = Path(__file__).parent.parent
+    opts = load_opts(root / "config/local_tests.yaml", default=root / "shared/defaults.yml")
     batch_size = 2
     latent_space_dims = [256, 32, 32]
 

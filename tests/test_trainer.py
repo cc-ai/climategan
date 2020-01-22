@@ -1,6 +1,8 @@
 import sys
 
-sys.path.append("..")
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).parent.parent.resolve()))
 from addict import Dict
 from omnigan.trainer import Trainer
 from omnigan.utils import load_opts, freeze
@@ -17,7 +19,10 @@ if __name__ == "__main__":
     test_full_step = True
     crop_to = 32  # smaller data for faster tests ; -1 for no
 
-    opts = load_opts("../config/local_tests.yaml", default="../shared/defaults.yml")
+    root = Path(__file__).parent.parent
+    opts = load_opts(
+        root / "config/local_tests.yaml", default=root / "shared/defaults.yml"
+    )
     if crop_to > 0:
         opts.data.transforms += [
             Dict({"name": "crop", "ignore": False, "height": crop_to, "width": crop_to})
@@ -36,6 +41,7 @@ if __name__ == "__main__":
             trainer.setup()
         multi_batch_tuple = next(iter(trainer.train_loaders))
         multi_domain_batch = {batch["domain"][0]: batch for batch in multi_batch_tuple}
+
         loss = trainer.get_representation_loss(multi_domain_batch)
         print("Loss {}".format(loss.item()))
 
@@ -47,6 +53,7 @@ if __name__ == "__main__":
 
         multi_batch_tuple = next(iter(trainer.train_loaders))
         multi_domain_batch = {batch["domain"][0]: batch for batch in multi_batch_tuple}
+
         loss = trainer.get_translation_loss(multi_domain_batch)
         print("Loss {}".format(loss.item()))
 
@@ -58,6 +65,7 @@ if __name__ == "__main__":
 
         multi_batch_tuple = next(iter(trainer.train_loaders))
         multi_domain_batch = {batch["domain"][0]: batch for batch in multi_batch_tuple}
+
         trainer.opts.classifier.loss = "l1"
         trainer.setup()
         loss = trainer.get_classifier_loss(multi_domain_batch)
@@ -153,7 +161,9 @@ if __name__ == "__main__":
             print("Setting up")
             trainer.setup()
 
-        encoder_weights = [[p.detach().numpy()[0] for p in trainer.G.encoder.parameters()]]
+        encoder_weights = [
+            [p.detach().numpy()[0] for p in trainer.G.encoder.parameters()]
+        ]
         multi_batch_tuple = next(iter(trainer.train_loaders))
         multi_domain_batch = {batch["domain"][0]: batch for batch in multi_batch_tuple}
 
@@ -204,9 +214,15 @@ if __name__ == "__main__":
         # ? triggers segmentation fault for some unknown reason
         # # encoder was updated
         # assert all(
-        #     [(p0 != p1).all() for p0, p1 in zip(encoder_weights[0], encoder_weights[1])]
+        #     [
+        #       (p0 != p1).all()
+        #       for p0, p1 in zip(encoder_weights[0], encoder_weights[1])
+        #     ]
         # )
         # # encoder was not updated
         # assert all(
-        #     [(p1 == p2).all() for p1, p2 in zip(encoder_weights[1], encoder_weights[2])]
+        #     [
+        #       (p1 == p2).all()
+        #       for p1, p2 in zip(encoder_weights[1], encoder_weights[2])
+        #     ]
         # )

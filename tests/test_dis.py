@@ -2,14 +2,16 @@ import sys
 import torch
 import numpy as np
 
-sys.path.append("..")
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent.resolve()))
 
 from omnigan.discriminator import OmniDiscriminator
 from omnigan.utils import load_opts
 from omnigan.losses import GANLoss
 
 if __name__ == "__main__":
-    opts = load_opts("../config/local_tests.yaml", default="../shared/defaults.yml")
+    root = Path(__file__).parent.parent
+    opts = load_opts(root / "config/local_tests.yaml", default=root / "shared/defaults.yml")
     D = OmniDiscriminator(opts)
     loss = GANLoss()
 
