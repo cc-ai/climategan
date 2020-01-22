@@ -282,7 +282,7 @@ def init_weights(net, init_type="normal", init_gain=0.02, verbose=0):
     net.apply(init_func)
 
 
-def freeze(self, net):
+def freeze(net):
     """Sets requires_grad = False to all the net's parameters
 
     Args:
