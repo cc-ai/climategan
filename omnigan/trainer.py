@@ -213,9 +213,9 @@ class Trainer:
             self.device
         )
 
-        self.g_opt = get_optimizer(self.G, self.opts.gen.opt)
-        self.d_opt = get_optimizer(self.D, self.opts.dis.opt)
-        self.c_opt = get_optimizer(self.C, self.opts.classifier.opt)
+        self.g_opt, self.g_scheduler = get_optimizer(self.G, self.opts.gen.opt)
+        self.d_opt, self.d_scheduler = get_optimizer(self.D, self.opts.dis.opt)
+        self.c_opt, self.c_scheduler = get_optimizer(self.C, self.opts.classifier.opt)
 
         self.set_losses()
 
@@ -273,6 +273,14 @@ class Trainer:
         """
         return zip(*list(self.loaders["train"].values()))
 
+    def update_learning_rates(self):
+        if self.g_scheduler is not None:
+            self.g_scheduler.step()
+        if self.d_scheduler is not None:
+            self.d_scheduler.step()
+        if self.c_scheduler is not None:
+            self.c_scheduler.step()
+
     def run_epoch(self):
         """Runs an epoch:
         * checks trainer is setup
@@ -295,8 +303,9 @@ class Trainer:
             self.logger.global_step += 1
             if self.should_freeze_representation():
                 freeze(self.G.encoder)
+                # ? Freeze decoders != t for memory management purposes ; faster ?
                 self.representation_is_frozen = True
-                # ? do I need to also freeze the decoders other than t?
+        self.update_learning_rates()
 
     def train(self):
         """For each epoch:

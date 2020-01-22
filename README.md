@@ -1,5 +1,6 @@
 # omnigan
 - [omnigan](#omnigan)
+  - [Setup](#setup)
   - [Current Model](#current-model)
     - [Summary](#summary)
     - [Generator](#generator)
@@ -15,6 +16,10 @@
   - [Resources](#resources)
   - [Model Architecture](#model-architecture)
     - [Generator](#generator-1)
+
+## Setup
+
+**`PyTorch >= 1.1.0`** otherwise optimizer.step() and scheduler.step() are in the wrong order ([docs](https://pytorch.org/docs/stable/optim.html#how-to-adjust-learning-rate))
 
 ## Current Model
 
