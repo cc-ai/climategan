@@ -24,7 +24,7 @@ data_path = opts.path
 categories = {}
 sample_list = {}
 
-# Mapping data category to json index
+# Mapping data category (~folder name) to json index
 mapping = {"Segmentation": "s", "Depth": "d", "Data": "x", "Height": "h"}
 
 # List the files for every category
@@ -83,4 +83,3 @@ else:
 
     with open("./example_data/data.json", "w") as f:
         json.dump(sample_list, f, indent=4, sort_keys=True)
-
