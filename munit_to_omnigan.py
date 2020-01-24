@@ -28,7 +28,7 @@ def get_lines(path):
 
 if __name__ == "__main__":
     name = "from_FeatureDA+seg"
-    path_to_omnigan_data = Path(__file__) / "shared"
+    path_to_omnigan_data = Path(__file__).parent / "shared"
     munit_data_lists = {}
     for l in lists.split("\n"):
         if ":" not in l:
