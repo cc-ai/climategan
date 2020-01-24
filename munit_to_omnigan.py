@@ -13,11 +13,11 @@ data_folder_test_b: ./
 data_list_test_b: /network/tmp1/ccai/data/munit_dataset/testB.txt
 data_list_train_a_seg: /network/tmp1/ccai/data/munit_dataset/trainA_seg.txt
 data_list_train_b_seg: /network/tmp1/ccai/data/munit_dataset/trainB_seg.txt
-data_list_train_a_synth: /network/tmp1/ccai/data/Unity1000R/txt_files/normal.txt
-data_list_train_b_synth: /network/tmp1/ccai/data/Unity1000R/txt_files/flood.txt
-data_list_train_b_seg_synth: /network/tmp1/ccai/data/Unity1000R/txt_files/mask.txt #binary mask
-seg_list_a: /network/tmp1/ccai/data/Unity1000R/txt_files/seg.txt
-seg_list_b: /network/tmp1/ccai/data/Unity1000R/txt_files/seg_flood.txt
+data_list_train_a_synth: /network/tmp1/ccai/data/munit_dataset/simdata/Unity1000R_broken_water/txt_files/normal.txt
+data_list_train_b_synth: /network/tmp1/ccai/data/munit_dataset/simdata/Unity1000R_broken_water/txt_files/flood.txt
+data_list_train_b_seg_synth: /network/tmp1/ccai/data/munit_dataset/simdata/Unity1000R_broken_water/txt_files/mask.txt #binary mask
+seg_list_a: /network/tmp1/ccai/data/munit_dataset/simdata/Unity1000R_broken_water/txt_files/seg.txt
+seg_list_b: /network/tmp1/ccai/data/munit_dataset/simdata/Unity1000R_broken_water/txt_files/seg_flood.txt
 """
 
 
