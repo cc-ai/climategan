@@ -150,7 +150,7 @@ train:
 # ----- Validation Params -----
 # -----------------------------
 val:
-  max_log_images: 15
+  max_log_images: 1
   every_n_steps: 1000
   store_images: false
   infer_rec: true

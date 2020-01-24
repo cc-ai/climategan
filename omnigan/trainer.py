@@ -4,6 +4,7 @@ from time import time
 
 import torch
 from addict import Dict
+from pathlib import Path
 
 from omnigan.classifier import get_classifier
 from omnigan.data import get_all_loaders
@@ -17,6 +18,8 @@ from omnigan.utils import (
     fake_domains_to_class_tensor,
     flatten_opts,
     freeze,
+    save_batch,
+    slice_batch,
 )
 
 
@@ -43,6 +46,7 @@ class Trainer:
         self.logger = Dict()
         self.logger.lr.g = opts.gen.opt.lr
         self.logger.lr.d = opts.dis.opt.lr
+        self.logger.epoch = 0
         self.loaders = None
 
         self.is_setup = False
@@ -94,7 +98,7 @@ class Trainer:
         Returns:
             dict: the batch dictionnary with its "data" field sent to self.device
         """
-        for task, tensor in b.data.items():
+        for task, tensor in b["data"].items():
             b["data"][task] = tensor.to(self.device)
         return b
 
@@ -302,6 +306,11 @@ class Trainer:
             # create a dictionnay (domain => batch) from tuple
             # (batch_domain_0, ..., batch_domain_i)
             # and send it to self.device
+            print(
+                "\rEpoch {} batch {} step {}".format(
+                    self.logger.epoch, i, self.logger.global_step
+                )
+            )
             multi_domain_batch = {
                 batch["domain"][0]: self.batch_to_device(batch)
                 for batch in multi_batch_tuple
@@ -713,8 +722,39 @@ class Trainer:
 
         return lambdas.C * loss
 
-    def eval(self):
-        pass
+    def eval(self, num_threads=5, verbose=0):
+        counter = {}
+        for i, multi_batch_tuple in enumerate(self.val_loaders):
+            # create a dictionnay (domain => batch) from tuple
+            # (batch_domain_0, ..., batch_domain_i)
+            # and send it to self.device
+            multi_domain_batch = {
+                batch["domain"][0]: self.batch_to_device(batch)
+                for batch in multi_batch_tuple
+            }
+            # ----------------------------------------------
+            # -----  Infer separately for each domain  -----
+            # ----------------------------------------------
+            for domain, domain_batch in multi_domain_batch.items():
+                # Don't infer if domains has enough images
+                remaining = self.opts.val.max_log_images - counter.get(domain, 0)
+                if remaining <= 0:
+                    continue
+                if verbose > 0:
+                    print("\rInferring batch {} domain {}".format(i, domain), end="")
+
+                translator = "f" if "n" in domain else "n"
+                domain_batch = slice_batch(domain_batch, remaining)
+                translated = self.G.translate(domain_batch, translator)
+                domain_batch["data"]["y"] = translated
+                multi_domain_batch[domain] = domain_batch
+                counter[domain] = counter.get(domain, 0) + translated.shape[0]
+
+            write_path = Path(self.opts.output_path) / "eval_images"
+            step = self.logger.global_step
+            save_batch(multi_domain_batch, write_path, step, num_threads)
+        if verbose > 0:
+            print()
 
     def save(self):
         pass

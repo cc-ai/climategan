@@ -27,7 +27,8 @@ class OmniClassifier(nn.Module):
                 nn.MaxPool2d(2),
                 BasicBlock(int(self.channels / 2), int(self.channels / 4), True),
                 nn.AvgPool2d((int(self.feature_size / 4), int(self.feature_size / 4))),
-                Squeeze(),
+                Squeeze(-1),
+                Squeeze(-1),
                 nn.Linear(int(self.channels / 4), 4),
             ]
         )
@@ -41,7 +42,13 @@ class OmniClassifier(nn.Module):
 
 
 class Squeeze(nn.Module):
+    def __init__(self, dim=-2):
+        super().__init__()
+        self.dim = dim
+
     def forward(self, x):
+        if self.dim > -2:
+            return x.squeeze(self.dim)
         return x.squeeze()
 
 
@@ -98,11 +105,11 @@ class BasicBlock(nn.Module):
 
 def conv_block(in_channels, out_channels):
     """returns a block Convolution - batch normalization - ReLU - Pooling
-                                                                                  
+
     Arguments:
         in_channels {int} -- Number of channels in the input image
         out_channels {int} -- Number of channels produced by the convolution
-    
+
     Returns:
         block -- Convolution - batch normalization - ReLU - Pooling
     """
@@ -119,15 +126,15 @@ def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
     Arguments:
         in_planes {int} -- Number of channels in the input image
         out_planes {int} -- Number of channels produced by the convolution
-    
+
     Keyword Arguments:
         stride {int or tuple, optional} -- Stride of the convolution.
         Default: 1 (default: {1})
-        groups {int, optional} -- Number of blocked connections 
-        from input channels to output channels.tion] 
-        (default: {1}) dilation {int or tuple, optional} -- 
+        groups {int, optional} -- Number of blocked connections
+        from input channels to output channels.tion]
+        (default: {1}) dilation {int or tuple, optional} --
         Spacing between kernel elements (default: {1})
-    
+
     Returns:
         output layer of 3x3 convolution with padding
     """
@@ -148,9 +155,9 @@ def conv1x1(in_planes, out_planes, stride=1):
     Arguments:
         in_planes {int} -- Number of channels in the input image
         out_planes {int} -- Number of channels produced by the convolution
-    
+
     Keyword Arguments:
-        stride {int or tuple, optional} -- Stride of the convolution. 
+        stride {int or tuple, optional} -- Stride of the convolution.
         Default: 1 (default: {1})
     """
     return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
