@@ -22,14 +22,15 @@ seg_list_b: /network/tmp1/ccai/data/munit_dataset/simdata/Unity1000R_broken_wate
 
 
 def get_lines(path):
-    with path.open("r") as f:
-        return list(map(lambda x: x.strip(), f.readlines()))
+    if path is not None:
+        with path.open("r") as f:
+            return list(map(lambda x: x.strip(), f.readlines()))
 
 
 if __name__ == "__main__":
     name = "from_FeatureDA+seg"
     path_to_omnigan_data = Path(__file__).parent / "shared"
-    munit_data_lists = {}
+    munit_data_lists = {"TODO": None}
     for l in lists.split("\n"):
         if ":" not in l:
             continue
@@ -40,14 +41,32 @@ if __name__ == "__main__":
     # munit_data_lists = {k: Path(root) / v for k, v in munit_data_lists.items()}
 
     omnigan_data_lists = {
-        "train_rf": munit_data_lists["data_list_train_b"],
-        "train_rn": munit_data_lists["data_list_train_a"],
-        "train_sf": munit_data_lists["data_list_train_b_synth"],
-        "train_sn": munit_data_lists["data_list_train_a_synth"],
-        "val_rf": munit_data_lists["data_list_test_b"],
-        "val_rn": munit_data_lists["data_list_test_a"],
-        # "val_sf": munit_data_lists["data_list_test_b_synth"], # inexistent
-        # "val_sn": munit_data_lists["data_list_test_a_synth"], # inexistent
+        "train_rf": {
+            "x": munit_data_lists["data_list_train_b"],
+            "s": munit_data_lists["TODO"],
+        },
+        "train_rn": {
+            "x": munit_data_lists["data_list_train_a"],
+            "s": munit_data_lists["TODO"],
+        },
+        "train_sf": {
+            "x": munit_data_lists["data_list_train_b_synth"],
+            "s": munit_data_lists["seg_list_b"],
+        },
+        "train_sn": {
+            "x": munit_data_lists["data_list_train_a_synth"],
+            "s": munit_data_lists["seg_list_a"],
+        },
+        "val_rf": {
+            "x": munit_data_lists["data_list_test_b"],
+            "s": munit_data_lists["TODO"],
+        },
+        "val_rn": {
+            "x": munit_data_lists["data_list_test_a"],
+            "s": munit_data_lists["TODO"],
+        },
+        # "val_sf": {"x": munit_data_lists["data_list_test_b_synth"], "s": munit_data_lists["data_list_train_b"]},
+        # "val_sn": {"x": munit_data_lists["data_list_test_a_synth"], "s": munit_data_lists["data_list_train_b"]},
     }
 
     omnigan_data = {k: get_lines(v) for k, v in omnigan_data_lists.items()}
