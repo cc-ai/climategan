@@ -45,12 +45,11 @@ data:
 gen:
   opt:
     optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
-    lr_policy: false
-    epoch_count: null # for linear decay
-    niter: null # for linear or cosine decay
-    niter_decay: null # for linear decay
-    lr: 0.0005
     beta1: 0.9
+    lr: 0.0005
+    lr_policy: step # constant or step ; if step, specify step_size and gamma
+    lr_step_size: 30 # for linear decay : period of learning rate decay (epochs)
+    lr_gamma: 0.5 # Multiplicative factor of learning rate decay
   default: # default parameters for the generator (encoder and decoders)
     activ: lrelu # activation function [relu/lrelu/prelu/selu/tanh]
     init_gain: 0.2
@@ -89,14 +88,15 @@ gen:
 # ----- Discriminator -----
 # -------------------------
 dis:
+  soft_shift: 0.2 # label smoothing: real in U(1-soft_shift, 1), fake in U(0, soft_shift)
+  flip_prob: 0.05 # label flipping
   opt:
-    optimizer: ExtraAdam
-    lr_policy: false
-    epoch_count: null # for linear decay
-    niter: null # for linear or cosine decay
-    niter_decay: null # for linear decay
-    lr: 0.0005
+    optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
     beta1: 0.5
+    lr: 0.0005
+    lr_policy: step # constant or step ; if step, specify step_size and gamma
+    lr_step_size: 30 # for linear decay
+    lr_gamma: 0.5
   default: # default setting for discriminators (there are 4 of them for rn rf sn sf)
     input_nc: 3
     ndf: 64
@@ -105,17 +105,17 @@ dis:
     init_type: kaiming
     init_gain: 0.2
     use_sigmoid: false
-    real_label: 0.8 # label smoothing
-    flip_prob: 0.1 # label flipping
-
 # -------------------------------
 # -----  Domain Classifier  -----
 # -------------------------------
 classifier:
   opt:
-    optimizer: ExtraAdam
-    lr: 0.0005
+    optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
     beta1: 0.5
+    lr: 0.0005
+    lr_policy: step # constant or step ; if step, specify step_size and gamma
+    lr_step_size: 30 # for linear decay
+    lr_gamma: 0.5
   loss: cross_entropy #Loss can be l1, l2, cross_entropy.  default cross_entropy
   layers: [100, 100, 20, 20, 4] # number of units per hidden layer ; las number is output_dim
   dropout: 0.4 # probability of being set to 0

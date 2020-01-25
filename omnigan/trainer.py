@@ -46,6 +46,8 @@ class Trainer:
         self.loaders = None
 
         self.is_setup = False
+        self.representation_is_frozen = False
+        self.translation_map = {"r": "s", "s": "r", "f": "n", "n": "f"}
 
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -129,7 +131,7 @@ class Trainer:
                 "auto": {"a": ..., "t": ...}
                 "tasks": {"h": ..., "d": ..., "s": ..., etc.}
             },
-            "D": #TODO specify interface here,
+            "D": GANLoss,
             "C": ...
         }
         """
@@ -186,7 +188,11 @@ class Trainer:
         # ----------------------------------
         # -----  Discriminator Losses  -----
         # ----------------------------------
-        # TODO
+        self.losses["D"] = GANLoss(
+            soft_shift=self.opts.dis.soft_shift,
+            flip_prob=self.opts.dis.flip_prob,
+            verbose=self.verbose,
+        )
 
     def setup(self):
         """Prepare the trainer before it can be used to train the models:
@@ -207,9 +213,9 @@ class Trainer:
             self.device
         )
 
-        self.g_opt = get_optimizer(self.G, self.opts.gen.opt)
-        self.d_opt = get_optimizer(self.D, self.opts.dis.opt)
-        self.c_opt = get_optimizer(self.C, self.opts.classifier.opt)
+        self.g_opt, self.g_scheduler = get_optimizer(self.G, self.opts.gen.opt)
+        self.d_opt, self.d_scheduler = get_optimizer(self.D, self.opts.dis.opt)
+        self.c_opt, self.c_scheduler = get_optimizer(self.C, self.opts.classifier.opt)
 
         self.set_losses()
 
@@ -235,6 +241,28 @@ class Trainer:
         else:
             self.g_opt.step()
 
+    def d_opt_step(self):
+        """Run an optimizing step ; if using ExtraAdam, there needs to be an extrapolation
+        step every other step
+        """
+        if "extra" in self.opts.dis.opt.optimizer.lower() and (
+            self.logger.global_step % 2 == 0
+        ):
+            self.d_opt.extrapolation()
+        else:
+            self.d_opt.step()
+
+    def c_opt_step(self):
+        """Run an optimizing step ; if using ExtraAdam, there needs to be an extrapolation
+        step every other step
+        """
+        if "extra" in self.opts.classifier.opt.optimizer.lower() and (
+            self.logger.global_step % 2 == 0
+        ):
+            self.c_opt.extrapolation()
+        else:
+            self.c_opt.step()
+
     @property
     def train_loaders(self):
         """Get a zip of all training loaders
@@ -244,6 +272,14 @@ class Trainer:
                 (batch_rf, batch_rn, batch_sf, batch_sn)
         """
         return zip(*list(self.loaders["train"].values()))
+
+    def update_learning_rates(self):
+        if self.g_scheduler is not None:
+            self.g_scheduler.step()
+        if self.d_scheduler is not None:
+            self.d_scheduler.step()
+        if self.c_scheduler is not None:
+            self.c_scheduler.step()
 
     def run_epoch(self):
         """Runs an epoch:
@@ -265,6 +301,11 @@ class Trainer:
             self.update_d(multi_domain_batch)
             self.update_c(multi_domain_batch)
             self.logger.global_step += 1
+            if self.should_freeze_representation():
+                freeze(self.G.encoder)
+                # ? Freeze decoders != t for memory management purposes ; faster ?
+                self.representation_is_frozen = True
+        self.update_learning_rates()
 
     def train(self):
         """For each epoch:
@@ -278,6 +319,17 @@ class Trainer:
             self.run_epoch()
             self.eval()
             self.save()
+
+    def should_freeze_representation(self):
+        if self.representation_is_frozen:
+            return False
+        if not self.opts.train.freeze_representation:
+            return False
+        if not self.opts.train.representational_training:
+            return False
+        if self.logger.global_step < self.opts.train.representation_steps:
+            return False
+        return True
 
     def should_compute_r_loss(self):
         if not self.opts.train.representational_training:
@@ -403,7 +455,9 @@ class Trainer:
             cond = None
             if self.opts.gen.t.use_spade:
                 cond = self.G.get_conditioning_tensor(
-                    x, task_tensors, domains_to_class_tensor(batch["domain"], one_hot=True)
+                    x,
+                    task_tensors,
+                    domains_to_class_tensor(batch["domain"], one_hot=True),
                 )
             reconstruction = self.G.decoders["t"][translation_decoder](self.z, cond)
             update_loss = self.losses["G"]["auto"]["t"](x, reconstruction)
@@ -493,9 +547,6 @@ class Trainer:
         """
         step_loss = 0
         self.g_opt.zero_grad()
-        if self.opts.train.freeze_representation:
-            freeze(self.G.encoder)
-            # ? do I need to also freeze the decoders other than t?
 
         translation_tasks = []
         if "rn" in multi_domain_batch and "rf" in multi_domain_batch:
@@ -542,11 +593,75 @@ class Trainer:
             step_loss += self.opts.train.lambdas.G.cycle.t * update_loss
         return step_loss
 
-    def update_d(self, batch):
+    def update_d(self, multi_domain_batch, verbose=0):
         # ? split representational as in update_g
         # ? repr: domain-adaptation traduction
-        # ?
-        pass
+        self.d_opt.zero_grad()
+        d_loss = self.get_d_loss(multi_domain_batch, verbose)
+        d_loss.backward()
+        self.d_opt_step()
+
+        self.logger.losses.discriminator.total_loss = d_loss.item()
+        self.log_losses(model_to_update="D")
+
+    def get_d_loss(self, multi_domain_batch, verbose=0):
+        """Compute the discriminators' losses:
+
+        * for each domain-specific batch:
+        * encode the image
+        * get the conditioning tensor if using spade
+        * source domain is the data's domain, sequentially r|s then f|n
+        * get the target domain accordingly
+        * compute the translated image from the data
+        * compute the source domain discriminator's loss on the data
+        * compute the target domain discriminator's loss on the translated image
+
+        # ? In this setting, each D[decoder][domain] is updated twice towards
+        # real or fake data
+
+        See readme's update d section for details
+
+        Args:
+            multi_domain_batch ([type]): [description]
+
+        Returns:
+            [type]: [description]
+        """
+        for batch_domain, batch in multi_domain_batch.items():
+
+            x = batch["data"]["x"]
+            z = self.G.encoder(x)
+            cond = None
+            if self.opts.gen.t.use_spade:
+                task_tensors = self.G.decode_tasks(z)
+                cond = self.G.get_conditioning_tensor(
+                    x,
+                    task_tensors,
+                    domains_to_class_tensor(batch["domain"], one_hot=True),
+                )
+
+            disc_loss = {"a": {"r": 0, "s": 0}, "t": {"f": 0, "n": 0}}
+
+            for i, source_domain in enumerate(batch_domain):
+                target_domain = self.translation_map[source_domain]
+                decoder = "a" if i == 0 else "t"
+                fake = self.G.decoders[decoder][target_domain](z, cond)
+                fake_d = self.D[decoder][target_domain](fake)
+                real_d = self.D[decoder][source_domain](x)
+                fake_loss = self.losses["D"](fake_d, False)
+                real_loss = self.losses["D"](real_d, True)
+                disc_loss[decoder][target_domain] += fake_loss
+                disc_loss[decoder][source_domain] += real_loss
+
+                if verbose > 0:
+                    print(f"Batch {batch_domain} > {decoder}: {source_domain} to real ")
+                    print(f"Batch {batch_domain} > {decoder}: {target_domain} to fake ")
+
+        self.logger.losses.discriminator.update(
+            {dom: {k: v.item() for k, v in d.items()} for dom, d in disc_loss.items()}
+        )
+        loss = sum(v for d in disc_loss.values() for k, v in d.items())
+        return loss
 
     def update_c(self, multi_domain_batch):
         """
@@ -554,7 +669,7 @@ class Trainer:
 
         Args:
             multi_domain_batch (dict): dictionnary mapping domain names to batches from
-            the trainer's loaders
+                the trainer's loaders
 
         """
         self.c_opt.zero_grad()

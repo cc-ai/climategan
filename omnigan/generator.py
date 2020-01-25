@@ -268,6 +268,9 @@ class AdaptationDecoder(BaseDecoder):
             pad_type=opts.gen.a.pad_type,
         )
 
+    def forward(self, z, cond=None):
+        return self.model(z)
+
 
 class BaseTranslationDecoder(BaseDecoder):
     def __init__(self, opts):
