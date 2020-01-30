@@ -21,13 +21,13 @@ from omnigan.utils import (
 
 
 class Trainer:
-    def __init__(self, opts, comet=False, verbose=0):
+    def __init__(self, opts, comet_exp=None, verbose=0):
         """Trainer class to gather various model training procedures
         such as training evaluating saving and logging
 
         init:
         * creates an addict.Dict logger
-        * creates logger.exp as a comet experiment if `comet` arg is True
+        * creates logger.exp as a comet_exp experiment if `comet` arg is True
         * sets the device (1 GPU or CPU)
 
         Args:
@@ -52,9 +52,8 @@ class Trainer:
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
         self.exp = None
-        if comet:
-            self.exp = Experiment(project_name="omnigan", auto_metric_logging=False)
-            self.exp.log_parameters(flatten_opts(opts))
+        if isinstance(comet_exp, Experiment):
+            self.exp = comet_exp
 
     def log_losses(self, model_to_update="G"):
         """Logs metrics on comet.ml
@@ -280,6 +279,16 @@ class Trainer:
             self.d_scheduler.step()
         if self.c_scheduler is not None:
             self.c_scheduler.step()
+
+    @property
+    def val_loaders(self):
+        """Get a zip of all validation loaders
+
+        Returns:
+            generator: zip generator yielding tuples:
+                (batch_rf, batch_rn, batch_sf, batch_sn)
+        """
+        return zip(*list(self.loaders["val"].values()))
 
     def run_epoch(self):
         """Runs an epoch:

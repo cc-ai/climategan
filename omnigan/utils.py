@@ -1,6 +1,5 @@
 import os
 import re
-from argparse import ArgumentParser
 from pathlib import Path
 import subprocess
 from copy import copy
@@ -8,24 +7,6 @@ import yaml
 from addict import Dict
 from torch.nn import init
 import torch
-
-
-def parsed_args():
-    """Parse and returns command-line args
-
-    Returns:
-        argparse.Namespace: the parsed arguments
-    """
-    parser = ArgumentParser()
-    parser.add_argument(
-        "--config",
-        type=str,
-        help="What configuration file to use to overwrite shared/defaults.yml",
-    )
-    parser.add_argument(
-        "--comet", action="store_true", help="Use comet.ml to log experiment"
-    )
-    return parser.parse_args()
 
 
 def load_opts(path, default=None):

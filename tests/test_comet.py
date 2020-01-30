@@ -3,7 +3,8 @@ import comet_ml
 import sys
 from addict import Dict
 
-sys.path.append("..")
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent.resolve()))
 
 from omnigan.trainer import Trainer
 from omnigan.utils import load_opts, get_comet_rest_api_key
@@ -16,7 +17,8 @@ if __name__ == "__main__":
     rest_api_key = get_comet_rest_api_key()
     comet_api = comet_ml.api.API()
 
-    opts = load_opts("../config/local_tests.yaml", default="../shared/defaults.yml")
+    root = Path(__file__).parent.parent
+    opts = load_opts(root / "config/local_tests.yaml", default=root / "shared/defaults.yml")
 
     if crop_to > 0:
         opts.data.transforms += [
