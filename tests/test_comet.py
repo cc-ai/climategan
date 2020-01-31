@@ -15,7 +15,7 @@ if __name__ == "__main__":
 
     opts = opts.copy()
 
-    should_delete = False
+    should_delete = True
 
     crop_to = 32  # smaller data for faster tests ; -1 for no
 
