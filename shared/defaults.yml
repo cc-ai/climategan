@@ -138,6 +138,7 @@ train:
         cycle: 1 # cycle consistency
         gan: 1 # gan loss
         sm: 1 # semantic matching
+        dm: 1 # depth matching
       a:
         auto: 1 # auto-encoding, reconstruction
         cycle: 1 # cycle consistency

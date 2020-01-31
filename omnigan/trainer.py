@@ -159,6 +159,7 @@ class Trainer:
             self.losses["G"]["t"]["cycle"] = mse_loss()
             self.losses["G"]["t"]["auto"] = mse_loss()
             self.losses["G"]["t"]["sm"] = pixel_cross_entropy()
+            self.losses["G"]["t"]["dm"] = mse_loss()
 
         # task losses
         # ? * add discriminator and gan loss to these task when no ground truth
@@ -610,6 +611,13 @@ class Trainer:
             self.logger.losses.t.cycle[
                 "{} > {}".format(source_domain, target_domain)
             ] = update_loss.item()
+
+            # -----------------------------
+            # -----                   -----
+            # -----  Matching Losses  -----
+            # -----                   -----
+            # -----------------------------
+
             # ------------------------------------
             # -----  Semantic-matching loss  -----
             # ------------------------------------
@@ -621,6 +629,17 @@ class Trainer:
             ).mean()
             step_loss += lambdas.G.t.sm * update_loss
             self.logger.losses.t.sm[
+                "{} > {}".format(source_domain, target_domain)
+            ] = update_loss.item()
+            # ---------------------------------
+            # -----  Depth-matching loss  -----
+            # ---------------------------------
+            fake_d = self.G.decoders["d"](fake_z).detach()
+            real_d = self.G.decoders["d"](real_z).detach()
+            mask = torch.randint(0, 2, fake_d.shape)  # TODO => load mask
+            update_loss = self.losses["G"]["t"]["dm"](fake_d * mask, real_d * mask)
+            step_loss += lambdas.G.t.dm * update_loss
+            self.logger.losses.t.dm[
                 "{} > {}".format(source_domain, target_domain)
             ] = update_loss.item()
 
