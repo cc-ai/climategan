@@ -5,15 +5,15 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
 
-from run import tprint
+from run import tprint, opts
 
-from omnigan.utils import load_opts, domains_to_class_tensor
+from omnigan.utils import domains_to_class_tensor
 from omnigan.classifier import get_classifier
 from omnigan.losses import cross_entropy, l1_loss
 
 if __name__ == "__main__":
-    root = Path(__file__).parent.parent
-    opts = load_opts(root / "config/local_tests.yaml", default=root / "shared/defaults.yml")
+
+    opts = opts.copy()
 
     target_domains = ["rf", "rn", "sf", "sn", "rf"]
     labels = domains_to_class_tensor(target_domains, one_hot=False)

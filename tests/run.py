@@ -2,6 +2,11 @@ import os
 from pathlib import Path
 import argparse
 import torch
+import sys
+
+sys.path.append(str(Path(__file__).parent.parent))
+
+from omnigan.utils import load_opts
 
 
 class bcolors:
@@ -33,6 +38,10 @@ def tprint(*args):
         else:
             to_print.append(a)
     print(" ".join(map(str, to_print)))
+
+
+root = Path(__file__).parent.parent
+opts = load_opts(root / "config/local_tests.yaml", default=root / "shared/defaults.yml")
 
 
 if __name__ == "__main__":

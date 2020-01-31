@@ -133,15 +133,16 @@ train:
   lambdas: # scaling factors in the total loss
     default: 1 # default values for all tasks
     G:
-      auto: # auto-encoder loss coefficients
-        a: 1
-        t: 1
-      gan: # gan loss coefficients
-        a: 1
-        t: 1
-      cycle: # cycle reconstruction loss coefficients
-        a: 1
-        t: 1
+      t:
+        auto: 1 # auto-encoding, reconstruction
+        cycle: 1 # cycle consistency
+        gan: 1 # gan loss
+        sm: 1 # semantic matching
+        dm: 1 # depth matching
+      a:
+        auto: 1 # auto-encoding, reconstruction
+        cycle: 1 # cycle consistency
+        gan: 1 # gan loss
       classifier: 1
     C: 1
   log_level: 1 # 0: no log, 1: only aggregated losses, >1 detailed losses

@@ -4,16 +4,14 @@ from pathlib import Path
 import uuid
 import addict
 
-from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
 
-from run import print_header
+from run import print_header, opts
 
 from omnigan.utils import (
     domains_to_class_tensor,
     env_to_path,
     get_increased_path,
-    load_opts,
     flatten_opts,
 )
 from omnigan.data import get_all_loaders
@@ -21,8 +19,8 @@ from omnigan.data import get_all_loaders
 if __name__ == "__main__":
 
     print_header("test_domains_to_class_tensor")
-    root = Path(__file__).parent.parent
-    opts = load_opts(root / "config/local_tests.yaml", default=root / "shared/defaults.yml")
+
+    opts = opts.copy()
     opts.data.loaders.batch_size = 2
     opts.data.loaders.num_workers = 2
     opts.data.loaders.shuffle = True
