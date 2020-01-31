@@ -73,6 +73,13 @@ def cross_entropy():
     return torch.nn.CrossEntropyLoss()
 
 
+def pixel_cross_entropy():
+    # Computes the cross entropy per pixel
+    # in  > pred: b x c x h x w | label: b x h x w (int)
+    # out > b x h x w
+    return torch.nn.CrossEntropyLoss(reduction="none")
+
+
 class TravelLoss(nn.Module):
     def __init__(self, eps=1e-12):
         super().__init__()

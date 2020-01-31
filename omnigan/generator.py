@@ -113,7 +113,7 @@ class OmniGenerator(nn.Module):
         """
         x = batch["data"]["x"]
         if z is None:
-            z = self.encoder(x)
+            z = self.encode(x)
 
         cond = None
         if self.opts.gen.t.use_spade:
@@ -132,6 +132,9 @@ class OmniGenerator(nn.Module):
             if task not in {"t", "a"}
         }
 
+    def encode(self, x):
+        return self.encoder.forward(x)
+
     def forward(self, x, translator="f", classifier_probs=[1, 0, 0, 0]):
         """Computes the translation of an image x to a flooding domain
 
@@ -144,7 +147,7 @@ class OmniGenerator(nn.Module):
         Returns:
             torch.Tensor: translated image
         """
-        z = self.encoder(x)
+        z = self.encode(x)
         cond = None
         if self.opts.gen.t.use_spade:
             task_tensors = self.decode_tasks(z)

@@ -3,15 +3,17 @@ import torch
 import numpy as np
 
 from pathlib import Path
+
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
 
 from omnigan.discriminator import OmniDiscriminator
-from omnigan.utils import load_opts
 from omnigan.losses import GANLoss
+from run import opts
 
 if __name__ == "__main__":
-    root = Path(__file__).parent.parent
-    opts = load_opts(root / "config/local_tests.yaml", default=root / "shared/defaults.yml")
+
+    opts = opts.copy()
+
     D = OmniDiscriminator(opts)
     loss = GANLoss()
 

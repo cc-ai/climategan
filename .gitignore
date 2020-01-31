@@ -4,6 +4,7 @@ example_data/
 .comet.config
 .DS_Store
 config/
+tests/not_committed/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
