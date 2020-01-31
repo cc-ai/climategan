@@ -7,16 +7,16 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
 
 from omnigan.generator import get_gen
-from omnigan.utils import load_opts
-from run import print_header
+from run import print_header, opts
 
 
 if __name__ == "__main__":
 
     np.random.seed(0)
     torch.manual_seed(0)
-    root = Path(__file__).parent.parent
-    opts = load_opts(root / "config/local_tests.yaml", default=root / "shared/defaults.yml")
+
+    opts = opts.copy()
+
     batch_size = 2
     latent_space_dims = [256, 32, 32]
 
@@ -57,12 +57,12 @@ if __name__ == "__main__":
 
     if test_encoder:
         print_header("test_encoder")
-        encoded = G.encoder(image)
+        encoded = G.encode(image)
         print("Latent space dims {}".format(tuple(encoded.shape)[1:]))
 
     if test_encode_decode:
         print_header("test_encode_decode")
-        z = G.encoder(image)
+        z = G.encode(image)
         for dec in "adhtw":
             if dec in G.decoders:
                 if dec == "t":

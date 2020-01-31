@@ -4,27 +4,30 @@ import sys
 from addict import Dict
 
 from pathlib import Path
+
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
 
 from omnigan.trainer import Trainer
-from omnigan.utils import load_opts, get_comet_rest_api_key
-from run import print_header, bcolors
+from omnigan.utils import get_comet_rest_api_key
+from run import print_header, bcolors, opts
 
 if __name__ == "__main__":
+
+    opts = opts.copy()
+
+    should_delete = False
 
     crop_to = 32  # smaller data for faster tests ; -1 for no
 
     rest_api_key = get_comet_rest_api_key()
     comet_api = comet_ml.api.API()
 
-    root = Path(__file__).parent.parent
-    opts = load_opts(root / "config/local_tests.yaml", default=root / "shared/defaults.yml")
-
     if crop_to > 0:
         opts.data.transforms += [
             Dict({"name": "crop", "ignore": False, "height": crop_to, "width": crop_to})
         ]
-    trainer = Trainer(opts, comet=True, verbose=0)
+    comet_exp = comet_ml.Experiment(project_name="omnigan", auto_metric_logging=False)
+    trainer = Trainer(opts, comet_exp=comet_exp, verbose=0)
     trainer.exp.log_parameter("is_functional_test", True)
     trainer.setup()
     multi_batch_tuple = next(iter(trainer.train_loaders))
@@ -62,7 +65,6 @@ if __name__ == "__main__":
 
     trainer.exp.end()
 
-    should_delete = True
     if should_delete:
         comet_api.delete_experiment(trainer.exp.get_key())
         print(

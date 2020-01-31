@@ -6,10 +6,10 @@ sys.path.append(str(Path(__file__).parent.parent.resolve()))
 from addict import Dict
 from omnigan.trainer import Trainer
 from omnigan.utils import load_opts, freeze
-from run import print_header
+from run import print_header, opts
 
 if __name__ == "__main__":
-
+    opts = opts.copy()
     test_setup = False
     test_get_representation_loss = False
     test_get_translation_loss = False

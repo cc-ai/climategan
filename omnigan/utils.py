@@ -7,6 +7,7 @@ import yaml
 from addict import Dict
 from torch.nn import init
 import torch
+import numpy as np
 
 
 def load_opts(path, default=None):
@@ -430,3 +431,50 @@ def fake_batch(batch, fake):
             instance to use in the cycle reconstruction
     """
     return {**batch, **{"data": {**batch["data"], **{"x": fake}}}}
+
+
+def decode_mega_depth(pred_log_depth, numpy=False):
+    """Transforms the inference of a mega_depth model into an image:
+    * torch.Tensor in [0, 1] as torch.float32 if numpy == False
+    * else numpy.array in [0, 255] as np.uint8
+
+    Args:
+        pred_log_depth (torch.Tensor): inference on 1 image of mega_depth
+        numpy (bool, optional): Whether to return a float tensor or an int array.
+         Defaults to False.
+
+    Returns:
+        [torch.Tensor or numpy.array]: decoded depth
+    """
+    pred_depth = torch.exp(pred_log_depth)
+    # visualize prediction using inverse depth, so that we don't need
+    # sky segmentation (if you want to use RGB map for visualization,
+    # you have to run semantic segmentation to mask the sky first
+    # since the depth of sky is random from CNN)
+    pred_inv_depth = 1 / pred_depth
+    # you might also use percentile for better visualization
+    max = pred_inv_depth.max(dim=-1, keepdim=True)[0]
+    _max = pred_inv_depth.max(dim=-1, keepdim=False)[0]
+    while len(_max.shape) != 1:
+        max = max.max(dim=-1, keepdim=True)[0]
+        _max = _max.max(dim=-1, keepdim=False)[0]
+    pred_inv_depth = pred_inv_depth / max
+    if numpy:
+        pred_inv_depth = pred_inv_depth.data.cpu().numpy()
+        return (pred_inv_depth * 255).astype(np.uint8).squeeze()
+    return pred_inv_depth
+
+
+def shuffle_batch_tuple(mbt):
+    """shuffle the order of domains in the batch
+
+    Args:
+        mbt (tuple): multi-batch tuple
+
+    Returns:
+        list: randomized list of domain-specific batches
+    """
+    assert isinstance(mbt, (tuple, list))
+    assert len(mbt) > 0
+    perm = np.random.permutation(len(mbt))
+    return [mbt[i] for i in perm]
