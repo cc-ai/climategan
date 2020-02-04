@@ -1,4 +1,5 @@
 import comet_ml
+import atexit
 
 import sys
 from addict import Dict
@@ -10,6 +11,18 @@ sys.path.append(str(Path(__file__).parent.parent.resolve()))
 from omnigan.trainer import Trainer
 from omnigan.utils import get_comet_rest_api_key
 from run import print_header, bcolors, opts
+
+
+def exit_handler(comet_exp):
+    def sub_handler():
+        print()
+        print(
+            bcolors.WARNING + "Error in file. Deleting comet experiment" + bcolors.ENDC
+        )
+        comet_api.delete_experiment(comet_exp.get_key())
+
+    return sub_handler
+
 
 if __name__ == "__main__":
 
@@ -27,6 +40,9 @@ if __name__ == "__main__":
             Dict({"name": "crop", "ignore": False, "height": crop_to, "width": crop_to})
         ]
     comet_exp = comet_ml.Experiment(project_name="omnigan", auto_metric_logging=False)
+
+    atexit.register(exit_handler(comet_exp))
+
     trainer = Trainer(opts, comet_exp=comet_exp, verbose=0)
     trainer.exp.log_parameter("is_functional_test", True)
     trainer.setup()

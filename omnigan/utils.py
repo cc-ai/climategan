@@ -39,27 +39,18 @@ def load_opts(path, default=None):
 
     default_opts.update(overriding_opts)
 
-    return set_opts_values(default_opts)
+    return set_data_paths(default_opts)
 
 
-def set_opts_values(opts):
-    """Loads a configuration Dict from a yaml file
-
-    for all decoder in gen.decoders, opts.gen.{decoder} is created from
-    opts.gen.default and updated with existing specifications in opts.gen.{decoder}
-
-    For instance if the only thing in decoder A which changes from default is the
-    init_gain then you only need to set
-    gen:
-      default: ...
-      A:
-        init_gain: 0.1
+def set_data_paths(opts):
+    """Update the data files paths in data.files.train and data.files.val
+    from data.files.base
 
     Args:
-        opts (addict.Dict): Options to set up the default values for
+        opts (addict.Dict): options
 
     Returns:
-        addict.Dict: the configuration object
+        addict.Dict: updated options
     """
 
     for mode in ["train", "val"]:
@@ -67,39 +58,6 @@ def set_opts_values(opts):
             opts.data.files[mode][domain] = str(
                 Path(opts.data.files.base) / opts.data.files[mode][domain]
             )
-
-    # set default decoder parameters for all tasks
-    for k in opts.tasks + ["encoder"]:
-        tmp = copy(opts.gen.default)
-        if k in opts.gen:
-            tmp.update(opts.gen[k])
-        opts.gen[k] = tmp
-
-    # set default discriminator parameters
-    for k in {"a", "t"} & set(opts.tasks):
-        tmp = copy(opts.dis.default)
-        if k in opts.dis:
-            tmp.update(opts.dis[k])
-        opts.dis[k] = tmp
-
-    # set default loss coefficients for tasks and auto-encoding
-    default = opts.train.lambdas.default
-    for k in opts.tasks:
-        if k not in opts.train.lambdas.tasks:
-            opts.train.lambdas.G.tasks[k] = default
-    if "a" not in opts.train.lambdas.auto:
-        opts.train.lambdas.auto.a = default
-    if "a" not in opts.train.lambdas.gan:
-        opts.train.lambdas.gan.a = default
-    if "a" not in opts.train.lambdas.cycle:
-        opts.train.lambdas.cycle.a = default
-
-    if "t" not in opts.train.lambdas.auto:
-        opts.train.lambdas.auto.t = default
-    if "t" not in opts.train.lambdas.gan:
-        opts.train.lambdas.gan.t = default
-    if "t" not in opts.train.lambdas.cycle:
-        opts.train.lambdas.cycle.t = default
 
     return opts
 
