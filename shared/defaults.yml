@@ -50,7 +50,8 @@ gen:
     lr_policy: step # constant or step ; if step, specify step_size and gamma
     lr_step_size: 30 # for linear decay : period of learning rate decay (epochs)
     lr_gamma: 0.5 # Multiplicative factor of learning rate decay
-  default: # default parameters for the generator (encoder and decoders)
+  default:
+    &default-gen # default parameters for the generator (encoder and decoders)
     activ: lrelu # activation function [relu/lrelu/prelu/selu/tanh]
     init_gain: 0.2
     init_type: kaiming
@@ -60,15 +61,20 @@ gen:
     res_dim: 256 # Resblock number of channels (=latent space's)
     res_norm: "instance" # normalization to apply
   a: # specific params for the adaptation decoder
+    <<: *default-gen
     output_dim: 3
   d: # specific params for the depth estimation decoder
+    <<: *default-gen
     output_dim: 1
   h: # specific params for the height estimation decoder
+    <<: *default-gen
     output_dim: 1
   s: # specific params for the semantic segmentation decoder
+    <<: *default-gen
     num_classes: 19
     output_dim: 19
   t: # specific params for the translation SPADE decoder
+    <<: *default-gen
     output_dim: 3 # output dimension
     pad_type: zero # padding type [zero/reflect]
     use_spade: True # whether to condition the decoding on other inferences, à la SPADE or not
@@ -76,8 +82,10 @@ gen:
     spade_param_free_norm: "instance" # what param-free normalization to apply in SPADE normalization
     spade_use_spectral_norm: True #
   w: # specific params for the water-segmentation decoder
+    <<: *default-gen
     output_dim: 1
   encoder: # specific params for the encoder
+    <<: *default-gen
     dim: 64 # dimension of the first projection before downsamplings
     input_dim: 3 # input number of channels
     n_downsample: 2 # number of downsampling layers in encoder
@@ -97,7 +105,8 @@ dis:
     lr_policy: step # constant or step ; if step, specify step_size and gamma
     lr_step_size: 30 # for linear decay
     lr_gamma: 0.5
-  default: # default setting for discriminators (there are 4 of them for rn rf sn sf)
+  default:
+    &default-dis # default setting for discriminators (there are 4 of them for rn rf sn sf)
     input_nc: 3
     ndf: 64
     n_layers: 3
@@ -105,6 +114,10 @@ dis:
     init_type: kaiming
     init_gain: 0.2
     use_sigmoid: false
+  t:
+    <<: *default-dis
+  a:
+    <<: *default-dis
 # -------------------------------
 # -----  Domain Classifier  -----
 # -------------------------------
@@ -131,8 +144,11 @@ train:
   representation_steps: 0 # for how many steps would the representation be trained before we train the translation
   freeze_representation: False # whether or not to backprop into the representation when doing the translation
   lambdas: # scaling factors in the total loss
-    default: 1 # default values for all tasks
     G:
+      d: 1
+      h: 1
+      s: 1
+      w: 1
       t:
         auto: 1 # auto-encoding, reconstruction
         cycle: 1 # cycle consistency
@@ -151,7 +167,7 @@ train:
 # ----- Validation Params -----
 # -----------------------------
 val:
-  max_log_images: 15
+  max_log_images: 1
   every_n_steps: 1000
   store_images: false
   infer_rec: true
