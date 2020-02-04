@@ -459,7 +459,7 @@ class Trainer:
                     update_loss = self.losses["G"]["tasks"][update_task](
                         prediction, update_target
                     )
-                    step_loss += lambdas.G.tasks[update_task] * update_loss
+                    step_loss += lambdas.G[update_task] * update_loss
                     self.logger.losses.task_loss[update_task][
                         batch_domain
                     ] = update_loss.item()
