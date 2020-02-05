@@ -16,6 +16,7 @@
   - [Resources](#resources)
   - [Model Architecture](#model-architecture)
     - [Generator](#generator-1)
+- [Choices and Ideas](#choices-and-ideas)
 
 ## Setup
 
@@ -593,3 +594,14 @@ OmniGenerator(
 
 )
 ```
+
+# Choices and Ideas
+
+* Implementation relies on the idea of splitting the representation and translation training phases
+  * see Samuel Lavoie's work
+* This allows the task decoders to be already trained when used in translation (to condition the generation and add consistency losses (depth, semantic, height))
+* When the Translation phase starts, representation blocks (encoder + task decoders) could be
+  * frozen
+  * trainable
+    * use Continual Learning ideas to prevent forgetting
+    * greatly lower learning rate
