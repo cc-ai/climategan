@@ -445,7 +445,7 @@ class Trainer:
             # Cross entropy loss (with sigmoid) with fake labels to fool C
             update_loss = self.losses["G"]["classifier"](
                 output_classifier,
-                fake_domains_to_class_tensor(batch["domain"], one_hot),
+                fake_domains_to_class_tensor(batch["domain"], one_hot).to(self.device),
             )
             step_loss += lambdas.G.classifier * update_loss
             # -------------------------------------------------
