@@ -24,13 +24,16 @@ if __name__ == "__main__":
     opts.data.loaders.batch_size = 2
     opts.data.loaders.num_workers = 2
     opts.data.loaders.shuffle = True
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     loaders = get_all_loaders(opts)
     batch = next(iter(loaders["train"]["rn"]))
-    image = torch.randn(opts.data.loaders.batch_size, 3, 256, 256)
-    G = get_gen(opts)
+    image = torch.randn(opts.data.loaders.batch_size, 3, 256, 256).to(device)
+    G = get_gen(opts).to(device)
     z = G.encode(image)
 
     print_header("test_crossentroy_2d")
     prediction = G.decoders["s"](z)
-    print(cross_entropy_2d(prediction, batch["data"]["s"]))
+    print(cross_entropy_2d(prediction, batch["data"]["s"].to(device)))
     # ! error how to infer from cropped data: input: 224 output: 256??

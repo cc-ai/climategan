@@ -48,7 +48,10 @@ if __name__ == "__main__":
             print("Setting up")
             trainer.setup()
         multi_batch_tuple = next(iter(trainer.train_loaders))
-        multi_domain_batch = {batch["domain"][0]: batch for batch in multi_batch_tuple}
+        multi_domain_batch = {
+            batch["domain"][0]: trainer.batch_to_device(batch)
+            for batch in multi_batch_tuple
+        }
 
         loss = trainer.get_representation_loss(multi_domain_batch)
         print("Loss {}".format(loss.item()))
@@ -60,7 +63,10 @@ if __name__ == "__main__":
             trainer.setup()
 
         multi_batch_tuple = next(iter(trainer.train_loaders))
-        multi_domain_batch = {batch["domain"][0]: batch for batch in multi_batch_tuple}
+        multi_domain_batch = {
+            batch["domain"][0]: trainer.batch_to_device(batch)
+            for batch in multi_batch_tuple
+        }
 
         loss = trainer.get_translation_loss(multi_domain_batch)
         print("Loss {}".format(loss.item()))
@@ -72,7 +78,10 @@ if __name__ == "__main__":
             trainer.setup()
 
         multi_batch_tuple = next(iter(trainer.train_loaders))
-        multi_domain_batch = {batch["domain"][0]: batch for batch in multi_batch_tuple}
+        multi_domain_batch = {
+            batch["domain"][0]: trainer.batch_to_device(batch)
+            for batch in multi_batch_tuple
+        }
 
         trainer.opts.classifier.loss = "l1"
         trainer.setup()
@@ -97,7 +106,10 @@ if __name__ == "__main__":
         trainer.verbose = 0
 
         multi_batch_tuple = next(iter(trainer.train_loaders))
-        multi_domain_batch = {batch["domain"][0]: batch for batch in multi_batch_tuple}
+        multi_domain_batch = {
+            batch["domain"][0]: trainer.batch_to_device(batch)
+            for batch in multi_batch_tuple
+        }
 
         # Using repr_tr and step < repr_step and step % 2 == 0
         trainer.opts.train.representational_training = True
@@ -149,7 +161,10 @@ if __name__ == "__main__":
             print("Setting up")
             trainer.setup()
         multi_batch_tuple = next(iter(trainer.train_loaders))
-        multi_domain_batch = {batch["domain"][0]: batch for batch in multi_batch_tuple}
+        multi_domain_batch = {
+            batch["domain"][0]: trainer.batch_to_device(batch)
+            for batch in multi_batch_tuple
+        }
         print("Decoding using G.decoders[decoder][target_domain]")
         print(
             "Printing \n  {} and \n  {}\n".format(
@@ -173,7 +188,10 @@ if __name__ == "__main__":
             [p.detach().numpy()[0] for p in trainer.G.encoder.parameters()]
         ]
         multi_batch_tuple = next(iter(trainer.train_loaders))
-        multi_domain_batch = {batch["domain"][0]: batch for batch in multi_batch_tuple}
+        multi_domain_batch = {
+            batch["domain"][0]: trainer.batch_to_device(batch)
+            for batch in multi_batch_tuple
+        }
 
         print("First update: extrapolation")
         print("  - Update g")
@@ -196,7 +214,9 @@ if __name__ == "__main__":
         print("Freezing encoder")
         freeze(trainer.G.encoder)
         trainer.representation_is_frozen = True
-        encoder_weights += [[p.numpy()[0] for p in trainer.G.encoder.parameters()]]
+        encoder_weights += [
+            [p.cpu().numpy()[0] for p in trainer.G.encoder.parameters()]
+        ]
         trainer.logger.global_step += 1
 
         print("Third update: extrapolation")
@@ -217,7 +237,9 @@ if __name__ == "__main__":
         print("  - Update c")
         trainer.update_c(multi_domain_batch)
 
-        encoder_weights += [[p.numpy()[0] for p in trainer.G.encoder.parameters()]]
+        encoder_weights += [
+            [p.cpu().numpy()[0] for p in trainer.G.encoder.parameters()]
+        ]
 
         # ? triggers segmentation fault for some unknown reason
         # # encoder was updated

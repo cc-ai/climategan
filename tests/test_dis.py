@@ -20,9 +20,9 @@ opts = load_opts(root / args.config, default=root / "shared/defaults.yaml")
 if __name__ == "__main__":
 
     opts = opts.copy()
-
-    D = OmniDiscriminator(opts)
-    loss = GANLoss()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    D = OmniDiscriminator(opts).to(device)
+    loss = GANLoss().to(device)
 
     print(D)
 
@@ -31,7 +31,9 @@ if __name__ == "__main__":
         sum(p.numel() for p in D["t"]["n"].parameters()),
     )
 
-    image = torch.from_numpy(np.random.rand(5, 3, 128, 128)).to(torch.float32)
+    image = (
+        torch.from_numpy(np.random.rand(5, 3, 128, 128)).to(torch.float32).to(device)
+    )
 
     for task, disc in D.items():
         for domain in disc.keys():

@@ -22,7 +22,7 @@ opts = load_opts(root / args.config, default=root / "shared/defaults.yaml")
 if __name__ == "__main__":
 
     opts = opts.copy()
-
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     target_domains = ["rf", "rn", "sf", "sn", "rf"]
     labels = domains_to_class_tensor(target_domains, one_hot=False)
     one_hot_labels = domains_to_class_tensor(target_domains, one_hot=True)
@@ -30,9 +30,9 @@ if __name__ == "__main__":
     cross_entropy = cross_entropy()
     loss_l1 = l1_loss()
 
-    z = torch.ones(5, 128, 32, 32)
+    z = torch.ones(5, 128, 32, 32).to(device)
     latent_space = (128, 32, 32)
-    C = get_classifier(opts, latent_space, 0)
+    C = get_classifier(opts, latent_space, 0).to(device)
     y = C(z)
     tprint(
         "output of classifier's shape for latent space {} :".format(list(z.shape[1:])),
@@ -42,9 +42,9 @@ if __name__ == "__main__":
     tprint("l1 loss:", loss_l1(y, one_hot_labels))
     print()
 
-    z = torch.ones(5, 256, 64, 64)
+    z = torch.ones(5, 256, 64, 64).to(device)
     latent_space = (256, 64, 64)
-    C = get_classifier(opts, latent_space, 0)
+    C = get_classifier(opts, latent_space, 0).to(device)
     y = C(z)
     tprint(
         "output of classifier's shape for latent space {} :".format(list(z.shape[1:])),
@@ -54,9 +54,9 @@ if __name__ == "__main__":
     tprint("l1 loss:", loss_l1(y, one_hot_labels))
     print()
 
-    z = torch.ones(5, 64, 16, 16)
+    z = torch.ones(5, 64, 16, 16).to(device)
     latent_space = (64, 16, 16)
-    C = get_classifier(opts, latent_space, 0)
+    C = get_classifier(opts, latent_space, 0).to(device)
     y = C(z)
     tprint(
         "output of classifier's shape for latent space {} :".format(list(z.shape[1:])),
