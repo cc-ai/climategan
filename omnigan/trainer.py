@@ -103,7 +103,7 @@ class Trainer:
         Returns:
             dict: the batch dictionnary with its "data" field sent to self.device
         """
-        for task, tensor in b.data.items():
+        for task, tensor in b["data"].items():
             b["data"][task] = tensor.to(self.device)
         return b
 
