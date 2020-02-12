@@ -24,8 +24,8 @@ if __name__ == "__main__":
     opts = opts.copy()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     target_domains = ["rf", "rn", "sf", "sn", "rf"]
-    labels = domains_to_class_tensor(target_domains, one_hot=False)
-    one_hot_labels = domains_to_class_tensor(target_domains, one_hot=True)
+    labels = domains_to_class_tensor(target_domains, one_hot=False).to(device)
+    one_hot_labels = domains_to_class_tensor(target_domains, one_hot=True).to(device)
 
     cross_entropy = cross_entropy()
     loss_l1 = l1_loss()
