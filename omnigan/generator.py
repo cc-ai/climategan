@@ -136,7 +136,7 @@ class OmniGenerator(nn.Module):
         cond = None
         if self.opts.gen.t.use_spade:
             task_tensors = self.decode_tasks(z)
-            cond = self.get_conditioning_tensor(x, task_tensors)
+            cond = get_conditioning_tensor(x, task_tensors)
         y = self.decoders["t"][translator](z, cond)
         return y
 
