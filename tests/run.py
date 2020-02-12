@@ -21,11 +21,15 @@ class bcolors:
 
 
 def print_header(*args):
+    """Print nice colored header
+    """
     s = " ".join(args)
     print(bcolors.HEADER + "\n --- " + s + "\n" + bcolors.ENDC)
 
 
 def tprint(*args):
+    """Tensor Print
+    """
     to_print = []
     for a in args:
         if isinstance(a, torch.Tensor):
@@ -66,7 +70,9 @@ if __name__ == "__main__":
             print(title)
             print("=" * len(title))
             print(bcolors.ENDC)
+
             status = os.system("python {}".format(str(test_path)))
+
             if status != 0:
                 error = ">>>>>>>>>> Error <<<<<<<<<<"
                 print(bcolors.FAIL)

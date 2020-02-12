@@ -9,12 +9,12 @@ import torch.nn.utils.spectral_norm as spectral_norm
 class ResBlocks(nn.Module):
     def __init__(self, num_blocks, dim, norm="in", activation="relu", pad_type="zero"):
         super().__init__()
-        self.model = []
-        for i in range(num_blocks):
-            self.model += [
+        self.model = nn.Sequential(
+            *[
                 ResBlock(dim, norm=norm, activation=activation, pad_type=pad_type)
+                for _ in range(num_blocks)
             ]
-        self.model = nn.Sequential(*self.model)
+        )
 
     def forward(self, x):
         return self.model(x)
@@ -208,7 +208,7 @@ class SpectralNorm(nn.Module):
     """
 
     def __init__(self, module, name="weight", power_iterations=1):
-        super(SpectralNorm, self).__init__()
+        super().__init__()
         self.module = module
         self.name = name
         self.power_iterations = power_iterations
@@ -324,7 +324,6 @@ class SPADE(nn.Module):
         self.mlp_beta = nn.Conv2d(nhidden, norm_nc, kernel_size=kernel_size, padding=pw)
 
     def forward(self, x, segmap):
-
         # Part 1. generate parameter-free normalized activations
         normalized = self.param_free_norm(x)
 
@@ -333,7 +332,6 @@ class SPADE(nn.Module):
         actv = self.mlp_shared(segmap)
         gamma = self.mlp_gamma(actv)
         beta = self.mlp_beta(actv)
-
         # apply scale and bias
         out = normalized * (1 + gamma) + beta
 
@@ -387,7 +385,7 @@ class SPADEResnetBlock(nn.Module):
         dx = self.conv_1(self.activation(self.norm_1(dx, seg)))
 
         out = x_s + dx
-
+        print(f"SPADE Resblock forward ({out.shape})")
         return out
 
     def shortcut(self, x, seg):
@@ -458,14 +456,6 @@ class SpadeDecoder(nn.Module):
             )
         ]
         self.model = nn.Sequential(*self.model)
-
-    def forward(self, x, seg):
-        for j in range(len(self.model)):
-            if j == 0:  # spade resblocks
-                x = self.model[j].forward(x, seg)
-            else:  # standard upsampling blocks
-                x = self.model[j].forward(x)
-        return x
 
 
 class BaseDecoder(nn.Module):

@@ -154,6 +154,8 @@ class Trainer:
             self.losses["G"]["a"]["cycle"] = mse_loss()
             self.losses["G"]["a"]["auto"] = mse_loss()
 
+            # ? add sm and dm losses too as in "t"
+
         if "t" in self.opts.tasks:
             self.losses["G"]["t"]["gan"] = GANLoss()
             self.losses["G"]["t"]["cycle"] = mse_loss()
@@ -388,7 +390,7 @@ class Trainer:
         if self.should_compute_t_loss():
             t_loss = self.get_translation_loss(multi_domain_batch)
 
-        assert any(l is not None for l in [r_loss, t_loss])
+        assert any(l is not None for l in [r_loss, t_loss]), "Both losses are None"
 
         g_loss = 0
         if r_loss is not None:

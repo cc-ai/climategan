@@ -39,8 +39,8 @@ if __name__ == "__main__":
         G = get_gen(opts)
         print("d" in G.decoders)
         print("a" in G.decoders)
-        x = torch.randn(batch_size, *latent_space_dims, dtype=torch.float32)
-        v = G.decoders["s"](x)
+        z = torch.randn(batch_size, *latent_space_dims, dtype=torch.float32)
+        v = G.decoders["s"](z)
         print(v.shape)
         print(sum(p.numel() for p in G.decoders.parameters()))
 

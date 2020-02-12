@@ -96,7 +96,7 @@ gen:
 # ----- Discriminator -----
 # -------------------------
 dis:
-  soft_shift: 0.2 # label smoothing: real in U(1-soft_shift, 1), fake in U(0, soft_shift)
+  soft_shift: 0.2 # label smoothing: real in U(1-soft_shift, 1), fake in U(0, soft_shift) # ! one-sided label smoothing
   flip_prob: 0.05 # label flipping
   opt:
     optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
@@ -117,6 +117,8 @@ dis:
   t:
     <<: *default-dis
   a:
+    <<: *default-dis
+  w:
     <<: *default-dis
 # -------------------------------
 # -----  Domain Classifier  -----
@@ -169,6 +171,6 @@ train:
 val:
   max_log_images: 1
   every_n_steps: 1000
-  store_images: false
+  store_images: false # write to disk on top of comet logging
   infer_rec: true
   infer_idt: true # order: real, translated, rec, idt

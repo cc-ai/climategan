@@ -1,6 +1,11 @@
 import torch
 import torch.nn as nn
-from omnigan.utils import init_weights, get_4D_bit, domains_to_class_tensor
+from omnigan.utils import (
+    init_weights,
+    get_4D_bit,
+    domains_to_class_tensor,
+    get_conditioning_tensor,
+)
 from omnigan.blocks import Conv2dBlock, ResBlocks, SpadeDecoder, BaseDecoder
 
 # --------------------------------------------------------------------------
@@ -55,49 +60,29 @@ class OmniGenerator(nn.Module):
             else BaseTranslationDecoder
         )
 
-        if "a" in opts.tasks and not opts.gen.A.ignore:
+        if "a" in opts.tasks and not opts.gen.a.ignore:
             self.decoders["a"] = nn.ModuleDict(
                 {"r": AdaptationDecoder(opts), "s": AdaptationDecoder(opts)}
             )
 
-        if "t" in opts.tasks and not opts.gen.T.ignore:
+        if "t" in opts.tasks and not opts.gen.t.ignore:
             self.decoders["t"] = nn.ModuleDict(
                 {"f": TranslationDecoder(opts), "n": TranslationDecoder(opts)}
             )
 
-        if "d" in opts.tasks and not opts.gen.D.ignore:
+        if "d" in opts.tasks and not opts.gen.d.ignore:
             self.decoders["d"] = DepthDecoder(opts)
 
-        if "h" in opts.tasks and not opts.gen.H.ignore:
+        if "h" in opts.tasks and not opts.gen.h.ignore:
             self.decoders["h"] = HeightDecoder(opts)
 
-        if "s" in opts.tasks and not opts.gen.H.ignore:
+        if "s" in opts.tasks and not opts.gen.s.ignore:
             self.decoders["s"] = SegmentationDecoder(opts)
 
-        if "w" in opts.tasks and not opts.gen.W.ignore:
+        if "w" in opts.tasks and not opts.gen.w.ignore:
             self.decoders["w"] = WaterDecoder(opts)
 
         self.decoders = nn.ModuleDict(self.decoders)
-
-    def get_conditioning_tensor(self, x, task_tensors, classifier_probs=None):
-        """creates the 4D tensor to condition the translation on by concatenating d, h, s, w
-        and a conditioning bit:
-
-        Args:
-            task_tensors (torch.Tensor): dictionnary task: conditioning tensor
-            classifier_probs (list, optional): 1-hot encoded depending on the
-                domain to use. Defaults to None.
-
-        Returns:
-            torch.Tensor: conditioning tensor, all tensors concatenated
-                on the channel dim
-        """
-        if classifier_probs is None:
-            classifier_probs = torch.Tensor([0, 1, 0, 0]).detach().to(torch.float32)
-        bit = get_4D_bit(x.shape, classifier_probs).detach().to(x.device)
-        # bit => batchsize * conditioning tensor
-        # conditioning tensor => 4 x h x d, with 0s or 1s as classifier_probs
-        return torch.cat(list(task_tensors.values()) + [bit], dim=1)
 
     def translate(self, batch, translator="f", z=None):
         """Computes the translation of the images in a batch, according amongst
@@ -115,14 +100,14 @@ class OmniGenerator(nn.Module):
         if z is None:
             z = self.encode(x)
 
-        cond = None
+        K = None
         if self.opts.gen.t.use_spade:
             task_tensors = self.decode_tasks(z)
 
             classifier_probs = domains_to_class_tensor(batch["domain"], one_hot=True)
-            cond = self.get_conditioning_tensor(x, task_tensors, classifier_probs)
+            K = get_conditioning_tensor(x, task_tensors, classifier_probs)
 
-        y = self.decoders["t"][translator](z, cond)
+        y = self.decoders["t"][translator](z, K)
         return y
 
     def decode_tasks(self, z):
@@ -291,9 +276,27 @@ class BaseTranslationDecoder(BaseDecoder):
         return self.model(z)
 
 
+class SpadeTranslationDict(nn.ModuleDict):
+    def __init__(self, opts):
+        super().__init__()
+        self.opts = opts
+        self.model = SpadeTranslationDecoder(opts)
+
+    def __getitem__(self, key):
+        self.model.update_bit(key)
+        return self.model
+
+    def forward(self, *args, **kwargs):
+        raise NotImplementedError(
+            "Cannot forward the SpadeTranslationDict, chose a domain"
+        )
+
+
 class SpadeTranslationDecoder(SpadeDecoder):
     def __init__(self, opts):
+        self.bit = None
         cond_nc = 4  # 4 domains => 4-channel bitmap
+        cond_nc = 2  # 4 domains => 2-channel bitmap
         if "d" in opts.tasks:
             cond_nc += 1
         if "h" in opts.tasks:
@@ -302,6 +305,7 @@ class SpadeTranslationDecoder(SpadeDecoder):
             cond_nc += opts.gen.s.num_classes
         if "w" in opts.tasks:
             cond_nc += 1
+        self.cond_nc = cond_nc
         super().__init__(
             opts.gen.t.n_upsample,  # number of upsampling
             opts.gen.t.n_res,  # number of resblocks before upsampling
@@ -314,3 +318,28 @@ class SpadeTranslationDecoder(SpadeDecoder):
             opts.gen.t.spade_kernel_size,  # 3
             cond_nc,  # number of channels in the conditioning tensor
         )
+        self.register_buffer("f_bit", torch.tensor([1, 0]))
+        self.register_buffer("n_bit", torch.tensor([0, 1]))
+
+    def update_bit(self, key):
+        if key == "f":
+            self.bit = self.f_bit
+        elif key == "n":
+            self.bit = self.n_bit
+        else:
+            raise KeyError(f"update_bit: unknown key {key}")
+
+    def concat_bit_to_seg(self, seg):
+        bit = get_4D_bit(seg.shape, self.bit)
+        return torch.cat([bit, seg.to(torch.float32)], dim=1)
+
+    def forward(self, x, seg):
+        seg = self.concat_bit_to_seg(seg)
+        for j in range(len(self.model)):
+            print(j)
+            if j == 0:  # spade resblocks
+                x = self.model[j].forward(x, seg)
+            else:  # standard upsampling blocks
+                x = self.model[j].forward(x)
+            print(x.shape)
+        return x
