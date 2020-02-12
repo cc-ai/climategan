@@ -65,7 +65,7 @@ class GANLoss(nn.Module):
             if self.verbose > 0:
                 print("GANLoss: flipping label")
         target_tensor = self.get_target_tensor(input, target_is_real)
-        return self.loss(input, target_tensor)
+        return self.loss(input, target_tensor.to(input.device))
 
 
 def cross_entropy():
