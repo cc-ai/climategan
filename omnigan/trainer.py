@@ -25,6 +25,7 @@ from omnigan.utils import (
     flatten_opts,
     freeze,
     shuffle_batch_tuple,
+    get_conditioning_tensor,
 )
 
 
@@ -473,7 +474,7 @@ class Trainer:
             translation_decoder = batch_domain[-1]
             cond = None
             if self.opts.gen.t.use_spade:
-                cond = self.G.get_conditioning_tensor(
+                cond = get_conditioning_tensor(
                     x,
                     task_tensors,
                     domains_to_class_tensor(batch["domain"], one_hot=True),
@@ -583,10 +584,10 @@ class Trainer:
             batch = multi_domain_batch[source_domain]
             real = batch["data"]["x"]
             real_z = self.G.encode(real)
-            fake = self.G.translate(batch, translator=target_domain[1], z=real_z)
+            fake = self.G.translate_batch(batch, target_domain[1], z=real_z)
             fake_z = self.G.encode(fake)
             cycle_batch = fake_batch(batch, fake)
-            cycle = self.G.translate(cycle_batch, translator=source_domain[1], z=fake_z)
+            cycle = self.G.translate_batch(cycle_batch, source_domain[1], z=fake_z)
 
             d_fake = self.D["t"][target_domain[1]](fake)
             d_cycle = self.D["t"][source_domain[1]](cycle)
@@ -688,7 +689,7 @@ class Trainer:
             cond = None
             if self.opts.gen.t.use_spade:
                 task_tensors = self.G.decode_tasks(z)
-                cond = self.G.get_conditioning_tensor(
+                cond = get_conditioning_tensor(
                     x,
                     task_tensors,
                     domains_to_class_tensor(batch["domain"], one_hot=True),

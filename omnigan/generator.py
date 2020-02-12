@@ -84,7 +84,7 @@ class OmniGenerator(nn.Module):
 
         self.decoders = nn.ModuleDict(self.decoders)
 
-    def translate(self, batch, translator="f", z=None):
+    def translate_batch(self, batch, translator="f", z=None):
         """Computes the translation of the images in a batch, according amongst
         other things to batch["domain"]
 
@@ -103,9 +103,7 @@ class OmniGenerator(nn.Module):
         K = None
         if self.opts.gen.t.use_spade:
             task_tensors = self.decode_tasks(z)
-
-            classifier_probs = domains_to_class_tensor(batch["domain"], one_hot=True)
-            K = get_conditioning_tensor(x, task_tensors, classifier_probs)
+            K = get_conditioning_tensor(x, task_tensors)
 
         y = self.decoders["t"][translator](z, K)
         return y
@@ -120,8 +118,10 @@ class OmniGenerator(nn.Module):
     def encode(self, x):
         return self.encoder.forward(x)
 
-    def forward(self, x, translator="f", classifier_probs=[1, 0, 0, 0]):
-        """Computes the translation of an image x to a flooding domain
+    def forward_x(self, x, translator="f"):
+        """Computes the translation of an image x to `translator`'s domain.
+        Note this function will encode z and decode the necessary conditioning
+        task tensors
 
         Args:
             x (torch.Tensor): images to translate
@@ -136,10 +136,12 @@ class OmniGenerator(nn.Module):
         cond = None
         if self.opts.gen.t.use_spade:
             task_tensors = self.decode_tasks(z)
-            classifier_probs = torch.tensor([classifier_probs for _ in range(len(x))])
-            cond = self.get_conditioning_tensor(x, task_tensors, classifier_probs)
+            cond = self.get_conditioning_tensor(x, task_tensors)
         y = self.decoders["t"][translator](z, cond)
         return y
+
+    def forward(self, x, translator="f"):
+        return self.forward_x(x, translator)
 
 
 class Encoder(nn.Module):

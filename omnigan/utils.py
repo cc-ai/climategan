@@ -440,7 +440,7 @@ def shuffle_batch_tuple(mbt):
 
 def get_conditioning_tensor(x, task_tensors, classifier_probs=None):
     """creates the 4D tensor to condition the translation on by concatenating d, h, s, w
-    and a conditioning bit:
+    and an optional conditioning bit
 
     Args:
         task_tensors (torch.Tensor): dictionnary task: conditioning tensor
@@ -451,10 +451,15 @@ def get_conditioning_tensor(x, task_tensors, classifier_probs=None):
         torch.Tensor: conditioning tensor, all tensors concatenated
             on the channel dim
     """
+
+    K = [v for k, v in sorted(task_tensors.items(), key=lambda t: t[0])]
+
+    assert all(len(t.shape) == 4 for t in K)
+
     if classifier_probs is None:
-        classifier_probs = torch.Tensor([0, 1, 0, 0]).detach().to(torch.float32)
+        return torch.cat(K, dim=1)
+
     bit = get_4D_bit(x.shape, classifier_probs).detach().to(x.device)
     # bit => batchsize * conditioning tensor
     # conditioning tensor => 4 x h x d, with 0s or 1s as classifier_probs
-    return torch.cat(list(task_tensors.values()) + [bit], dim=1)
-
+    return torch.cat(K + [bit], dim=1)

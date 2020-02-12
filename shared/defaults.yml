@@ -81,6 +81,7 @@ gen:
     spade_kernel_size: 3 # kernel size within SPADE norm layers
     spade_param_free_norm: "instance" # what param-free normalization to apply in SPADE normalization
     spade_use_spectral_norm: True #
+    use_bit_conditioning: True
   w: # specific params for the water-segmentation decoder
     <<: *default-gen
     output_dim: 1

@@ -55,7 +55,7 @@ if __name__ == "__main__":
         trainer = Trainer(opts, verbose=1)
         trainer.setup()
         print("Translating...")
-        y = trainer.G.translate(batch)
+        y = trainer.G.translate_batch(batch)
         print("Done. Inferring depth...")
         y_d = mega(y)
         print("Done.")
