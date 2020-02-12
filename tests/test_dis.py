@@ -14,7 +14,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-c", "--config", default="config/local_tests.yaml")
 args = parser.parse_args()
 root = Path(__file__).parent.parent
-opts = load_opts(root / args.config, defaults=root / "shared/defaults.yaml")
+opts = load_opts(root / args.config, default=root / "shared/defaults.yaml")
 
 
 if __name__ == "__main__":
