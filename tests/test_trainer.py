@@ -27,10 +27,6 @@ if __name__ == "__main__":
     test_full_step = True
     crop_to = 32  # smaller data for faster tests ; -1 for no
 
-    root = Path(__file__).parent.parent
-    opts = load_opts(
-        root / "config/local_tests.yaml", default=root / "shared/defaults.yml"
-    )
     if crop_to > 0:
         opts.data.transforms += [
             Dict({"name": "crop", "ignore": False, "height": crop_to, "width": crop_to})
