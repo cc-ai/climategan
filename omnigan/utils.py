@@ -374,6 +374,7 @@ def get_4D_bit(shape, probs):
     """
     probs = probs if isinstance(probs, torch.Tensor) else torch.tensor(probs)
     bit = torch.ones(shape[0], probs.shape[-1], *shape[-2:])
+    import pdb; pdb.set_trace()
     bit *= probs[None, :, None, None]
     return bit
 
