@@ -1,12 +1,20 @@
+import argparse
 import sys
-
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent.parent.resolve()))
 from addict import Dict
+
+sys.path.append(str(Path(__file__).parent.parent.resolve()))
 from omnigan.trainer import Trainer
-from omnigan.utils import load_opts, freeze
-from run import print_header, opts
+from omnigan.utils import freeze, load_opts
+from run import print_header
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-c", "--config", default="config/local_tests.yaml")
+args = parser.parse_args()
+root = Path(__file__).parent.parent
+opts = load_opts(root / args.config, defaults=root / "shared/defaults.yaml")
+
 
 if __name__ == "__main__":
     opts = opts.copy()

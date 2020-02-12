@@ -1,16 +1,22 @@
-import comet_ml
+import argparse
 import atexit
-
 import sys
-from addict import Dict
-
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent.parent.resolve()))
+import comet_ml
+from addict import Dict
 
+sys.path.append(str(Path(__file__).parent.parent.resolve()))
 from omnigan.trainer import Trainer
-from omnigan.utils import get_comet_rest_api_key
-from run import print_header, bcolors, opts
+from omnigan.utils import get_comet_rest_api_key, load_opts
+from run import bcolors, print_header
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-c", "--config", default="config/local_tests.yaml")
+args = parser.parse_args()
+root = Path(__file__).parent.parent
+opts = load_opts(root / args.config, defaults=root / "shared/defaults.yaml")
 
 
 def exit_handler(comet_exp):

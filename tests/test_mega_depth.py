@@ -1,15 +1,24 @@
+import argparse
 import sys
 from pathlib import Path
-from skimage import io
+
 from addict import Dict
+from skimage import io
 
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
-from run import opts, print_header
-
-from omnigan.mega_depth import get_mega_model
-from omnigan.utils import decode_mega_depth
 from omnigan.data import get_all_loaders
+from omnigan.mega_depth import get_mega_model
 from omnigan.trainer import Trainer
+from omnigan.utils import decode_mega_depth, load_opts
+from run import print_header
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-c", "--config", default="config/local_tests.yaml")
+args = parser.parse_args()
+root = Path(__file__).parent.parent
+opts = load_opts(root / args.config, defaults=root / "shared/defaults.yaml")
+
+
 
 
 if __name__ == "__main__":

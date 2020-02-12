@@ -1,14 +1,23 @@
+import argparse
 import sys
-import torch
-
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent.parent.resolve()))
+import torch
 
+sys.path.append(str(Path(__file__).parent.parent.resolve()))
 from omnigan.data import get_all_loaders
 from omnigan.generator import get_gen
 from omnigan.losses import cross_entropy_2d
-from run import print_header, opts
+from omnigan.utils import load_opts
+from run import print_header
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-c", "--config", default="config/local_tests.yaml")
+args = parser.parse_args()
+root = Path(__file__).parent.parent
+opts = load_opts(root / args.config, defaults=root / "shared/defaults.yaml")
+
 
 if __name__ == "__main__":
     opts = opts.copy()

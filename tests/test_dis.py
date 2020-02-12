@@ -1,14 +1,21 @@
+import argparse
 import sys
-import torch
-import numpy as np
-
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent.parent.resolve()))
+import numpy as np
+import torch
 
+sys.path.append(str(Path(__file__).parent.parent.resolve()))
 from omnigan.discriminator import OmniDiscriminator
 from omnigan.losses import GANLoss
-from run import opts
+from omnigan.utils import load_opts
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-c", "--config", default="config/local_tests.yaml")
+args = parser.parse_args()
+root = Path(__file__).parent.parent
+opts = load_opts(root / args.config, defaults=root / "shared/defaults.yaml")
+
 
 if __name__ == "__main__":
 
