@@ -747,7 +747,8 @@ class Trainer:
             output_classifier = self.C(self.z)
             # Cross entropy loss (with sigmoid)
             update_loss = self.losses["C"](
-                output_classifier, domains_to_class_tensor(batch["domain"], one_hot),
+                output_classifier,
+                domains_to_class_tensor(batch["domain"], one_hot).to(self.device),
             )
             loss += update_loss
 
