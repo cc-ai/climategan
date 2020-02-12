@@ -373,8 +373,8 @@ def get_4D_bit(shape, probs):
         torch.Tensor: batch x # of domains x h x w
     """
     probs = probs if isinstance(probs, torch.Tensor) else torch.tensor(probs)
-    bit = torch.ones(*probs.shape, *shape[-2:])
-    bit *= probs[:, :, None, None]
+    bit = torch.ones(shape[0], probs.shape[-1], *shape[-2:])
+    bit *= probs[None, :, None, None]
     return bit
 
 
@@ -436,3 +436,25 @@ def shuffle_batch_tuple(mbt):
     assert len(mbt) > 0
     perm = np.random.permutation(len(mbt))
     return [mbt[i] for i in perm]
+
+
+def get_conditioning_tensor(x, task_tensors, classifier_probs=None):
+    """creates the 4D tensor to condition the translation on by concatenating d, h, s, w
+    and a conditioning bit:
+
+    Args:
+        task_tensors (torch.Tensor): dictionnary task: conditioning tensor
+        classifier_probs (list, optional): 1-hot encoded depending on the
+            domain to use. Defaults to None.
+
+    Returns:
+        torch.Tensor: conditioning tensor, all tensors concatenated
+            on the channel dim
+    """
+    if classifier_probs is None:
+        classifier_probs = torch.Tensor([0, 1, 0, 0]).detach().to(torch.float32)
+    bit = get_4D_bit(x.shape, classifier_probs).detach().to(x.device)
+    # bit => batchsize * conditioning tensor
+    # conditioning tensor => 4 x h x d, with 0s or 1s as classifier_probs
+    return torch.cat(list(task_tensors.values()) + [bit], dim=1)
+

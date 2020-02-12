@@ -142,8 +142,8 @@ classifier:
 # ------------------------
 train:
   epochs: 1000
-  representational_training: False
-  representation_steps: 0 # for how many steps would the representation be trained before we train the translation
+  representational_training: True
+  representation_steps: 10000 # for how many steps would the representation be trained before we train the translation
   freeze_representation: False # whether or not to backprop into the representation when doing the translation
   lambdas: # scaling factors in the total loss
     G:
