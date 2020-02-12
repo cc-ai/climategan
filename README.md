@@ -133,8 +133,8 @@ batch = Dict({
         "s": segmentation_map_path,
         "x": real_flooded_image_path,
     }
-    "domain": rf | rn | sf | sn,
-    "mode": train | val
+    "domain": list(rf | rn | sf | sn),
+    "mode": list(train | val)
 })
 ```
 
