@@ -440,9 +440,10 @@ def shuffle_batch_tuple(mbt):
 
 def get_conditioning_tensor(x, task_tensors, classifier_probs=None):
     """creates the 4D tensor to condition the translation on by concatenating d, h, s, w
-    and an optional conditioning bit
+    and an optional conditioning bit:
 
     Args:
+        x (torch.Tensor): tensor whose shape we'll use to expand the bit
         task_tensors (torch.Tensor): dictionnary task: conditioning tensor
         classifier_probs (list, optional): 1-hot encoded depending on the
             domain to use. Defaults to None.

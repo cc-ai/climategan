@@ -472,13 +472,11 @@ class Trainer:
             # -----  auto-encoding update for translation (3)  -----
             # ------------------------------------------------------
             translation_decoder = batch_domain[-1]
+
             cond = None
             if self.opts.gen.t.use_spade:
-                cond = get_conditioning_tensor(
-                    x,
-                    task_tensors,
-                    domains_to_class_tensor(batch["domain"], one_hot=True),
-                )
+                cond = get_conditioning_tensor(x, task_tensors)
+
             reconstruction = self.G.decoders["t"][translation_decoder](self.z, cond)
             update_loss = self.losses["G"]["t"]["auto"](x, reconstruction)
             step_loss += lambdas.G.t.auto * update_loss
@@ -689,11 +687,7 @@ class Trainer:
             cond = None
             if self.opts.gen.t.use_spade:
                 task_tensors = self.G.decode_tasks(z)
-                cond = get_conditioning_tensor(
-                    x,
-                    task_tensors,
-                    domains_to_class_tensor(batch["domain"], one_hot=True),
-                )
+                cond = get_conditioning_tensor(x, task_tensors)
 
             disc_loss = {"a": {"r": 0, "s": 0}, "t": {"f": 0, "n": 0}}
 

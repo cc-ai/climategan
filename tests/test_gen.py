@@ -4,6 +4,7 @@ import sys
 from torchsummary import summary
 
 from pathlib import Path
+
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
 
 from omnigan.generator import get_gen
@@ -23,7 +24,7 @@ if __name__ == "__main__":
     image = torch.Tensor(batch_size, 3, 256, 256).uniform_(-1, 1)
 
     test_partial_decoder = True
-    print_architecture = True
+    print_architecture = False
     test_encoder = True
     test_encode_decode = True
     test_translation = True
@@ -74,11 +75,21 @@ if __name__ == "__main__":
                     print(dec, G.decoders[dec](z).shape)
 
     if test_translation:
-        print_header("test_translation")
+        print_header("test_translation use_bit_conditioning")
+        opts.gen.t.use_spade = True
+        opts.gen.t.use_bit_conditioning = True
+        G = get_gen(opts)
         print(G.forward(image, translator="f").shape)
 
-        print_header("test_translation")
+        print_header("test_translation use_spade no use_bit_conditioning")
+        opts.gen.t.use_spade = True
+        opts.gen.t.use_bit_conditioning = False
+        G = get_gen(opts)
+        print(G.forward(image, translator="f").shape)
+
+        print_header("test_translation vanilla")
         opts.gen.t.use_spade = False
+        opts.gen.t.use_bit_conditioning = False
         G = get_gen(opts)
         print(G.forward(image, translator="f").shape)
 
