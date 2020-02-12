@@ -181,7 +181,7 @@ if __name__ == "__main__":
             trainer.setup()
 
         encoder_weights = [
-            [p.detach().numpy()[0] for p in trainer.G.encoder.parameters()]
+            [p.detach().cpu().numpy()[0] for p in trainer.G.encoder.parameters()]
         ]
         multi_batch_tuple = next(iter(trainer.train_loaders))
         multi_domain_batch = {
