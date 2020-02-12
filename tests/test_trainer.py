@@ -18,12 +18,12 @@ opts = load_opts(root / args.config, default=root / "shared/defaults.yaml")
 
 if __name__ == "__main__":
     opts = opts.copy()
-    test_setup = False
-    test_get_representation_loss = False
-    test_get_translation_loss = False
-    test_get_classifier_loss = False
-    test_update_g = False
-    test_update_d = False
+    test_setup = True
+    test_get_representation_loss = True
+    test_get_translation_loss = True
+    test_get_classifier_loss = True
+    test_update_g = True
+    test_update_d = True
     test_full_step = True
     crop_to = 32  # smaller data for faster tests ; -1 for no
 
