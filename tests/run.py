@@ -44,17 +44,17 @@ def tprint(*args):
     print(" ".join(map(str, to_print)))
 
 
+parser = argparse.ArgumentParser()
+parser.add_argument("-c", "--config", default="config/local_tests.yaml")
+parser.add_argument("-i", "--ignore", nargs="+", default=None)
+args = parser.parse_args()
 root = Path(__file__).parent.parent
-opts = load_opts(root / "config/local_tests.yaml", default=root / "shared/defaults.yml")
+opts = load_opts(root / args.config, default=root / "shared/defaults.yml")
 
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--ignore", nargs="+", default=None)
-    opts = parser.parse_args()
-
-    ignores = set(opts.ignore) if opts.ignore else set()
+    ignores = set(args.ignore) if args.ignore else set()
 
     tests = Path(__file__).parent.glob("test_*.py")
 
