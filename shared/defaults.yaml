@@ -89,7 +89,7 @@ gen:
     <<: *default-gen
     dim: 64 # dimension of the first projection before downsamplings
     input_dim: 3 # input number of channels
-    n_downsample: 2 # number of downsampling layers in encoder
+    n_downsample: 4 # number of downsampling layers in encoder
     n_res: 4 # number of residual blocks in content encoder/decoder
     norm: "none"
 
