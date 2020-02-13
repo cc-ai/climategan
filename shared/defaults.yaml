@@ -78,8 +78,9 @@ gen:
     output_dim: 3 # output dimension
     pad_type: zero # padding type [zero/reflect]
     use_spade: True # whether to condition the decoding on other inferences, à la SPADE or not
+    spade_num_upsampling_layers: normal # 1 of normal, more or most
     spade_kernel_size: 3 # kernel size within SPADE norm layers
-    spade_param_free_norm: "instance" # what param-free normalization to apply in SPADE normalization
+    spade_param_free_norm: instance # what param-free normalization to apply in SPADE normalization
     spade_use_spectral_norm: True #
     use_bit_conditioning: True
   w: # specific params for the water-segmentation decoder
@@ -87,9 +88,9 @@ gen:
     output_dim: 1
   encoder: # specific params for the encoder
     <<: *default-gen
-    dim: 64 # dimension of the first projection before downsamplings
+    dim: 32 # dimension of the first projection before downsamplings
     input_dim: 3 # input number of channels
-    n_downsample: 4 # number of downsampling layers in encoder
+    n_downsample: 3 # number of downsampling layers in encoder | dim 32 + down 3 => z = 256 x 32 x 32
     n_res: 4 # number of residual blocks in content encoder/decoder
     norm: "none"
 

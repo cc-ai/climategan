@@ -215,8 +215,9 @@ class Trainer:
         self.loaders = get_all_loaders(self.opts)
 
         self.G = get_gen(self.opts, verbose=self.verbose).to(self.device)
-        self.D = get_dis(self.opts, verbose=self.verbose).to(self.device)
         self.latent_shape = self.compute_latent_shape()
+        self.G.set_translation_decoder(self.latent_shape)
+        self.D = get_dis(self.opts, verbose=self.verbose).to(self.device)
         self.C = get_classifier(self.opts, self.latent_shape, verbose=self.verbose).to(
             self.device
         )
