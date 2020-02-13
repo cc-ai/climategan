@@ -53,8 +53,10 @@ if __name__ == "__main__":
     trainer.exp.log_parameter("is_functional_test", True)
     trainer.setup()
     multi_batch_tuple = next(iter(trainer.train_loaders))
-    domain_batch = {batch["domain"][0]: batch for batch in multi_batch_tuple}
-    domain_batch = trainer.batch_to_device(domain_batch)
+    domain_batch = {
+        batch["domain"][0]: trainer.batch_to_device(batch)
+        for batch in multi_batch_tuple
+    }
 
     trainer.opts.train.log_level = 1
 

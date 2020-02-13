@@ -350,10 +350,8 @@ class SpadeTranslationDecoder(SpadeDecoder):
         if self.use_bit_conditioning:
             seg = self.concat_bit_to_seg(seg)
         for j in range(len(self.model)):
-            print(j)
             if j == 0:  # spade resblocks
                 x = self.model[j].forward(x, seg)
             else:  # standard upsampling blocks
                 x = self.model[j].forward(x)
-            print(x.shape)
         return x

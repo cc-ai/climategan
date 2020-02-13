@@ -156,6 +156,8 @@ if __name__ == "__main__":
         if not trainer.is_setup:
             print("Setting up")
             trainer.setup()
+
+        trainer.losses["D"].verbose = 0
         multi_batch_tuple = next(iter(trainer.train_loaders))
         multi_domain_batch = {
             batch["domain"][0]: trainer.batch_to_device(batch)
@@ -168,7 +170,7 @@ if __name__ == "__main__":
                 "Batch {batch_domain} > {decoder}: {target_domain} to fake",
             )
         )
-
+        trainer.logger.global_step = 0
         trainer.update_d(multi_domain_batch, 1)
         trainer.losses["D"].flip_prob = 1.0
         trainer.update_d(multi_domain_batch)
