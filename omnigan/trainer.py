@@ -25,6 +25,7 @@ from omnigan.utils import (
     flatten_opts,
     freeze,
     shuffle_batch_tuple,
+    get_conditioning_tensor,
 )
 
 
@@ -102,7 +103,7 @@ class Trainer:
         Returns:
             dict: the batch dictionnary with its "data" field sent to self.device
         """
-        for task, tensor in b.data.items():
+        for task, tensor in b["data"].items():
             b["data"][task] = tensor.to(self.device)
         return b
 
@@ -444,7 +445,7 @@ class Trainer:
             # Cross entropy loss (with sigmoid) with fake labels to fool C
             update_loss = self.losses["G"]["classifier"](
                 output_classifier,
-                fake_domains_to_class_tensor(batch["domain"], one_hot),
+                fake_domains_to_class_tensor(batch["domain"], one_hot).to(self.device),
             )
             step_loss += lambdas.G.classifier * update_loss
             # -------------------------------------------------
@@ -471,13 +472,11 @@ class Trainer:
             # -----  auto-encoding update for translation (3)  -----
             # ------------------------------------------------------
             translation_decoder = batch_domain[-1]
+
             cond = None
             if self.opts.gen.t.use_spade:
-                cond = self.G.get_conditioning_tensor(
-                    x,
-                    task_tensors,
-                    domains_to_class_tensor(batch["domain"], one_hot=True),
-                )
+                cond = get_conditioning_tensor(x, task_tensors)
+
             reconstruction = self.G.decoders["t"][translation_decoder](self.z, cond)
             update_loss = self.losses["G"]["t"]["auto"](x, reconstruction)
             step_loss += lambdas.G.t.auto * update_loss
@@ -583,10 +582,10 @@ class Trainer:
             batch = multi_domain_batch[source_domain]
             real = batch["data"]["x"]
             real_z = self.G.encode(real)
-            fake = self.G.translate(batch, translator=target_domain[1], z=real_z)
+            fake = self.G.translate_batch(batch, target_domain[1], z=real_z)
             fake_z = self.G.encode(fake)
             cycle_batch = fake_batch(batch, fake)
-            cycle = self.G.translate(cycle_batch, translator=source_domain[1], z=fake_z)
+            cycle = self.G.translate_batch(cycle_batch, source_domain[1], z=fake_z)
 
             d_fake = self.D["t"][target_domain[1]](fake)
             d_cycle = self.D["t"][source_domain[1]](cycle)
@@ -625,7 +624,9 @@ class Trainer:
             # ------------------------------------
             fake_s = self.G.decoders["s"](fake_z).detach()
             real_s_labels = torch.argmax(self.G.decoders["s"](real_z).detach(), 1)
-            mask = torch.randint(0, 2, real_s_labels.shape)  # TODO => load mask
+            mask = torch.randint(0, 2, real_s_labels.shape).to(
+                self.device
+            )  # TODO : load mask
             update_loss = (
                 self.losses["G"]["t"]["sm"](fake_s, real_s_labels) * mask
             ).mean()
@@ -638,7 +639,7 @@ class Trainer:
             # ---------------------------------
             fake_d = self.G.decoders["d"](fake_z).detach()
             real_d = self.G.decoders["d"](real_z).detach()
-            mask = torch.randint(0, 2, fake_d.shape)  # TODO => load mask
+            mask = torch.randint(0, 2, fake_d.shape).to(self.device)  # TODO: load mask
             update_loss = self.losses["G"]["t"]["dm"](fake_d * mask, real_d * mask)
             step_loss += lambdas.G.t.dm * update_loss
             self.logger.losses.t.dm[
@@ -688,11 +689,7 @@ class Trainer:
             cond = None
             if self.opts.gen.t.use_spade:
                 task_tensors = self.G.decode_tasks(z)
-                cond = self.G.get_conditioning_tensor(
-                    x,
-                    task_tensors,
-                    domains_to_class_tensor(batch["domain"], one_hot=True),
-                )
+                cond = get_conditioning_tensor(x, task_tensors)
 
             disc_loss = {"a": {"r": 0, "s": 0}, "t": {"f": 0, "n": 0}}
 
@@ -752,7 +749,8 @@ class Trainer:
             output_classifier = self.C(self.z)
             # Cross entropy loss (with sigmoid)
             update_loss = self.losses["C"](
-                output_classifier, domains_to_class_tensor(batch["domain"], one_hot),
+                output_classifier,
+                domains_to_class_tensor(batch["domain"], one_hot).to(self.device),
             )
             loss += update_loss
 

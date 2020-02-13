@@ -1,15 +1,23 @@
+import argparse
 import sys
 from pathlib import Path
-from skimage import io
+
 from addict import Dict
+from skimage import io
+import torch
 
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
-from run import opts, print_header
-
-from omnigan.mega_depth import get_mega_model
-from omnigan.utils import decode_mega_depth
 from omnigan.data import get_all_loaders
+from omnigan.mega_depth import get_mega_model
 from omnigan.trainer import Trainer
+from omnigan.utils import decode_mega_depth, load_opts
+from run import print_header
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-c", "--config", default="config/local_tests.yaml")
+args = parser.parse_args()
+root = Path(__file__).parent.parent
+opts = load_opts(root / args.config, default=root / "shared/defaults.yaml")
 
 
 if __name__ == "__main__":
@@ -22,6 +30,8 @@ if __name__ == "__main__":
 
     not_committed_path = Path(__file__).parent / "not_committed"
 
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     if not not_committed_path.exists():
         not_committed_path.mkdir()
 
@@ -30,14 +40,14 @@ if __name__ == "__main__":
             Dict({"name": "crop", "ignore": False, "height": crop_to, "width": crop_to})
         ]
 
-    mega = get_mega_model()
+    mega = get_mega_model().to(device)
     loaders = get_all_loaders(opts)
     loader = loaders["train"]["rn"]
     batch = next(iter(loader))
 
     if test_batch:
         print_header("infer MD on batch")
-        im_t = batch["data"]["x"]
+        im_t = batch["data"]["x"].to(device)
         print("inferring...")
         im_d = mega(im_t)
         print("Done. Saving...")
@@ -55,7 +65,7 @@ if __name__ == "__main__":
         trainer = Trainer(opts, verbose=1)
         trainer.setup()
         print("Translating...")
-        y = trainer.G.translate(batch)
+        y = trainer.G.translate_batch(trainer.batch_to_device(batch))
         print("Done. Inferring depth...")
         y_d = mega(y)
         print("Done.")

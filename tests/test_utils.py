@@ -1,20 +1,29 @@
-import sys
+import argparse
 import os
-from pathlib import Path
+import sys
 import uuid
+from pathlib import Path
+
 import addict
 
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
-
-from run import print_header, opts
-
+from omnigan.data import get_all_loaders
 from omnigan.utils import (
     domains_to_class_tensor,
     env_to_path,
-    get_increased_path,
     flatten_opts,
+    get_increased_path,
+    load_opts,
 )
-from omnigan.data import get_all_loaders
+from run import print_header
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-c", "--config", default="config/local_tests.yaml")
+args = parser.parse_args()
+root = Path(__file__).parent.parent
+opts = load_opts(root / args.config, default=root / "shared/defaults.yaml")
+
 
 if __name__ == "__main__":
 

@@ -1,12 +1,8 @@
+import argparse
 import os
 from pathlib import Path
-import argparse
+
 import torch
-import sys
-
-sys.path.append(str(Path(__file__).parent.parent))
-
-from omnigan.utils import load_opts
 
 
 class bcolors:
@@ -44,17 +40,15 @@ def tprint(*args):
     print(" ".join(map(str, to_print)))
 
 
-root = Path(__file__).parent.parent
-opts = load_opts(root / "config/local_tests.yaml", default=root / "shared/defaults.yml")
+parser = argparse.ArgumentParser()
+parser.add_argument("-c", "--config", default="config/local_tests.yaml")
+parser.add_argument("-i", "--ignore", nargs="+", default=None)
+args = parser.parse_args()
 
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--ignore", nargs="+", default=None)
-    opts = parser.parse_args()
-
-    ignores = set(opts.ignore) if opts.ignore else set()
+    ignores = set(args.ignore) if args.ignore else set()
 
     tests = Path(__file__).parent.glob("test_*.py")
 
@@ -71,7 +65,9 @@ if __name__ == "__main__":
             print("=" * len(title))
             print(bcolors.ENDC)
 
-            status = os.system("python {}".format(str(test_path)))
+            status = os.system(
+                "python {} --config={}".format(str(test_path), args.config)
+            )
 
             if status != 0:
                 error = ">>>>>>>>>> Error <<<<<<<<<<"

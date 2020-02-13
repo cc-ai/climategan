@@ -1,12 +1,21 @@
-from pathlib import Path
-from addict import Dict
+import argparse
 import sys
+from pathlib import Path
+
+from addict import Dict
 
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
-from run import opts
-
 from omnigan.data import OmniListDataset, get_all_loaders
-from omnigan.utils import transforms_string
+from omnigan.utils import load_opts, transforms_string
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-c", "--config", default="config/local_tests.yaml")
+args = parser.parse_args()
+root = Path(__file__).parent.parent
+opts = load_opts(root / args.config, default=root / "shared/defaults.yaml")
+
+
 
 if __name__ == "__main__":
 

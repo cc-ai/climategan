@@ -385,7 +385,6 @@ class SPADEResnetBlock(nn.Module):
         dx = self.conv_1(self.activation(self.norm_1(dx, seg)))
 
         out = x_s + dx
-        print(f"SPADE Resblock forward ({out.shape})")
         return out
 
     def shortcut(self, x, seg):

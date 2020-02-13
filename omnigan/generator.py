@@ -21,7 +21,7 @@ def get_gen(opts, verbose=0):
     for model in G.decoders:
         net = G.decoders[model]
         if isinstance(net, nn.ModuleDict):
-            for domain_model in net:
+            for domain_model in net.keys():
                 init_weights(
                     net[domain_model],
                     init_type=opts.gen[model].init_type,
@@ -54,20 +54,26 @@ class OmniGenerator(nn.Module):
 
         self.decoders = {}
 
-        TranslationDecoder = (
-            SpadeTranslationDecoder
-            if self.opts.gen.t.use_spade
-            else BaseTranslationDecoder
-        )
+        if "t" in opts.tasks and not opts.gen.t.ignore:
+            if opts.gen.t.use_bit_conditioning:
+                if not opts.gen.t.use_spade:
+                    raise ValueError(
+                        "cannot have use_bit_conditioning but not use_spade"
+                    )
+                self.decoders["t"] = SpadeTranslationDict(opts)
+            else:
+                TranslationDecoder = (
+                    SpadeTranslationDecoder
+                    if self.opts.gen.t.use_spade
+                    else BaseTranslationDecoder
+                )
+                self.decoders["t"] = nn.ModuleDict(
+                    {"f": TranslationDecoder(opts), "n": TranslationDecoder(opts)}
+                )
 
         if "a" in opts.tasks and not opts.gen.a.ignore:
             self.decoders["a"] = nn.ModuleDict(
                 {"r": AdaptationDecoder(opts), "s": AdaptationDecoder(opts)}
-            )
-
-        if "t" in opts.tasks and not opts.gen.t.ignore:
-            self.decoders["t"] = nn.ModuleDict(
-                {"f": TranslationDecoder(opts), "n": TranslationDecoder(opts)}
             )
 
         if "d" in opts.tasks and not opts.gen.d.ignore:
@@ -84,7 +90,7 @@ class OmniGenerator(nn.Module):
 
         self.decoders = nn.ModuleDict(self.decoders)
 
-    def translate(self, batch, translator="f", z=None):
+    def translate_batch(self, batch, translator="f", z=None):
         """Computes the translation of the images in a batch, according amongst
         other things to batch["domain"]
 
@@ -103,9 +109,7 @@ class OmniGenerator(nn.Module):
         K = None
         if self.opts.gen.t.use_spade:
             task_tensors = self.decode_tasks(z)
-
-            classifier_probs = domains_to_class_tensor(batch["domain"], one_hot=True)
-            K = get_conditioning_tensor(x, task_tensors, classifier_probs)
+            K = get_conditioning_tensor(x, task_tensors)
 
         y = self.decoders["t"][translator](z, K)
         return y
@@ -120,8 +124,10 @@ class OmniGenerator(nn.Module):
     def encode(self, x):
         return self.encoder.forward(x)
 
-    def forward(self, x, translator="f", classifier_probs=[1, 0, 0, 0]):
-        """Computes the translation of an image x to a flooding domain
+    def forward_x(self, x, translator="f"):
+        """Computes the translation of an image x to `translator`'s domain.
+        Note this function will encode z and decode the necessary conditioning
+        task tensors
 
         Args:
             x (torch.Tensor): images to translate
@@ -136,10 +142,12 @@ class OmniGenerator(nn.Module):
         cond = None
         if self.opts.gen.t.use_spade:
             task_tensors = self.decode_tasks(z)
-            classifier_probs = torch.tensor([classifier_probs for _ in range(len(x))])
-            cond = self.get_conditioning_tensor(x, task_tensors, classifier_probs)
+            cond = get_conditioning_tensor(x, task_tensors)
         y = self.decoders["t"][translator](z, cond)
         return y
+
+    def forward(self, x, translator="f"):
+        return self.forward_x(x, translator)
 
 
 class Encoder(nn.Module):
@@ -280,11 +288,14 @@ class SpadeTranslationDict(nn.ModuleDict):
     def __init__(self, opts):
         super().__init__()
         self.opts = opts
-        self.model = SpadeTranslationDecoder(opts)
+        self._model = SpadeTranslationDecoder(opts)
+
+    def keys(self):
+        return ["f", "n"]
 
     def __getitem__(self, key):
-        self.model.update_bit(key)
-        return self.model
+        self._model.update_bit(key)
+        return self._model
 
     def forward(self, *args, **kwargs):
         raise NotImplementedError(
@@ -295,8 +306,10 @@ class SpadeTranslationDict(nn.ModuleDict):
 class SpadeTranslationDecoder(SpadeDecoder):
     def __init__(self, opts):
         self.bit = None
+        self.use_bit_conditioning = opts.gen.t.use_bit_conditioning
+
         cond_nc = 4  # 4 domains => 4-channel bitmap
-        cond_nc = 2  # 4 domains => 2-channel bitmap
+        cond_nc = 2 if self.use_bit_conditioning else 0  # 2 domains => 2-channel bitmap
         if "d" in opts.tasks:
             cond_nc += 1
         if "h" in opts.tasks:
@@ -334,12 +347,11 @@ class SpadeTranslationDecoder(SpadeDecoder):
         return torch.cat([bit, seg.to(torch.float32)], dim=1)
 
     def forward(self, x, seg):
-        seg = self.concat_bit_to_seg(seg)
+        if self.use_bit_conditioning:
+            seg = self.concat_bit_to_seg(seg)
         for j in range(len(self.model)):
-            print(j)
             if j == 0:  # spade resblocks
                 x = self.model[j].forward(x, seg)
             else:  # standard upsampling blocks
                 x = self.model[j].forward(x)
-            print(x.shape)
         return x
