@@ -244,26 +244,47 @@ class SPADEResnetBlock(nn.Module):
         return F.leaky_relu(x, 2e-1)
 
 
-class SpadeDecoder(BaseDecoder):
+class SpadeDecoder(nn.Module):
     def __init__(
         self,
         latent_shape,
-        num_upsampling_layers,
+        cond_nc,
+        spade_n_up,
         spade_use_spectral_norm,
         spade_param_free_norm,
         spade_kernel_size,
-        cond_nc,
     ):
+        """Create a SPADE-based decoder, which forwards z and the conditioning
+        tensors seg (in the original paper, conditioning is on a semantic map only).
+
+        All along, z is conditioned on seg. First 3 SpadeResblocks (SRB) do not shrink
+        the channel dimension, and an upsampling is applied after each. Therefore
+        2 upsamplings at this point. Then, for each remaining upsamplings
+        (w.r.t. spade_n_up), the SRB shrinks channels by 2. Before final conv to get 3
+        channels, the number of channels is therefore:
+
+            final_nc = channels(z) * 2 ** (spade_n_up - 2)
+
+
+        Args:
+            latent_shape (int): z's shape, of which only the number of channels matter
+            cond_nc (int): conditioning tensor's expected number of channels
+            spade_n_up (int): Number of total upsamplings from z
+            spade_use_spectral_norm (bool): use spectral normalization?
+            spade_param_free_norm (str): norm to use before SPADE de-normalization
+            spade_kernel_size (int): SPADE conv layers' kernel size
+
+        Returns:
+            [type]: [description]
+        """
         super().__init__()
 
-        self.zdim, self.sw, self.sh = latent_shape
-        self.num_upsampling_layers = num_upsampling_layers
-
-        # self.fc = nn.Conv2d(cond_nc, 16 * nf, 3, padding=1)
+        self.z_nc = latent_shape[0]
+        self.spade_n_up = spade_n_up
 
         self.head_0 = SPADEResnetBlock(
-            self.zdim,
-            self.zdim,
+            self.z_nc,
+            self.z_nc,
             cond_nc,
             spade_use_spectral_norm,
             spade_param_free_norm,
@@ -271,110 +292,55 @@ class SpadeDecoder(BaseDecoder):
         )
 
         self.G_middle_0 = SPADEResnetBlock(
-            self.zdim,
-            self.zdim,
+            self.z_nc,
+            self.z_nc,
             cond_nc,
             spade_use_spectral_norm,
             spade_param_free_norm,
             spade_kernel_size,
         )
         self.G_middle_1 = SPADEResnetBlock(
-            self.zdim,
-            self.zdim,
+            self.z_nc,
+            self.z_nc,
             cond_nc,
             spade_use_spectral_norm,
             spade_param_free_norm,
             spade_kernel_size,
         )
 
-        self.up_spades = nn.Sequential(
-            *[
-                SPADEResnetBlock(
-                    self.zdim // 2 ** i,
-                    self.zdim // 2 ** (i + 1),
-                    cond_nc,
-                    spade_use_spectral_norm,
-                    spade_param_free_norm,
-                    spade_kernel_size,
-                )
-                for i in range(num_upsampling_layers)
-            ]
-        )
+        self.up_spades = [
+            SPADEResnetBlock(
+                self.z_nc // 2 ** i,
+                self.z_nc // 2 ** (i + 1),
+                cond_nc,
+                spade_use_spectral_norm,
+                spade_param_free_norm,
+                spade_kernel_size,
+            )
+            for i in range(spade_n_up - 2)
+        ]
 
-        self.final_nc = self.zdim // 2 ** num_upsampling_layers
-
-        # self.up_0 = SPADEResnetBlock(
-        #     16 * nf,
-        #     8 * nf,
-        #     cond_nc,
-        #     spade_use_spectral_norm,
-        #     spade_param_free_norm,
-        #     spade_kernel_size,
-        # )
-        # self.up_1 = SPADEResnetBlock(
-        #     8 * nf,
-        #     4 * nf,
-        #     cond_nc,
-        #     spade_use_spectral_norm,
-        #     spade_param_free_norm,
-        #     spade_kernel_size,
-        # )
-        # self.up_2 = SPADEResnetBlock(
-        #     4 * nf,
-        #     2 * nf,
-        #     cond_nc,
-        #     spade_use_spectral_norm,
-        #     spade_param_free_norm,
-        #     spade_kernel_size,
-        # )
-        # self.up_3 = SPADEResnetBlock(
-        #     2 * nf,
-        #     1 * nf,
-        #     cond_nc,
-        #     spade_use_spectral_norm,
-        #     spade_param_free_norm,
-        #     spade_kernel_size,
-        # )
-
-        # final_nc = nf
-
-        # if self.num_upsampling_layers == "most":
-        #     self.up_4 = SPADEResnetBlock(
-        #         1 * nf,
-        #         nf // 2,
-        #         cond_nc,
-        #         spade_use_spectral_norm,
-        #         spade_param_free_norm,
-        #         spade_kernel_size,
-        #     )
-        #     final_nc = nf // 2
+        self.final_nc = self.z_nc // 2 ** (spade_n_up - 1)
 
         self.conv_img = nn.Conv2d(self.final_nc, 3, 3, padding=1)
 
         self.upsample = nn.Upsample(scale_factor=2)
 
-    def _forward(self, z, seg):
+    def _forward(self, z, cond):
 
-        # TODO parameter for number of spades resblocks
+        y = self.head_0(z, cond)
 
-        # x = F.interpolate(seg, size=(self.sh, self.sw))
-        # x = self.fc(x)
+        y = self.upsample(y)
+        y = self.G_middle_0(y, cond)
+        y = self.upsample(y)
+        y = self.G_middle_1(y, cond)
 
-        x = self.head_0(z, seg)
-
-        x = self.upsample(x)
-        x = self.G_middle_0(x, seg)
-
-        # if self.num_upsampling_layers == "more" or self.num_upsampling_layers == "most":
-        #     x = self.upsample(x)
-
-        x = self.G_middle_1(x, seg)
         for i, up in enumerate(self.up_spades):
             print(f"Up {i}")
-            x = self.upsample(x)
-            x = up(x, seg)
+            y = self.upsample(y)
+            y = up(y, cond)
 
-        x = self.conv_img(F.leaky_relu(x, 2e-1))
-        x = torch.tanh(x)
+        y = self.conv_img(F.leaky_relu(y, 2e-1))
+        y = torch.tanh(y)
 
-        return x
+        return y

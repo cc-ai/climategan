@@ -340,11 +340,11 @@ class SpadeTranslationDecoder(SpadeDecoder):
 
         super().__init__(
             latent_shape,  # c x h x w of z
-            opts.gen.t.spade_num_upsampling_layers,  # number of upsampling
+            cond_nc,  # number of channels in the conditioning tensor
+            opts.gen.t.spade_n_up,  # number of upsampling
             opts.gen.t.spade_use_spectral_norm,  # use spectral norm in spade blocks?
             opts.gen.t.spade_param_free_norm,  # parameter-free norm in spade blocks
             opts.gen.t.spade_kernel_size,  # 3
-            cond_nc,  # number of channels in the conditioning tensor
         )
         self.register_buffer("f_bit", torch.tensor([1, 0]))
         self.register_buffer("n_bit", torch.tensor([0, 1]))

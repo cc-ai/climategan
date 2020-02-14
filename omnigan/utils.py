@@ -2,7 +2,6 @@ import os
 import re
 from pathlib import Path
 import subprocess
-from copy import copy
 import yaml
 from addict import Dict
 from torch.nn import init
