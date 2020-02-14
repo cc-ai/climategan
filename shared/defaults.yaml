@@ -81,7 +81,8 @@ gen:
     spade_num_upsampling_layers: normal # 1 of normal, more or most
     spade_kernel_size: 3 # kernel size within SPADE norm layers
     spade_param_free_norm: instance # what param-free normalization to apply in SPADE normalization
-    spade_use_spectral_norm: True #
+    spade_use_spectral_norm: true
+    spade_num_upsampling_layers: 3 # output h and w are z's h and w times 2^spade_num_upsampling_layers | z 32 and num 4 => output 512
     use_bit_conditioning: True
   w: # specific params for the water-segmentation decoder
     <<: *default-gen

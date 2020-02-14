@@ -340,7 +340,7 @@ class SpadeTranslationDecoder(SpadeDecoder):
 
         super().__init__(
             latent_shape,  # c x h x w of z
-            opts.gen.t.n_upsample,  # number of upsampling
+            opts.gen.t.spade_num_upsampling_layers,  # number of upsampling
             opts.gen.t.spade_use_spectral_norm,  # use spectral norm in spade blocks?
             opts.gen.t.spade_param_free_norm,  # parameter-free norm in spade blocks
             opts.gen.t.spade_kernel_size,  # 3

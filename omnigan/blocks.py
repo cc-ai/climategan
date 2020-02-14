@@ -256,15 +256,14 @@ class SpadeDecoder(BaseDecoder):
     ):
         super().__init__()
 
-        nf, self.sw, self.sh = latent_shape
-        nf = latent_shape[0] // 16
+        self.zdim, self.sw, self.sh = latent_shape
         self.num_upsampling_layers = num_upsampling_layers
 
-        self.fc = nn.Conv2d(cond_nc, 16 * nf, 3, padding=1)
+        # self.fc = nn.Conv2d(cond_nc, 16 * nf, 3, padding=1)
 
         self.head_0 = SPADEResnetBlock(
-            16 * nf,
-            16 * nf,
+            self.zdim,
+            self.zdim,
             cond_nc,
             spade_use_spectral_norm,
             spade_param_free_norm,
@@ -272,101 +271,110 @@ class SpadeDecoder(BaseDecoder):
         )
 
         self.G_middle_0 = SPADEResnetBlock(
-            16 * nf,
-            16 * nf,
+            self.zdim,
+            self.zdim,
             cond_nc,
             spade_use_spectral_norm,
             spade_param_free_norm,
             spade_kernel_size,
         )
         self.G_middle_1 = SPADEResnetBlock(
-            16 * nf,
-            16 * nf,
+            self.zdim,
+            self.zdim,
             cond_nc,
             spade_use_spectral_norm,
             spade_param_free_norm,
             spade_kernel_size,
         )
 
-        self.up_0 = SPADEResnetBlock(
-            16 * nf,
-            8 * nf,
-            cond_nc,
-            spade_use_spectral_norm,
-            spade_param_free_norm,
-            spade_kernel_size,
-        )
-        self.up_1 = SPADEResnetBlock(
-            8 * nf,
-            4 * nf,
-            cond_nc,
-            spade_use_spectral_norm,
-            spade_param_free_norm,
-            spade_kernel_size,
-        )
-        self.up_2 = SPADEResnetBlock(
-            4 * nf,
-            2 * nf,
-            cond_nc,
-            spade_use_spectral_norm,
-            spade_param_free_norm,
-            spade_kernel_size,
-        )
-        self.up_3 = SPADEResnetBlock(
-            2 * nf,
-            1 * nf,
-            cond_nc,
-            spade_use_spectral_norm,
-            spade_param_free_norm,
-            spade_kernel_size,
+        self.up_spades = nn.Sequential(
+            *[
+                SPADEResnetBlock(
+                    self.zdim // 2 ** i,
+                    self.zdim // 2 ** (i + 1),
+                    cond_nc,
+                    spade_use_spectral_norm,
+                    spade_param_free_norm,
+                    spade_kernel_size,
+                )
+                for i in range(num_upsampling_layers)
+            ]
         )
 
-        final_nc = nf
+        self.final_nc = self.zdim // 2 ** num_upsampling_layers
 
-        if self.num_upsampling_layers == "most":
-            self.up_4 = SPADEResnetBlock(
-                1 * nf,
-                nf // 2,
-                cond_nc,
-                spade_use_spectral_norm,
-                spade_param_free_norm,
-                spade_kernel_size,
-            )
-            final_nc = nf // 2
+        # self.up_0 = SPADEResnetBlock(
+        #     16 * nf,
+        #     8 * nf,
+        #     cond_nc,
+        #     spade_use_spectral_norm,
+        #     spade_param_free_norm,
+        #     spade_kernel_size,
+        # )
+        # self.up_1 = SPADEResnetBlock(
+        #     8 * nf,
+        #     4 * nf,
+        #     cond_nc,
+        #     spade_use_spectral_norm,
+        #     spade_param_free_norm,
+        #     spade_kernel_size,
+        # )
+        # self.up_2 = SPADEResnetBlock(
+        #     4 * nf,
+        #     2 * nf,
+        #     cond_nc,
+        #     spade_use_spectral_norm,
+        #     spade_param_free_norm,
+        #     spade_kernel_size,
+        # )
+        # self.up_3 = SPADEResnetBlock(
+        #     2 * nf,
+        #     1 * nf,
+        #     cond_nc,
+        #     spade_use_spectral_norm,
+        #     spade_param_free_norm,
+        #     spade_kernel_size,
+        # )
 
-        self.conv_img = nn.Conv2d(final_nc, 3, 3, padding=1)
+        # final_nc = nf
 
-        self.up = nn.Upsample(scale_factor=2)
+        # if self.num_upsampling_layers == "most":
+        #     self.up_4 = SPADEResnetBlock(
+        #         1 * nf,
+        #         nf // 2,
+        #         cond_nc,
+        #         spade_use_spectral_norm,
+        #         spade_param_free_norm,
+        #         spade_kernel_size,
+        #     )
+        #     final_nc = nf // 2
 
-    def _forward(self, input, seg):
+        self.conv_img = nn.Conv2d(self.final_nc, 3, 3, padding=1)
 
-        x = F.interpolate(seg, size=(self.sh, self.sw))
-        x = self.fc(x)
+        self.upsample = nn.Upsample(scale_factor=2)
 
-        x = self.head_0(x, seg)
+    def _forward(self, z, seg):
 
-        x = self.up(x)
+        # TODO parameter for number of spades resblocks
+
+        # x = F.interpolate(seg, size=(self.sh, self.sw))
+        # x = self.fc(x)
+
+        x = self.head_0(z, seg)
+
+        x = self.upsample(x)
         x = self.G_middle_0(x, seg)
 
-        if self.num_upsampling_layers == "more" or self.num_upsampling_layers == "most":
-            x = self.up(x)
+        # if self.num_upsampling_layers == "more" or self.num_upsampling_layers == "most":
+        #     x = self.upsample(x)
 
         x = self.G_middle_1(x, seg)
-
-        x = self.up(x)
-        x = self.up_0(x, seg)
-        x = self.up(x)
-        x = self.up_1(x, seg)
-        x = self.up(x)
-        x = self.up_2(x, seg)
-        x = self.up(x)
-        x = self.up_3(x, seg)
-
-        if self.num_upsampling_layers == "most":
-            x = self.up(x)
-            x = self.up_4(x, seg)
+        for i, up in enumerate(self.up_spades):
+            print(f"Up {i}")
+            x = self.upsample(x)
+            x = up(x, seg)
 
         x = self.conv_img(F.leaky_relu(x, 2e-1))
-        x = F.tanh(x)
+        x = torch.tanh(x)
 
         return x
