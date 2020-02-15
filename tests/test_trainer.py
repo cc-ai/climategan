@@ -25,12 +25,6 @@ if __name__ == "__main__":
     test_update_g = True
     test_update_d = True
     test_full_step = True
-    crop_to = 32  # smaller data for faster tests ; -1 for no
-
-    if crop_to > 0:
-        opts.data.transforms += [
-            Dict({"name": "crop", "ignore": False, "height": crop_to, "width": crop_to})
-        ]
 
     trainer = Trainer(opts, verbose=1)
 

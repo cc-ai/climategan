@@ -40,11 +40,6 @@ if __name__ == "__main__":
 
     rest_api_key = get_comet_rest_api_key()
     comet_api = comet_ml.api.API()
-
-    if crop_to > 0:
-        opts.data.transforms += [
-            Dict({"name": "crop", "ignore": False, "height": crop_to, "width": crop_to})
-        ]
     comet_exp = comet_ml.Experiment(project_name="omnigan", auto_metric_logging=False)
 
     atexit.register(exit_handler(comet_exp))

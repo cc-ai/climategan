@@ -28,14 +28,14 @@ if __name__ == "__main__":
     opts = opts.copy()
 
     batch_size = 2
-    latent_space_dims = [256, 32, 32]
+    latent_space_dims = [256, 4, 4]
 
-    image = torch.Tensor(batch_size, 3, 256, 256).uniform_(-1, 1).to(device)
+    image = torch.Tensor(batch_size, 3, 32, 32).uniform_(-1, 1).to(device)
 
-    test_partial_decoder = True
+    test_partial_decoder = False
     print_architecture = False
-    test_encoder = True
-    test_encode_decode = True
+    test_encoder = False
+    test_encode_decode = False
     test_translation = True
     test_summary = True
 
@@ -88,18 +88,22 @@ if __name__ == "__main__":
         opts.gen.t.use_spade = True
         opts.gen.t.use_bit_conditioning = True
         G = get_gen(opts).to(device)
+        z = G.encode(image)
+        G.set_translation_decoder(latent_space_dims)
         print(G.forward(image, translator="f").shape)
 
         print_header("test_translation use_spade no use_bit_conditioning")
         opts.gen.t.use_spade = True
         opts.gen.t.use_bit_conditioning = False
         G = get_gen(opts).to(device)
+        G.set_translation_decoder(latent_space_dims)
         print(G.forward(image, translator="f").shape)
 
         print_header("test_translation vanilla")
         opts.gen.t.use_spade = False
         opts.gen.t.use_bit_conditioning = False
         G = get_gen(opts).to(device)
+        G.set_translation_decoder(latent_space_dims)
         print(G.forward(image, translator="f").shape)
 
     if test_summary:
@@ -109,4 +113,5 @@ if __name__ == "__main__":
         print_header("Generator summary Spades")
         opts.gen.t.use_spade = True
         G = get_gen(opts).to(device)
+        G.set_translation_decoder(latent_space_dims)
         print(summary(G, input_size=(3, 256, 256)))

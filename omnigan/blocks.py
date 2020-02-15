@@ -46,11 +46,11 @@ class Conv2dBlock(nn.Module):
         elif norm == "adain":
             self.norm = AdaptiveInstanceNorm2d(norm_dim)
         elif norm == "spectral":
-            self.norm = spectral_norm
+            self.norm = None  # dealt with later in the code
         elif norm == "none":
             self.norm = None
         else:
-            assert 0, "Unsupported normalization: {}".format(norm)
+            raise ValueError("Unsupported normalization: {}".format(norm))
 
         # initialize activation
         if activation == "relu":
@@ -66,7 +66,7 @@ class Conv2dBlock(nn.Module):
         elif activation == "none":
             self.activation = None
         else:
-            assert 0, "Unsupported activation: {}".format(activation)
+            raise ValueError("Unsupported activation: {}".format(activation))
 
         # initialize convolution
         if norm == "spectral":
@@ -82,9 +82,9 @@ class Conv2dBlock(nn.Module):
 
     def forward(self, x):
         x = self.conv(self.pad(x))
-        if self.norm:
+        if self.norm is not None:
             x = self.norm(x)
-        if self.activation:
+        if self.activation is not None:
             x = self.activation(x)
         return x
 
@@ -267,7 +267,7 @@ class SpadeDecoder(nn.Module):
 
 
         Args:
-            latent_shape (int): z's shape, of which only the number of channels matter
+            latent_shape (tuple): z's shape (only the number of channels matters)
             cond_nc (int): conditioning tensor's expected number of channels
             spade_n_up (int): Number of total upsamplings from z
             spade_use_spectral_norm (bool): use spectral normalization?
@@ -279,7 +279,8 @@ class SpadeDecoder(nn.Module):
         """
         super().__init__()
 
-        self.z_nc = latent_shape[0]
+        assert len(latent_shape) in {3, 4}
+        self.z_nc = latent_shape[0 if len(latent_shape) == 3 else 1]
         self.spade_n_up = spade_n_up
 
         self.head_0 = SPADEResnetBlock(
@@ -320,7 +321,7 @@ class SpadeDecoder(nn.Module):
             for i in range(spade_n_up - 2)
         ]
 
-        self.final_nc = self.z_nc // 2 ** (spade_n_up - 1)
+        self.final_nc = self.z_nc // 2 ** (spade_n_up - 2)
 
         self.conv_img = nn.Conv2d(self.final_nc, 3, 3, padding=1)
 
@@ -336,11 +337,9 @@ class SpadeDecoder(nn.Module):
         y = self.G_middle_1(y, cond)
 
         for i, up in enumerate(self.up_spades):
-            print(f"Up {i}")
             y = self.upsample(y)
             y = up(y, cond)
 
         y = self.conv_img(F.leaky_relu(y, 2e-1))
         y = torch.tanh(y)
-
         return y

@@ -35,11 +35,6 @@ if __name__ == "__main__":
     if not not_committed_path.exists():
         not_committed_path.mkdir()
 
-    if crop_to > 0:
-        opts.data.transforms += [
-            Dict({"name": "crop", "ignore": False, "height": crop_to, "width": crop_to})
-        ]
-
     mega = get_mega_model().to(device)
     loaders = get_all_loaders(opts)
     loader = loaders["train"]["rn"]

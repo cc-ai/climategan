@@ -626,8 +626,10 @@ class Trainer:
             # ------------------------------------
             fake_s = self.G.decoders["s"](fake_z).detach()
             real_s_labels = torch.argmax(self.G.decoders["s"](real_z).detach(), 1)
-            mask = torch.randint(0, 2, real_s_labels.shape).to(
-                self.device
+            mask = (
+                torch.randint(0, 2, real_s_labels.shape)
+                .to(torch.float32)
+                .to(self.device)
             )  # TODO : load mask
             update_loss = (
                 self.losses["G"]["t"]["sm"](fake_s, real_s_labels) * mask
@@ -641,7 +643,9 @@ class Trainer:
             # ---------------------------------
             fake_d = self.G.decoders["d"](fake_z).detach()
             real_d = self.G.decoders["d"](real_z).detach()
-            mask = torch.randint(0, 2, fake_d.shape).to(self.device)  # TODO: load mask
+            mask = (
+                torch.randint(0, 2, fake_d.shape).to(torch.float32).to(self.device)
+            )  # TODO: load mask
             update_loss = self.losses["G"]["t"]["dm"](fake_d * mask, real_d * mask)
             step_loss += lambdas.G.t.dm * update_loss
             self.logger.losses.t.dm[

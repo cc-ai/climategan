@@ -29,7 +29,7 @@ if __name__ == "__main__":
 
     loaders = get_all_loaders(opts)
     batch = next(iter(loaders["train"]["rn"]))
-    image = torch.randn(opts.data.loaders.batch_size, 3, 256, 256).to(device)
+    image = torch.randn(opts.data.loaders.batch_size, 3, 32, 32).to(device)
     G = get_gen(opts).to(device)
     z = G.encode(image)
 

@@ -94,8 +94,8 @@ class OmniGenerator(nn.Module):
         elif self.opts.gen.t.use_spade:
             self.decoders["t"] = nn.ModuleDict(
                 {
-                    "f": SpadeTranslationDecoder(self.opts),
-                    "n": SpadeTranslationDecoder(self.opts),
+                    "f": SpadeTranslationDecoder(latent_shape, self.opts),
+                    "n": SpadeTranslationDecoder(latent_shape, self.opts),
                 }
             )
         for k in ["f", "n"]:
@@ -185,6 +185,7 @@ class Encoder(nn.Module):
         n_downsample = opts.gen.encoder.n_downsample
         n_res = opts.gen.encoder.n_res
         norm = opts.gen.encoder.norm
+        res_norm = opts.gen.encoder.res_norm
         pad_type = opts.gen.encoder.pad_type
 
         self.model = [
@@ -209,7 +210,7 @@ class Encoder(nn.Module):
             dim *= 2
         # residual blocks
         self.model += [
-            ResBlocks(n_res, dim, norm=norm, activation=activ, pad_type=pad_type)
+            ResBlocks(n_res, dim, norm=res_norm, activation=activ, pad_type=pad_type)
         ]
         self.model = nn.Sequential(*self.model)
         self.output_dim = dim
@@ -359,9 +360,9 @@ class SpadeTranslationDecoder(SpadeDecoder):
 
     def concat_bit_to_seg(self, seg):
         bit = get_4D_bit(seg.shape, self.bit)
-        return torch.cat([bit, seg.to(torch.float32)], dim=1)
+        return torch.cat([bit.to(torch.float32), seg.to(torch.float32)], dim=1)
 
     def forward(self, z, seg):
         if self.use_bit_conditioning:
             seg = self.concat_bit_to_seg(seg)
-        self._forward(z, seg)
+        return self._forward(z, seg)
