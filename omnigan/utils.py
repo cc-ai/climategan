@@ -58,6 +58,21 @@ def set_data_paths(opts):
     return opts
 
 
+def load_test_opts(test_file_path="config/local_tests.yaml"):
+    """Returns the special opts set up for local tests
+    Args:
+        test_file_path (str, optional): Name of the file located in config/
+            Defaults to "local_tests.yaml".
+
+    Returns:
+        addict.Dict: Opts loaded from defaults.yaml and updated from test_file_path
+    """
+    return load_opts(
+        Path(__file__).parent.parent / f"{test_file_path}",
+        default=Path(__file__).parent.parent / "shared/defaults.yaml",
+    )
+
+
 def get_git_revision_hash():
     """Get current git hash the code is run from
 

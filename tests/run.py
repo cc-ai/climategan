@@ -16,6 +16,27 @@ class bcolors:
     UNDERLINE = "\033[4m"
 
 
+def print_title(text, fname, color):
+    title = f">>> {text} {fname} <<<"
+    print(color)
+    print("=" * len(title))
+    print(title)
+    print("=" * len(title))
+    print(bcolors.ENDC)
+
+
+def print_start(fname):
+    print_title("RUNNING", fname, bcolors.OKBLUE)
+
+
+def print_ok(fname):
+    print_title("DONE", fname, bcolors.OKGREEN)
+
+
+def print_error(fname):
+    print_title("ERROR", fname, bcolors.FAIL)
+
+
 def print_header(*args):
     """Print nice colored header
     """
@@ -47,43 +68,34 @@ args = parser.parse_args()
 
 
 if __name__ == "__main__":
-
+    # Ignore tests specified via --ignore
     ignores = set(args.ignore) if args.ignore else set()
 
+    # Find all tests
     tests = Path(__file__).parent.glob("test_*.py")
 
     passed = []
     failed = []
 
     for test_path in tests:
+        # iterating over all test files
         name = test_path.stem.split("test_")[1]
         if name not in ignores:
-            title = ">>> RUNNING {} <<<".format(test_path.name)
-            print(bcolors.OKBLUE)
-            print("=" * len(title))
-            print(title)
-            print("=" * len(title))
-            print(bcolors.ENDC)
-
+            print_start(test_path.name)
+            # ----------------------
+            # -----  Run Test  -----
+            # ----------------------
             status = os.system(
                 "python {} --config={}".format(str(test_path), args.config)
             )
 
             if status != 0:
-                error = ">>>>>>>>>> Error <<<<<<<<<<"
-                print(bcolors.FAIL)
-                print("=" * len(error))
-                print(error)
-                print("=" * len(error))
+                print_error(test_path.name)
                 failed.append(test_path.name)
             else:
-                ok = ">>> DONE {} <<<".format(test_path.name)
-                print(bcolors.OKGREEN)
-                print("=" * len(ok))
-                print(ok)
-                print("=" * len(ok))
+                print_ok(test_path.name)
                 passed.append(test_path.name)
-            print(bcolors.ENDC)
+
             print("\n\n\n")
 
     passed_nb = "all"
