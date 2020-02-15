@@ -1,11 +1,8 @@
 import torch
 import torch.nn as nn
-from omnigan.utils import (
-    init_weights,
-    get_4D_bit,
-    get_conditioning_tensor,
-)
+from omnigan.utils import init_weights, get_4D_bit, get_conditioning_tensor
 from omnigan.blocks import Conv2dBlock, ResBlocks, SpadeDecoder, BaseDecoder
+import omnigan.strings as strings
 
 # --------------------------------------------------------------------------
 # -----  For now no network structure, just project in a 64 x 32 x 32  -----
@@ -167,6 +164,9 @@ class OmniGenerator(nn.Module):
     def forward(self, x, translator="f"):
         return self.forward_x(x, translator)
 
+    def __str__(self):
+        return strings.generator(self)
+
 
 class Encoder(nn.Module):
     def __init__(self, opts):
@@ -217,6 +217,9 @@ class Encoder(nn.Module):
 
     def forward(self, x):
         return self.model(x)
+
+    def __str__(self):
+        return strings.encoder(self)
 
 
 class HeightDecoder(BaseDecoder):
@@ -320,6 +323,9 @@ class SpadeTranslationDict(nn.ModuleDict):
         raise NotImplementedError(
             "Cannot forward the SpadeTranslationDict, chose a domain"
         )
+
+    def __str__(self):
+        return str(self._model).strip()
 
 
 class SpadeTranslationDecoder(SpadeDecoder):

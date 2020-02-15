@@ -482,3 +482,11 @@ def get_conditioning_tensor(x, task_tensors, classifier_probs=None):
     # bit => batchsize * conditioning tensor
     # conditioning tensor => 4 x h x d, with 0s or 1s as classifier_probs
     return torch.cat(K + [bit], dim=1)
+
+
+def print_net(net):
+    if hasattr(net, "model"):
+        for b in net.model:
+            name = b.__class__.__name__
+            if "Conv2dBlock" in name:
+                print(f"{name}: {b.weight.shape}")

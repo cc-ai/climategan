@@ -1,6 +1,7 @@
 import argparse
 import sys
 from pathlib import Path
+from copy import deepcopy
 
 import numpy as np
 import torch
@@ -44,7 +45,7 @@ if __name__ == "__main__":
     # -------------------------------------
     if test_partial_decoder:
         print_header("test_partial_decoder")
-        partial_opts = opts.coy()
+        partial_opts = deepcopy(opts)
         partial_opts.gen.a.ignore = False
         partial_opts.gen.d.ignore = True
         partial_opts.gen.h.ignore = False
@@ -58,13 +59,15 @@ if __name__ == "__main__":
         print(v.shape)
         print(sum(p.numel() for p in G.decoders.parameters()))
 
+    G = get_gen(opts).to(device)
+
     # -------------------------------
     # -----  Test Architecture  -----
     # -------------------------------
-    G = get_gen(opts).to(device)
     if print_architecture:
-        print("DECODERS:", G.decoders)
-        print("ENCODER:", G.encoder)
+        print("Decoders")
+        # print("DECODERS:", G.decoders)
+        # print("ENCODER:", G.encoder)
 
     # ------------------------------------
     # -----  Test encoder.forward()  -----

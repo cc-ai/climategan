@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.utils.spectral_norm as spectral_norm
 from omnigan.norms import SPADE, SpectralNorm, LayerNorm, AdaptiveInstanceNorm2d
+import omnigan.strings as strings
 
 # TODO: Organise file
 
@@ -88,6 +89,9 @@ class Conv2dBlock(nn.Module):
             x = self.activation(x)
         return x
 
+    def __str__(self):
+        return strings.conv2dblock(self)
+
 
 # -----------------------------
 # -----  Residual Blocks  -----
@@ -105,11 +109,16 @@ class ResBlocks(nn.Module):
     def forward(self, x):
         return self.model(x)
 
+    def __str__(self):
+        return strings.resblocks(self)
+
 
 class ResBlock(nn.Module):
     def __init__(self, dim, norm="in", activation="relu", pad_type="zero"):
         super(ResBlock, self).__init__()
-
+        self.dim = dim
+        self.norm = norm
+        self.activation = activation
         model = []
         model += [
             Conv2dBlock(
@@ -128,6 +137,9 @@ class ResBlock(nn.Module):
         out = self.model(x)
         out += residual
         return out
+
+    def __str__(self):
+        return strings.resblock(self)
 
 
 # --------------------------
@@ -181,6 +193,9 @@ class BaseDecoder(nn.Module):
     def forward(self, x):
         return self.model(x)
 
+    def __str__(self):
+        return strings.basedecoder(self)
+
 
 # --------------------------
 # -----  SPADE Blocks  -----
@@ -200,6 +215,12 @@ class SPADEResnetBlock(nn.Module):
     ):
         super().__init__()
         # Attributes
+
+        self.fin = fin
+        self.fout = fout
+        self.use_spectral_norm = spade_use_spectral_norm
+        self.param_free_norm = spade_param_free_norm
+        self.kernel_size = spade_kernel_size
 
         self.learned_shortcut = fin != fout
         fmiddle = min(fin, fout)
@@ -242,6 +263,9 @@ class SPADEResnetBlock(nn.Module):
 
     def activation(self, x):
         return F.leaky_relu(x, 2e-1)
+
+    def __str__(self):
+        return strings.spaderesblock(self)
 
 
 class SpadeDecoder(nn.Module):
@@ -343,3 +367,6 @@ class SpadeDecoder(nn.Module):
         y = self.conv_img(F.leaky_relu(y, 2e-1))
         y = torch.tanh(y)
         return y
+
+    def __str__(self):
+        return strings.spadedecoder(self)
