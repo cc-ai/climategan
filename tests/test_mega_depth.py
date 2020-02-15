@@ -2,7 +2,6 @@ import argparse
 import sys
 from pathlib import Path
 
-from addict import Dict
 from skimage import io
 import torch
 
@@ -10,41 +9,38 @@ sys.path.append(str(Path(__file__).parent.parent.resolve()))
 from omnigan.data import get_all_loaders
 from omnigan.mega_depth import get_mega_model
 from omnigan.trainer import Trainer
-from omnigan.utils import decode_mega_depth, load_opts
+from omnigan.utils import decode_mega_depth, load_test_opts
 from run import print_header
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-c", "--config", default="config/local_tests.yaml")
 args = parser.parse_args()
 root = Path(__file__).parent.parent
-opts = load_opts(root / args.config, default=root / "shared/defaults.yaml")
+opts = load_test_opts(args.config)
 
 
 if __name__ == "__main__":
-
-    opts = opts.copy()
-    crop_to = 32
-    write_images = True
-    test_batch = False
-    test_translation = True
-
+    # ------------------------
+    # -----  Test Setup  -----
+    # ------------------------
     not_committed_path = Path(__file__).parent / "not_committed"
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
     if not not_committed_path.exists():
         not_committed_path.mkdir()
-
-    if crop_to > 0:
-        opts.data.transforms += [
-            Dict({"name": "crop", "ignore": False, "height": crop_to, "width": crop_to})
-        ]
-
     mega = get_mega_model().to(device)
     loaders = get_all_loaders(opts)
     loader = loaders["train"]["rn"]
     batch = next(iter(loader))
+    # -------------------------
+    # -----  Test Config  -----
+    # -------------------------
+    write_images = True
+    test_batch = True
+    test_translation = True
 
+    # ------------------------------------
+    # -----  Test MD on whole batch  -----
+    # ------------------------------------
     if test_batch:
         print_header("infer MD on batch")
         im_t = batch["data"]["x"].to(device)
@@ -60,6 +56,9 @@ if __name__ == "__main__":
                 )
         print("Done.")
 
+    # ---------------------------------------
+    # -----  Test MD after translation  -----
+    # ---------------------------------------
     if test_translation:
         print_header("translate then infer MD")
         trainer = Trainer(opts, verbose=1)

@@ -32,6 +32,17 @@ tasks: [a, d, s, t] # for now no h or w
 data:
   files: # if one is not none it will override the dirs location
     base: /Users/victor/Documents/ccai/github/omnigan/example_data
+  transforms:
+  - name: hflip
+    ignore: false
+    p: 0.5
+  - name: resize
+    ignore: false
+    new_size: 256
+  - name: crop
+    ignore: false
+    height: 64
+    width: 64
 gen:
   encoder:
     n_res: 1

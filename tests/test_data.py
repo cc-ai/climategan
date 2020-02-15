@@ -6,21 +6,20 @@ from addict import Dict
 
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
 from omnigan.data import OmniListDataset, get_all_loaders
-from omnigan.utils import load_opts, transforms_string
+from omnigan.utils import load_test_opts, transforms_string
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-c", "--config", default="config/local_tests.yaml")
 args = parser.parse_args()
 root = Path(__file__).parent.parent
-opts = load_opts(root / args.config, default=root / "shared/defaults.yaml")
-
+opts = load_test_opts(args.config)
 
 
 if __name__ == "__main__":
-
-    opts = opts.copy()
-
+    # ------------------------
+    # -----  Test Setup  -----
+    # ------------------------
     opts.data.loaders.batch_size = 2
     opts.data.loaders.num_workers = 2
     opts.data.loaders.shuffle = True
@@ -28,6 +27,9 @@ if __name__ == "__main__":
 
     ds = OmniListDataset("train", "rn", opts)
 
+    # ------------------------------------
+    # -----  Test transforms_string  -----
+    # ------------------------------------
     print(transforms_string(loaders["train"]["rn"].dataset.transform))
 
     sample = ds[0]
@@ -35,6 +37,9 @@ if __name__ == "__main__":
 
     print("Batch: ", "items, ", " ".join(batch.keys()), "keys")
 
+    # -------------------------------
+    # -----  Test batch values  -----
+    # -------------------------------
     for k in batch["data"]:
         print(
             k,
@@ -46,7 +51,9 @@ if __name__ == "__main__":
             batch["domain"],
             batch["mode"],
         )
-
+    # --------------------------------
+    # -----  Test loaders paths  -----
+    # --------------------------------
     print(
         "All Loaders: \n",
         [
@@ -56,6 +63,9 @@ if __name__ == "__main__":
         ],
     )
 
+    # --------------------------------------
+    # -----  Test multi_batch content  -----
+    # --------------------------------------
     for i, multi_batch in enumerate(
         zip(*[loaders["train"][domain] for domain in loaders["train"]])
     ):

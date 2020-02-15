@@ -3,7 +3,6 @@ import torch.nn as nn
 from omnigan.utils import (
     init_weights,
     get_4D_bit,
-    domains_to_class_tensor,
     get_conditioning_tensor,
 )
 from omnigan.blocks import Conv2dBlock, ResBlocks, SpadeDecoder, BaseDecoder
@@ -16,9 +15,12 @@ from omnigan.blocks import Conv2dBlock, ResBlocks, SpadeDecoder, BaseDecoder
 # TODO think about how to use the classifier probs at inference
 
 
-def get_gen(opts, verbose=0):
-    G = OmniGenerator(opts)
+def get_gen(opts, latent_shape=None, verbose=0):
+    G = OmniGenerator(opts, latent_shape, verbose)
     for model in G.decoders:
+        if model == "t":
+            if opts.gen.t.use_spade or opts.gen.t.use_bit_conditioning:
+                continue
         net = G.decoders[model]
         if isinstance(net, nn.ModuleDict):
             for domain_model in net.keys():
@@ -39,7 +41,7 @@ def get_gen(opts, verbose=0):
 
 
 class OmniGenerator(nn.Module):
-    def __init__(self, opts):
+    def __init__(self, opts, latent_shape=None, verbose=None):
         """Creates the generator. All decoders listed in opts.gen will be added
         to the Generator.decoders ModuleDict if opts.gen.DecoderInitial is not True.
         Then can be accessed as G.decoders.T or G.decoders["T"] for instance,
@@ -51,24 +53,18 @@ class OmniGenerator(nn.Module):
         super().__init__()
         self.opts = opts
         self.encoder = Encoder(opts)
-
+        self.verbose = verbose
         self.decoders = {}
 
         if "t" in opts.tasks and not opts.gen.t.ignore:
-            if opts.gen.t.use_bit_conditioning:
-                if not opts.gen.t.use_spade:
-                    raise ValueError(
-                        "cannot have use_bit_conditioning but not use_spade"
-                    )
-                self.decoders["t"] = SpadeTranslationDict(opts)
+            if opts.gen.t.use_bit_conditioning or opts.gen.t.use_spade:
+                self.decoders["t"] = None  # call set_translation_decoder(latent_shape)
             else:
-                TranslationDecoder = (
-                    SpadeTranslationDecoder
-                    if self.opts.gen.t.use_spade
-                    else BaseTranslationDecoder
-                )
                 self.decoders["t"] = nn.ModuleDict(
-                    {"f": TranslationDecoder(opts), "n": TranslationDecoder(opts)}
+                    {
+                        "f": BaseTranslationDecoder(opts),
+                        "n": BaseTranslationDecoder(opts),
+                    }
                 )
 
         if "a" in opts.tasks and not opts.gen.a.ignore:
@@ -89,6 +85,28 @@ class OmniGenerator(nn.Module):
             self.decoders["w"] = WaterDecoder(opts)
 
         self.decoders = nn.ModuleDict(self.decoders)
+
+    def set_translation_decoder(self, latent_shape):
+        if self.opts.gen.t.use_bit_conditioning:
+            if not self.opts.gen.t.use_spade:
+                raise ValueError("cannot have use_bit_conditioning but not use_spade")
+            self.decoders["t"] = SpadeTranslationDict(latent_shape, self.opts)
+        elif self.opts.gen.t.use_spade:
+            self.decoders["t"] = nn.ModuleDict(
+                {
+                    "f": SpadeTranslationDecoder(latent_shape, self.opts),
+                    "n": SpadeTranslationDecoder(latent_shape, self.opts),
+                }
+            )
+        for k in ["f", "n"]:
+            init_weights(
+                self.decoders["t"][k],
+                init_type=self.opts.gen.t.init_type,
+                init_gain=self.opts.gen.t.init_gain,
+                verbose=self.verbose,
+            )
+        else:
+            pass  # not using spade in anyway: do nothing
 
     def translate_batch(self, batch, translator="f", z=None):
         """Computes the translation of the images in a batch, according amongst
@@ -167,6 +185,7 @@ class Encoder(nn.Module):
         n_downsample = opts.gen.encoder.n_downsample
         n_res = opts.gen.encoder.n_res
         norm = opts.gen.encoder.norm
+        res_norm = opts.gen.encoder.res_norm
         pad_type = opts.gen.encoder.pad_type
 
         self.model = [
@@ -191,7 +210,7 @@ class Encoder(nn.Module):
             dim *= 2
         # residual blocks
         self.model += [
-            ResBlocks(n_res, dim, norm=norm, activation=activ, pad_type=pad_type)
+            ResBlocks(n_res, dim, norm=res_norm, activation=activ, pad_type=pad_type)
         ]
         self.model = nn.Sequential(*self.model)
         self.output_dim = dim
@@ -285,10 +304,10 @@ class BaseTranslationDecoder(BaseDecoder):
 
 
 class SpadeTranslationDict(nn.ModuleDict):
-    def __init__(self, opts):
+    def __init__(self, latent_shape, opts):
         super().__init__()
         self.opts = opts
-        self._model = SpadeTranslationDecoder(opts)
+        self._model = SpadeTranslationDecoder(latent_shape, opts)
 
     def keys(self):
         return ["f", "n"]
@@ -304,7 +323,7 @@ class SpadeTranslationDict(nn.ModuleDict):
 
 
 class SpadeTranslationDecoder(SpadeDecoder):
-    def __init__(self, opts):
+    def __init__(self, latent_shape, opts):
         self.bit = None
         self.use_bit_conditioning = opts.gen.t.use_bit_conditioning
 
@@ -319,17 +338,14 @@ class SpadeTranslationDecoder(SpadeDecoder):
         if "w" in opts.tasks:
             cond_nc += 1
         self.cond_nc = cond_nc
+
         super().__init__(
-            opts.gen.t.n_upsample,  # number of upsampling
-            opts.gen.t.n_res,  # number of resblocks before upsampling
-            opts.gen.t.res_dim,  # resblock dimension
-            opts.gen.t.output_dim,  # number of channels in the output
-            opts.gen.t.activ,  # activation function
-            opts.gen.t.pad_type,  # padding type
+            latent_shape,  # c x h x w of z
+            cond_nc,  # number of channels in the conditioning tensor
+            opts.gen.t.spade_n_up,  # number of upsampling
             opts.gen.t.spade_use_spectral_norm,  # use spectral norm in spade blocks?
             opts.gen.t.spade_param_free_norm,  # parameter-free norm in spade blocks
             opts.gen.t.spade_kernel_size,  # 3
-            cond_nc,  # number of channels in the conditioning tensor
         )
         self.register_buffer("f_bit", torch.tensor([1, 0]))
         self.register_buffer("n_bit", torch.tensor([0, 1]))
@@ -344,14 +360,9 @@ class SpadeTranslationDecoder(SpadeDecoder):
 
     def concat_bit_to_seg(self, seg):
         bit = get_4D_bit(seg.shape, self.bit)
-        return torch.cat([bit, seg.to(torch.float32)], dim=1)
+        return torch.cat([bit.to(torch.float32), seg.to(torch.float32)], dim=1)
 
-    def forward(self, x, seg):
+    def forward(self, z, seg):
         if self.use_bit_conditioning:
             seg = self.concat_bit_to_seg(seg)
-        for j in range(len(self.model)):
-            if j == 0:  # spade resblocks
-                x = self.model[j].forward(x, seg)
-            else:  # standard upsampling blocks
-                x = self.model[j].forward(x)
-        return x
+        return self._forward(z, seg)
