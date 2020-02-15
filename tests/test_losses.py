@@ -7,7 +7,7 @@ import torch
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
 from omnigan.data import get_all_loaders
 from omnigan.generator import get_gen
-from omnigan.losses import cross_entropy_2d
+from omnigan.losses import PixelCrossEntropy
 from omnigan.utils import load_test_opts
 from run import print_header
 
@@ -38,7 +38,8 @@ if __name__ == "__main__":
     # -----------------------------------
     print_header("test_crossentroy_2d")
     prediction = G.decoders["s"](z)
-    print(cross_entropy_2d(prediction, batch["data"]["s"].to(device)))
+    pce = PixelCrossEntropy()
+    print(pce(prediction, batch["data"]["s"].to(device)))
     # ! error how to infer from cropped data: input: 224 output: 256??
 
     # TODO more test for the losses

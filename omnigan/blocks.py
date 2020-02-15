@@ -333,17 +333,19 @@ class SpadeDecoder(nn.Module):
             spade_kernel_size,
         )
 
-        self.up_spades = [
-            SPADEResnetBlock(
-                self.z_nc // 2 ** i,
-                self.z_nc // 2 ** (i + 1),
-                cond_nc,
-                spade_use_spectral_norm,
-                spade_param_free_norm,
-                spade_kernel_size,
-            )
-            for i in range(spade_n_up - 2)
-        ]
+        self.up_spades = nn.Sequential(
+            *[
+                SPADEResnetBlock(
+                    self.z_nc // 2 ** i,
+                    self.z_nc // 2 ** (i + 1),
+                    cond_nc,
+                    spade_use_spectral_norm,
+                    spade_param_free_norm,
+                    spade_kernel_size,
+                )
+                for i in range(spade_n_up - 2)
+            ]
+        )
 
         self.final_nc = self.z_nc // 2 ** (spade_n_up - 2)
 
@@ -351,8 +353,18 @@ class SpadeDecoder(nn.Module):
 
         self.upsample = nn.Upsample(scale_factor=2)
 
-    def _forward(self, z, cond):
+    def _apply(self, fn):
+        # print("Applying SpadeDecoder", fn)
+        super()._apply(fn)
+        # self.head_0 = fn(self.head_0)
+        # self.G_middle_0 = fn(self.G_middle_0)
+        # self.G_middle_1 = fn(self.G_middle_1)
+        # for i, up in enumerate(self.up_spades):
+        #     self.up_spades[i] = fn(up)
+        # self.conv_img = fn(self.conv_img)
+        return self
 
+    def _forward(self, z, cond):
         y = self.head_0(z, cond)
 
         y = self.upsample(y)

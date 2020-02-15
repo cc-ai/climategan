@@ -5,7 +5,6 @@ from copy import deepcopy
 
 import numpy as np
 import torch
-from torchsummary import summary
 
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
 from omnigan.generator import get_gen
@@ -33,12 +32,11 @@ if __name__ == "__main__":
     # -------------------------
     # -----  Test config  -----
     # -------------------------
-    test_partial_decoder = True
-    print_architecture = True
-    test_encoder = True
-    test_encode_decode = True
+    test_partial_decoder = False
+    print_architecture = False
+    test_encoder = False
+    test_encode_decode = False
     test_translation = True
-    test_summary = True
 
     # -------------------------------------
     # -----  Test gen.decoder.ignore  -----
@@ -60,12 +58,13 @@ if __name__ == "__main__":
         print(sum(p.numel() for p in G.decoders.parameters()))
 
     G = get_gen(opts).to(device)
+    G.set_translation_decoder(latent_space_dims, device)
 
     # -------------------------------
     # -----  Test Architecture  -----
     # -------------------------------
     if print_architecture:
-        print("Decoders")
+        print(G)
         # print("DECODERS:", G.decoders)
         # print("ENCODER:", G.encoder)
 
@@ -103,32 +102,19 @@ if __name__ == "__main__":
         opts.gen.t.use_bit_conditioning = True
         G = get_gen(opts).to(device)
         z = G.encode(image)
-        G.set_translation_decoder(latent_space_dims)
+        G.set_translation_decoder(latent_space_dims, device)
         print(G.forward(image, translator="f").shape)
 
         print_header("test_translation use_spade no use_bit_conditioning")
         opts.gen.t.use_spade = True
         opts.gen.t.use_bit_conditioning = False
         G = get_gen(opts).to(device)
-        G.set_translation_decoder(latent_space_dims)
+        G.set_translation_decoder(latent_space_dims, device)
         print(G.forward(image, translator="f").shape)
 
         print_header("test_translation vanilla")
         opts.gen.t.use_spade = False
         opts.gen.t.use_bit_conditioning = False
         G = get_gen(opts).to(device)
-        G.set_translation_decoder(latent_space_dims)
+        G.set_translation_decoder(latent_space_dims, device)
         print(G.forward(image, translator="f").shape)
-
-    # -------------------------------------
-    # -----  Print torchsummary of G  -----
-    # -------------------------------------
-    if test_summary:
-        print_header("Generator summary no Spades")
-        print(summary(G, input_size=(3, 256, 256)))
-
-        print_header("Generator summary Spades")
-        opts.gen.t.use_spade = True
-        G = get_gen(opts).to(device)
-        G.set_translation_decoder(latent_space_dims)
-        print(summary(G, input_size=(3, 256, 256)))

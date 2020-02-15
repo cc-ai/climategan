@@ -10,10 +10,10 @@ from omnigan.data import get_all_loaders
 from omnigan.discriminator import get_dis
 from omnigan.generator import get_gen
 from omnigan.losses import (
-    cross_entropy,
-    pixel_cross_entropy,
-    l1_loss,
-    mse_loss,
+    CrossEntropy,
+    PixelCrossEntropy,
+    L1Loss,
+    MSELoss,
     GANLoss,
 )
 from omnigan.optim import get_optimizer
@@ -152,29 +152,29 @@ class Trainer:
         # translation losses
         if "a" in self.opts.tasks:
             self.losses["G"]["a"]["gan"] = GANLoss()
-            self.losses["G"]["a"]["cycle"] = mse_loss()
-            self.losses["G"]["a"]["auto"] = mse_loss()
+            self.losses["G"]["a"]["cycle"] = MSELoss()
+            self.losses["G"]["a"]["auto"] = MSELoss()
 
             # ? add sm and dm losses too as in "t"
 
         if "t" in self.opts.tasks:
             self.losses["G"]["t"]["gan"] = GANLoss()
-            self.losses["G"]["t"]["cycle"] = mse_loss()
-            self.losses["G"]["t"]["auto"] = mse_loss()
-            self.losses["G"]["t"]["sm"] = pixel_cross_entropy()
-            self.losses["G"]["t"]["dm"] = mse_loss()
+            self.losses["G"]["t"]["cycle"] = MSELoss()
+            self.losses["G"]["t"]["auto"] = MSELoss()
+            self.losses["G"]["t"]["sm"] = PixelCrossEntropy()
+            self.losses["G"]["t"]["dm"] = MSELoss()
 
         # task losses
         # ? * add discriminator and gan loss to these task when no ground truth
         # ?   instead of noisy label
         if "d" in self.opts.tasks:
-            self.losses["G"]["tasks"]["d"] = mse_loss()
+            self.losses["G"]["tasks"]["d"] = MSELoss()
 
         if "h" in self.opts.tasks:
-            self.losses["G"]["tasks"]["h"] = mse_loss()
+            self.losses["G"]["tasks"]["h"] = MSELoss()
 
         if "s" in self.opts.tasks:
-            self.losses["G"]["tasks"]["s"] = cross_entropy()
+            self.losses["G"]["tasks"]["s"] = CrossEntropy()
 
         if "w" in self.opts.tasks:
             self.losses["G"]["tasks"]["w"] = lambda x, y: (x + y).mean()
@@ -182,11 +182,11 @@ class Trainer:
         # undistinguishable features loss
         # TODO setup a get_losses func to assign the right loss according to the yaml
         if self.opts.classifier.loss == "l1":
-            loss_classifier = l1_loss()
+            loss_classifier = L1Loss()
         elif self.opts.classifier.loss == "l2":
-            loss_classifier = mse_loss()
+            loss_classifier = MSELoss()
         else:
-            loss_classifier = cross_entropy()
+            loss_classifier = CrossEntropy()
 
         self.losses["G"]["classifier"] = loss_classifier
         # -------------------------------
@@ -217,7 +217,7 @@ class Trainer:
         self.G = get_gen(self.opts, verbose=self.verbose).to(self.device)
         self.latent_shape = self.compute_latent_shape()
         self.output_size = self.latent_shape[0] * 2 ** self.opts.gen.t.spade_n_up
-        self.G.set_translation_decoder(self.latent_shape)
+        self.G.set_translation_decoder(self.latent_shape, self.device)
         self.D = get_dis(self.opts, verbose=self.verbose).to(self.device)
         self.C = get_classifier(self.opts, self.latent_shape, verbose=self.verbose).to(
             self.device
@@ -447,7 +447,7 @@ class Trainer:
             # Cross entropy loss (with sigmoid) with fake labels to fool C
             update_loss = self.losses["G"]["classifier"](
                 output_classifier,
-                fake_domains_to_class_tensor(batch["domain"], one_hot).to(self.device),
+                fake_domains_to_class_tensor(batch["domain"], one_hot),
             )
             step_loss += lambdas.G.classifier * update_loss
             # -------------------------------------------------

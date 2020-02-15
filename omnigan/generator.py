@@ -55,7 +55,8 @@ class OmniGenerator(nn.Module):
 
         if "t" in opts.tasks and not opts.gen.t.ignore:
             if opts.gen.t.use_bit_conditioning or opts.gen.t.use_spade:
-                self.decoders["t"] = None  # call set_translation_decoder(latent_shape)
+                self.decoders["t"] = None
+                # call set_translation_decoder(latent_shape, device)
             else:
                 self.decoders["t"] = nn.ModuleDict(
                     {
@@ -83,16 +84,17 @@ class OmniGenerator(nn.Module):
 
         self.decoders = nn.ModuleDict(self.decoders)
 
-    def set_translation_decoder(self, latent_shape):
+    def set_translation_decoder(self, latent_shape, device):
         if self.opts.gen.t.use_bit_conditioning:
             if not self.opts.gen.t.use_spade:
                 raise ValueError("cannot have use_bit_conditioning but not use_spade")
             self.decoders["t"] = SpadeTranslationDict(latent_shape, self.opts)
+            self.decoders["t"] = self.decoders["t"].to(device)
         elif self.opts.gen.t.use_spade:
             self.decoders["t"] = nn.ModuleDict(
                 {
-                    "f": SpadeTranslationDecoder(latent_shape, self.opts),
-                    "n": SpadeTranslationDecoder(latent_shape, self.opts),
+                    "f": SpadeTranslationDecoder(latent_shape, self.opts).to(device),
+                    "n": SpadeTranslationDecoder(latent_shape, self.opts).to(device),
                 }
             )
         for k in ["f", "n"]:
@@ -366,7 +368,9 @@ class SpadeTranslationDecoder(SpadeDecoder):
 
     def concat_bit_to_seg(self, seg):
         bit = get_4D_bit(seg.shape, self.bit)
-        return torch.cat([bit.to(torch.float32), seg.to(torch.float32)], dim=1)
+        return torch.cat(
+            [bit.to(torch.float32).to(seg.device), seg.to(torch.float32)], dim=1
+        )
 
     def forward(self, z, seg):
         if self.use_bit_conditioning:

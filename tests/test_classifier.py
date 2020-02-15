@@ -6,7 +6,7 @@ import torch
 
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
 from omnigan.classifier import get_classifier
-from omnigan.losses import cross_entropy, l1_loss
+from omnigan.losses import CrossEntropy, L1Loss
 from omnigan.utils import domains_to_class_tensor, load_test_opts
 from run import tprint
 
@@ -28,8 +28,8 @@ if __name__ == "__main__":
     labels = domains_to_class_tensor(target_domains, one_hot=False).to(device)
     one_hot_labels = domains_to_class_tensor(target_domains, one_hot=True).to(device)
 
-    cross_entropy = cross_entropy()
-    loss_l1 = l1_loss()
+    cross_entropy = CrossEntropy()
+    loss_l1 = L1Loss()
 
     # ------------------------------
     # -----  Test C.forward()  -----
