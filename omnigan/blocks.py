@@ -1,3 +1,5 @@
+"""File for all blocks which are parts of decoders
+"""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

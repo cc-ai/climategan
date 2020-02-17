@@ -7,7 +7,8 @@ import torch
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
 from omnigan.classifier import get_classifier
 from omnigan.losses import CrossEntropy, L1Loss
-from omnigan.utils import domains_to_class_tensor, load_test_opts
+from omnigan.tutils import domains_to_class_tensor
+from omnigan.utils import load_test_opts
 from run import tprint
 
 

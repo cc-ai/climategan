@@ -1,3 +1,5 @@
+"""File running all tests found as tests/test_*.py
+"""
 import argparse
 import os
 from pathlib import Path

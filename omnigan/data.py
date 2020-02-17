@@ -1,3 +1,7 @@
+"""Data-loading functions in order to create a Dataset and DataLoaders.
+Transforms for loaders are in transforms.py
+"""
+
 from pathlib import Path
 import yaml
 import json

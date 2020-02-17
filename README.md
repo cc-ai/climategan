@@ -17,6 +17,9 @@
   - [Model Architecture](#model-architecture)
     - [Generator](#generator-1)
     - [Discriminators](#discriminators)
+- [Running Experiments](#running-experiments)
+  - [Comet-specific parameters](#comet-specific-parameters)
+  - [Sampling parameters](#sampling-parameters)
 - [Choices and Ideas](#choices-and-ideas)
 
 ## Setup
@@ -272,6 +275,48 @@ Set `should_delete` to False in the file not to delete the test experiment once 
 ### Discriminators
 
 TODO
+
+# Running Experiments
+
+Using `experiment.py` you can easily run `sbatch` jobs to run trainings. It takes two arguments:
+
+* **`--experiment`**: path to the experiment YAML configuration file
+* **`--template`**: path to the sbatch template to run
+
+`python experiment.py --experiment=shared/experiment/exp-d.yaml --template=shared/experiment/template.sh` will:
+
+1. load `exp-d.yaml` as an addict.Dict `xopts`
+   1. load `xopts.defaults` as default parameters for the trainers: they are those shared across all experiments
+   2. load `xopts.config` to override `xopts.defaults` for the trainers: they are those shared across trainers for this experiment
+   3. load `xopts.runs[i].trainer` to override `xopts.config`: these are trainer `i`'s specific parameters within the experiment
+2. create an `sbatch` file `exp.sh` from `--template`, filling `{{param}}` according to `omnigan.utils.write_run_template`, by specifying `cpu`, `gpu`, args to `train.py` etc.
+3. write reproducibility files:
+   1. git hash code to `hash.txt`
+   2. comet url to `comet_url.txt`
+   3. experiment file to `exp_i.yaml` where `i` is the index of the run in `xopts.runs`
+   4. trainer config file to `config.yaml`
+   5. `sbatch` launch file in `exp.sh`
+
+## Comet-specific parameters
+
+* `experiment.exp_desc`: Overall description of the experiment
+* `runs[i].comet.note`: Text description of this run
+* `runs[i].comet.tags`: tags for the comet experiment log
+
+## Sampling parameters
+
+In an **experiment** config file, you may switch a parameter's value with a dict to sample this parameter from some distribution instead of just specifying it:
+
+```yaml
+runs:
+  - trainer:
+    gen:
+      opt:
+        lr:
+          sample: list            | range            | uniform
+          from: "[list of values] | [min, max, step] | [low, high, size]"
+
+```
 
 # Choices and Ideas
 

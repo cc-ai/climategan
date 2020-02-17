@@ -1,3 +1,5 @@
+"""custom __str__ methods for OmniGAN's classes
+"""
 import torch.nn as nn
 
 

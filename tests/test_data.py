@@ -6,7 +6,8 @@ from addict import Dict
 
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
 from omnigan.data import OmniListDataset, get_all_loaders
-from omnigan.utils import load_test_opts, transforms_string
+from omnigan.utils import load_test_opts
+from omnigan.tutils import transforms_string
 
 
 parser = argparse.ArgumentParser()

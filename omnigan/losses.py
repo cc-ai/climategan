@@ -1,3 +1,6 @@
+"""Define all losses. When possible, as inheriting from nn.Module
+To send predictions to target.device
+"""
 import numpy as np
 import torch
 import torch.nn.functional as F

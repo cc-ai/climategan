@@ -1,5 +1,7 @@
+"""Classifier architecture for domain adaptation
+"""
 from torch import nn
-from omnigan.utils import init_weights
+from omnigan.tutils import init_weights
 
 
 def get_classifier(opts, latent_space, verbose):
