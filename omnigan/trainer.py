@@ -21,11 +21,11 @@ from omnigan.losses import (
 )
 from omnigan.optim import get_optimizer
 from omnigan.mega_depth import get_mega_model
-from omnigan.utils import (
+from omnigan.utils import flatten_opts
+from omnigan.tutils import (
     domains_to_class_tensor,
     fake_batch,
     fake_domains_to_class_tensor,
-    flatten_opts,
     freeze,
     shuffle_batch_tuple,
     get_conditioning_tensor,

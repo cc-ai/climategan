@@ -3,9 +3,9 @@ experiment:
   defaults: shared/trainer/defaults.yaml # default file to configure trainers
   config: config/trainer/local_tests.yaml # file to override defaults trainers
   no_comet: false # don't log on comet?
-  dev_mode: false # just trying?
-  base_dir: /network/tmp1/$USER/omnigan/experiments/ # experiment base dir in which runs will be stored
-  repeat: 1 # if > 1, repeat the list in runs (to sample differently from the same conf for instance)
+  dev_mode: true # just trying?
+  base_dir: /Users/victor/Documents/ccai/github/omnigan/example_data/exps # experiment base dir in which runs will be stored
+  repeat: 2 # if > 1, repeat the list in runs (to sample differently from the same conf for instance)
 
 runs:
   - sbatch: # dictionary for the sbatch job

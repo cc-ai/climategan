@@ -85,6 +85,8 @@ if __name__ == "__main__":
         exp.log_parameters(flatten_opts(opts))
         if args.exp_desc:
             exp.log_parameter("exp_desc", args.exp_desc)
+        with open(Path(opts.output_path) / "comet_url.txt", "w") as f:
+            f.write(exp.url)
 
     # ----------------------
     # -----  Dev Mode  -----

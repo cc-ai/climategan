@@ -36,7 +36,7 @@ def load_exp(path):
         )
         trainer_opts = load_opts(conf, defaults)
         trainer_opts.update(run.trainer)
-        trainer_opts.output_path = get_increased_path(
+        trainer_opts.output_path = str(
             Path(env_to_path(xopts.experiment.base_dir)) / "run"
         )
         xopts.runs[i].trainer = trainer_opts
@@ -44,13 +44,10 @@ def load_exp(path):
     return xopts
 
 
-def write_run_template(xopts, i):
-    # TODO write config in the write place + run subprocess
+def write_run_template(xopts, i, template_path, write_path):
     ropt = xopts.runs[i]
     exp = xopts.experiment
-    with open(
-        Path(__file__).parent.parent / "shared" / "experiment" / "template.sh", "r"
-    ) as f:
+    with open(template_path, "r") as f:
         template = f.readlines()
 
     beluga = bool(os.environ.get("SCRATCH"))
@@ -97,9 +94,7 @@ def write_run_template(xopts, i):
         if not ignore:
             new_template.append(line)
 
-    with open(
-        Path(__file__).parent.parent / "shared" / "experiment" / "exp.sh", "w"
-    ) as f:
+    with open(write_path, "w") as f:
         f.write("\n".join(new_template))
 
 
@@ -218,6 +213,12 @@ def get_git_revision_hash():
         str: git hash
     """
     return subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
+
+
+def write_hash(path):
+    hash_code = get_git_revision_hash()
+    with open(path, "w") as f:
+        f.write(hash_code)
 
 
 def get_increased_path(path):
