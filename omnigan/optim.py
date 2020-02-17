@@ -1,3 +1,5 @@
+"""Define ExtraAdam and schedulers
+"""
 import torch
 import math
 from torch.optim import Optimizer, Adam, lr_scheduler

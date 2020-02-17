@@ -1,3 +1,8 @@
+"""Complete Generator architecture:
+    * OmniGenerator
+    * Encoder
+    * Decoders
+"""
 import torch
 import torch.nn as nn
 from omnigan.utils import init_weights, get_4D_bit, get_conditioning_tensor

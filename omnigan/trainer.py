@@ -1,7 +1,10 @@
+"""Main component: the trainer handles everything:
+    * initializations
+    * training
+    * saving
+"""
 from comet_ml import Experiment
-
 from time import time
-
 import torch
 from addict import Dict
 

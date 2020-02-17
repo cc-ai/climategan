@@ -9,7 +9,8 @@ sys.path.append(str(Path(__file__).parent.parent.resolve()))
 from omnigan.data import get_all_loaders
 from omnigan.mega_depth import get_mega_model
 from omnigan.trainer import Trainer
-from omnigan.utils import decode_mega_depth, load_test_opts
+from omnigan.utils import load_test_opts
+from omnigan.tutils import decode_mega_depth
 from run import print_header
 
 parser = argparse.ArgumentParser()

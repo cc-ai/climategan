@@ -9,12 +9,12 @@ import addict
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
 from omnigan.data import get_all_loaders
 from omnigan.utils import (
-    domains_to_class_tensor,
     env_to_path,
     flatten_opts,
     get_increased_path,
     load_test_opts,
 )
+from omnigan.tutils import domains_to_class_tensor
 from run import print_header
 
 

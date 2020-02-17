@@ -24,6 +24,9 @@ def parsed_args():
         help="What configuration file to use to overwrite shared/defaults.yml",
     )
     parser.add_argument(
+        "--exp_desc", default="", type=str, help="Description of the experiment",
+    )
+    parser.add_argument(
         "--no_comet", action="store_true", help="DON'T use comet.ml to log experiment"
     )
     parser.add_argument(
@@ -63,7 +66,7 @@ if __name__ == "__main__":
     # -----  Load opts  -----
     # -----------------------
 
-    opts = load_opts(Path(args.config), default="./shared/defaults.yml")
+    opts = load_opts(Path(args.config), default="./shared/trainer/defaults.yml")
     opts.output_path = env_to_path(opts.output_path)
     opts.output_path = get_increased_path(opts.output_path)
     pprint("Running model in", opts.output_path)
@@ -80,6 +83,8 @@ if __name__ == "__main__":
     if not args.no_comet and not args.dev_mode:
         exp = Experiment(project_name="omnigan", auto_metric_logging=False)
         exp.log_parameters(flatten_opts(opts))
+        if args.exp_desc:
+            exp.log_parameter("exp_desc", args.exp_desc)
 
     # ----------------------
     # -----  Dev Mode  -----
