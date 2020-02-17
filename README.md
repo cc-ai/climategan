@@ -18,6 +18,7 @@
     - [Generator](#generator-1)
     - [Discriminators](#discriminators)
 - [Running Experiments](#running-experiments)
+  - [Comet-specific parameters](#comet-specific-parameters)
   - [Sampling parameters](#sampling-parameters)
 - [Choices and Ideas](#choices-and-ideas)
 
@@ -295,6 +296,12 @@ Using `experiment.py` you can easily run `sbatch` jobs to run trainings. It take
    3. experiment file to `exp_i.yaml` where `i` is the index of the run in `xopts.runs`
    4. trainer config file to `config.yaml`
    5. `sbatch` launch file in `exp.sh`
+
+## Comet-specific parameters
+
+* `experiment.exp_desc`: Overall description of the experiment
+* `runs[i].comet.note`: Text description of this run
+* `runs[i].comet.tags`: tags for the comet experiment log
 
 ## Sampling parameters
 

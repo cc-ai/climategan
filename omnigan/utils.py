@@ -88,9 +88,11 @@ def write_run_template(xopts, i, template_path, write_path):
                 replace = f'--exp_desc="{str(exp.exp_desc)}"' if exp.exp_desc else ""
             elif param == "dev_mode":
                 replace = "--dev_mode" if exp.dev_mode else ""
+            elif param == "note":
+                replace = f'--note="{str(ropt.comet.note)}"' if ropt.comet.note else ""
             elif param == "tags":
                 replace = ""
-                for t in ropt.sbatch.tags:
+                for t in ropt.comet.tags:
                     replace += f"--tag {'_'.join(t.split())} "
             else:
                 ignore = True

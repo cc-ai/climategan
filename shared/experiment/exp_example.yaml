@@ -17,6 +17,7 @@ runs:
       gpu: ":1" # what kind of GPU (--gres=gpu<run.gpu>)
       duration: "12:00:00" # quotes are needed otherwise parsed as time in seconds not string
       partition: unkillable # partition for the sbatch job
+    comet:
       note: "" # note describing this particular run
       tags: [no_dropout, victor, d_only, test tag] # experiment tags ; white spaces are replaced by _
     trainer: # exploration dictionary (runs.trainer > config_file > defaults.yaml)
