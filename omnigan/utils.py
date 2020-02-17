@@ -58,7 +58,7 @@ def set_data_paths(opts):
     return opts
 
 
-def load_test_opts(test_file_path="config/local_tests.yaml"):
+def load_test_opts(test_file_path="config/trainer/local_tests.yaml"):
     """Returns the special opts set up for local tests
     Args:
         test_file_path (str, optional): Name of the file located in config/
@@ -69,7 +69,7 @@ def load_test_opts(test_file_path="config/local_tests.yaml"):
     """
     return load_opts(
         Path(__file__).parent.parent / f"{test_file_path}",
-        default=Path(__file__).parent.parent / "shared/defaults.yaml",
+        default=Path(__file__).parent.parent / "shared/trainer/defaults.yaml",
     )
 
 
