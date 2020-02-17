@@ -1,5 +1,5 @@
 experiment:
-  exp_desc: Training d only - 1 # Description of the experiment
+  exp_desc: Training d only - 1 # Description of the experiment, will be logged to comet
   defaults: shared/trainer/defaults.yaml # default file to configure trainers
   config: config/trainer/local_tests.yaml # file to override defaults trainers
   no_comet: false # don't log on comet?
@@ -17,6 +17,8 @@ runs:
       gpu: ":1" # what kind of GPU (--gres=gpu<run.gpu>)
       duration: "12:00:00" # quotes are needed otherwise parsed as time in seconds not string
       partition: unkillable # partition for the sbatch job
+      note: "" # note describing this particular run
+      tags: [no_dropout, victor, d_only, test tag] # experiment tags ; white spaces are replaced by _
     trainer: # exploration dictionary (runs.trainer > config_file > defaults.yaml)
       # ---------------------
       # -----  TRAINER  -----

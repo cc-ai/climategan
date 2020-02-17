@@ -27,6 +27,9 @@ def parsed_args():
         "--exp_desc", default="", type=str, help="Description of the experiment",
     )
     parser.add_argument(
+        "--note", default="", type=str, help="Note about this training",
+    )
+    parser.add_argument(
         "--no_comet", action="store_true", help="DON'T use comet.ml to log experiment"
     )
     parser.add_argument(
@@ -35,6 +38,12 @@ def parsed_args():
         default=False,
         help="Run this script in development mode",
     )
+    parser.add_argument(
+        "--tag",
+        action="append",
+        help="Repeatable flag to add tags to the comet exp (--tag a --tag b ...)",
+    )
+
     return parser.parse_args()
 
 
@@ -85,6 +94,8 @@ if __name__ == "__main__":
         exp.log_parameters(flatten_opts(opts))
         if args.exp_desc:
             exp.log_parameter("exp_desc", args.exp_desc)
+        if args.note:
+            exp.log_parameter("note", args.note)
         with open(Path(opts.output_path) / "comet_url.txt", "w") as f:
             f.write(exp.url)
 

@@ -19,6 +19,6 @@ conda activate omnigan
 
 echo "Starting job"
 
-python train.py {{config}} {{no_comet}} {{exp_desc}} {{dev_mode}}
+python train.py {{config}} {{no_comet}} {{exp_desc}} {{dev_mode}}  {{tags}}
 
 echo 'done'

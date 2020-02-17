@@ -21,7 +21,7 @@ def parsed_args():
         "-e",
         "--experiment",
         type=str,
-        default="shared/experiment/exp_defaults.yaml",
+        default="shared/experiment/exp_example.yaml",
         help="Path to the experiment to run",
     )
     parser.add_argument(
