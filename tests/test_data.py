@@ -11,7 +11,7 @@ from omnigan.tutils import transforms_string
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-c", "--config", default="config/local_tests.yaml")
+parser.add_argument("-c", "--config", default="config/trainer/local_tests.yaml")
 args = parser.parse_args()
 root = Path(__file__).parent.parent
 opts = load_test_opts(args.config)
@@ -86,3 +86,4 @@ if __name__ == "__main__":
                 ]
             )
         )
+        multi_domain_batch = {batch["domain"][0]: batch for batch in multi_batch}

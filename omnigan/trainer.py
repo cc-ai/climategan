@@ -33,6 +33,8 @@ from omnigan.tutils import (
 
 
 class Trainer:
+    """Main trainer class
+    """
     def __init__(self, opts, comet_exp=None, verbose=0):
         """Trainer class to gather various model training procedures
         such as training evaluating saving and logging
