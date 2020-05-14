@@ -44,9 +44,9 @@ class RandomCrop:
         }
 
 
-class RandomVerticalFlip:
+class RandomHorizontalFlip:
     def __init__(self, p=0.5):
-        self.flip = TF.vflip
+        self.flip = TF.hflip
         self.p = p
 
     def __call__(self, data):
@@ -105,7 +105,7 @@ def get_transform(transform_item):
         return Resize(transform_item.new_size)
 
     if transform_item.name == "hflip" and not transform_item.ignore:
-        return RandomVerticalFlip(p=transform_item.p or 0.5)
+        return RandomHorizontalFlip(p=transform_item.p or 0.5)
 
     raise ValueError("Unknown transform_item {}".format(transform_item))
 

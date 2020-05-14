@@ -29,7 +29,8 @@ class OmniClassifier(nn.Module):
                 nn.MaxPool2d(2),
                 BasicBlock(int(self.channels / 2), int(self.channels / 4), True),
                 nn.AvgPool2d((int(self.feature_size / 4), int(self.feature_size / 4))),
-                Squeeze(),
+                Squeeze(-1),
+                Squeeze(-1),
                 nn.Linear(int(self.channels / 4), 4),
             ]
         )
@@ -43,7 +44,13 @@ class OmniClassifier(nn.Module):
 
 
 class Squeeze(nn.Module):
+    def __init__(self, dim=-2):
+        super().__init__()
+        self.dim = dim
+
     def forward(self, x):
+        if self.dim > -2:
+            return x.squeeze(self.dim)
         return x.squeeze()
 
 
