@@ -8,13 +8,12 @@
 2. Write **tests** in `tests/`
    1. your file should match `test_*.py`
    2. update existing tests when adding functionalities
-   3. run tests regularly to check you haven't broken anything `cd tests/ && python run.py`
+   3. run tests regularly to check you haven't broken anything `python tests/run.py`
 3. Add **WIP** in your PR's title when not ready to merge
-4. Use `questions.md` for anything that crosses your mind, really, use it
 5. Open an Issue if something's odd, or to assign yourself a todo
 6. **Format your code** with [black](https://github.com/psf/black)
-7. Only update `defaults.yaml` with values that should be shared across runs and users
-   1. use `config/local_tests.yaml` or any other to setup your particular config overriding `defaults.yaml`
+7. Only update `trainer/defaults.yaml` with values that should be shared across runs and users
+   1. use `config/trainer/local_tests.yaml` or any other to setup your particular config overriding `trainer/defaults.yaml`
 
 ## Running tests
 
@@ -33,6 +32,17 @@ tasks: [a, d, s, t] # for now no h or w
 data:
   files: # if one is not none it will override the dirs location
     base: /Users/victor/Documents/ccai/github/omnigan/example_data
+  transforms:
+  - name: hflip
+    ignore: false
+    p: 0.5
+  - name: resize
+    ignore: false
+    new_size: 256
+  - name: crop
+    ignore: false
+    height: 64
+    width: 64
 gen:
   encoder:
     n_res: 1

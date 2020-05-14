@@ -1,65 +1,84 @@
+import argparse
+import sys
+from pathlib import Path
+from copy import deepcopy
+
 import numpy as np
 import torch
-import sys
-from torchsummary import summary
 
-from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
-
 from omnigan.generator import get_gen
-from run import print_header, opts
+from omnigan.utils import load_test_opts
+from run import print_header
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-c", "--config",  default="config/trainer/local_tests.yaml")
+args = parser.parse_args()
+root = Path(__file__).parent.parent
+opts = load_test_opts(args.config)
 
 
 if __name__ == "__main__":
-
+    # ------------------------
+    # -----  Test Setup  -----
+    # ------------------------
     np.random.seed(0)
     torch.manual_seed(0)
-
-    opts = opts.copy()
-
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     batch_size = 2
-    latent_space_dims = [256, 32, 32]
-
-    image = torch.Tensor(batch_size, 3, 256, 256).uniform_(-1, 1)
-
-    test_partial_decoder = True
-    print_architecture = True
-    test_encoder = True
-    test_encode_decode = True
+    latent_space_dims = [256, 4, 4]
+    image = torch.Tensor(batch_size, 3, 32, 32).uniform_(-1, 1).to(device)
+    # -------------------------
+    # -----  Test config  -----
+    # -------------------------
+    test_partial_decoder = False
+    print_architecture = False
+    test_encoder = False
+    test_encode_decode = False
     test_translation = True
-    test_summary = True
 
+    # -------------------------------------
+    # -----  Test gen.decoder.ignore  -----
+    # -------------------------------------
     if test_partial_decoder:
         print_header("test_partial_decoder")
-        opts.gen.a.ignore = False
-        opts.gen.d.ignore = True
-        opts.gen.h.ignore = False
-        opts.gen.t.ignore = False
-        opts.gen.w.ignore = False
-        G = get_gen(opts)
+        partial_opts = deepcopy(opts)
+        partial_opts.gen.a.ignore = False
+        partial_opts.gen.d.ignore = True
+        partial_opts.gen.h.ignore = False
+        partial_opts.gen.t.ignore = False
+        partial_opts.gen.w.ignore = False
+        G = get_gen(partial_opts).to(device)
         print("d" in G.decoders)
         print("a" in G.decoders)
-        x = torch.randn(batch_size, *latent_space_dims, dtype=torch.float32)
-        v = G.decoders["s"](x)
+        z = torch.randn(batch_size, *latent_space_dims, dtype=torch.float32).to(device)
+        v = G.decoders["s"](z)
         print(v.shape)
         print(sum(p.numel() for p in G.decoders.parameters()))
 
-    opts.gen.a.ignore = False
-    opts.gen.d.ignore = False
-    opts.gen.h.ignore = False
-    opts.gen.t.ignore = False
-    opts.gen.w.ignore = False
+    G = get_gen(opts).to(device)
+    G.set_translation_decoder(latent_space_dims, device)
 
-    G = get_gen(opts)
+    # -------------------------------
+    # -----  Test Architecture  -----
+    # -------------------------------
     if print_architecture:
-        print("DECODERS:", G.decoders)
-        print("ENCODER:", G.encoder)
+        print(G)
+        # print("DECODERS:", G.decoders)
+        # print("ENCODER:", G.encoder)
 
+    # ------------------------------------
+    # -----  Test encoder.forward()  -----
+    # ------------------------------------
     if test_encoder:
         print_header("test_encoder")
         encoded = G.encode(image)
         print("Latent space dims {}".format(tuple(encoded.shape)[1:]))
 
+    # -------------------------------------------------------
+    # -----  Test encode then decode with all decoders  -----
+    # -------------------------------------------------------
     if test_encode_decode:
         print_header("test_encode_decode")
         z = G.encode(image)
@@ -73,20 +92,29 @@ if __name__ == "__main__":
                 else:
                     print(dec, G.decoders[dec](z).shape)
 
+    # --------------------------------------------------------------------
+    # -----  Test translation depending on use_bit_conditioning and  -----
+    # -----  use_spade                                               -----
+    # --------------------------------------------------------------------
     if test_translation:
-        print_header("test_translation")
-        print(G.forward(image, translator="f").shape)
-
-        print_header("test_translation")
-        opts.gen.t.use_spade = False
-        G = get_gen(opts)
-        print(G.forward(image, translator="f").shape)
-
-    if test_summary:
-        print_header("Generator summary no Spades")
-        print(summary(G, input_size=(3, 256, 256)))
-
-        print_header("Generator summary Spades")
+        print_header("test_translation use_bit_conditioning")
         opts.gen.t.use_spade = True
-        G = get_gen(opts)
-        print(summary(G, input_size=(3, 256, 256)))
+        opts.gen.t.use_bit_conditioning = True
+        G = get_gen(opts).to(device)
+        z = G.encode(image)
+        G.set_translation_decoder(latent_space_dims, device)
+        print(G.forward(image, translator="f").shape)
+
+        print_header("test_translation use_spade no use_bit_conditioning")
+        opts.gen.t.use_spade = True
+        opts.gen.t.use_bit_conditioning = False
+        G = get_gen(opts).to(device)
+        G.set_translation_decoder(latent_space_dims, device)
+        print(G.forward(image, translator="f").shape)
+
+        print_header("test_translation vanilla")
+        opts.gen.t.use_spade = False
+        opts.gen.t.use_bit_conditioning = False
+        G = get_gen(opts).to(device)
+        G.set_translation_decoder(latent_space_dims, device)
+        print(G.forward(image, translator="f").shape)

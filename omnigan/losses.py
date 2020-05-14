@@ -1,3 +1,6 @@
+"""Define all losses. When possible, as inheriting from nn.Module
+To send predictions to target.device
+"""
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -65,19 +68,28 @@ class GANLoss(nn.Module):
             if self.verbose > 0:
                 print("GANLoss: flipping label")
         target_tensor = self.get_target_tensor(input, target_is_real)
-        return self.loss(input, target_tensor)
+        return self.loss(input, target_tensor.to(input.device))
 
 
-def cross_entropy():
-    # loss(logits, target) with target as classes, NOT 1-h encoded
-    return torch.nn.CrossEntropyLoss()
+class CrossEntropy(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.loss = torch.nn.CrossEntropyLoss()
+
+    def __call__(self, logits, target):
+        return self.loss(logits, target.to(logits.device))
 
 
-def pixel_cross_entropy():
-    # Computes the cross entropy per pixel
-    # in  > pred: b x c x h x w | label: b x h x w (int)
-    # out > b x h x w
-    return torch.nn.CrossEntropyLoss(reduction="none")
+class PixelCrossEntropy(CrossEntropy):
+    """
+    Computes the cross entropy per pixel
+        in  > pred: b x c x h x w | label: b x h x w (int)
+        out > b x h x w
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.loss = torch.nn.CrossEntropyLoss(reduction="none")
 
 
 class TravelLoss(nn.Module):
@@ -141,17 +153,26 @@ def entropy_loss(v):
     return -torch.sum(torch.mul(v, torch.log2(v + 1e-30))) / (n * h * w * np.log2(c))
 
 
-def mse_loss():
+class MSELoss(nn.Module):
     """
     Creates a criterion that measures the mean squared error
     (squared L2 norm) between each element in the input x and target y .
     """
-    return torch.nn.MSELoss()
+
+    def __init__(self):
+        super().__init__()
+        self.loss = torch.nn.MSELoss()
+
+    def __call__(self, prediction, target):
+        return self.loss(prediction, target.to(prediction.device))
 
 
-def l1_loss():
+class L1Loss(MSELoss):
     """
     Creates a criterion that measures the mean absolute error
     (MAE) between each element in the input x and target y
     """
-    return torch.nn.L1Loss()
+
+    def __init__(self):
+        super().__init__()
+        self.loss = torch.nn.L1Loss()

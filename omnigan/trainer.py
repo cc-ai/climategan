@@ -1,7 +1,10 @@
+"""Main component: the trainer handles everything:
+    * initializations
+    * training
+    * saving
+"""
 from comet_ml import Experiment
-
 from time import time
-
 import torch
 from addict import Dict
 from pathlib import Path
@@ -11,27 +14,30 @@ from omnigan.data import get_all_loaders
 from omnigan.discriminator import get_dis
 from omnigan.generator import get_gen
 from omnigan.losses import (
-    cross_entropy,
-    pixel_cross_entropy,
-    l1_loss,
-    mse_loss,
+    CrossEntropy,
+    PixelCrossEntropy,
+    L1Loss,
+    MSELoss,
     GANLoss,
 )
 from omnigan.optim import get_optimizer
 from omnigan.mega_depth import get_mega_model
-from omnigan.utils import (
+from omnigan.utils import flatten_opts
+from omnigan.tutils import (
     domains_to_class_tensor,
     fake_batch,
     fake_domains_to_class_tensor,
-    flatten_opts,
     freeze,
     save_batch,
     slice_batch,
     shuffle_batch_tuple,
+    get_conditioning_tensor,
 )
 
 
 class Trainer:
+    """Main trainer class
+    """
     def __init__(self, opts, comet_exp=None, verbose=0):
         """Trainer class to gather various model training procedures
         such as training evaluating saving and logging
@@ -155,27 +161,29 @@ class Trainer:
         # translation losses
         if "a" in self.opts.tasks:
             self.losses["G"]["a"]["gan"] = GANLoss()
-            self.losses["G"]["a"]["cycle"] = mse_loss()
-            self.losses["G"]["a"]["auto"] = mse_loss()
+            self.losses["G"]["a"]["cycle"] = MSELoss()
+            self.losses["G"]["a"]["auto"] = MSELoss()
+
+            # ? add sm and dm losses too as in "t"
 
         if "t" in self.opts.tasks:
             self.losses["G"]["t"]["gan"] = GANLoss()
-            self.losses["G"]["t"]["cycle"] = mse_loss()
-            self.losses["G"]["t"]["auto"] = mse_loss()
-            self.losses["G"]["t"]["sm"] = pixel_cross_entropy()
-            self.losses["G"]["t"]["dm"] = mse_loss()
+            self.losses["G"]["t"]["cycle"] = MSELoss()
+            self.losses["G"]["t"]["auto"] = MSELoss()
+            self.losses["G"]["t"]["sm"] = PixelCrossEntropy()
+            self.losses["G"]["t"]["dm"] = MSELoss()
 
         # task losses
         # ? * add discriminator and gan loss to these task when no ground truth
         # ?   instead of noisy label
         if "d" in self.opts.tasks:
-            self.losses["G"]["tasks"]["d"] = mse_loss()
+            self.losses["G"]["tasks"]["d"] = MSELoss()
 
         if "h" in self.opts.tasks:
-            self.losses["G"]["tasks"]["h"] = mse_loss()
+            self.losses["G"]["tasks"]["h"] = MSELoss()
 
         if "s" in self.opts.tasks:
-            self.losses["G"]["tasks"]["s"] = cross_entropy()
+            self.losses["G"]["tasks"]["s"] = CrossEntropy()
 
         if "w" in self.opts.tasks:
             self.losses["G"]["tasks"]["w"] = lambda x, y: (x + y).mean()
@@ -183,11 +191,11 @@ class Trainer:
         # undistinguishable features loss
         # TODO setup a get_losses func to assign the right loss according to the yaml
         if self.opts.classifier.loss == "l1":
-            loss_classifier = l1_loss()
+            loss_classifier = L1Loss()
         elif self.opts.classifier.loss == "l2":
-            loss_classifier = mse_loss()
+            loss_classifier = MSELoss()
         else:
-            loss_classifier = cross_entropy()
+            loss_classifier = CrossEntropy()
 
         self.losses["G"]["classifier"] = loss_classifier
         # -------------------------------
@@ -216,8 +224,10 @@ class Trainer:
         self.loaders = get_all_loaders(self.opts)
 
         self.G = get_gen(self.opts, verbose=self.verbose).to(self.device)
-        self.D = get_dis(self.opts, verbose=self.verbose).to(self.device)
         self.latent_shape = self.compute_latent_shape()
+        self.output_size = self.latent_shape[0] * 2 ** self.opts.gen.t.spade_n_up
+        self.G.set_translation_decoder(self.latent_shape, self.device)
+        self.D = get_dis(self.opts, verbose=self.verbose).to(self.device)
         self.C = get_classifier(self.opts, self.latent_shape, verbose=self.verbose).to(
             self.device
         )
@@ -397,7 +407,7 @@ class Trainer:
         if self.should_compute_t_loss():
             t_loss = self.get_translation_loss(multi_domain_batch)
 
-        assert any(l is not None for l in [r_loss, t_loss])
+        assert any(l is not None for l in [r_loss, t_loss]), "Both losses are None"
 
         g_loss = 0
         if r_loss is not None:
@@ -478,13 +488,11 @@ class Trainer:
             # -----  auto-encoding update for translation (3)  -----
             # ------------------------------------------------------
             translation_decoder = batch_domain[-1]
+
             cond = None
             if self.opts.gen.t.use_spade:
-                cond = self.G.get_conditioning_tensor(
-                    x,
-                    task_tensors,
-                    domains_to_class_tensor(batch["domain"], one_hot=True),
-                )
+                cond = get_conditioning_tensor(x, task_tensors)
+
             reconstruction = self.G.decoders["t"][translation_decoder](self.z, cond)
             update_loss = self.losses["G"]["t"]["auto"](x, reconstruction)
             step_loss += lambdas.G.t.auto * update_loss
@@ -590,10 +598,10 @@ class Trainer:
             batch = multi_domain_batch[source_domain]
             real = batch["data"]["x"]
             real_z = self.G.encode(real)
-            fake = self.G.translate(batch, translator=target_domain[1], z=real_z)
+            fake = self.G.translate_batch(batch, target_domain[1], z=real_z)
             fake_z = self.G.encode(fake)
             cycle_batch = fake_batch(batch, fake)
-            cycle = self.G.translate(cycle_batch, translator=source_domain[1], z=fake_z)
+            cycle = self.G.translate_batch(cycle_batch, source_domain[1], z=fake_z)
 
             d_fake = self.D["t"][target_domain[1]](fake)
             d_cycle = self.D["t"][source_domain[1]](cycle)
@@ -632,7 +640,11 @@ class Trainer:
             # ------------------------------------
             fake_s = self.G.decoders["s"](fake_z).detach()
             real_s_labels = torch.argmax(self.G.decoders["s"](real_z).detach(), 1)
-            mask = torch.randint(0, 2, real_s_labels.shape)  # TODO => load mask
+            mask = (
+                torch.randint(0, 2, real_s_labels.shape)
+                .to(torch.float32)
+                .to(self.device)
+            )  # TODO : load mask
             update_loss = (
                 self.losses["G"]["t"]["sm"](fake_s, real_s_labels) * mask
             ).mean()
@@ -645,7 +657,9 @@ class Trainer:
             # ---------------------------------
             fake_d = self.G.decoders["d"](fake_z).detach()
             real_d = self.G.decoders["d"](real_z).detach()
-            mask = torch.randint(0, 2, fake_d.shape)  # TODO => load mask
+            mask = (
+                torch.randint(0, 2, fake_d.shape).to(torch.float32).to(self.device)
+            )  # TODO: load mask
             update_loss = self.losses["G"]["t"]["dm"](fake_d * mask, real_d * mask)
             step_loss += lambdas.G.t.dm * update_loss
             self.logger.losses.t.dm[
@@ -695,11 +709,7 @@ class Trainer:
             cond = None
             if self.opts.gen.t.use_spade:
                 task_tensors = self.G.decode_tasks(z)
-                cond = self.G.get_conditioning_tensor(
-                    x,
-                    task_tensors,
-                    domains_to_class_tensor(batch["domain"], one_hot=True),
-                )
+                cond = get_conditioning_tensor(x, task_tensors)
 
             disc_loss = {"a": {"r": 0, "s": 0}, "t": {"f": 0, "n": 0}}
 
@@ -759,7 +769,8 @@ class Trainer:
             output_classifier = self.C(self.z)
             # Cross entropy loss (with sigmoid)
             update_loss = self.losses["C"](
-                output_classifier, domains_to_class_tensor(batch["domain"], one_hot),
+                output_classifier,
+                domains_to_class_tensor(batch["domain"], one_hot).to(self.device),
             )
             loss += update_loss
 

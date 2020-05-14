@@ -1,3 +1,5 @@
+"""All non-tensor utils
+"""
 import os
 import re
 import subprocess
@@ -6,14 +8,148 @@ from pathlib import Path
 
 from skimage import io as skio
 import torch
-import yaml
 from addict import Dict
 from torch.nn import init
 import numpy as np
 from threading import Thread
+import yaml
+from copy import deepcopy
 
 
-def load_opts(path, default=None):
+def load_exp(path):
+    path = Path(path)
+    with open(path, "r") as f:
+        xopts = Dict(yaml.safe_load(f))
+
+    if xopts.experiment.repeat and xopts.experiment.repeat > 1:
+        xopts.runs = [
+            deepcopy(run) for run in xopts.runs for _ in range(xopts.experiment.repeat)
+        ]
+
+    for i, run in enumerate(xopts.runs):
+        xopts.runs[i].trainer = resolve_sample(run.trainer)
+
+    for i, run in enumerate(xopts.runs):
+        conf = (
+            env_to_path(xopts.experiment.config)
+            if xopts.experiment.config_file
+            else None
+        )
+        defaults = (
+            env_to_path(xopts.experiment.defaults)
+            if xopts.experiment.defaults
+            else None
+        )
+        trainer_opts = load_opts(conf, defaults)
+        trainer_opts.update(run.trainer)
+        trainer_opts.output_path = str(
+            Path(env_to_path(xopts.experiment.base_dir)) / "run"
+        )
+        xopts.runs[i].trainer = trainer_opts
+
+    return xopts
+
+
+def write_run_template(xopts, i, template_path, write_path):
+    ropt = xopts.runs[i]
+    exp = xopts.experiment
+    with open(template_path, "r") as f:
+        template = f.readlines()
+
+    beluga = bool(os.environ.get("SCRATCH"))
+
+    new_template = []
+    for line in template:
+        line = line.strip()
+        if "{{" not in line:
+            new_template.append(line)
+            continue
+        for pattern in re.findall(r"{{\w+}}", line):
+            ignore = False
+            param = pattern.replace("{{", "").replace("}}", "")
+            replace = ""
+            if param == "cpu":
+                replace = str(ropt.sbatch.cpu)
+            elif param == "gpu":
+                replace = str(ropt.sbatch.gpu)
+            elif param == "mem":
+                replace = str(ropt.sbatch.mem)
+            elif param == "time":
+                if not beluga:
+                    ignore = True
+                replace = str(ropt.sbatch.duration)
+            elif param == "output_path":
+                replace = str(ropt.trainer.output_path)
+            elif param == "main_partition":
+                if beluga:
+                    ignore = True
+                replace = f"#SBATCH -p {ropt.sbatch.partition}"
+            elif param == "config":
+                replace = "--config=" + str(
+                    Path(ropt.trainer.output_path) / "config.yaml"
+                )
+            elif param == "no_comet":
+                replace = "--no_comet" if ropt.experiment.no_comet else ""
+            elif param == "exp_desc":
+                replace = f'--exp_desc="{str(exp.exp_desc)}"' if exp.exp_desc else ""
+            elif param == "dev_mode":
+                replace = "--dev_mode" if exp.dev_mode else ""
+            elif param == "note":
+                replace = f'--note="{str(ropt.comet.note)}"' if ropt.comet.note else ""
+            elif param == "tags":
+                replace = ""
+                for t in ropt.comet.tags:
+                    replace += f"--tag {'_'.join(t.split())} "
+            else:
+                ignore = True
+            line = re.sub(pattern, replace, line)
+        if not ignore:
+            new_template.append(line)
+
+    with open(write_path, "w") as f:
+        f.write("\n".join(new_template))
+
+
+def resolve_sample(dic):
+    for k, v in dic.items():
+        if isinstance(v, Dict):
+            if "sample" in v:
+                dic[k] = sample_param(v)
+            else:
+                dic[k] = resolve_sample(v)
+    return dic
+
+
+def sample_param(sample_dict):
+    """sample a value (hyperparameter) from the instruction in the
+    sample dict:
+    {
+        "sample": "range | list",
+        "from": [min, max, step] | [v0, v1, v2 etc.]
+    }
+    if range, as np.arange is used, "from" MUST be a list, but may contain
+    only 1 (=min) or 2 (min and max) values, not necessarily 3
+
+    Args:
+        sample_dict (dict): instructions to sample a value
+
+    Returns:
+        scalar: sampled value
+    """
+    if "sample" not in sample_dict:
+        return sample_dict
+    if sample_dict["sample"] == "range":
+        value = np.random.choice(np.arange(*sample_dict["from"]))
+    elif sample_dict["sample"] == "list":
+        value = np.random.choice(sample_dict["from"])
+    elif sample_dict["sample"] == "uniform":
+        value = np.random.uniform(*sample_dict["from"])
+    else:
+        raise ValueError("Unknown sample type in dict " + str(sample_dict))
+    return value
+
+
+def load_opts(path=None, default=None):
     """Loads a configuration Dict from 2 files:
     1. default files with shared values across runs and users
     2. an overriding file with run- and user-specific values
@@ -28,14 +164,19 @@ def load_opts(path, default=None):
     Returns:
         addict.Dict: options dictionnary, with overwritten default values
     """
+    assert default or path
+
     if default is None:
         default_opts = Dict()
     else:
         with open(default, "r") as f:
             default_opts = Dict(yaml.safe_load(f))
 
-    with open(path, "r") as f:
-        overriding_opts = Dict(yaml.safe_load(f))
+    if path is None:
+        overriding_opts = Dict()
+    else:
+        with open(path, "r") as f:
+            overriding_opts = Dict(yaml.safe_load(f))
 
     default_opts.update(overriding_opts)
 
@@ -62,6 +203,21 @@ def set_data_paths(opts):
     return opts
 
 
+def load_test_opts(test_file_path="config/trainer/local_tests.yaml"):
+    """Returns the special opts set up for local tests
+    Args:
+        test_file_path (str, optional): Name of the file located in config/
+            Defaults to "local_tests.yaml".
+
+    Returns:
+        addict.Dict: Opts loaded from defaults.yaml and updated from test_file_path
+    """
+    return load_opts(
+        Path(__file__).parent.parent / f"{test_file_path}",
+        default=Path(__file__).parent.parent / "shared/trainer/defaults.yaml",
+    )
+
+
 def get_git_revision_hash():
     """Get current git hash the code is run from
 
@@ -69,6 +225,12 @@ def get_git_revision_hash():
         str: git hash
     """
     return subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
+
+
+def write_hash(path):
+    hash_code = get_git_revision_hash()
+    with open(path, "w") as f:
+        f.write(hash_code)
 
 
 def get_increased_path(path):
@@ -169,144 +331,6 @@ def flatten_opts(opts):
 
     p(opts, vals=values_list)
     return dict(values_list)
-
-
-def transforms_string(ts):
-    return " -> ".join([t.__class__.__name__ for t in ts.transforms])
-
-
-def init_weights(net, init_type="normal", init_gain=0.02, verbose=0):
-    """Initialize network weights.
-        Parameters:
-            net (network)     -- network to be initialized
-            init_type (str)   -- the name of an initialization method:
-                                 normal | xavier | kaiming | orthogonal
-            init_gain (float) -- scaling factor for normal, xavier and orthogonal.
-
-        We use 'normal' in the original pix2pix and CycleGAN paper.
-        But xavier and kaiming might work better for some applications.
-        Feel free to try yourself.
-        """
-
-    if not init_type:
-        print("init_type is {}, defaulting to normal".format(init_type))
-        init_type = "normal"
-    if not init_gain:
-        print("init_gain is {}, defaulting to 0.02".format(init_gain))
-        init_gain = 0.02
-
-    def init_func(m):  # define the initialization function
-        classname = m.__class__.__name__
-        if hasattr(m, "weight") and (
-            classname.find("Conv") != -1 or classname.find("Linear") != -1
-        ):
-            if init_type == "normal":
-                init.normal_(m.weight.data, 0.0, init_gain)
-            elif init_type == "xavier":
-                init.xavier_normal_(m.weight.data, gain=init_gain)
-            elif init_type == "kaiming":
-                init.kaiming_normal_(m.weight.data, a=0, mode="fan_in")
-            elif init_type == "orthogonal":
-                init.orthogonal_(m.weight.data, gain=init_gain)
-            else:
-                raise NotImplementedError(
-                    "initialization method [%s] is not implemented" % init_type
-                )
-            if hasattr(m, "bias") and m.bias is not None:
-                init.constant_(m.bias.data, 0.0)
-        elif classname.find("BatchNorm2d") != -1:
-            # BatchNorm Layer's weight is not a matrix;
-            # only normal distribution applies.
-            init.normal_(m.weight.data, 1.0, init_gain)
-            init.constant_(m.bias.data, 0.0)
-
-    if verbose > 0:
-        print("initialize %s with %s" % (net.__class__.__name__, init_type))
-    net.apply(init_func)
-
-
-def freeze(net):
-    """Sets requires_grad = False to all the net's parameters
-
-    Args:
-        net (nn.Module): Network to freeze
-    """
-    for p in net.parameters():
-        p.requires_grad = False
-
-
-def domains_to_class_tensor(domains, one_hot=False):
-    """Converts a list of strings to a 1D Tensor representing the domains
-
-    domains_to_class_tensor(["sf", "rn"])
-    >>> torch.Tensor([2, 1])
-
-    Args:
-        domain (list(str)): each element of the list should be in {rf, rn, sf, sn}
-        one_hot (bool, optional): whether or not to 1-h encode class labels.
-            Defaults to False.
-    Raises:
-        ValueError: One of the domains listed is not in {rf, rn, sf, sn}
-
-    Returns:
-        torch.Tensor: 1D tensor mapping a domain to an int (not 1-hot) or 1-hot
-            domain labels in a 2D tensor
-    """
-
-    mapping = {"rf": 0, "rn": 1, "sf": 2, "sn": 3}
-
-    if not all(domain in mapping for domain in domains):
-        raise ValueError(
-            "Unknown domains {} should be in {}".format(domains, list(mapping.keys()))
-        )
-
-    target = torch.tensor([mapping[domain] for domain in domains])
-
-    if one_hot:
-        one_hot_target = torch.FloatTensor(len(target), 4)  # 4 domains
-        one_hot_target.zero_()
-        one_hot_target.scatter_(1, target.unsqueeze(1), 1)
-        # https://discuss.pytorch.org/t/convert-int-into-one-hot-format/507
-        target = one_hot_target
-    return target
-
-
-def fake_domains_to_class_tensor(domains, one_hot=False):
-    """Converts a list of strings to a 1D Tensor representing the fake domains
-    (real or sim only)
-
-    fake_domains_to_class_tensor(["sf", "rn"], False)
-    >>> torch.Tensor([0, 3])
-
-
-    Args:
-        domain (list(str)): each element of the list should be in {rf, rn, sf, sn}
-        one_hot (bool, optional): whether or not to 1-h encode class labels.
-            Defaults to False.
-    Raises:
-        ValueError: One of the domains listed is not in {rf, rn, sf, sn}
-
-    Returns:
-        torch.Tensor: 1D tensor mapping a domain to an int (not 1-hot) or
-            a 2D tensor filled with 0.25 to fool the classifier (equiprobability
-            for each domain).
-    """
-    if one_hot:
-        target = torch.FloatTensor(len(domains), 4)
-        target.fill_(0.25)
-
-    else:
-        mapping = {"rf": 2, "rn": 3, "sf": 0, "sn": 1}
-
-        if not all(domain in mapping for domain in domains):
-            raise ValueError(
-                "Unknown domains {} should be in {}".format(
-                    domains, list(mapping.keys())
-                )
-            )
-
-        target = torch.tensor([mapping[domain] for domain in domains])
-    return target
 
 
 def get_comet_rest_api_key(path_to_config_file=None):

@@ -1,7 +1,9 @@
+"""Discriminator architecture for OmniGAN's GAN components (a and t)
+"""
 import torch
 import torch.nn as nn
 import functools
-from omnigan.utils import init_weights
+from omnigan.tutils import init_weights
 from omnigan.blocks import SpectralNorm
 
 # from torch.optim import lr_scheduler

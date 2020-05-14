@@ -1,5 +1,7 @@
+"""Classifier architecture for domain adaptation
+"""
 from torch import nn
-from omnigan.utils import init_weights
+from omnigan.tutils import init_weights
 
 
 def get_classifier(opts, latent_space, verbose):
@@ -36,7 +38,7 @@ class OmniClassifier(nn.Module):
     def forward(self, x):
         fc_output = self.model(x)
         if (self.loss == "l1") or (self.loss == "l2"):
-            fc_output = nn.functional.softmax(fc_output)
+            fc_output = nn.functional.softmax(fc_output, dim=1)
 
         return fc_output
 

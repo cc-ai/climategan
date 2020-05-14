@@ -56,10 +56,17 @@ gen:
     init_gain: 0.2
     init_type: kaiming
     n_res: 4 # number of residual blocks before upsampling
-    n_upsample: 2 # upsampling in spade decoder ; should match encoder.n_downsample
+    n_downsample: &n_downsample 3 # number of downsampling layers in encoder | dim 32 + down 3 => z = 256 x 32 x 32
+    n_upsample: *n_downsample # upsampling in spade decoder ; should match encoder.n_downsample
     pad_type: reflect # padding type [zero/reflect]
     res_dim: 256 # Resblock number of channels (=latent space's)
-    res_norm: "instance" # normalization to apply
+    res_norm: instance # ResBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
+  encoder: # specific params for the encoder
+    <<: *default-gen
+    dim: 32 # dimension of the first projection before downsamplings
+    input_dim: 3 # input number of channels
+    n_res: 4 # number of residual blocks in content encoder/decoder
+    norm: spectral # ConvBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
   a: # specific params for the adaptation decoder
     <<: *default-gen
     output_dim: 3
@@ -79,24 +86,18 @@ gen:
     pad_type: zero # padding type [zero/reflect]
     use_spade: True # whether to condition the decoding on other inferences, à la SPADE or not
     spade_kernel_size: 3 # kernel size within SPADE norm layers
-    spade_param_free_norm: "instance" # what param-free normalization to apply in SPADE normalization
-    spade_use_spectral_norm: True #
+    spade_param_free_norm: instance # what param-free normalization to apply in SPADE normalization
+    spade_use_spectral_norm: true
+    spade_n_up: *n_downsample # number of upsampling layers in the translation decoder is equal to number of downsamplings in the encoder.  output's h and w are z's h and w x 2^spade_num_upsampling_layers | z:32 and spade_n_up:4 => output 512
+    use_bit_conditioning: True
   w: # specific params for the water-segmentation decoder
     <<: *default-gen
     output_dim: 1
-  encoder: # specific params for the encoder
-    <<: *default-gen
-    dim: 64 # dimension of the first projection before downsamplings
-    input_dim: 3 # input number of channels
-    n_downsample: 2 # number of downsampling layers in encoder
-    n_res: 4 # number of residual blocks in content encoder/decoder
-    norm: "none"
-
 # -------------------------
 # ----- Discriminator -----
 # -------------------------
 dis:
-  soft_shift: 0.2 # label smoothing: real in U(1-soft_shift, 1), fake in U(0, soft_shift)
+  soft_shift: 0.2 # label smoothing: real in U(1-soft_shift, 1), fake in U(0, soft_shift) # ! one-sided label smoothing
   flip_prob: 0.05 # label flipping
   opt:
     optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
@@ -117,6 +118,8 @@ dis:
   t:
     <<: *default-dis
   a:
+    <<: *default-dis
+  w:
     <<: *default-dis
 # -------------------------------
 # -----  Domain Classifier  -----
@@ -140,8 +143,8 @@ classifier:
 # ------------------------
 train:
   epochs: 1000
-  representational_training: False
-  representation_steps: 0 # for how many steps would the representation be trained before we train the translation
+  representational_training: True
+  representation_steps: 10000 # for how many steps would the representation be trained before we train the translation
   freeze_representation: False # whether or not to backprop into the representation when doing the translation
   lambdas: # scaling factors in the total loss
     G:
@@ -169,6 +172,6 @@ train:
 val:
   max_log_images: 1
   every_n_steps: 1000
-  store_images: false
+  store_images: false # write to disk on top of comet logging
   infer_rec: true
   infer_idt: true # order: real, translated, rec, idt

@@ -1,3 +1,5 @@
+"""Data transforms for the loaders
+"""
 import torch
 from torchvision import transforms as trsfs
 import torchvision.transforms.functional as TF

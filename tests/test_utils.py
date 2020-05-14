@@ -1,20 +1,29 @@
-import sys
+import argparse
 import os
-from pathlib import Path
+import sys
 import uuid
+from pathlib import Path
+
 import addict
 
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
-
-from run import print_header, opts
-
-from omnigan.utils import (
-    domains_to_class_tensor,
-    env_to_path,
-    get_increased_path,
-    flatten_opts,
-)
 from omnigan.data import get_all_loaders
+from omnigan.utils import (
+    env_to_path,
+    flatten_opts,
+    get_increased_path,
+    load_test_opts,
+)
+from omnigan.tutils import domains_to_class_tensor
+from run import print_header
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-c", "--config", default="config/trainer/local_tests.yaml")
+args = parser.parse_args()
+root = Path(__file__).parent.parent
+opts = load_test_opts(args.config)
+
 
 if __name__ == "__main__":
 
@@ -25,6 +34,10 @@ if __name__ == "__main__":
     opts.data.loaders.num_workers = 2
     opts.data.loaders.shuffle = True
     loaders = get_all_loaders(opts)
+
+    # ---------------------------------------------
+    # -----  Testing domains_to_class_tensor  -----
+    # ---------------------------------------------
     batch = next(iter(loaders["train"]["rn"]))
     print(domains_to_class_tensor(batch["domain"], True))
     print(domains_to_class_tensor(batch["domain"], False))
@@ -36,12 +49,18 @@ if __name__ == "__main__":
     except ValueError:
         print("ok.")
 
+    # ---------------------------------
+    # -----  Testing env_to_path  -----
+    # ---------------------------------
     print_header("test_env_to_path")
     assert env_to_path("$HOME") == os.environ["HOME"]
     assert env_to_path("$HOME/") == os.environ["HOME"] + "/"
     assert env_to_path("$HOME/Documents") == str(Path(os.environ["HOME"]) / "Documents")
     print("ok.")
 
+    # ----------------------------------------
+    # -----  Testing get_increased_path  -----
+    # ----------------------------------------
     print_header("test_get_increased_path")
     uid = str(uuid.uuid4())
     p = Path() / uid
@@ -56,6 +75,9 @@ if __name__ == "__main__":
     for d in Path().glob(uid + "*"):
         d.rmdir()
 
+    # ----------------------------------
+    # -----  Testing flatten_opts  -----
+    # ----------------------------------
     print_header("test_flatten_opts")
     d = addict.Dict()
     d.a.b.c = 2
