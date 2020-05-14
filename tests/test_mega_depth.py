@@ -14,7 +14,7 @@ from omnigan.tutils import decode_mega_depth
 from run import print_header
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-c", "--config", default="config/local_tests.yaml")
+parser.add_argument("-c", "--config",  default="config/trainer/local_tests.yaml")
 args = parser.parse_args()
 root = Path(__file__).parent.parent
 opts = load_test_opts(args.config)
