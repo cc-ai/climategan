@@ -1,8 +1,13 @@
 """Tensor-utils
 """
-from torch.nn import init
-import torch
+from pathlib import Path
+# from copy import copy
+from threading import Thread
+
 import numpy as np
+import torch
+from skimage import io as skio
+from torch.nn import init
 
 
 def transforms_string(ts):
@@ -276,3 +281,83 @@ def print_net(net):
             name = b.__class__.__name__
             if "Conv2dBlock" in name:
                 print(f"{name}: {b.weight.shape}")
+
+
+def slice_batch(batch, slice_size):
+    assert slice_size > 0
+    for k, v in batch.items():
+        if isinstance(v, dict):
+            for task, d in v.items():
+                batch[k][task] = d[:slice_size]
+        else:
+            batch[k] = v[:slice_size]
+    return batch
+
+
+def save_tanh_tensor(image, path):
+    """Save an image which can be numpy or tensor, 2 or 3 dims (no batch)
+    to path.
+
+    Args:
+        image (np.array or torch.Tensor): image to save
+        path (pathlib.Path or str): where to save the image
+    """
+    path = Path(path)
+    if isinstance(image, torch.Tensor):
+        image = image.detach().numpy()
+        if image.shape[-1] != 3 and image.shape[0] == 3:
+            image = np.transpose(image, (1, 2, 0))
+    if image.min() < 0 and image.min() > -1:
+        image = image / 2 + 0.5
+    elif image.min() < -1:
+        image -= image.min()
+        image /= image.max()
+        # print("Warning: scaling image data in save_tanh_tensor")
+
+    skio.imsave(path, (image * 255).astype(np.uint8))
+
+
+def save_batch(multi_domain_batch, root="./", step=0, num_threads=5):
+    root = Path(root)
+    root.mkdir(parents=True, exist_ok=True)
+    images_to_save = {"paths": [], "images": []}
+    for domain, batch in multi_domain_batch.items():
+        y = batch["data"].get("y")
+        x = batch["data"]["x"]
+        if y is not None:
+            paths = batch["paths"]["x"]
+            imtensor = torch.cat([x, y], dim=-1)
+            for i, im in enumerate(imtensor):
+                imid = Path(paths[i]).stem[:10]
+                images_to_save["paths"] += [
+                    root / "im_{}_{}_{}.png".format(step, domain, imid)
+                ]
+                images_to_save["images"].append(im)
+    if num_threads > 0:
+        threaded_write(images_to_save["images"], images_to_save["paths"], num_threads)
+    else:
+        for im, path in zip(images_to_save["images"], images_to_save["paths"]):
+            save_tanh_tensor(im, path)
+
+
+def threaded_write(images, paths, num_threads=5):
+    t_im = []
+    t_p = []
+    for im, p in zip(images, paths):
+        t_im.append(im)
+        t_p.append(p)
+        if len(t_im) == num_threads:
+            ts = [
+                Thread(target=save_tanh_tensor, args=(_i, _p))
+                for _i, _p in zip(t_im, t_p)
+            ]
+            list(map(lambda t: t.start(), ts))
+            list(map(lambda t: t.join(), ts))
+            t_im = []
+            t_p = []
+    if t_im:
+        ts = [
+            Thread(target=save_tanh_tensor, args=(_i, _p)) for _i, _p in zip(t_im, t_p)
+        ]
+        list(map(lambda t: t.start(), ts))
+        list(map(lambda t: t.join(), ts))

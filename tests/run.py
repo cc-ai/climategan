@@ -64,7 +64,7 @@ def tprint(*args):
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-c", "--config",  default="config/trainer/local_tests.yaml")
+parser.add_argument("-c", "--config", default="config/trainer/local_tests.yaml")
 parser.add_argument("-i", "--ignore", nargs="+", default=None)
 args = parser.parse_args()
 
