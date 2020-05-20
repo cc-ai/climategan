@@ -108,9 +108,20 @@ class OmniListDataset(Dataset):
         else:
             raise ValueError("Unknown file list type in {}".format(file_list_path))
 
+        self.filter_samples()
         self.check_samples()
         self.file_list_path = str(file_list_path)
         self.transform = transform
+
+    def filter_samples(self):
+        """
+        Filter out data which is not required for the model's tasks
+        as defined in opts.tasks
+        """
+        self.samples_paths = [
+            {k: v for k, v in s.items() if k in self.opts.tasks}
+            for s in self.samples_paths
+        ]
 
     def __getitem__(self, i):
         """Return an item in the dataset with fields:
