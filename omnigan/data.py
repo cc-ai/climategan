@@ -1,3 +1,4 @@
+
 """Data-loading functions in order to create a Dataset and DataLoaders.
 Transforms for loaders are in transforms.py
 """
@@ -93,6 +94,8 @@ class OmniListDataset(Dataset):
 
         self.domain = domain
         self.mode = mode
+        self.tasks = set(opts.tasks)
+        self.tasks.add("x")
 
         file_list_path = Path(opts.data.files[mode][domain])
 
@@ -108,9 +111,20 @@ class OmniListDataset(Dataset):
         else:
             raise ValueError("Unknown file list type in {}".format(file_list_path))
 
+        self.filter_samples()
         self.check_samples()
         self.file_list_path = str(file_list_path)
         self.transform = transform
+
+    def filter_samples(self):
+        """
+        Filter out data which is not required for the model's tasks
+        as defined in opts.tasks
+        """
+        self.samples_paths = [
+            {k: v for k, v in s.items() if k in self.tasks}
+            for s in self.samples_paths
+        ]
 
     def __getitem__(self, i):
         """Return an item in the dataset with fields:
@@ -122,10 +136,8 @@ class OmniListDataset(Dataset):
             domain: [domain],
             mode: [train|val]
         }
-
         Args:
             i (int): index of item to retrieve
-
         Returns:
             dict: dataset item where tensors of data are in item["data"] which is a dict
                   {task: tensor}
