@@ -1,3 +1,4 @@
+
 """Data-loading functions in order to create a Dataset and DataLoaders.
 Transforms for loaders are in transforms.py
 """
@@ -135,10 +136,8 @@ class OmniListDataset(Dataset):
             domain: [domain],
             mode: [train|val]
         }
-
         Args:
             i (int): index of item to retrieve
-
         Returns:
             dict: dataset item where tensors of data are in item["data"] which is a dict
                   {task: tensor}
