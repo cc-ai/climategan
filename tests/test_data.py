@@ -31,10 +31,11 @@ if __name__ == "__main__":
     # --------------------------------
     # -----  Test task matching  -----
     # --------------------------------
-    ds_vars = set(ds.samples_paths[0].keys())
     tasks = set(opts.tasks)
     tasks.add("x")
-    assert ds_vars.issubset(tasks)
+    for sample_path in ds.samples_paths:
+        ds_vars = set(sample_path.keys())
+        assert ds_vars.issubset(tasks)
 
     # ------------------------------------
     # -----  Test transforms_string  -----
