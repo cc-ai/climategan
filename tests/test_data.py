@@ -28,9 +28,9 @@ if __name__ == "__main__":
 
     ds = OmniListDataset("train", "rn", opts)
 
-    # ------------------------
+    # --------------------------------
     # -----  Test task matching  -----
-    # ------------------------
+    # --------------------------------
     ds_vars = set(ds.samples_paths[0].keys())
     tasks = set(opts.tasks)
     tasks.add("x")
