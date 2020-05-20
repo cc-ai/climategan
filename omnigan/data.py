@@ -179,7 +179,7 @@ class OmniListDataset(Dataset):
         exist on the file-system
         """
         for s in self.samples_paths:
-            assert all([k in self.tasks for k in s])
+            assert all([t in s for t in self.tasks])
             for k, v in s.items():
                 assert Path(v).exists(), f"{k} {v} does not exist"
 
