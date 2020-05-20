@@ -93,6 +93,8 @@ class OmniListDataset(Dataset):
 
         self.domain = domain
         self.mode = mode
+        self.tasks = set(opts.tasks)
+        self.tasks.add("x")
 
         file_list_path = Path(opts.data.files[mode][domain])
 
@@ -119,7 +121,7 @@ class OmniListDataset(Dataset):
         as defined in opts.tasks
         """
         self.samples_paths = [
-            {k: v for k, v in s.items() if k in self.opts.tasks}
+            {k: v for k, v in s.items() if k in self.tasks}
             for s in self.samples_paths
         ]
 
