@@ -80,6 +80,15 @@ class CrossEntropy(nn.Module):
         return self.loss(logits, target.to(logits.device))
 
 
+class BinaryCrossEntropy(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.loss = torch.nn.BCELoss()
+
+    def __call__(self, logits, target):
+        return self.loss(logits, target.to(logits.device))
+
+
 class PixelCrossEntropy(CrossEntropy):
     """
     Computes the cross entropy per pixel

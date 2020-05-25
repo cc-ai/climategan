@@ -14,7 +14,7 @@ from omnigan.tutils import decode_mega_depth
 from run import print_header
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-c", "--config",  default="config/trainer/local_tests.yaml")
+parser.add_argument("-c", "--config", default="config/trainer/local_tests.yaml")
 args = parser.parse_args()
 root = Path(__file__).parent.parent
 opts = load_test_opts(args.config)
@@ -30,7 +30,7 @@ if __name__ == "__main__":
         not_committed_path.mkdir()
     mega = get_mega_model().to(device)
     loaders = get_all_loaders(opts)
-    loader = loaders["train"]["rn"]
+    loader = loaders["train"]["r"]
     batch = next(iter(loader))
     # -------------------------
     # -----  Test Config  -----
@@ -50,13 +50,15 @@ if __name__ == "__main__":
         print("Done. Saving...")
         for i, im in enumerate(im_d):
             im_n = decode_mega_depth(im, numpy=True)
-            stem = Path(batch["paths"]["s"][i]).stem
+            stem = Path(batch["paths"]["x"][i]).stem
             if write_images:
                 io.imsave(
                     str(not_committed_path / (stem + "_depth.png")), im_n,
                 )
         print("Done.")
 
+    #! No translation, so holding off...
+    """
     # ---------------------------------------
     # -----  Test MD after translation  -----
     # ---------------------------------------
@@ -73,9 +75,12 @@ if __name__ == "__main__":
             for i, im_d in enumerate(y_d):
                 print(i, "/", len(y_d))
                 im_n = decode_mega_depth(im_d, numpy=True)
-                stem = Path(batch["paths"]["s"][i]).stem
+
+                stem = Path(batch["paths"]["x"][i]).stem
                 io.imsave(
                     str(not_committed_path / (stem + "_translated_depth.png")), im_n,
                 )
         else:
             im_d = decode_mega_depth(y_d)
+    """
+

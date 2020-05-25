@@ -5,7 +5,7 @@ from pathlib import Path
 from addict import Dict
 
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
-from omnigan.data import OmniListDataset, get_all_loaders
+from omnigan.data import OmniListDataset, get_all_loaders, get_loader
 from omnigan.utils import load_test_opts
 from omnigan.tutils import transforms_string
 
@@ -26,7 +26,7 @@ if __name__ == "__main__":
     opts.data.loaders.shuffle = True
     loaders = get_all_loaders(opts)
 
-    ds = OmniListDataset("train", "rn", opts)
+    ds = OmniListDataset("train", "r", opts)
 
     # --------------------------------
     # -----  Test task matching  -----
@@ -36,16 +36,14 @@ if __name__ == "__main__":
     for sample_path in ds.samples_paths:
         ds_vars = set(sample_path.keys())
         assert ds_vars.issubset(tasks)
-
     # ------------------------------------
     # -----  Test transforms_string  -----
     # ------------------------------------
-    print(transforms_string(loaders["train"]["rn"].dataset.transform))
+    print(transforms_string(loaders["train"]["r"].dataset.transform))
 
     sample = ds[0]
 
-    batch = Dict(next(iter(loaders["train"]["rn"])))
-
+    batch = Dict(next(iter(loaders["train"]["r"])))
     print("Batch: ", "items, ", " ".join(batch.keys()), "keys")
 
     # -------------------------------
@@ -95,3 +93,6 @@ if __name__ == "__main__":
             )
         )
         multi_domain_batch = {batch["domain"][0]: batch for batch in multi_batch}
+
+        if i > 5:
+            break

@@ -31,7 +31,7 @@ class OmniClassifier(nn.Module):
                 nn.AvgPool2d((int(self.feature_size / 4), int(self.feature_size / 4))),
                 Squeeze(-1),
                 Squeeze(-1),
-                nn.Linear(int(self.channels / 4), 4),
+                nn.Linear(int(self.channels / 4), 2),
             ]
         )
 
@@ -84,9 +84,7 @@ class BasicBlock(nn.Module):
         self.stride = stride
         self.downsample = downsample
         if stride != 1 or inplanes != planes:
-            self.downsample = nn.Sequential(
-                conv1x1(inplanes, planes, stride), norm_layer(planes)
-            )
+            self.downsample = nn.Sequential(conv1x1(inplanes, planes, stride), norm_layer(planes))
 
     def forward(self, x):
         identity = x
@@ -163,4 +161,3 @@ def conv1x1(in_planes, out_planes, stride=1):
         Default: 1 (default: {1})
     """
     return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
-

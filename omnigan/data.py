@@ -81,6 +81,11 @@ def pil_image_loader(path, task):
         arr = arr.astype(np.float32)
         arr[arr != 0] = 1 / arr[arr != 0]
 
+    if task == 'm':
+        arr[arr != 0] = 1 / arr[arr != 0]
+        #Make sure mask is RGB for the sake of transforms
+        if len(arr.shape) >= 3:
+            arr = arr[:,:,0]
     # if task == "s":
     #     arr = decode_segmap(arr)
 
@@ -96,9 +101,7 @@ class OmniListDataset(Dataset):
         self.mode = mode
         self.tasks = set(opts.tasks)
         self.tasks.add("x")
-
         file_list_path = Path(opts.data.files[mode][domain])
-
         if "/" not in str(file_list_path):
             file_list_path = Path(opts.data.files.base) / Path(
                 opts.data.files[mode][domain]
@@ -115,6 +118,8 @@ class OmniListDataset(Dataset):
         self.check_samples()
         self.file_list_path = str(file_list_path)
         self.transform = transform
+
+      
 
     def filter_samples(self):
         """
@@ -144,6 +149,7 @@ class OmniListDataset(Dataset):
         """
         paths = self.samples_paths[i]
 
+        
         if self.transform:
             return {
                 "data": self.transform(
@@ -156,7 +162,7 @@ class OmniListDataset(Dataset):
 
         return {
             "data": {
-                task: pil_image_loader(path, task) for task, path in paths.items()
+                    task: pil_image_loader(path, task) for task, path in paths.items()
             },
             "paths": paths,
             "domain": self.domain,
@@ -183,10 +189,10 @@ class OmniListDataset(Dataset):
                 assert Path(v).exists(), f"{k} {v} does not exist"
 
 
-def get_loader(domain, mode, opts):
+def get_loader(mode, domain, opts):
     return DataLoader(
         OmniListDataset(
-            domain, mode, opts, transform=transforms.Compose(get_transforms(opts))
+            mode, domain, opts, transform=transforms.Compose(get_transforms(opts))
         ),
         batch_size=opts.data.loaders.get("batch_size", 4),
         # shuffle=opts.data.loaders.get("shuffle", True),
@@ -199,7 +205,7 @@ def get_all_loaders(opts):
     loaders = {}
     for mode in ["train", "val"]:
         loaders[mode] = {}
-        for domain in ["rf", "rn", "sf", "sn"]:
+        for domain in ["r", "s"]:
             if mode in opts.data.files:
                 if domain in opts.data.files[mode]:
                     loaders[mode][domain] = get_loader(mode, domain, opts)

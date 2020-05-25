@@ -14,6 +14,7 @@ from omnigan.data import get_all_loaders
 from omnigan.discriminator import get_dis
 from omnigan.generator import get_gen
 from omnigan.losses import (
+    BinaryCrossEntropy,
     CrossEntropy,
     PixelCrossEntropy,
     L1Loss,
@@ -38,6 +39,7 @@ from omnigan.tutils import (
 class Trainer:
     """Main trainer class
     """
+
     def __init__(self, opts, comet_exp=None, verbose=0):
         """Trainer class to gather various model training procedures
         such as training evaluating saving and logging
@@ -85,11 +87,9 @@ class Trainer:
         if self.exp is None:
             return
 
-        assert model_to_update in {
-            "G",
-            "D",
-            "C",
-        }, "unknown model to log losses {}".format(model_to_update)
+        assert model_to_update in {"G", "D", "C",}, "unknown model to log losses {}".format(
+            model_to_update
+        )
 
         losses = self.logger.losses.copy()
         if self.opts.train.log_level == 1:
@@ -99,9 +99,7 @@ class Trainer:
                     del losses[k]
         # convert losses into a single-level dictionnary
         losses = flatten_opts(losses)
-        self.exp.log_metrics(
-            losses, prefix=model_to_update, step=self.logger.global_step
-        )
+        self.exp.log_metrics(losses, prefix=model_to_update, step=self.logger.global_step)
 
     def batch_to_device(self, b):
         """sends the data in b to self.device
@@ -188,6 +186,9 @@ class Trainer:
         if "w" in self.opts.tasks:
             self.losses["G"]["tasks"]["w"] = lambda x, y: (x + y).mean()
 
+        if "m" in self.opts.tasks:
+            self.losses["G"]["tasks"]["m"] = BinaryCrossEntropy()
+
         # undistinguishable features loss
         # TODO setup a get_losses func to assign the right loss according to the yaml
         if self.opts.classifier.loss == "l1":
@@ -228,9 +229,7 @@ class Trainer:
         self.output_size = self.latent_shape[0] * 2 ** self.opts.gen.t.spade_n_up
         self.G.set_translation_decoder(self.latent_shape, self.device)
         self.D = get_dis(self.opts, verbose=self.verbose).to(self.device)
-        self.C = get_classifier(self.opts, self.latent_shape, verbose=self.verbose).to(
-            self.device
-        )
+        self.C = get_classifier(self.opts, self.latent_shape, verbose=self.verbose).to(self.device)
         self.P = {"s": get_mega_model()}  # P => pseudo labeling models
 
         self.g_opt, self.g_scheduler = get_optimizer(self.G, self.opts.gen.opt)
@@ -242,11 +241,7 @@ class Trainer:
         if self.verbose > 0:
             for mode, mode_dict in self.loaders.items():
                 for domain, domain_loader in mode_dict.items():
-                    print(
-                        "Loader {} {} : {}".format(
-                            mode, domain, len(domain_loader.dataset)
-                        )
-                    )
+                    print("Loader {} {} : {}".format(mode, domain, len(domain_loader.dataset)))
 
         self.is_setup = True
 
@@ -254,9 +249,7 @@ class Trainer:
         """Run an optimizing step ; if using ExtraAdam, there needs to be an extrapolation
         step every other step
         """
-        if "extra" in self.opts.gen.opt.optimizer.lower() and (
-            self.logger.global_step % 2 == 0
-        ):
+        if "extra" in self.opts.gen.opt.optimizer.lower() and (self.logger.global_step % 2 == 0):
             self.g_opt.extrapolation()
         else:
             self.g_opt.step()
@@ -265,9 +258,7 @@ class Trainer:
         """Run an optimizing step ; if using ExtraAdam, there needs to be an extrapolation
         step every other step
         """
-        if "extra" in self.opts.dis.opt.optimizer.lower() and (
-            self.logger.global_step % 2 == 0
-        ):
+        if "extra" in self.opts.dis.opt.optimizer.lower() and (self.logger.global_step % 2 == 0):
             self.d_opt.extrapolation()
         else:
             self.d_opt.step()
@@ -324,15 +315,30 @@ class Trainer:
             # (batch_domain_0, ..., batch_domain_i)
             # and send it to self.device
             print(
-                "\rEpoch {} batch {} step {}".format(
-                    self.logger.epoch, i, self.logger.global_step
-                )
+                "\rEpoch {} batch {} step {}".format(self.logger.epoch, i, self.logger.global_step)
             )
+
+            """
+            print("**********BATCH INFORMATION********************")
+            for batch in multi_batch_tuple:
+                print("----------------------")
+                print("keys: ", batch.keys())
+                print("domain: ", batch["domain"])
+                print("paths: ", batch["paths"])
+                print("mode: ", batch["mode"])
+                print("data: ", batch["data"].keys())
+                print("data.x: ", batch["data"]["x"].shape)
+                print("data.d: ", batch["data"]["d"].shape)
+                print("data.s: ", batch["data"]["s"].shape)
+                print("----------------------")
+            print("************************************************")
+            """
+
             multi_batch_tuple = shuffle_batch_tuple(multi_batch_tuple)
             multi_domain_batch = {
-                batch["domain"][0]: self.batch_to_device(batch)
-                for batch in multi_batch_tuple
+                batch["domain"][0]: self.batch_to_device(batch) for batch in multi_batch_tuple
             }
+
             self.update_g(multi_domain_batch)
             self.update_d(multi_domain_batch)
             self.update_c(multi_domain_batch)
@@ -353,7 +359,7 @@ class Trainer:
 
         for self.logger.epoch in range(self.opts.train.epochs):
             self.run_epoch()
-            self.eval()
+            self.eval(verbose=1)
             self.save()
 
     def should_freeze_representation(self):
@@ -444,6 +450,7 @@ class Trainer:
         Returns:
             torch.Tensor: scalar loss tensor, weighted according to opts.train.lambdas
         """
+        print("----------------------------------------")
         step_loss = 0
         lambdas = self.opts.train.lambdas
         one_hot = self.opts.classifier.loss != "cross_entropy"
@@ -451,6 +458,8 @@ class Trainer:
         # ? loop) or update the networks for each domain sequentially
         # ? (.backward() and .step() n times)?
         for batch_domain, batch in multi_domain_batch.items():
+            print("domain: ", batch_domain)
+
             x = batch["data"]["x"]
             self.z = self.G.encode(x)
             # ---------------------------------
@@ -458,11 +467,12 @@ class Trainer:
             # ---------------------------------
             # Forward pass through classifier, output : (batch_size, 4)
             output_classifier = self.C(self.z)
+
             # Cross entropy loss (with sigmoid) with fake labels to fool C
             update_loss = self.losses["G"]["classifier"](
-                output_classifier,
-                fake_domains_to_class_tensor(batch["domain"], one_hot),
+                output_classifier, fake_domains_to_class_tensor(batch["domain"], one_hot),
             )
+
             step_loss += lambdas.G.classifier * update_loss
             # -------------------------------------------------
             # -----  task-specific regression losses (2)  -----
@@ -472,18 +482,18 @@ class Trainer:
                 # task t (=translation) will be done in get_translation_loss
                 # task a (=adaptation) and x (=auto-encoding) will be done hereafter
                 if update_task not in {"t", "a", "x"}:
+                    print("update_task: ", update_task)
                     # ? output features classifier
                     prediction = self.G.decoders[update_task](self.z)
                     task_tensors[update_task] = prediction
-                    update_loss = self.losses["G"]["tasks"][update_task](
-                        prediction, update_target
-                    )
+                    update_loss = self.losses["G"]["tasks"][update_task](prediction, update_target)
                     step_loss += lambdas.G[update_task] * update_loss
-                    self.logger.losses.task_loss[update_task][
-                        batch_domain
-                    ] = update_loss.item()
+                    self.logger.losses.task_loss[update_task][batch_domain] = update_loss.item()
 
                     self.debug("get_representation_loss", locals(), 0)
+
+            #! Translation and Adaptation components. Ignore for now...
+            """ 
             # ------------------------------------------------------
             # -----  auto-encoding update for translation (3)  -----
             # ------------------------------------------------------
@@ -508,6 +518,7 @@ class Trainer:
             step_loss += lambdas.G.a.auto * update_loss
             self.logger.losses.a.auto[batch_domain] = update_loss.item()
             self.debug("get_representation_loss", locals(), 2)
+            """
 
         # ---------------------------------------------
         # -----  Adaptation translation task (4)  -----
@@ -641,13 +652,9 @@ class Trainer:
             fake_s = self.G.decoders["s"](fake_z).detach()
             real_s_labels = torch.argmax(self.G.decoders["s"](real_z).detach(), 1)
             mask = (
-                torch.randint(0, 2, real_s_labels.shape)
-                .to(torch.float32)
-                .to(self.device)
+                torch.randint(0, 2, real_s_labels.shape).to(torch.float32).to(self.device)
             )  # TODO : load mask
-            update_loss = (
-                self.losses["G"]["t"]["sm"](fake_s, real_s_labels) * mask
-            ).mean()
+            update_loss = (self.losses["G"]["t"]["sm"](fake_s, real_s_labels) * mask).mean()
             step_loss += lambdas.G.t.sm * update_loss
             self.logger.losses.t.sm[
                 "{} > {}".format(source_domain, target_domain)
@@ -777,14 +784,14 @@ class Trainer:
         return lambdas.C * loss
 
     def eval(self, num_threads=5, verbose=0):
+        print("*******************EVALUATING***********************")
         counter = {}
         for i, multi_batch_tuple in enumerate(self.val_loaders):
             # create a dictionnay (domain => batch) from tuple
             # (batch_domain_0, ..., batch_domain_i)
             # and send it to self.device
             multi_domain_batch = {
-                batch["domain"][0]: self.batch_to_device(batch)
-                for batch in multi_batch_tuple
+                batch["domain"][0]: self.batch_to_device(batch) for batch in multi_batch_tuple
             }
             # ----------------------------------------------
             # -----  Infer separately for each domain  -----
@@ -799,7 +806,7 @@ class Trainer:
 
                 translator = "f" if "n" in domain else "n"
                 domain_batch = slice_batch(domain_batch, remaining)
-                translated = self.G.translate(domain_batch, translator)
+                translated = self.G.translate_batch(domain_batch, translator)
                 domain_batch["data"]["y"] = translated
                 multi_domain_batch[domain] = domain_batch
                 counter[domain] = counter.get(domain, 0) + translated.shape[0]
@@ -809,6 +816,7 @@ class Trainer:
             save_batch(multi_domain_batch, write_path, step, num_threads)
         if verbose > 0:
             print()
+        print("******************DONE EVALUATING*********************")
 
     def save(self):
         pass

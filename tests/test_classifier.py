@@ -25,35 +25,35 @@ if __name__ == "__main__":
     # -----  Test Setup  -----
     # ------------------------
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    target_domains = ["rf", "rn", "sf", "sn", "rf"]
+    target_domains = ["r", "s"]
     labels = domains_to_class_tensor(target_domains, one_hot=False).to(device)
     one_hot_labels = domains_to_class_tensor(target_domains, one_hot=True).to(device)
-
     cross_entropy = CrossEntropy()
     loss_l1 = L1Loss()
 
     # ------------------------------
     # -----  Test C.forward()  -----
     # ------------------------------
-    z = torch.ones(5, 128, 32, 32).to(device)
+    z = torch.ones(len(target_domains), 128, 32, 32).to(device)
     latent_space = (128, 32, 32)
     C = get_classifier(opts, latent_space, 0).to(device)
     y = C(z)
     tprint(
-        "output of classifier's shape for latent space {} :".format(list(z.shape[1:])),
-        y.shape,
+        "output of classifier's shape for latent space {} :".format(list(z.shape[1:])), y.shape,
     )
     # --------------------------------
     # -----  Test cross_entropy  -----
     # --------------------------------
+
     tprint("CE loss:", cross_entropy(y, labels))
     # --------------------------
     # -----  Test l1_loss  -----
     # --------------------------
     tprint("l1 loss:", loss_l1(y, one_hot_labels))
+
     print()
 
-    z = torch.ones(5, 256, 64, 64).to(device)
+    z = torch.ones(len(target_domains), 256, 64, 64).to(device)
     # ------------------------------------------
     # -----  Test different latent shapes  -----
     # ------------------------------------------
@@ -61,20 +61,18 @@ if __name__ == "__main__":
     C = get_classifier(opts, latent_space, 0).to(device)
     y = C(z)
     tprint(
-        "output of classifier's shape for latent space {} :".format(list(z.shape[1:])),
-        y.shape,
+        "output of classifier's shape for latent space {} :".format(list(z.shape[1:])), y.shape,
     )
     tprint("CE loss:", cross_entropy(y, labels))
     tprint("l1 loss:", loss_l1(y, one_hot_labels))
     print()
 
-    z = torch.ones(5, 64, 16, 16).to(device)
+    z = torch.ones(len(target_domains), 64, 16, 16).to(device)
     latent_space = (64, 16, 16)
     C = get_classifier(opts, latent_space, 0).to(device)
     y = C(z)
     tprint(
-        "output of classifier's shape for latent space {} :".format(list(z.shape[1:])),
-        y.shape,
+        "output of classifier's shape for latent space {} :".format(list(z.shape[1:])), y.shape,
     )
     tprint("CE loss:", cross_entropy(y, labels))
     tprint("l1 loss:", loss_l1(y, one_hot_labels))
