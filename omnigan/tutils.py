@@ -101,7 +101,7 @@ def domains_to_class_tensor(domains, one_hot=False):
     target = torch.tensor([mapping[domain] for domain in domains])
 
     if one_hot:
-        one_hot_target = torch.FloatTensor(len(target), 2)  # 4 domains
+        one_hot_target = torch.FloatTensor(len(target), 2)  # 2 domains
         one_hot_target.zero_()
         one_hot_target.scatter_(1, target.unsqueeze(1), 1)
         # https://discuss.pytorch.org/t/convert-int-into-one-hot-format/507

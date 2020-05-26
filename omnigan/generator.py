@@ -241,13 +241,13 @@ class WaterDecoder(BaseDecoder):
 class MaskDecoder(BaseDecoder):
     def __init__(self, opts):
         super().__init__(
-            opts.gen.w.n_upsample,
-            opts.gen.w.n_res,
-            opts.gen.w.res_dim,
-            opts.gen.w.output_dim,
-            res_norm=opts.gen.w.res_norm,
-            activ=opts.gen.w.activ,
-            pad_type=opts.gen.w.pad_type,
+            opts.gen.m.n_upsample,
+            opts.gen.m.n_res,
+            opts.gen.m.res_dim,
+            opts.gen.m.output_dim,
+            res_norm=opts.gen.m.res_norm,
+            activ=opts.gen.m.activ,
+            pad_type=opts.gen.m.pad_type,
         )
 
 
