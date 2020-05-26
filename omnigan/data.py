@@ -82,8 +82,8 @@ def pil_image_loader(path, task):
         arr[arr != 0] = 1 / arr[arr != 0]
 
     if task == 'm':
-        arr[arr != 0] = 1 / arr[arr != 0]
-        #Make sure mask is RGB for the sake of transforms
+        arr[arr != 0] = 1
+        #Make sure mask is single-channel
         if len(arr.shape) >= 3:
             arr = arr[:,:,0]
     # if task == "s":
