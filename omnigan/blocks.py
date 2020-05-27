@@ -66,6 +66,8 @@ class Conv2dBlock(nn.Module):
             self.activation = nn.SELU(inplace=True)
         elif activation == "tanh":
             self.activation = nn.Tanh()
+        elif activation == "sigmoid":
+            self.activation = nn.Sigmoid()
         elif activation == "none":
             self.activation = None
         else:
@@ -74,14 +76,10 @@ class Conv2dBlock(nn.Module):
         # initialize convolution
         if norm == "spectral":
             self.conv = SpectralNorm(
-                nn.Conv2d(
-                    input_dim, output_dim, kernel_size, stride, bias=self.use_bias
-                )
+                nn.Conv2d(input_dim, output_dim, kernel_size, stride, bias=self.use_bias)
             )
         else:
-            self.conv = nn.Conv2d(
-                input_dim, output_dim, kernel_size, stride, bias=self.use_bias
-            )
+            self.conv = nn.Conv2d(input_dim, output_dim, kernel_size, stride, bias=self.use_bias)
 
     def forward(self, x):
         x = self.conv(self.pad(x))
@@ -123,15 +121,9 @@ class ResBlock(nn.Module):
         self.activation = activation
         model = []
         model += [
-            Conv2dBlock(
-                dim, dim, 3, 1, 1, norm=norm, activation=activation, pad_type=pad_type
-            )
+            Conv2dBlock(dim, dim, 3, 1, 1, norm=norm, activation=activation, pad_type=pad_type)
         ]
-        model += [
-            Conv2dBlock(
-                dim, dim, 3, 1, 1, norm=norm, activation="none", pad_type=pad_type
-            )
-        ]
+        model += [Conv2dBlock(dim, dim, 3, 1, 1, norm=norm, activation="none", pad_type=pad_type)]
         self.model = nn.Sequential(*model)
 
     def forward(self, x):
@@ -157,6 +149,7 @@ class BaseDecoder(nn.Module):
         res_norm="instance",
         activ="relu",
         pad_type="zero",
+        output_activ="tanh",
     ):
         super().__init__()
 
@@ -166,28 +159,14 @@ class BaseDecoder(nn.Module):
             self.model += [
                 nn.Upsample(scale_factor=2),
                 Conv2dBlock(
-                    dim,
-                    dim // 2,
-                    5,
-                    1,
-                    2,
-                    norm="layer",
-                    activation=activ,
-                    pad_type=pad_type,
+                    dim, dim // 2, 5, 1, 2, norm="layer", activation=activ, pad_type=pad_type,
                 ),
             ]
             dim //= 2
         # use reflection padding in the last conv layer
         self.model += [
             Conv2dBlock(
-                dim,
-                output_dim,
-                7,
-                1,
-                3,
-                norm="none",
-                activation="tanh",
-                pad_type=pad_type,
+                dim, output_dim, 7, 1, 3, norm="none", activation=output_activ, pad_type=pad_type,
             )
         ]
         self.model = nn.Sequential(*self.model)
@@ -207,13 +186,7 @@ class BaseDecoder(nn.Module):
 # 0ff661e on 13 Apr 2019
 class SPADEResnetBlock(nn.Module):
     def __init__(
-        self,
-        fin,
-        fout,
-        cond_nc,
-        spade_use_spectral_norm,
-        spade_param_free_norm,
-        spade_kernel_size,
+        self, fin, fout, cond_nc, spade_use_spectral_norm, spade_param_free_norm, spade_kernel_size,
     ):
         super().__init__()
         # Attributes

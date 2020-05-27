@@ -178,3 +178,10 @@ val:
   store_images: false # write to disk on top of comet logging
   infer_rec: true
   infer_idt: true # order: real, translated, rec, idt
+
+
+# -----------------------------
+# ----- Comet Params ----------
+# -----------------------------
+comet:
+  display_size: 5

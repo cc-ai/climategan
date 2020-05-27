@@ -21,7 +21,7 @@ def parsed_args():
         "--config",
         default="./config/local_tests.yaml",
         type=str,
-        help="What configuration file to use to overwrite shared/defaults.yml",
+        help="What configuration file to use to overwrite shared/defaults.yaml",
     )
     parser.add_argument(
         "--exp_desc", default="", type=str, help="Description of the experiment",
@@ -75,7 +75,7 @@ if __name__ == "__main__":
     # -----  Load opts  -----
     # -----------------------
 
-    opts = load_opts(Path(args.config), default="./shared/trainer/defaults.yml")
+    opts = load_opts(Path(args.config), default="./shared/trainer/defaults.yaml")
     opts.output_path = env_to_path(opts.output_path)
     opts.output_path = get_increased_path(opts.output_path)
     pprint("Running model in", opts.output_path)
@@ -106,9 +106,7 @@ if __name__ == "__main__":
     if args.dev_mode:
         pprint("> /!\ Development mode ON")
         print("Cropping data to 32")
-        opts.data.transforms += [
-            Dict({"name": "crop", "ignore": False, "height": 32, "width": 32})
-        ]
+        opts.data.transforms += [Dict({"name": "crop", "ignore": False, "height": 32, "width": 32})]
 
     # -------------------
     # -----  Train  -----

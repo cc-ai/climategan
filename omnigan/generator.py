@@ -248,6 +248,7 @@ class MaskDecoder(BaseDecoder):
             res_norm=opts.gen.m.res_norm,
             activ=opts.gen.m.activ,
             pad_type=opts.gen.m.pad_type,
+            output_activ="sigmoid",
         )
 
 
