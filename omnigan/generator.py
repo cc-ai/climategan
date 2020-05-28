@@ -81,9 +81,6 @@ class OmniGenerator(nn.Module):
         if "s" in opts.tasks and not opts.gen.s.ignore:
             self.decoders["s"] = SegmentationDecoder(opts)
 
-        if "w" in opts.tasks and not opts.gen.w.ignore:
-            self.decoders["w"] = WaterDecoder(opts)
-
         if "m" in opts.tasks and not opts.gen.m.ignore:
             self.decoders["m"] = MaskDecoder(opts)
 
@@ -222,19 +219,6 @@ class HeightDecoder(BaseDecoder):
             res_norm=opts.gen.h.res_norm,
             activ=opts.gen.h.activ,
             pad_type=opts.gen.h.pad_type,
-        )
-
-
-class WaterDecoder(BaseDecoder):
-    def __init__(self, opts):
-        super().__init__(
-            opts.gen.w.n_upsample,
-            opts.gen.w.n_res,
-            opts.gen.w.res_dim,
-            opts.gen.w.output_dim,
-            res_norm=opts.gen.w.res_norm,
-            activ=opts.gen.w.activ,
-            pad_type=opts.gen.w.pad_type,
         )
 
 
