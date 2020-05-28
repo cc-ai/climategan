@@ -33,6 +33,7 @@ from omnigan.tutils import (
     slice_batch,
     shuffle_batch_tuple,
     get_conditioning_tensor,
+    get_num_params,
 )
 import torch.nn as nn
 import torchvision.utils as vutils
@@ -240,7 +241,10 @@ class Trainer:
         self.P = {"s": get_mega_model()}  # P => pseudo labeling models
 
         self.g_opt, self.g_scheduler = get_optimizer(self.G, self.opts.gen.opt)
-        # self.d_opt, self.d_scheduler = get_optimizer(self.D, self.opts.dis.opt)
+        if get_num_params(self.D) > 0:
+            self.d_opt, self.d_scheduler = get_optimizer(self.D, self.opts.dis.opt)
+        else:
+            self.d_opt, self.d_scheduler = None, None
         self.c_opt, self.c_scheduler = get_optimizer(self.C, self.opts.classifier.opt)
 
         self.set_losses()
@@ -310,8 +314,8 @@ class Trainer:
     def update_learning_rates(self):
         if self.g_scheduler is not None:
             self.g_scheduler.step()
-        # if self.d_scheduler is not None:
-        #    self.d_scheduler.step()
+        if self.d_scheduler is not None:
+            self.d_scheduler.step()
         if self.c_scheduler is not None:
             self.c_scheduler.step()
 
@@ -341,29 +345,14 @@ class Trainer:
                 "\rEpoch {} batch {} step {}".format(self.logger.epoch, i, self.logger.global_step)
             )
 
-            """
-            print("**********BATCH INFORMATION********************")
-            for batch in multi_batch_tuple:
-                print("----------------------")
-                print("keys: ", batch.keys())
-                print("domain: ", batch["domain"])
-                print("paths: ", batch["paths"])
-                print("mode: ", batch["mode"])
-                print("data: ", batch["data"].keys())
-                print("data.x: ", batch["data"]["x"].shape)
-                print("data.d: ", batch["data"]["d"].shape)
-                print("data.s: ", batch["data"]["s"].shape)
-                print("----------------------")
-            print("************************************************")
-            """
-
             multi_batch_tuple = shuffle_batch_tuple(multi_batch_tuple)
             multi_domain_batch = {
                 batch["domain"][0]: self.batch_to_device(batch) for batch in multi_batch_tuple
             }
 
             self.update_g(multi_domain_batch)
-            # self.update_d(multi_domain_batch)
+            if self.d_opt is not None:
+                self.update_d(multi_domain_batch)
             self.update_c(multi_domain_batch)
             self.logger.global_step += 1
             if self.should_freeze_representation():

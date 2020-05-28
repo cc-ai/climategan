@@ -347,3 +347,8 @@ def threaded_write(images, paths, num_threads=5):
         ts = [Thread(target=save_tanh_tensor, args=(_i, _p)) for _i, _p in zip(t_im, t_p)]
         list(map(lambda t: t.start(), ts))
         list(map(lambda t: t.join(), ts))
+
+
+def get_num_params(model):
+    total_params = sum(p.numel() for p in model.parameters())
+    return total_params
