@@ -1,6 +1,7 @@
 """Tensor-utils
 """
 from pathlib import Path
+
 # from copy import copy
 from threading import Thread
 
@@ -92,17 +93,15 @@ def domains_to_class_tensor(domains, one_hot=False):
             domain labels in a 2D tensor
     """
 
-    mapping = {"rf": 0, "rn": 1, "sf": 2, "sn": 3}
+    mapping = {"r": 0, "s": 1}
 
     if not all(domain in mapping for domain in domains):
-        raise ValueError(
-            "Unknown domains {} should be in {}".format(domains, list(mapping.keys()))
-        )
+        raise ValueError("Unknown domains {} should be in {}".format(domains, list(mapping.keys())))
 
     target = torch.tensor([mapping[domain] for domain in domains])
 
     if one_hot:
-        one_hot_target = torch.FloatTensor(len(target), 4)  # 4 domains
+        one_hot_target = torch.FloatTensor(len(target), 2)  # 2 domains
         one_hot_target.zero_()
         one_hot_target.scatter_(1, target.unsqueeze(1), 1)
         # https://discuss.pytorch.org/t/convert-int-into-one-hot-format/507
@@ -114,12 +113,12 @@ def fake_domains_to_class_tensor(domains, one_hot=False):
     """Converts a list of strings to a 1D Tensor representing the fake domains
     (real or sim only)
 
-    fake_domains_to_class_tensor(["sf", "rn"], False)
-    >>> torch.Tensor([0, 3])
+    fake_domains_to_class_tensor(["s", "r"], False)
+    >>> torch.Tensor([0, 2])
 
 
     Args:
-        domain (list(str)): each element of the list should be in {rf, rn, sf, sn}
+        domain (list(str)): each element of the list should be in {r, s}
         one_hot (bool, optional): whether or not to 1-h encode class labels.
             Defaults to False.
     Raises:
@@ -131,17 +130,15 @@ def fake_domains_to_class_tensor(domains, one_hot=False):
             for each domain).
     """
     if one_hot:
-        target = torch.FloatTensor(len(domains), 4)
+        target = torch.FloatTensor(len(domains), 2)
         target.fill_(0.25)
 
     else:
-        mapping = {"rf": 2, "rn": 3, "sf": 0, "sn": 1}
+        mapping = {"r": 1, "s": 0}
 
         if not all(domain in mapping for domain in domains):
             raise ValueError(
-                "Unknown domains {} should be in {}".format(
-                    domains, list(mapping.keys())
-                )
+                "Unknown domains {} should be in {}".format(domains, list(mapping.keys()))
             )
 
         target = torch.tensor([mapping[domain] for domain in domains])
@@ -178,11 +175,7 @@ def get_4D_bit(shape, probs):
         torch.Tensor: batch x # of domains x h x w
     """
     probs = probs if isinstance(probs, torch.Tensor) else torch.tensor(probs)
-    bit = (
-        torch.ones(shape[0], probs.shape[-1], *shape[-2:])
-        .to(torch.float32)
-        .to(probs.device)
-    )
+    bit = torch.ones(shape[0], probs.shape[-1], *shape[-2:]).to(torch.float32).to(probs.device)
     bit *= probs[None, :, None, None].to(torch.float32)
     return bit
 
@@ -304,7 +297,7 @@ def save_tanh_tensor(image, path):
     """
     path = Path(path)
     if isinstance(image, torch.Tensor):
-        image = image.detach().numpy()
+        image = image.detach().cpu().numpy()
         if image.shape[-1] != 3 and image.shape[0] == 3:
             image = np.transpose(image, (1, 2, 0))
     if image.min() < 0 and image.min() > -1:
@@ -329,9 +322,7 @@ def save_batch(multi_domain_batch, root="./", step=0, num_threads=5):
             imtensor = torch.cat([x, y], dim=-1)
             for i, im in enumerate(imtensor):
                 imid = Path(paths[i]).stem[:10]
-                images_to_save["paths"] += [
-                    root / "im_{}_{}_{}.png".format(step, domain, imid)
-                ]
+                images_to_save["paths"] += [root / "im_{}_{}_{}.png".format(step, domain, imid)]
                 images_to_save["images"].append(im)
     if num_threads > 0:
         threaded_write(images_to_save["images"], images_to_save["paths"], num_threads)
@@ -347,17 +338,17 @@ def threaded_write(images, paths, num_threads=5):
         t_im.append(im)
         t_p.append(p)
         if len(t_im) == num_threads:
-            ts = [
-                Thread(target=save_tanh_tensor, args=(_i, _p))
-                for _i, _p in zip(t_im, t_p)
-            ]
+            ts = [Thread(target=save_tanh_tensor, args=(_i, _p)) for _i, _p in zip(t_im, t_p)]
             list(map(lambda t: t.start(), ts))
             list(map(lambda t: t.join(), ts))
             t_im = []
             t_p = []
     if t_im:
-        ts = [
-            Thread(target=save_tanh_tensor, args=(_i, _p)) for _i, _p in zip(t_im, t_p)
-        ]
+        ts = [Thread(target=save_tanh_tensor, args=(_i, _p)) for _i, _p in zip(t_im, t_p)]
         list(map(lambda t: t.start(), ts))
         list(map(lambda t: t.join(), ts))
+
+
+def get_num_params(model):
+    total_params = sum(p.numel() for p in model.parameters())
+    return total_params

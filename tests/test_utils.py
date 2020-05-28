@@ -38,10 +38,10 @@ if __name__ == "__main__":
     # ---------------------------------------------
     # -----  Testing domains_to_class_tensor  -----
     # ---------------------------------------------
-    batch = next(iter(loaders["train"]["rn"]))
+    batch = next(iter(loaders["train"]["r"]))
     print(domains_to_class_tensor(batch["domain"], True))
     print(domains_to_class_tensor(batch["domain"], False))
-    domains = ["rn", "rf", "rf", "sn"]
+    domains = ["r", "s"]
 
     try:
         domains_to_class_tensor([1, "sg"])

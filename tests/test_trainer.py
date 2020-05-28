@@ -9,7 +9,7 @@ from omnigan.tutils import freeze
 from run import print_header
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-c", "--config",  default="config/trainer/local_tests.yaml")
+parser.add_argument("-c", "--config", default="config/trainer/local_tests.yaml")
 args = parser.parse_args()
 root = Path(__file__).parent.parent
 opts = load_test_opts(args.config)
@@ -23,8 +23,7 @@ if __name__ == "__main__":
     trainer.setup()
     multi_batch_tuple = next(iter(trainer.train_loaders))
     multi_domain_batch = {
-        batch["domain"][0]: trainer.batch_to_device(batch)
-        for batch in multi_batch_tuple
+        batch["domain"][0]: trainer.batch_to_device(batch) for batch in multi_batch_tuple
     }
     # -------------------------
     # -----  Test Config  -----
@@ -132,9 +131,7 @@ if __name__ == "__main__":
         trainer.opts.train.representational_training = False
         trainer.opts.train.representation_steps = 100
         trainer.logger.global_step = 200
-        print(
-            False, 100, 200, "Not Using repr_tr and step < repr_step and step % 2 == 0"
-        )
+        print(False, 100, 200, "Not Using repr_tr and step < repr_step and step % 2 == 0")
         trainer.update_g(multi_domain_batch, 1)
         print()
 
@@ -142,9 +139,7 @@ if __name__ == "__main__":
         trainer.opts.train.representational_training = False
         trainer.opts.train.representation_steps = 100
         trainer.logger.global_step = 201
-        print(
-            False, 100, 201, "Not Using repr_tr and step > repr_step and step % 2 == 1"
-        )
+        print(False, 100, 201, "Not Using repr_tr and step > repr_step and step % 2 == 1")
         trainer.update_g(multi_domain_batch, 1)
         print()
 
@@ -181,15 +176,16 @@ if __name__ == "__main__":
             print("Setting up")
             trainer.setup()
 
-        encoder_weights = [
-            [p.detach().cpu().numpy()[:5] for p in trainer.G.encoder.parameters()]
-        ]
+        encoder_weights = [[p.detach().cpu().numpy()[:5] for p in trainer.G.encoder.parameters()]]
 
         print("First update: extrapolation")
         print("  - Update g")
         trainer.update_g(multi_domain_batch)
-        print("  - Update d")
-        trainer.update_d(multi_domain_batch)
+
+        #! Ignoring discrim update since we aren't
+        #! yet doing translation
+        # print("  - Update d")
+        # trainer.update_d(multi_domain_batch)
         print("  - Update c")
         trainer.update_c(multi_domain_batch)
 
@@ -198,24 +194,22 @@ if __name__ == "__main__":
         print("Second update: gradient step")
         print("  - Update g")
         trainer.update_g(multi_domain_batch)
-        print("  - Update d")
-        trainer.update_d(multi_domain_batch)
+        # print("  - Update d")
+        # trainer.update_d(multi_domain_batch)
         print("  - Update c")
         trainer.update_c(multi_domain_batch)
 
         print("Freezing encoder")
         freeze(trainer.G.encoder)
         trainer.representation_is_frozen = True
-        encoder_weights += [
-            [p.cpu().numpy()[:5] for p in trainer.G.encoder.parameters()]
-        ]
+        encoder_weights += [[p.cpu().numpy()[:5] for p in trainer.G.encoder.parameters()]]
         trainer.logger.global_step += 1
 
         print("Third update: extrapolation")
         print("  - Update g")
         trainer.update_g(multi_domain_batch)
-        print("  - Update d")
-        trainer.update_d(multi_domain_batch)
+        # print("  - Update d")
+        # trainer.update_d(multi_domain_batch)
         print("  - Update c")
         trainer.update_c(multi_domain_batch)
 
@@ -224,14 +218,12 @@ if __name__ == "__main__":
         print("Fourth update: gradient step")
         print("  - Update g")
         trainer.update_g(multi_domain_batch)
-        print("  - Update d")
-        trainer.update_d(multi_domain_batch)
+        # print("  - Update d")
+        # trainer.update_d(multi_domain_batch)
         print("  - Update c")
         trainer.update_c(multi_domain_batch)
 
-        encoder_weights += [
-            [p.cpu().numpy()[:5] for p in trainer.G.encoder.parameters()]
-        ]
+        encoder_weights += [[p.cpu().numpy()[:5] for p in trainer.G.encoder.parameters()]]
 
         # # ? triggers segmentation fault for some unknown reason
         # # encoder was updated

@@ -2,7 +2,7 @@ output_path: /network/tmp1/schmidtv/yb_runs/test_v1
 # -------------------
 # -----  Tasks  -----
 # -------------------
-tasks: [a, d, h, s, t, w]
+tasks: [a, d, h, s, t, m]
 
 # ----------------
 # ----- Data -----
@@ -11,15 +11,12 @@ data:
   files: # if one is not none it will override the dirs location
     base: /path/to/data
     train:
-      rf: train_rf.json
-      rn: train_rn.json
-      sf: train_sf.json
-      sn: train_sn.json
+      r: train_r.json
+      s: train_s.json
     val:
-      rf: val_rf.json
-      rn: val_rn.json
-      sf: val_sf.json
-      sn: val_sn.json
+      r: val_r.json
+      s: val_s.json
+
   loaders:
     batch_size: 2
     shuffle: false
@@ -93,6 +90,9 @@ gen:
   w: # specific params for the water-segmentation decoder
     <<: *default-gen
     output_dim: 1
+  m: # specific params for the mask-generation decoder
+    <<: *default-gen
+    output_dim: 1
 # -------------------------
 # ----- Discriminator -----
 # -------------------------
@@ -120,6 +120,8 @@ dis:
   a:
     <<: *default-dis
   w:
+    <<: *default-dis
+  m:
     <<: *default-dis
 # -------------------------------
 # -----  Domain Classifier  -----
@@ -152,6 +154,7 @@ train:
       h: 1
       s: 1
       w: 1
+      m: 1
       t:
         auto: 1 # auto-encoding, reconstruction
         cycle: 1 # cycle consistency
@@ -175,3 +178,10 @@ val:
   store_images: false # write to disk on top of comet logging
   infer_rec: true
   infer_idt: true # order: real, translated, rec, idt
+
+
+# -----------------------------
+# ----- Comet Params ----------
+# -----------------------------
+comet:
+  display_size: 5

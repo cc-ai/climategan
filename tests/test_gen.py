@@ -13,7 +13,7 @@ from run import print_header
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-c", "--config",  default="config/trainer/local_tests.yaml")
+parser.add_argument("-c", "--config", default="config/trainer/local_tests.yaml")
 args = parser.parse_args()
 root = Path(__file__).parent.parent
 opts = load_test_opts(args.config)
@@ -92,6 +92,8 @@ if __name__ == "__main__":
                 else:
                     print(dec, G.decoders[dec](z).shape)
 
+    #! Holding off on translation...
+    """
     # --------------------------------------------------------------------
     # -----  Test translation depending on use_bit_conditioning and  -----
     # -----  use_spade                                               -----
@@ -118,3 +120,5 @@ if __name__ == "__main__":
         G = get_gen(opts).to(device)
         G.set_translation_decoder(latent_space_dims, device)
         print(G.forward(image, translator="f").shape)
+    """
+
