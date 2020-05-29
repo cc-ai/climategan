@@ -95,6 +95,7 @@ def get_transform(transform_item):
     transform_item listed in opts.data.transforms ; transform_item is
     an addict.Dict
     """
+
     if transform_item.name == "crop" and not transform_item.ignore:
         return RandomCrop((transform_item.height, transform_item.width))
 
@@ -103,6 +104,9 @@ def get_transform(transform_item):
 
     if transform_item.name == "hflip" and not transform_item.ignore:
         return RandomHorizontalFlip(p=transform_item.p or 0.5)
+
+    if transform_item.ignore:
+        return None
 
     raise ValueError("Unknown transform_item {}".format(transform_item))
 
@@ -118,6 +122,7 @@ def get_transforms(opts):
 
     conf_transforms = []
     for t in opts.data.transforms:
-        conf_transforms.append(get_transform(t))
+        if get_transform(t) is not None:
+            conf_transforms.append(get_transform(t))
 
     return conf_transforms + last_transforms
