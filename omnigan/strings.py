@@ -1,6 +1,7 @@
 """custom __str__ methods for OmniGAN's classes
 """
 import torch.nn as nn
+import torch
 
 
 def title(name, color="\033[94m"):
@@ -34,14 +35,19 @@ def encoder(E):
     return s.strip()
 
 
+def get_conv_weight(conv):
+    weight = torch.Tensor(conv.out_channels, conv.in_channels // conv.groups, *conv.kernel_size)
+    return weight.shape
+
+
 def conv2dblock(obj):
     name = "{:20}".format("Conv2dBlock")
     s = ""
     if "SpectralNorm" in obj.conv.__class__.__name__:
         s = "SpectralNorm => "
-        w = str(tuple(obj.conv.module.weight.shape))
+        w = str(tuple(get_conv_weight(obj.conv.module)))
     else:
-        w = str(tuple(obj.conv.weight.shape))
+        w = str(tuple(get_conv_weight(obj.conv)))
     return f"{name}{s}{w}".strip()
 
 
@@ -87,5 +93,5 @@ def spadedecoder(sd):
     for i, u in enumerate(sd.up_spades):
         s += up
         s += str(u) + "\n"
-    s += "{:20}".format("Conv2d") + str(tuple(sd.conv_img.weight.shape)) + " tanh"
+    s += "{:20}".format("Conv2d") + str(tuple(get_conv_weight(sd.conv_img))) + " tanh"
     return s
