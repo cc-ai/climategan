@@ -77,10 +77,14 @@ if __name__ == "__main__":
 
     opts = load_opts(Path(args.config), default="./shared/trainer/defaults.yaml")
     opts.output_path = env_to_path(opts.output_path)
-    opts.output_path = get_increased_path(opts.output_path)
+    if not opts.train.resume:
+        opts.output_path = get_increased_path(opts.output_path)
     pprint("Running model in", opts.output_path)
+
     if args.dev_mode:
         assert not Path(opts.output_path).exists()
+    elif opts.train.resume:
+        Path(opts.output_path).mkdir(exist_ok=True)
     else:
         Path(opts.output_path).mkdir()
 

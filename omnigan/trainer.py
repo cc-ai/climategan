@@ -37,6 +37,7 @@ from omnigan.tutils import (
 )
 import torch.nn as nn
 import torchvision.utils as vutils
+import os
 
 
 class Trainer:
@@ -247,6 +248,9 @@ class Trainer:
             self.d_opt, self.d_scheduler = None, None
         self.c_opt, self.c_scheduler = get_optimizer(self.C, self.opts.classifier.opt)
 
+        if self.opts.train.resume:
+            self.resume()
+
         self.set_losses()
 
         if self.verbose > 0:
@@ -432,10 +436,13 @@ class Trainer:
         """
         assert self.is_setup
 
-        for self.logger.epoch in range(self.opts.train.epochs):
+        for self.logger.epoch in range(
+            self.logger.epoch, self.logger.epoch + self.opts.train.epochs
+        ):
             self.run_epoch()
             self.eval(verbose=1)
-            self.save()
+            if self.logger.epoch != 0 and self.logger.epoch % self.opts.train.save_n_epochs == 0:
+                self.save()
 
     def should_freeze_representation(self):
         if self.representation_is_frozen:
@@ -905,10 +912,58 @@ class Trainer:
         print("******************DONE EVALUATING*********************")
 
     def save(self):
-        pass
+        save_dir = Path(self.opts.output_path) / Path("checkpoints")
+        save_dir.mkdir(exist_ok=True)
+        save_path = Path(f"cpkt_epoch_{self.logger.epoch}.pth")
+        save_path = save_dir / save_path
+
+        # Construct relevant state dicts / optims:
+        # Save at least G
+        save_dict = {
+            "epoch": self.logger.epoch,
+            "G": self.G.state_dict(),
+            "g_opt": self.g_opt.state_dict(),
+            "step": self.logger.global_step,
+        }
+
+        if self.C is not None and get_num_params(self.C) > 0:
+            save_dict["C"] = self.C.state_dict()
+            save_dict["c_opt"] = self.c_opt.state_dict()
+        if self.D is not None and get_num_params(self.D) > 0:
+            save_dict["D"] = self.D.state_dict()
+            save_dict["d_opt"] = self.d_opt.state_dict()
+
+        torch.save(save_dict, save_path)
 
     def resume(self):
-        pass
+        load_path = self.get_latest_cpkt()
+        checkpoint = torch.load(load_path)
+        print(f"Resuming model from {load_path}")
+        self.G.load_state_dict(checkpoint["G"])
+        self.g_opt.load_state_dict(checkpoint["g_opt"])
+        self.logger.epoch = checkpoint["epoch"]
+        self.logger.global_step = checkpoint["step"]
+
+        if self.C is not None and get_num_params(self.C) > 0:
+            self.C.load_state_dict(checkpoint["C"])
+            self.c_opt.load_state_dict(checkpoint["c_opt"])
+
+        if self.D is not None and get_num_params(self.D) > 0:
+            self.D.load_state_dict(checkpoint["D"])
+            self.d_opt.load_state_dict(checkpoint["d_opt"])
+
+    def get_latest_cpkt(self):
+        load_dir = Path(self.opts.output_path) / Path("checkpoints")
+        cpkts = os.listdir(str(load_dir.resolve()))
+        max_epoch = 0
+        max_cpkt = ""
+        for cpkt in cpkts:
+            cpkt = Path(cpkt)
+            epoch = int(cpkt.stem.split("_")[-1])
+            if epoch > max_epoch:
+                max_epoch = epoch
+                max_cpkt = cpkt
+        return Path(self.opts.output_path) / Path("checkpoints") / max_cpkt
 
     def debug(self, func_name, local_vars, index=None):
         if self.verbose == 0:
