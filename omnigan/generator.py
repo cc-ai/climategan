@@ -6,7 +6,8 @@
 import torch
 import torch.nn as nn
 from omnigan.tutils import init_weights, get_4D_bit, get_conditioning_tensor
-from omnigan.blocks import Conv2dBlock, ResBlocks, SpadeDecoder, BaseDecoder
+from omnigan.blocks import Conv2dBlock, ResBlocks, SpadeDecoder, BaseDecoder, BaseEncoder
+from omnigan.deeplabv2 import DeeplabEncoder, DeeplabDecoder
 import omnigan.strings as strings
 
 # --------------------------------------------------------------------------
@@ -54,7 +55,12 @@ class OmniGenerator(nn.Module):
         """
         super().__init__()
         self.opts = opts
-        self.encoder = Encoder(opts)
+ 
+        if opts.gen.encoder.architecture == "deeplabv2":
+            self.encoder = DeeplabEncoder(opts)
+        else:
+            self.encoder = BaseEncoder(opts)
+
         self.verbose = verbose
         self.decoders = {}
 
@@ -82,7 +88,7 @@ class OmniGenerator(nn.Module):
             self.decoders["s"] = SegmentationDecoder(opts)
 
         if "m" in opts.tasks and not opts.gen.m.ignore:
-            self.decoders["m"] = MaskDecoder(opts)
+            self.decoders["m"] = MaskDecoder(opts)#DeeplabDecoder()
 
         self.decoders = nn.ModuleDict(self.decoders)
 
@@ -168,47 +174,6 @@ class OmniGenerator(nn.Module):
         return strings.generator(self)
 
 
-class Encoder(nn.Module):
-    def __init__(self, opts):
-        """Latent Space Encoder
-
-        Latent space shape for image CxHxW:
-        (input_dim * 2 ** n_downsample)x(H / 2 ** n_downsample)x(W / 2 ** n_downsample)
-
-        Args:
-            opts (addict.Dict): options
-        """
-        super().__init__()
-        activ = opts.gen.encoder.activ
-        dim = opts.gen.encoder.dim
-        input_dim = opts.gen.encoder.input_dim
-        n_downsample = opts.gen.encoder.n_downsample
-        n_res = opts.gen.encoder.n_res
-        norm = opts.gen.encoder.norm
-        res_norm = opts.gen.encoder.res_norm
-        pad_type = opts.gen.encoder.pad_type
-
-        self.model = [
-            Conv2dBlock(input_dim, dim, 7, 1, 3, norm=norm, activation=activ, pad_type=pad_type)
-        ]
-        # downsampling blocks
-        for i in range(n_downsample):
-            self.model += [
-                Conv2dBlock(dim, 2 * dim, 4, 2, 1, norm=norm, activation=activ, pad_type=pad_type,)
-            ]
-            dim *= 2
-        # residual blocks
-        self.model += [ResBlocks(n_res, dim, norm=res_norm, activation=activ, pad_type=pad_type)]
-        self.model = nn.Sequential(*self.model)
-        self.output_dim = dim
-
-    def forward(self, x):
-        return self.model(x)
-
-    def __str__(self):
-        return strings.encoder(self)
-
-
 class HeightDecoder(BaseDecoder):
     def __init__(self, opts):
         super().__init__(
@@ -216,12 +181,11 @@ class HeightDecoder(BaseDecoder):
             opts.gen.h.n_res,
             opts.gen.h.res_dim,
             opts.gen.h.output_dim,
-            res_norm=opts.gen.h.res_norm,
-            activ=opts.gen.h.activ,
-            pad_type=opts.gen.h.pad_type,
+            res_norm=opts.gen.m.res_norm,
+            activ=opts.gen.m.activ,
+            pad_type=opts.gen.m.pad_type,
+            output_activ="sigmoid",
         )
-
-
 class MaskDecoder(BaseDecoder):
     def __init__(self, opts):
         super().__init__(
@@ -234,8 +198,23 @@ class MaskDecoder(BaseDecoder):
             pad_type=opts.gen.m.pad_type,
             output_activ="sigmoid",
         )
-
-
+"""
+class MaskDecoder(nn.Module):
+    def __init__(self, opts):
+        if opts.gen.encoder.architecture == 'deeplabv2':
+            DeeplabDecoder.__init__(self)
+        else:
+            BaseDecoder.__init__(self, 
+                opts.gen.m.n_upsample,
+                opts.gen.m.n_res,
+                opts.gen.m.res_dim,
+                opts.gen.m.output_dim,
+                res_norm=opts.gen.m.res_norm,
+                activ=opts.gen.m.activ,
+                pad_type=opts.gen.m.pad_type,
+                output_activ="sigmoid",
+            )
+"""
 class DepthDecoder(BaseDecoder):
     def __init__(self, opts):
         super().__init__(

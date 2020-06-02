@@ -77,10 +77,24 @@ class Conv2dBlock(nn.Module):
         # initialize convolution
         if norm == "spectral":
             self.conv = SpectralNorm(
-                nn.Conv2d(input_dim, output_dim, kernel_size, stride, dilation=dilation, bias=self.use_bias)
+                nn.Conv2d(
+                    input_dim,
+                    output_dim,
+                    kernel_size,
+                    stride,
+                    dilation=dilation,
+                    bias=self.use_bias,
+                )
             )
         else:
-            self.conv = nn.Conv2d(input_dim, output_dim, kernel_size, stride, dilation=dilation bias=self.use_bias)
+            self.conv = nn.Conv2d(
+                input_dim,
+                output_dim,
+                kernel_size,
+                stride,
+                dilation=dilation,
+                bias=self.use_bias,
+            )
 
     def forward(self, x):
         x = self.conv(self.pad(x))
@@ -122,9 +136,15 @@ class ResBlock(nn.Module):
         self.activation = activation
         model = []
         model += [
-            Conv2dBlock(dim, dim, 3, 1, 1, norm=norm, activation=activation, pad_type=pad_type)
+            Conv2dBlock(
+                dim, dim, 3, 1, 1, norm=norm, activation=activation, pad_type=pad_type
+            )
         ]
-        model += [Conv2dBlock(dim, dim, 3, 1, 1, norm=norm, activation="none", pad_type=pad_type)]
+        model += [
+            Conv2dBlock(
+                dim, dim, 3, 1, 1, norm=norm, activation="none", pad_type=pad_type
+            )
+        ]
         self.model = nn.Sequential(*model)
 
     def forward(self, x):
@@ -139,19 +159,24 @@ class ResBlock(nn.Module):
 
 _BOTTLENECK_EXPANSION = 4
 
+
 class Bottleneck(nn.Module):
     """
     Bottleneck block of MSRA ResNet.
     """
-   
+
     def __init__(self, in_ch, out_ch, stride, dilation, downsample):
         super(Bottleneck, self).__init__()
         mid_ch = out_ch // _BOTTLENECK_EXPANSION
-        self.reduce = Conv2dBlock(in_ch, mid_ch, 1, stride, 0, norm = "batch")
-        self.conv3x3 = Conv2dBlock(mid_ch, mid_ch, 3, 1, dilation, dilation, norm = "batch")
-        self.increase = Conv2dBlock(mid_ch, out_ch, 1, 1, 0, 1, activation = "none", norm = "batch")
+        self.reduce = Conv2dBlock(in_ch, mid_ch, 1, stride, 0, norm="batch")
+        self.conv3x3 = Conv2dBlock(
+            mid_ch, mid_ch, 3, 1, dilation, dilation, norm="batch"
+        )
+        self.increase = Conv2dBlock(
+            mid_ch, out_ch, 1, 1, 0, 1, activation="none", norm="batch"
+        )
         self.shortcut = (
-            Conv2dBlock(in_ch, out_ch, 1, stride, 0, 1, activation = "none", norm = "batch")
+            Conv2dBlock(in_ch, out_ch, 1, stride, 0, 1, activation="none", norm="batch")
             if downsample
             else lambda x: x  # identity
         )
@@ -193,6 +218,7 @@ class ResLayer(nn.Sequential):
                 ),
             )
 
+
 class Stem(nn.Sequential):
     """
     The 1st conv layer.
@@ -200,9 +226,10 @@ class Stem(nn.Sequential):
     """
 
     def __init__(self, out_ch):
-        super(_Stem, self).__init__()
-        self.add_module("conv1",Conv2dBlock(3, out_ch, 7, 2, 3, 1,norm = "batch"))
+        super(Stem, self).__init__()
+        self.add_module("conv1", Conv2dBlock(3, out_ch, 7, 2, 3, 1, norm="batch"))
         self.add_module("pool", nn.MaxPool2d(3, 2, 1, ceil_mode=True))
+
 
 # --------------------------
 # -----  Base Decoder  -----
@@ -227,14 +254,28 @@ class BaseDecoder(nn.Module):
             self.model += [
                 nn.Upsample(scale_factor=2),
                 Conv2dBlock(
-                    dim, dim // 2, 5, 1, 2, norm="layer", activation=activ, pad_type=pad_type,
+                    dim,
+                    dim // 2,
+                    5,
+                    1,
+                    2,
+                    norm="layer",
+                    activation=activ,
+                    pad_type=pad_type,
                 ),
             ]
             dim //= 2
         # use reflection padding in the last conv layer
         self.model += [
             Conv2dBlock(
-                dim, output_dim, 7, 1, 3, norm="none", activation=output_activ, pad_type=pad_type,
+                dim,
+                output_dim,
+                7,
+                1,
+                3,
+                norm="none",
+                activation=output_activ,
+                pad_type=pad_type,
             )
         ]
         self.model = nn.Sequential(*self.model)
@@ -254,7 +295,13 @@ class BaseDecoder(nn.Module):
 # 0ff661e on 13 Apr 2019
 class SPADEResnetBlock(nn.Module):
     def __init__(
-        self, fin, fout, cond_nc, spade_use_spectral_norm, spade_param_free_norm, spade_kernel_size,
+        self,
+        fin,
+        fout,
+        cond_nc,
+        spade_use_spectral_norm,
+        spade_param_free_norm,
+        spade_kernel_size,
     ):
         super().__init__()
         # Attributes
@@ -425,3 +472,90 @@ class SpadeDecoder(nn.Module):
 
     def __str__(self):
         return strings.spadedecoder(self)
+
+
+class BaseEncoder(nn.Module):
+    def __init__(self, opts):
+        """Latent Space Encoder
+
+        Latent space shape for image CxHxW:
+        (input_dim * 2 ** n_downsample)x(H / 2 ** n_downsample)x(W / 2 ** n_downsample)
+
+        Args:
+            opts (addict.Dict): options
+        """
+        super().__init__()
+        activ = opts.gen.encoder.activ
+        dim = opts.gen.encoder.dim
+        input_dim = opts.gen.encoder.input_dim
+        n_downsample = opts.gen.encoder.n_downsample
+        n_res = opts.gen.encoder.n_res
+        norm = opts.gen.encoder.norm
+        res_norm = opts.gen.encoder.res_norm
+        pad_type = opts.gen.encoder.pad_type
+
+        self.model = nn.Sequential()
+        self.model.add_module(
+            "conv2d_1",
+            Conv2dBlock(
+                input_dim, dim, 7, 1, 3, norm=norm, activation=activ, pad_type=pad_type
+            ),
+        )
+        # downsampling blocks
+        for i in range(n_downsample):
+            self.model.add_module(
+                "conv2d_" + str(i),
+                Conv2dBlock(
+                    dim,
+                    2 * dim,
+                    4,
+                    2,
+                    1,
+                    norm=norm,
+                    activation=activ,
+                    pad_type=pad_type,
+                ),
+            )
+            dim *= 2
+        # residual blocks
+        self.model.add_module("resblock", 
+            ResBlocks(n_res, dim, norm=res_norm, activation=activ, pad_type=pad_type)
+        )
+        # self.model = nn.Sequential(*self.model)
+        self.output_dim = dim
+
+    def forward(self, x):
+        return self.model(x)
+
+
+class Deeplabv2Encoder(nn.Sequential):
+    def __init__(self, n_blocks):
+        """Latent Space Encoder based on Deeplabv2 architecture
+        DeepLab v2: Dilated ResNet feature extractor - No  ASPP
+        Output stride is fixed at 8
+
+        https://github.com/kazuto1011/deeplab-pytorch/blob/master/libs/models/deeplabv2.py
+
+        Args:
+            opts (addict.Dict): options
+        """
+
+    def __init__(self, n_blocks=[3, 4, 23, 3]):
+        super(Deeplabv2Encoder, self).__init__()
+        ch = [64 * 2 ** p for p in range(6)]
+        self.model = nn.Sequential()
+        self.model.add_module("layer1", Stem(ch[0]))
+        self.model.add_module("layer2", ResLayer(n_blocks[0], ch[0], ch[2], 1, 1))
+        self.model.add_module("layer3", ResLayer(n_blocks[1], ch[2], ch[3], 2, 1))
+        self.model.add_module("layer4", ResLayer(n_blocks[2], ch[3], ch[4], 1, 2))
+        self.model.add_module("layer5", ResLayer(n_blocks[3], ch[4], ch[5], 1, 4))
+        self.output_dim = ch[5]
+
+    def freeze_bn(self):
+        for m in self.model.modules():
+            if isinstance(m, Conv2dBlock.norm):
+                m.eval()
+
+    def forward(self, x):
+        return self.model(x)
+
