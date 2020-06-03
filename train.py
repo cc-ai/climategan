@@ -32,6 +32,7 @@ def parsed_args():
     parser.add_argument(
         "--no_comet", action="store_true", help="DON'T use comet.ml to log experiment"
     )
+    parser.add_argument("--resume", action="store_true", help="Load latest ckpt")
     parser.add_argument(
         "--dev_mode",
         action="store_true",
@@ -76,7 +77,10 @@ if __name__ == "__main__":
     # -----------------------
 
     opts = load_opts(Path(args.config), default="./shared/trainer/defaults.yaml")
+    if args.resume:
+        opts.train.resume = True
     opts.output_path = env_to_path(opts.output_path)
+
     if not opts.train.resume:
         opts.output_path = get_increased_path(opts.output_path)
     pprint("Running model in", opts.output_path)
@@ -110,7 +114,9 @@ if __name__ == "__main__":
     if args.dev_mode:
         pprint("> /!\ Development mode ON")
         print("Cropping data to 32")
-        opts.data.transforms += [Dict({"name": "crop", "ignore": False, "height": 32, "width": 32})]
+        opts.data.transforms += [
+            Dict({"name": "crop", "ignore": False, "height": 32, "width": 32})
+        ]
 
     # -------------------
     # -----  Train  -----
