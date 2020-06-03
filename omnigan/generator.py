@@ -6,7 +6,13 @@
 import torch
 import torch.nn as nn
 from omnigan.tutils import init_weights, get_4D_bit, get_conditioning_tensor
-from omnigan.blocks import Conv2dBlock, ResBlocks, SpadeDecoder, BaseDecoder, BaseEncoder
+from omnigan.blocks import (
+    Conv2dBlock,
+    ResBlocks,
+    SpadeDecoder,
+    BaseDecoder,
+    BaseEncoder,
+)
 from omnigan.deeplabv2 import DeeplabEncoder
 import omnigan.strings as strings
 
@@ -55,7 +61,7 @@ class OmniGenerator(nn.Module):
         """
         super().__init__()
         self.opts = opts
- 
+
         if opts.gen.encoder.architecture == "deeplabv2":
             self.encoder = DeeplabEncoder(opts)
         else:
@@ -70,7 +76,10 @@ class OmniGenerator(nn.Module):
                 # call set_translation_decoder(latent_shape, device)
             else:
                 self.decoders["t"] = nn.ModuleDict(
-                    {"f": BaseTranslationDecoder(opts), "n": BaseTranslationDecoder(opts),}
+                    {
+                        "f": BaseTranslationDecoder(opts),
+                        "n": BaseTranslationDecoder(opts),
+                    }
                 )
 
         if "a" in opts.tasks and not opts.gen.a.ignore:
@@ -88,7 +97,7 @@ class OmniGenerator(nn.Module):
             self.decoders["s"] = SegmentationDecoder(opts)
 
         if "m" in opts.tasks and not opts.gen.m.ignore:
-            self.decoders["m"] = MaskDecoder(opts)#DeeplabDecoder()
+            self.decoders["m"] = MaskDecoder(opts)  # DeeplabDecoder()
 
         self.decoders = nn.ModuleDict(self.decoders)
 
@@ -140,7 +149,11 @@ class OmniGenerator(nn.Module):
         return y
 
     def decode_tasks(self, z):
-        return {task: self.decoders[task](z) for task in self.opts.tasks if task not in {"t", "a"}}
+        return {
+            task: self.decoders[task](z)
+            for task in self.opts.tasks
+            if task not in {"t", "a"}
+        }
 
     def encode(self, x):
         return self.encoder.forward(x)
@@ -186,6 +199,8 @@ class HeightDecoder(BaseDecoder):
             pad_type=opts.gen.m.pad_type,
             output_activ="sigmoid",
         )
+
+
 class MaskDecoder(BaseDecoder):
     def __init__(self, opts):
         super().__init__(
@@ -198,23 +213,8 @@ class MaskDecoder(BaseDecoder):
             pad_type=opts.gen.m.pad_type,
             output_activ="sigmoid",
         )
-"""
-class MaskDecoder(nn.Module):
-    def __init__(self, opts):
-        if opts.gen.encoder.architecture == 'deeplabv2':
-            DeeplabDecoder.__init__(self)
-        else:
-            BaseDecoder.__init__(self, 
-                opts.gen.m.n_upsample,
-                opts.gen.m.n_res,
-                opts.gen.m.res_dim,
-                opts.gen.m.output_dim,
-                res_norm=opts.gen.m.res_norm,
-                activ=opts.gen.m.activ,
-                pad_type=opts.gen.m.pad_type,
-                output_activ="sigmoid",
-            )
-"""
+
+
 class DepthDecoder(BaseDecoder):
     def __init__(self, opts):
         super().__init__(
@@ -287,7 +287,9 @@ class SpadeTranslationDict(nn.ModuleDict):
         return self._model
 
     def forward(self, *args, **kwargs):
-        raise NotImplementedError("Cannot forward the SpadeTranslationDict, chose a domain")
+        raise NotImplementedError(
+            "Cannot forward the SpadeTranslationDict, chose a domain"
+        )
 
     def __str__(self):
         return str(self._model).strip()
@@ -331,7 +333,9 @@ class SpadeTranslationDecoder(SpadeDecoder):
 
     def concat_bit_to_seg(self, seg):
         bit = get_4D_bit(seg.shape, self.bit)
-        return torch.cat([bit.to(torch.float32).to(seg.device), seg.to(torch.float32)], dim=1)
+        return torch.cat(
+            [bit.to(torch.float32).to(seg.device), seg.to(torch.float32)], dim=1
+        )
 
     def forward(self, z, seg):
         if self.use_bit_conditioning:

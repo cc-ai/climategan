@@ -58,7 +58,15 @@ class Bottleneck(nn.Module):
 
 
 class ResNetMulti(nn.Module):
-    def __init__(self, block, layers, n_res=4, res_norm = "instance",activ="lrelu", pad_type="reflect"):
+    def __init__(
+        self,
+        block,
+        layers,
+        n_res=4,
+        res_norm="instance",
+        activ="lrelu",
+        pad_type="reflect",
+    ):
         self.inplanes = 64
         super(ResNetMulti, self).__init__()
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
@@ -146,6 +154,7 @@ class DeeplabEncoder(nn.Module):
         self.model = ResNetMulti(Bottleneck, opts.gen.deeplabv2.nblocks)
         if opts.gen.deeplabv2.use_pretrained:
             saved_state_dict = torch.load(opts.gen.deeplabv2.pretrained_model)
+            print("Load pretrained Deeplab model")
             new_params = self.model.state_dict().copy()
             for i in saved_state_dict:
                 i_parts = i.split(".")
