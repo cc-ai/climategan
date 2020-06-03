@@ -81,9 +81,7 @@ class ResNetMulti(nn.Module):
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=1, dilation=2)
         self.layer4 = self._make_layer(block, 512, layers[3], stride=1, dilation=4)
-        # if self.multi_level:
-        #     self.layer5 = ClassifierModule(1024, [6, 12, 18, 24], [6, 12, 18, 24], num_classes)
-        # self.layer6 = ClassifierModule(2048, [6, 12, 18, 24], [6, 12, 18, 24], num_classes)
+ 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 m.weight.data.normal_(0, 0.01)
@@ -134,34 +132,7 @@ class ResNetMulti(nn.Module):
         x = self.layer1(x)
         x = self.layer2(x)
         x = self.layer3(x)
-        # if self.multi_level:
-        #     x1 = self.layer5(x)  # produce segmap 1
-        # else:
-        #     x1 = None
         x = self.layer4(x)
         x = self.layer_res(x)
-        # x2 = self.layer6(x2)  # produce segmap 2
-        return x  # x1, x2
-
-
-class DeeplabEncoder(nn.Module):
-    def __init__(self, opts):
-        """Deeplab architecture encoder
-
-        """
-        super().__init__()
-
-        self.model = ResNetMulti(Bottleneck, opts.gen.deeplabv2.nblocks)
-        if opts.gen.deeplabv2.use_pretrained:
-            saved_state_dict = torch.load(opts.gen.deeplabv2.pretrained_model)
-            print("Load pretrained Deeplab model")
-            new_params = self.model.state_dict().copy()
-            for i in saved_state_dict:
-                i_parts = i.split(".")
-                if not i_parts[1] in ["layer5", "resblock"]:
-                    new_params[".".join(i_parts[1:])] = saved_state_dict[i]
-            self.model.load_state_dict(new_params)
-
-    def forward(self, x):
-        return self.model(x)
+        return x 
 

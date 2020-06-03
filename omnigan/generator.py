@@ -11,9 +11,8 @@ from omnigan.blocks import (
     ResBlocks,
     SpadeDecoder,
     BaseDecoder,
-    BaseEncoder,
 )
-from omnigan.deeplabv2 import DeeplabEncoder
+from omnigan.encoder import DeeplabEncoder, BaseEncoder
 import omnigan.strings as strings
 
 # --------------------------------------------------------------------------
