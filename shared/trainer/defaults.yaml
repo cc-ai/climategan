@@ -50,16 +50,18 @@ gen:
   default:
     &default-gen # default parameters for the generator (encoder and decoders)
     activ: lrelu # activation function [relu/lrelu/prelu/selu/tanh]
+    architecture: base  #[deeplabv2 | base]
     init_gain: 0.2
     init_type: kaiming
     n_res: 4 # number of residual blocks before upsampling
     n_downsample: &n_downsample 3 # number of downsampling layers in encoder | dim 32 + down 3 => z = 256 x 32 x 32
     n_upsample: *n_downsample # upsampling in spade decoder ; should match encoder.n_downsample
     pad_type: reflect # padding type [zero/reflect]
-    res_dim: 256 # Resblock number of channels (=latent space's)
+    res_dim: 256 # Resblock number of channels (=latent space's), should be 2048 if using deeplabv2
     res_norm: instance # ResBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
   encoder: # specific params for the encoder
     <<: *default-gen
+    
     dim: 32 # dimension of the first projection before downsamplings
     input_dim: 3 # input number of channels
     n_res: 4 # number of residual blocks in content encoder/decoder
