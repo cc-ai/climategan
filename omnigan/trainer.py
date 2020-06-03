@@ -37,6 +37,7 @@ from omnigan.tutils import (
 )
 import torch.nn as nn
 import torchvision.utils as vutils
+import os
 
 
 class Trainer:
@@ -90,9 +91,11 @@ class Trainer:
         if self.exp is None:
             return
 
-        assert model_to_update in {"G", "D", "C",}, "unknown model to log losses {}".format(
-            model_to_update
-        )
+        assert model_to_update in {
+            "G",
+            "D",
+            "C",
+        }, "unknown model to log losses {}".format(model_to_update)
 
         losses = self.logger.losses.copy()
 
@@ -237,7 +240,9 @@ class Trainer:
         self.output_size = self.latent_shape[0] * 2 ** self.opts.gen.t.spade_n_up
         self.G.set_translation_decoder(self.latent_shape, self.device)
         self.D = get_dis(self.opts, verbose=self.verbose).to(self.device)
-        self.C = get_classifier(self.opts, self.latent_shape, verbose=self.verbose).to(self.device)
+        self.C = get_classifier(self.opts, self.latent_shape, verbose=self.verbose).to(
+            self.device
+        )
         self.P = {"s": get_mega_model()}  # P => pseudo labeling models
 
         self.g_opt, self.g_scheduler = get_optimizer(self.G, self.opts.gen.opt)
@@ -247,12 +252,19 @@ class Trainer:
             self.d_opt, self.d_scheduler = None, None
         self.c_opt, self.c_scheduler = get_optimizer(self.C, self.opts.classifier.opt)
 
+        if self.opts.train.resume:
+            self.resume()
+
         self.set_losses()
 
         if self.verbose > 0:
             for mode, mode_dict in self.loaders.items():
                 for domain, domain_loader in mode_dict.items():
-                    print("Loader {} {} : {}".format(mode, domain, len(domain_loader.dataset)))
+                    print(
+                        "Loader {} {} : {}".format(
+                            mode, domain, len(domain_loader.dataset)
+                        )
+                    )
 
         # Create display images:
         print("Creating display images...", end="", flush=True)
@@ -276,7 +288,9 @@ class Trainer:
         """Run an optimizing step ; if using ExtraAdam, there needs to be an extrapolation
         step every other step
         """
-        if "extra" in self.opts.gen.opt.optimizer.lower() and (self.logger.global_step % 2 == 0):
+        if "extra" in self.opts.gen.opt.optimizer.lower() and (
+            self.logger.global_step % 2 == 0
+        ):
             self.g_opt.extrapolation()
         else:
             self.g_opt.step()
@@ -285,7 +299,9 @@ class Trainer:
         """Run an optimizing step ; if using ExtraAdam, there needs to be an extrapolation
         step every other step
         """
-        if "extra" in self.opts.dis.opt.optimizer.lower() and (self.logger.global_step % 2 == 0):
+        if "extra" in self.opts.dis.opt.optimizer.lower() and (
+            self.logger.global_step % 2 == 0
+        ):
             self.d_opt.extrapolation()
         else:
             self.d_opt.step()
@@ -342,12 +358,15 @@ class Trainer:
             # (batch_domain_0, ..., batch_domain_i)
             # and send it to self.device
             print(
-                "\rEpoch {} batch {} step {}".format(self.logger.epoch, i, self.logger.global_step)
+                "\rEpoch {} batch {} step {}".format(
+                    self.logger.epoch, i, self.logger.global_step
+                )
             )
 
             multi_batch_tuple = shuffle_batch_tuple(multi_batch_tuple)
             multi_domain_batch = {
-                batch["domain"][0]: self.batch_to_device(batch) for batch in multi_batch_tuple
+                batch["domain"][0]: self.batch_to_device(batch)
+                for batch in multi_batch_tuple
             }
 
             self.update_g(multi_domain_batch)
@@ -405,7 +424,9 @@ class Trainer:
 
         return 0
 
-    def write_images(self, image_outputs, mode, domain, task, im_per_row=3, comet_exp=None):
+    def write_images(
+        self, image_outputs, mode, domain, task, im_per_row=3, comet_exp=None
+    ):
         """Save output image
         Arguments:
             image_outputs {Tensor list} -- list of output images
@@ -421,7 +442,9 @@ class Trainer:
 
         if comet_exp is not None:
             comet_exp.log_image(
-                image_grid, name=f"{mode}_{domain}_{task}_{str(curr_iter)}", step=curr_iter
+                image_grid,
+                name=f"{mode}_{domain}_{task}_{str(curr_iter)}",
+                step=curr_iter,
             )
 
     def train(self):
@@ -432,10 +455,16 @@ class Trainer:
         """
         assert self.is_setup
 
-        for self.logger.epoch in range(self.opts.train.epochs):
+        for self.logger.epoch in range(
+            self.logger.epoch, self.logger.epoch + self.opts.train.epochs
+        ):
             self.run_epoch()
             self.eval(verbose=1)
-            self.save()
+            if (
+                self.logger.epoch != 0
+                and self.logger.epoch % self.opts.train.save_n_epochs == 0
+            ):
+                self.save()
 
     def should_freeze_representation(self):
         if self.representation_is_frozen:
@@ -546,7 +575,8 @@ class Trainer:
 
             # Cross entropy loss (with sigmoid) with fake labels to fool C
             update_loss = self.losses["G"]["classifier"](
-                output_classifier, fake_domains_to_class_tensor(batch["domain"], one_hot),
+                output_classifier,
+                fake_domains_to_class_tensor(batch["domain"], one_hot),
             )
 
             step_loss += lambdas.G.classifier * update_loss
@@ -562,10 +592,14 @@ class Trainer:
                     # ? output features classifier
                     prediction = self.G.decoders[update_task](self.z)
                     task_tensors[update_task] = prediction
-                    update_loss = self.losses["G"]["tasks"][update_task](prediction, update_target)
+                    update_loss = self.losses["G"]["tasks"][update_task](
+                        prediction, update_target
+                    )
 
                     step_loss += lambdas.G[update_task] * update_loss
-                    self.logger.losses.task_loss[update_task][batch_domain] = update_loss.item()
+                    self.logger.losses.task_loss[update_task][
+                        batch_domain
+                    ] = update_loss.item()
 
             #! Translation and Adaptation components. Ignore for now...
             """ 
@@ -729,9 +763,13 @@ class Trainer:
             fake_s = self.G.decoders["s"](fake_z).detach()
             real_s_labels = torch.argmax(self.G.decoders["s"](real_z).detach(), 1)
             mask = (
-                torch.randint(0, 2, real_s_labels.shape).to(torch.float32).to(self.device)
+                torch.randint(0, 2, real_s_labels.shape)
+                .to(torch.float32)
+                .to(self.device)
             )  # TODO : load mask
-            update_loss = (self.losses["G"]["t"]["sm"](fake_s, real_s_labels) * mask).mean()
+            update_loss = (
+                self.losses["G"]["t"]["sm"](fake_s, real_s_labels) * mask
+            ).mean()
             step_loss += lambdas.G.t.sm * update_loss
             self.logger.losses.t.sm[
                 "{} > {}".format(source_domain, target_domain)
@@ -868,7 +906,8 @@ class Trainer:
             # (batch_domain_0, ..., batch_domain_i)
             # and send it to self.device
             multi_domain_batch = {
-                batch["domain"][0]: self.batch_to_device(batch) for batch in multi_batch_tuple
+                batch["domain"][0]: self.batch_to_device(batch)
+                for batch in multi_batch_tuple
             }
 
             # ----------------------------------------------
@@ -898,17 +937,70 @@ class Trainer:
                         update_loss = self.losses["G"]["tasks"][update_task](
                             prediction, update_target
                         )
-                        self.logger.losses.task_loss[update_task][domain] = update_loss.item()
+                        self.logger.losses.task_loss[update_task][
+                            domain
+                        ] = update_loss.item()
         self.log_losses(model_to_update="G", mode="val")
         self.log_comet_images("val", "r")
         self.log_comet_images("val", "s")
         print("******************DONE EVALUATING*********************")
 
     def save(self):
-        pass
+        save_dir = Path(self.opts.output_path) / Path("checkpoints")
+        save_dir.mkdir(exist_ok=True)
+        save_path = Path(f"ckpt_epoch_{self.logger.epoch}.pth")
+        save_path = save_dir / save_path
+
+        # Construct relevant state dicts / optims:
+        # Save at least G
+        save_dict = {
+            "epoch": self.logger.epoch,
+            "G": self.G.state_dict(),
+            "g_opt": self.g_opt.state_dict(),
+            "step": self.logger.global_step,
+        }
+
+        if self.C is not None and get_num_params(self.C) > 0:
+            save_dict["C"] = self.C.state_dict()
+            save_dict["c_opt"] = self.c_opt.state_dict()
+        if self.D is not None and get_num_params(self.D) > 0:
+            save_dict["D"] = self.D.state_dict()
+            save_dict["d_opt"] = self.d_opt.state_dict()
+
+        torch.save(save_dict, save_path)
 
     def resume(self):
-        pass
+        load_path = self.get_latest_ckpt()
+        checkpoint = torch.load(load_path)
+        print(f"Resuming model from {load_path}")
+        self.G.load_state_dict(checkpoint["G"])
+        self.g_opt.load_state_dict(checkpoint["g_opt"])
+        self.logger.epoch = checkpoint["epoch"]
+        self.logger.global_step = checkpoint["step"]
+        # Round step to even number for extraGradient
+        if self.logger.global_step % 2 != 0:
+            self.logger.global_step += 1
+
+        if self.C is not None and get_num_params(self.C) > 0:
+            self.C.load_state_dict(checkpoint["C"])
+            self.c_opt.load_state_dict(checkpoint["c_opt"])
+
+        if self.D is not None and get_num_params(self.D) > 0:
+            self.D.load_state_dict(checkpoint["D"])
+            self.d_opt.load_state_dict(checkpoint["d_opt"])
+
+    def get_latest_ckpt(self):
+        load_dir = Path(self.opts.output_path) / Path("checkpoints")
+        ckpts = os.listdir(str(load_dir.resolve()))
+        max_epoch = 0
+        max_ckpt = ""
+        for ckpt in ckpts:
+            ckpt = Path(ckpt)
+            epoch = int(ckpt.stem.split("_")[-1])
+            if epoch > max_epoch:
+                max_epoch = epoch
+                max_ckpt = ckpt
+        return Path(self.opts.output_path) / Path("checkpoints") / max_ckpt
 
     def debug(self, func_name, local_vars, index=None):
         if self.verbose == 0:
