@@ -496,11 +496,12 @@ class BaseEncoder(nn.Module):
 
         self.model = nn.Sequential()
         self.model.add_module(
-            "conv2d_1",
+            "conv2d_init",
             Conv2dBlock(
                 input_dim, dim, 7, 1, 3, norm=norm, activation=activ, pad_type=pad_type
             ),
         )
+        
         # downsampling blocks
         for i in range(n_downsample):
             self.model.add_module(
