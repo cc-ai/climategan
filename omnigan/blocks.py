@@ -528,35 +528,3 @@ class BaseEncoder(nn.Module):
     def forward(self, x):
         return self.model(x)
 
-
-class Deeplabv2Encoder(nn.Sequential):
-    def __init__(self, n_blocks):
-        """Latent Space Encoder based on Deeplabv2 architecture
-        DeepLab v2: Dilated ResNet feature extractor - No  ASPP
-        Output stride is fixed at 8
-
-        https://github.com/kazuto1011/deeplab-pytorch/blob/master/libs/models/deeplabv2.py
-
-        Args:
-            opts (addict.Dict): options
-        """
-
-    def __init__(self, n_blocks=[3, 4, 23, 3]):
-        super(Deeplabv2Encoder, self).__init__()
-        ch = [64 * 2 ** p for p in range(6)]
-        self.model = nn.Sequential()
-        self.model.add_module("layer1", Stem(ch[0]))
-        self.model.add_module("layer2", ResLayer(n_blocks[0], ch[0], ch[2], 1, 1))
-        self.model.add_module("layer3", ResLayer(n_blocks[1], ch[2], ch[3], 2, 1))
-        self.model.add_module("layer4", ResLayer(n_blocks[2], ch[3], ch[4], 1, 2))
-        self.model.add_module("layer5", ResLayer(n_blocks[3], ch[4], ch[5], 1, 4))
-        self.output_dim = ch[5]
-
-    def freeze_bn(self):
-        for m in self.model.modules():
-            if isinstance(m, Conv2dBlock.norm):
-                m.eval()
-
-    def forward(self, x):
-        return self.model(x)
-
