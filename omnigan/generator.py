@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 from omnigan.tutils import init_weights, get_4D_bit, get_conditioning_tensor
 from omnigan.blocks import Conv2dBlock, ResBlocks, SpadeDecoder, BaseDecoder, BaseEncoder
-from omnigan.deeplabv2 import DeeplabEncoder, DeeplabDecoder
+from omnigan.deeplabv2 import DeeplabEncoder
 import omnigan.strings as strings
 
 # --------------------------------------------------------------------------
@@ -60,7 +60,7 @@ class OmniGenerator(nn.Module):
             self.encoder = DeeplabEncoder(opts)
         else:
             self.encoder = BaseEncoder(opts)
-
+        print(self.encoder.model)
         self.verbose = verbose
         self.decoders = {}
 
