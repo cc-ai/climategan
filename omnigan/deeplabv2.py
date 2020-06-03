@@ -1,5 +1,4 @@
 import torch.nn as nn
-import torch
 from omnigan.blocks import Conv2dBlock, ResBlocks
 
 affine_par = True
@@ -81,7 +80,7 @@ class ResNetMulti(nn.Module):
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=1, dilation=2)
         self.layer4 = self._make_layer(block, 512, layers[3], stride=1, dilation=4)
- 
+
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 m.weight.data.normal_(0, 0.01)
@@ -134,5 +133,5 @@ class ResNetMulti(nn.Module):
         x = self.layer3(x)
         x = self.layer4(x)
         x = self.layer_res(x)
-        return x 
+        return x
 

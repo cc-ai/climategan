@@ -6,12 +6,7 @@
 import torch
 import torch.nn as nn
 from omnigan.tutils import init_weights, get_4D_bit, get_conditioning_tensor
-from omnigan.blocks import (
-    Conv2dBlock,
-    ResBlocks,
-    SpadeDecoder,
-    BaseDecoder,
-)
+from omnigan.blocks import Conv2dBlock, ResBlocks, SpadeDecoder, BaseDecoder
 from omnigan.encoder import DeeplabEncoder, BaseEncoder
 import omnigan.strings as strings
 
