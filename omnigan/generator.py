@@ -194,9 +194,9 @@ class HeightDecoder(BaseDecoder):
             opts.gen.h.n_res,
             opts.gen.h.res_dim,
             opts.gen.h.output_dim,
-            res_norm=opts.gen.m.res_norm,
-            activ=opts.gen.m.activ,
-            pad_type=opts.gen.m.pad_type,
+            res_norm=opts.gen.h.res_norm,
+            activ=opts.gen.h.activ,
+            pad_type=opts.gen.h.pad_type,
             output_activ="sigmoid",
         )
 
