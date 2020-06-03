@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 from omnigan.tutils import init_weights, get_4D_bit, get_conditioning_tensor
 from omnigan.blocks import Conv2dBlock, ResBlocks, SpadeDecoder, BaseDecoder
+from omnigan.encoder import DeeplabEncoder, BaseEncoder
 import omnigan.strings as strings
 
 # --------------------------------------------------------------------------
@@ -54,7 +55,12 @@ class OmniGenerator(nn.Module):
         """
         super().__init__()
         self.opts = opts
-        self.encoder = Encoder(opts)
+
+        if opts.gen.encoder.architecture == "deeplabv2":
+            self.encoder = DeeplabEncoder(opts)
+        else:
+            self.encoder = BaseEncoder(opts)
+        print(self.encoder.model)
         self.verbose = verbose
         self.decoders = {}
 
@@ -64,7 +70,10 @@ class OmniGenerator(nn.Module):
                 # call set_translation_decoder(latent_shape, device)
             else:
                 self.decoders["t"] = nn.ModuleDict(
-                    {"f": BaseTranslationDecoder(opts), "n": BaseTranslationDecoder(opts),}
+                    {
+                        "f": BaseTranslationDecoder(opts),
+                        "n": BaseTranslationDecoder(opts),
+                    }
                 )
 
         if "a" in opts.tasks and not opts.gen.a.ignore:
@@ -82,7 +91,7 @@ class OmniGenerator(nn.Module):
             self.decoders["s"] = SegmentationDecoder(opts)
 
         if "m" in opts.tasks and not opts.gen.m.ignore:
-            self.decoders["m"] = MaskDecoder(opts)
+            self.decoders["m"] = MaskDecoder(opts)  
 
         self.decoders = nn.ModuleDict(self.decoders)
 
@@ -134,7 +143,11 @@ class OmniGenerator(nn.Module):
         return y
 
     def decode_tasks(self, z):
-        return {task: self.decoders[task](z) for task in self.opts.tasks if task not in {"t", "a"}}
+        return {
+            task: self.decoders[task](z)
+            for task in self.opts.tasks
+            if task not in {"t", "a"}
+        }
 
     def encode(self, x):
         return self.encoder.forward(x)
@@ -168,47 +181,6 @@ class OmniGenerator(nn.Module):
         return strings.generator(self)
 
 
-class Encoder(nn.Module):
-    def __init__(self, opts):
-        """Latent Space Encoder
-
-        Latent space shape for image CxHxW:
-        (input_dim * 2 ** n_downsample)x(H / 2 ** n_downsample)x(W / 2 ** n_downsample)
-
-        Args:
-            opts (addict.Dict): options
-        """
-        super().__init__()
-        activ = opts.gen.encoder.activ
-        dim = opts.gen.encoder.dim
-        input_dim = opts.gen.encoder.input_dim
-        n_downsample = opts.gen.encoder.n_downsample
-        n_res = opts.gen.encoder.n_res
-        norm = opts.gen.encoder.norm
-        res_norm = opts.gen.encoder.res_norm
-        pad_type = opts.gen.encoder.pad_type
-
-        self.model = [
-            Conv2dBlock(input_dim, dim, 7, 1, 3, norm=norm, activation=activ, pad_type=pad_type)
-        ]
-        # downsampling blocks
-        for i in range(n_downsample):
-            self.model += [
-                Conv2dBlock(dim, 2 * dim, 4, 2, 1, norm=norm, activation=activ, pad_type=pad_type,)
-            ]
-            dim *= 2
-        # residual blocks
-        self.model += [ResBlocks(n_res, dim, norm=res_norm, activation=activ, pad_type=pad_type)]
-        self.model = nn.Sequential(*self.model)
-        self.output_dim = dim
-
-    def forward(self, x):
-        return self.model(x)
-
-    def __str__(self):
-        return strings.encoder(self)
-
-
 class HeightDecoder(BaseDecoder):
     def __init__(self, opts):
         super().__init__(
@@ -219,6 +191,7 @@ class HeightDecoder(BaseDecoder):
             res_norm=opts.gen.h.res_norm,
             activ=opts.gen.h.activ,
             pad_type=opts.gen.h.pad_type,
+            output_activ="sigmoid",
         )
 
 
@@ -308,7 +281,9 @@ class SpadeTranslationDict(nn.ModuleDict):
         return self._model
 
     def forward(self, *args, **kwargs):
-        raise NotImplementedError("Cannot forward the SpadeTranslationDict, chose a domain")
+        raise NotImplementedError(
+            "Cannot forward the SpadeTranslationDict, chose a domain"
+        )
 
     def __str__(self):
         return str(self._model).strip()
@@ -352,7 +327,9 @@ class SpadeTranslationDecoder(SpadeDecoder):
 
     def concat_bit_to_seg(self, seg):
         bit = get_4D_bit(seg.shape, self.bit)
-        return torch.cat([bit.to(torch.float32).to(seg.device), seg.to(torch.float32)], dim=1)
+        return torch.cat(
+            [bit.to(torch.float32).to(seg.device), seg.to(torch.float32)], dim=1
+        )
 
     def forward(self, z, seg):
         if self.use_bit_conditioning:

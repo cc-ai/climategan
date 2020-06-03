@@ -21,6 +21,7 @@ class Conv2dBlock(nn.Module):
         kernel_size,
         stride,
         padding=0,
+        dilation=1,
         norm="none",
         activation="relu",
         pad_type="zero",
@@ -76,10 +77,24 @@ class Conv2dBlock(nn.Module):
         # initialize convolution
         if norm == "spectral":
             self.conv = SpectralNorm(
-                nn.Conv2d(input_dim, output_dim, kernel_size, stride, bias=self.use_bias)
+                nn.Conv2d(
+                    input_dim,
+                    output_dim,
+                    kernel_size,
+                    stride,
+                    dilation=dilation,
+                    bias=self.use_bias,
+                )
             )
         else:
-            self.conv = nn.Conv2d(input_dim, output_dim, kernel_size, stride, bias=self.use_bias)
+            self.conv = nn.Conv2d(
+                input_dim,
+                output_dim,
+                kernel_size,
+                stride,
+                dilation=dilation,
+                bias=self.use_bias,
+            )
 
     def forward(self, x):
         x = self.conv(self.pad(x))
@@ -121,9 +136,15 @@ class ResBlock(nn.Module):
         self.activation = activation
         model = []
         model += [
-            Conv2dBlock(dim, dim, 3, 1, 1, norm=norm, activation=activation, pad_type=pad_type)
+            Conv2dBlock(
+                dim, dim, 3, 1, 1, norm=norm, activation=activation, pad_type=pad_type
+            )
         ]
-        model += [Conv2dBlock(dim, dim, 3, 1, 1, norm=norm, activation="none", pad_type=pad_type)]
+        model += [
+            Conv2dBlock(
+                dim, dim, 3, 1, 1, norm=norm, activation="none", pad_type=pad_type
+            )
+        ]
         self.model = nn.Sequential(*model)
 
     def forward(self, x):
@@ -134,6 +155,80 @@ class ResBlock(nn.Module):
 
     def __str__(self):
         return strings.resblock(self)
+
+
+_BOTTLENECK_EXPANSION = 4
+
+
+class Bottleneck(nn.Module):
+    """
+    Bottleneck block of MSRA ResNet.
+    """
+
+    def __init__(self, in_ch, out_ch, stride, dilation, downsample):
+        super(Bottleneck, self).__init__()
+        mid_ch = out_ch // _BOTTLENECK_EXPANSION
+        self.reduce = Conv2dBlock(in_ch, mid_ch, 1, stride, 0, norm="batch")
+        self.conv3x3 = Conv2dBlock(
+            mid_ch, mid_ch, 3, 1, dilation, dilation, norm="batch"
+        )
+        self.increase = Conv2dBlock(
+            mid_ch, out_ch, 1, 1, 0, 1, activation="none", norm="batch"
+        )
+        self.shortcut = (
+            Conv2dBlock(in_ch, out_ch, 1, stride, 0, 1, activation="none", norm="batch")
+            if downsample
+            else lambda x: x  # identity
+        )
+
+    def forward(self, x):
+        h = self.reduce(x)
+        h = self.conv3x3(h)
+        h = self.increase(h)
+        h += self.shortcut(x)
+        return F.relu(h)
+
+    def __str__(self):
+        return strings.bottleneck(self)
+
+
+class ResLayer(nn.Sequential):
+    """
+    Residual layer with multi grids
+    """
+
+    def __init__(self, n_layers, in_ch, out_ch, stride, dilation, multi_grids=None):
+        super(ResLayer, self).__init__()
+
+        if multi_grids is None:
+            multi_grids = [1 for _ in range(n_layers)]
+        else:
+            assert n_layers == len(multi_grids)
+
+        # Downsampling is only in the first block
+        for i in range(n_layers):
+            self.add_module(
+                "block{}".format(i + 1),
+                Bottleneck(
+                    in_ch=(in_ch if i == 0 else out_ch),
+                    out_ch=out_ch,
+                    stride=(stride if i == 0 else 1),
+                    dilation=dilation * multi_grids[i],
+                    downsample=(True if i == 0 else False),
+                ),
+            )
+
+
+class Stem(nn.Sequential):
+    """
+    The 1st conv layer.
+    Note that the max pooling is different from both MSRA and FAIR ResNet.
+    """
+
+    def __init__(self, out_ch):
+        super(Stem, self).__init__()
+        self.add_module("conv1", Conv2dBlock(3, out_ch, 7, 2, 3, 1, norm="batch"))
+        self.add_module("pool", nn.MaxPool2d(3, 2, 1, ceil_mode=True))
 
 
 # --------------------------
@@ -159,14 +254,28 @@ class BaseDecoder(nn.Module):
             self.model += [
                 nn.Upsample(scale_factor=2),
                 Conv2dBlock(
-                    dim, dim // 2, 5, 1, 2, norm="layer", activation=activ, pad_type=pad_type,
+                    dim,
+                    dim // 2,
+                    5,
+                    1,
+                    2,
+                    norm="layer",
+                    activation=activ,
+                    pad_type=pad_type,
                 ),
             ]
             dim //= 2
         # use reflection padding in the last conv layer
         self.model += [
             Conv2dBlock(
-                dim, output_dim, 7, 1, 3, norm="none", activation=output_activ, pad_type=pad_type,
+                dim,
+                output_dim,
+                7,
+                1,
+                3,
+                norm="none",
+                activation=output_activ,
+                pad_type=pad_type,
             )
         ]
         self.model = nn.Sequential(*self.model)
@@ -186,7 +295,13 @@ class BaseDecoder(nn.Module):
 # 0ff661e on 13 Apr 2019
 class SPADEResnetBlock(nn.Module):
     def __init__(
-        self, fin, fout, cond_nc, spade_use_spectral_norm, spade_param_free_norm, spade_kernel_size,
+        self,
+        fin,
+        fout,
+        cond_nc,
+        spade_use_spectral_norm,
+        spade_param_free_norm,
+        spade_kernel_size,
     ):
         super().__init__()
         # Attributes
@@ -357,3 +472,4 @@ class SpadeDecoder(nn.Module):
 
     def __str__(self):
         return strings.spadedecoder(self)
+

@@ -13,7 +13,7 @@ from run import print_header
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-c", "--config", default="config/trainer/local_tests.yaml")
+parser.add_argument("-c", "--config", default="config/trainer/maskgen_v0.yaml")
 args = parser.parse_args()
 root = Path(__file__).parent.parent
 opts = load_test_opts(args.config)
@@ -27,15 +27,16 @@ if __name__ == "__main__":
     torch.manual_seed(0)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     batch_size = 2
-    latent_space_dims = [256, 4, 4]
+    latent_dim = opts.gen.encoder.res_dim
+    latent_space_dims = [latent_dim, 4, 4]
     image = torch.Tensor(batch_size, 3, 32, 32).uniform_(-1, 1).to(device)
     # -------------------------
     # -----  Test config  -----
     # -------------------------
     test_partial_decoder = False
-    print_architecture = False
-    test_encoder = False
-    test_encode_decode = False
+    print_architecture = True
+    test_encoder = True
+    test_encode_decode = True
     test_translation = True
 
     # -------------------------------------
@@ -73,6 +74,7 @@ if __name__ == "__main__":
     # ------------------------------------
     if test_encoder:
         print_header("test_encoder")
+        
         encoded = G.encode(image)
         print("Latent space dims {}".format(tuple(encoded.shape)[1:]))
 

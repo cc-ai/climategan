@@ -73,10 +73,19 @@ sum(np.prod(p.shape) for p in trainer.C.parameters())
 
 High-level model in `generator.py`, building-blocks in `blocks.py`
 
-* **Encoder**: Resnet-based Content Encoder from MUNIT
+* **Encoder**: 
+
+    Resnet-based Content Encoder from MUNIT
   * image => 64 (=`encoder.dim`) channels with 1 conv layer, same size
   * conv-based downsamplings (`encoder.n_downsample` times)
   * resblocks (`encoder.n_res` blocks)
+
+  Deeplabv2-based encoder
+  * Code borrowed from https://github.com/valeoai/ADVENT/blob/master/advent/model/deeplabv2.py
+  * We only keep the feature extractor part (not the ASPP classification module) for which we can load pretrained weights.
+  Pretrained model weights on ImageNet can be downloaded [here](https://github.com/valeoai/ADVENT/releases). 
+  * We also add resblocks 
+
 * **Decoders**: Resnet-based Decoders from MUNIT for all tasks but the translation
   * resblocks projections (`decoder.n_res` blocks)
   * Sequence of `nn.Upsampling > Conv2dBlock` (`decoder.n_upsample` times)
