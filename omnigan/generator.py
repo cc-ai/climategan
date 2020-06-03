@@ -91,7 +91,7 @@ class OmniGenerator(nn.Module):
             self.decoders["s"] = SegmentationDecoder(opts)
 
         if "m" in opts.tasks and not opts.gen.m.ignore:
-            self.decoders["m"] = MaskDecoder(opts)  # DeeplabDecoder()
+            self.decoders["m"] = MaskDecoder(opts)  
 
         self.decoders = nn.ModuleDict(self.decoders)
 
