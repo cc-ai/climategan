@@ -20,7 +20,7 @@ from omnigan.losses import (
 )
 from omnigan.utils import load_test_opts
 from run import print_header
-from addict import Dict
+
 import warnings
 warnings.filterwarnings("ignore", message="numpy.dtype size changed")
 warnings.filterwarnings("ignore")
