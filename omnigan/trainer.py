@@ -856,7 +856,7 @@ class Trainer:
                 task_tensors = self.G.decode_tasks(z)
                 cond = get_conditioning_tensor(x, task_tensors)
 
-            disc_loss = {"a": {"r": 0, "s": 0}, "t": {"f": 0, "n": 0}, "m": {"r": 0, "s": 0}}
+            disc_loss = {"a": {"r": 0, "s": 0}, "t": {"f": 0, "n": 0}}
 
             for i, source_domain in enumerate(batch_domain):
                 target_domain = self.translation_map[source_domain]

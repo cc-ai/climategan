@@ -228,14 +228,14 @@ class ADVENTSegLoss(nn.Module):
 
     def __call__(self, prediction1, prediction2, target):
         loss_calc = crossEntropyLoss()
-        if self.opt.train.multi_level == True:
+        if self.opt.dis.ADVENT.multi_level == True:
             loss_seg_src_aux = loss_calc(prediction1, target)
         else:
             loss_seg_src_aux = 0
         loss_seg_src_main = loss_calc(prediction2, target)
         
-        loss = (self.opt.train.LAMBDA_SEG_MAIN * loss_seg_src_main
-                + self.opt.train.LAMBDA_SEG_AUX * loss_seg_src_aux)
+        loss = (self.opt.dis.ADVENT.LAMBDA_SEG_MAIN * loss_seg_src_main
+                + self.opt.dis.ADVENT.LAMBDA_SEG_AUX * loss_seg_src_aux)
         
         return loss
 
@@ -254,7 +254,7 @@ class ADVENTAdversarialLoss(nn.Module):
     
     def __call__(self, prediction1, prediction2, target):
         loss_calc = BCELoss()
-        if self.opt.train.multi_level == True:
+        if self.opt.dis.ADVENT.multi_level == True:
             d_out_aux = self.discriminator_aux(prob_2_entropy(F.softmax(prediction1)))
             loss_adv_trg_aux = loss_calc(d_out_aux, target)
         else:
@@ -262,7 +262,7 @@ class ADVENTAdversarialLoss(nn.Module):
         d_out_main = self.discriminator_main(prob_2_entropy(F.softmax(prediction2)))
         loss_adv_trg_main = loss_calc(d_out_main, target)
         
-        loss = (self.opt.train.LAMBDA_ADV_MAIN * loss_adv_trg_main
-                + self.opt.train.LAMBDA_ADV_AUX * loss_adv_trg_aux)
+        loss = (self.opt.dis.ADVENT.LAMBDA_ADV_MAIN * loss_adv_trg_main
+                + self.opt.dis.ADVENT.LAMBDA_ADV_AUX * loss_adv_trg_aux)
         
         return loss
