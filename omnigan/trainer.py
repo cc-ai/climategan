@@ -20,6 +20,7 @@ from omnigan.losses import (
     L1Loss,
     MSELoss,
     GANLoss,
+    ADVENTSegLoss,
     ADVENTAdversarialLoss,
 )
 from omnigan.optim import get_optimizer
@@ -882,12 +883,37 @@ class Trainer:
         # ? split representational as in update_g
         # ? repr: domain-adaptation traduction
         self.ADVENT_D_opt.zero_grad()
+        ADVENT_adver_loss = self.get_ADVENT_adver_loss(multi_domain_batch, verbose)
+        ADVENT_adver_loss.backward()
         ADVENT_D_loss = self.get_ADVENT_D_loss(multi_domain_batch, verbose)
         ADVENT_D_loss.backward()
         self.ADVENT_D_opt_step()
 
         self.logger.losses.ADVENT_discriminator.total_loss = ADVENT_D_loss.item()
         self.log_losses(model_to_update="ADVENT_D")
+
+    def get_ADVENT_adver_loss(self, multi_domain_batch, verbose=0):
+        """Compute the ADVENT adversarial losses:
+            TODO
+        """
+        for batch_domain, batch in multi_domain_batch.items():
+            x = batch["data"]["x"]
+            z = self.G.encode(x)
+            source_label = 0
+            target_label = 1
+            losses = []
+            lossCal = ADVENTSegLoss(self.opts)
+            for i, domain in enumerate(batch_domain):
+                pred = self.ADVENT_D(z.cuda(self.device))
+                if domain == "r":
+                    losses.append(lossCal(None, pred, target_label))
+                elif domain == "s":
+                    losses.append(lossCal(None, pred, source_label))
+                else:
+                    raise Exception("Wrong domain input!")      
+        # self.logger.losses.ADVENT_discriminator.update()
+        loss = sum(losses)
+        return loss
 
     def get_ADVENT_D_loss(self, multi_domain_batch, verbose=0):
         """Compute the ADVENT discriminators' losses:
@@ -899,17 +925,18 @@ class Trainer:
             [type]: [description]
         """
         for batch_domain, batch in multi_domain_batch.items():
-
             x = batch["data"]["x"]
+            z = self.G.encode(x)
             source_label = 0
             target_label = 1
             losses = []
+            lossCal = ADVENTAdversarialLoss(self.opts, None, self.ADVENT_D)
             for i, domain in enumerate(batch_domain):
-                pred = self.ADVENT_D(x.cuda(self.device))
+                pred = self.ADVENT_D(z.cuda(self.device))
                 if domain == "r":
-                    losses.append(ADVENTAdversarialLoss(None, pred, target_label))
+                    losses.append(lossCal(None, pred, target_label))
                 elif domain == "s":
-                    losses.append(ADVENTAdversarialLoss(None, pred, source_label))
+                    losses.append(lossCal(None, pred, source_label))
                 else:
                     raise Exception("Wrong domain input!")      
         # self.logger.losses.ADVENT_discriminator.update()
