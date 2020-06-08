@@ -1,0 +1,53 @@
+output_path: /network/home/tianyu.zhang/omnigan/output_dirs/testing
+# -------------------
+# -----  Tasks  -----
+# -------------------
+#tasks: [a, d, h, s, t, w]
+tasks: [m] # for now no h or w
+# ----------------
+# ----- Data -----
+# ----------------
+data:
+  files: # if one is not none it will override the dirs location
+    base: /network/tmp1/ccai/data/omnigan/std
+  loaders:
+    batch_size: 8
+    shuffle: false
+    num_workers: 10
+  transforms:
+    - name: hflip
+      ignore: false
+      p: 0.5
+    - name: resize
+      ignore: false
+      new_size: 256
+    - name: crop
+      ignore: false
+      height: 224
+      width: 224
+    - name: resize # ? this or change generator's output? Or resize larger then crop to 256?
+      ignore: false
+      new_size: 256
+gen:
+  opt:
+    optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
+    beta1: 0.9
+    lr: 0.0005
+    lr_policy: step # constant or step ; if step, specify step_size and gamma
+    lr_step_size: 30 # for linear decay : period of learning rate decay (epochs)
+    lr_gamma: 0.5 # Multiplicative factor of learning rate decay
+  encoder: # specific params for the encoder
+    dim: 32 # dimension of the first projection before downsamplings
+    input_dim: 3 # input number of channels
+    n_res: 4 # number of residual blocks in content encoder/decoder
+    norm: spectral # ConvBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
+  m:
+    n_res: 4
+
+
+
+
+
+train:
+  log_level: 2
+  multi_level: True

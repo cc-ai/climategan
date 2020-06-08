@@ -1,0 +1,42 @@
+output_path: /network/home/tianyu.zhang/omnigan/output_dirs/testing
+# -------------------
+# -----  Tasks  -----
+# -------------------
+#tasks: [a, d, h, s, t, w]
+tasks: [m, t, s, d] # for now no h or w
+# ----------------
+# ----- Data -----
+# ----------------
+data:
+  files: # if one is not none it will override the dirs location
+    base: /network/home/tianyu.zhang/omnigan/example_data
+  transforms:
+  - name: hflip
+    ignore: false
+    p: 0.5
+  - name: resize
+    ignore: false
+    new_size: 256
+  - name: crop
+    ignore: false
+    height: 32
+    width: 32
+gen:
+  encoder:
+    n_res: 1
+  default:
+    n_res: 1
+
+train:
+  log_level: 1
+  multi_level: True
+  LAMBDA_ADV_MAIN: 0.5
+  LAMBDA_ADV_AUX: 0.5
+  LAMBDA_SEG_MAIN: 0.5
+  LAMBDA_SEG_AUX: 0.5
+
+# -----------------------------
+# ----- Comet Params ----------
+# -----------------------------
+comet:
+  display_size: 1
