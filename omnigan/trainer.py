@@ -901,18 +901,17 @@ class Trainer:
             z = self.G.encode(x)
             source_label = 0
             target_label = 1
-            losses = []
+            loss = 0
             lossCal = ADVENTSegLoss(self.opts)
             for i, domain in enumerate(batch_domain):
                 pred = self.ADVENT_D(z.cuda(self.device))
                 if domain == "r":
-                    losses.append(lossCal(None, pred, target_label))
+                    loss += lossCal(None, pred, target_label)
                 elif domain == "s":
-                    losses.append(lossCal(None, pred, source_label))
+                    loss += lossCal(None, pred, source_label)
                 else:
                     raise Exception("Wrong domain input!")      
         # self.logger.losses.ADVENT_discriminator.update()
-        loss = sum(losses)
         return loss
 
     def get_ADVENT_D_loss(self, multi_domain_batch, verbose=0):
@@ -929,18 +928,17 @@ class Trainer:
             z = self.G.encode(x)
             source_label = 0
             target_label = 1
-            losses = []
+            loss = 0
             lossCal = ADVENTAdversarialLoss(self.opts, None, self.ADVENT_D)
             for i, domain in enumerate(batch_domain):
                 pred = self.ADVENT_D(z.cuda(self.device))
                 if domain == "r":
-                    losses.append(lossCal(None, pred, target_label))
+                    loss += lossCal(None, pred, target_label)
                 elif domain == "s":
-                    losses.append(lossCal(None, pred, source_label))
+                    loss += lossCal(None, pred, source_label)
                 else:
                     raise Exception("Wrong domain input!")      
         # self.logger.losses.ADVENT_discriminator.update()
-        loss = sum(losses)
         return loss
 
     def update_c(self, multi_domain_batch):
