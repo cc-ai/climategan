@@ -16,8 +16,8 @@ from omnigan.losses import (
     L1Loss,
     ADVENTSegLoss,
     ADVENTAdversarialLoss,
-    get_fc_discriminator
 )
+from omnigan.discriminator import get_fc_discriminator
 from omnigan.utils import load_test_opts
 from run import print_header
 

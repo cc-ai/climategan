@@ -66,6 +66,12 @@ gen:
     input_dim: 3 # input number of channels
     n_res: 4 # number of residual blocks in content encoder/decoder
     norm: spectral # ConvBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
+    
+  deeplabv2: 
+    nblocks: [3, 4, 23, 3]
+    use_pretrained: True
+    pretrained_model: '/network/tmp1/ccai/data/omnigan/pretrained_models/DeepLab_resnet_pretrained_imagenet.pth'
+
   a: # specific params for the adaptation decoder
     <<: *default-gen
     output_dim: 3
@@ -117,10 +123,6 @@ dis:
     init_type: kaiming
     init_gain: 0.2
     use_sigmoid: false
-  deeplabv2: 
-    nblocks: [3, 4, 23, 3]
-    use_pretrained: True
-    pretrained_model: '/network/home/tengmeli/omnigan/pretrained_models/DeepLab_resnet_pretrained_imagenet.pth'
 
   t:
     <<: *default-dis
