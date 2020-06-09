@@ -6,7 +6,7 @@ from omnigan.blocks import Conv2dBlock
 
 
 def get_classifier(opts, latent_space, verbose):
-    C = OmniClassifier(latent_space, opts.classifier.dim, opts.classifier.loss)
+    C = OmniClassifier(latent_space, opts.classifier.proj_dim, opts.classifier.loss)
     init_weights(
         C,
         init_type=opts.classifier.init_type,
@@ -17,12 +17,13 @@ def get_classifier(opts, latent_space, verbose):
 
 
 class OmniClassifier(nn.Module):
-    def __init__(self, latent_space, dim, loss):
+    def __init__(self, latent_space, proj_dim, loss):
         super(OmniClassifier, self).__init__()
         assert len(latent_space) == 3
         self.channels = latent_space[0]
         self.feature_size = latent_space[1]
         self.loss = loss
+        dim = proj_dim
         self.model = nn.Sequential(
             *[
                 Conv2dBlock(self.channels, dim, 3, 1, 1),

@@ -202,7 +202,7 @@ class MaskDecoder(BaseDecoder):
             n_upsample=opts.gen.m.n_upsample,
             n_res=opts.gen.m.n_res,
             input_dim=opts.gen.encoder.res_dim,
-            dim=opts.gen.m.res_dim,
+            proj_dim=opts.gen.m.proj_dim,
             output_dim=opts.gen.m.output_dim,
             res_norm=opts.gen.m.res_norm,
             activ=opts.gen.m.activ,
