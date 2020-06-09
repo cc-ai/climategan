@@ -129,9 +129,19 @@ class TravelLoss(nn.Module):
 
 
 class TVLoss(nn.Module):
-    def __init__(self, TVLoss_weight=1):
+    """Total Variational Regularization: Penalizes differences in 
+        neighboring pixel values
+
+        source: https://github.com/jxgu1016/Total_Variation_Loss.pytorch/blob/master/TVLoss.py
+    """
+
+    def __init__(self, tvloss_weight=1):
+        """
+        Args:
+            TVLoss_weight (int, optional): [lambda i.e. weight for loss]. Defaults to 1.
+        """
         super(TVLoss, self).__init__()
-        self.TVLoss_weight = TVLoss_weight
+        self.tvloss_weight = tvloss_weight
 
     def forward(self, x):
         batch_size = x.size()[0]
@@ -141,7 +151,7 @@ class TVLoss(nn.Module):
         count_w = self._tensor_size(x[:, :, :, 1:])
         h_tv = torch.pow((x[:, :, 1:, :] - x[:, :, : h_x - 1, :]), 2).sum()
         w_tv = torch.pow((x[:, :, :, 1:] - x[:, :, :, : w_x - 1]), 2).sum()
-        return self.TVLoss_weight * 2 * (h_tv / count_h + w_tv / count_w) / batch_size
+        return self.tvloss_weight * 2 * (h_tv / count_h + w_tv / count_w) / batch_size
 
     def _tensor_size(self, t):
         return t.size()[1] * t.size()[2] * t.size()[3]
@@ -204,4 +214,3 @@ class L1Loss(MSELoss):
     def __init__(self):
         super().__init__()
         self.loss = torch.nn.L1Loss()
-
