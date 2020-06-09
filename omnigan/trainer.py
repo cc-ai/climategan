@@ -39,6 +39,7 @@ import torch.nn as nn
 import torchvision.utils as vutils
 import os
 
+
 class Trainer:
     """Main trainer class
     """
