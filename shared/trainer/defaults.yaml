@@ -57,7 +57,7 @@ gen:
     n_downsample: &n_downsample 3 # number of downsampling layers in encoder | dim 32 + down 3 => z = 256 x 32 x 32
     n_upsample: *n_downsample # upsampling in spade decoder ; should match encoder.n_downsample
     pad_type: reflect # padding type [zero/reflect]
-    res_dim: 256 # Resblock number of channels (=latent space's), should be 2048 if using deeplabv2
+    res_dim: 2048 # Resblock number of channels (=latent space's), should be 2048 if using deeplabv2
     res_norm: instance # ResBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
   encoder: # specific params for the encoder
     <<: *default-gen
@@ -148,6 +148,7 @@ classifier:
   dropout: 0.4 # probability of being set to 0
   init_type: kaiming
   init_gain: 0.2
+  dim: 128
 
 # ------------------------
 # ----- Train Params -----

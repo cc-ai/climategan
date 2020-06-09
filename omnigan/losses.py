@@ -261,7 +261,10 @@ def get_losses(opts, verbose):
     if "w" in opts.tasks:
         losses["G"]["tasks"]["w"] = lambda x, y: (x + y).mean()
     if "m" in opts.tasks:
-        losses["G"]["tasks"]["m"] = nn.BCELoss()
+        losses["G"]["tasks"]["m"] = {}
+        losses["G"]["tasks"]["m"]["main"] = nn.BCELoss()
+        losses["G"]["tasks"]["m"]["tv"] = TVLoss(opts.train.lambdas.G.m.tv)
+
     # undistinguishable features loss
     # TODO setup a get_losses func to assign the right loss according to the yaml
     if opts.classifier.loss == "l1":
@@ -270,17 +273,15 @@ def get_losses(opts, verbose):
         loss_classifier = MSELoss()
     else:
         loss_classifier = CrossEntropy()
-    losses["G"]["classifier"] = loss_classifier 
+    losses["G"]["classifier"] = loss_classifier
     # -------------------------------
     # -----  Classifier Losses  -----
     # -------------------------------
-    losses["C"] = loss_classifier   
+    losses["C"] = loss_classifier
     # ----------------------------------
     # -----  Discriminator Losses  -----
     # ----------------------------------
     losses["D"] = GANLoss(
-        soft_shift=opts.dis.soft_shift,
-        flip_prob=opts.dis.flip_prob,
-        verbose=verbose,
-    )   
+        soft_shift=opts.dis.soft_shift, flip_prob=opts.dis.flip_prob, verbose=verbose,
+    )
     return losses

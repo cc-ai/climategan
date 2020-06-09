@@ -239,6 +239,7 @@ class BaseDecoder(nn.Module):
         self,
         n_upsample=4,
         n_res=4,
+        input_dim=2048,
         dim=64,
         output_dim=3,
         res_norm="instance",
@@ -247,8 +248,11 @@ class BaseDecoder(nn.Module):
         output_activ="tanh",
     ):
         super().__init__()
+        self.model = [
+            Conv2dBlock(input_dim, dim, 3, 1, 1, norm=res_norm, activation=activ)
+        ]
 
-        self.model = [ResBlocks(n_res, dim, res_norm, activ, pad_type=pad_type)]
+        self.model += [ResBlocks(n_res, dim, res_norm, activ, pad_type=pad_type)]
         # upsampling blocks
         for i in range(n_upsample):
             self.model += [

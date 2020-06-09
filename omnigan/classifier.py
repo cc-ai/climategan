@@ -2,10 +2,11 @@
 """
 from torch import nn
 from omnigan.tutils import init_weights
+from omnigan.blocks import Conv2dBlock
 
 
 def get_classifier(opts, latent_space, verbose):
-    C = OmniClassifier(latent_space, opts.classifier.loss)
+    C = OmniClassifier(latent_space, opts.classifier.dim, opts.classifier.loss)
     init_weights(
         C,
         init_type=opts.classifier.init_type,
@@ -16,7 +17,7 @@ def get_classifier(opts, latent_space, verbose):
 
 
 class OmniClassifier(nn.Module):
-    def __init__(self, latent_space, loss):
+    def __init__(self, latent_space, dim, loss):
         super(OmniClassifier, self).__init__()
         assert len(latent_space) == 3
         self.channels = latent_space[0]
@@ -24,14 +25,15 @@ class OmniClassifier(nn.Module):
         self.loss = loss
         self.model = nn.Sequential(
             *[
+                Conv2dBlock(self.channels, dim, 3, 1, 1),
                 nn.MaxPool2d(2),
-                BasicBlock(self.channels, int(self.channels / 2), True),
+                BasicBlock(dim, int(dim / 2), True),
                 nn.MaxPool2d(2),
-                BasicBlock(int(self.channels / 2), int(self.channels / 4), True),
+                BasicBlock(int(dim / 2), int(dim / 4), True),
                 nn.AvgPool2d((int(self.feature_size / 4), int(self.feature_size / 4))),
                 Squeeze(-1),
                 Squeeze(-1),
-                nn.Linear(int(self.channels / 4), 2),
+                nn.Linear(int(dim / 4), 2),
             ]
         )
 
@@ -84,7 +86,9 @@ class BasicBlock(nn.Module):
         self.stride = stride
         self.downsample = downsample
         if stride != 1 or inplanes != planes:
-            self.downsample = nn.Sequential(conv1x1(inplanes, planes, stride), norm_layer(planes))
+            self.downsample = nn.Sequential(
+                conv1x1(inplanes, planes, stride), norm_layer(planes)
+            )
 
     def forward(self, x):
         identity = x
