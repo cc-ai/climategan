@@ -363,6 +363,7 @@ class Trainer:
                 )
             )
 
+            step_start_time = time()
             multi_batch_tuple = shuffle_batch_tuple(multi_batch_tuple)
             multi_domain_batch = {
                 batch["domain"][0]: self.batch_to_device(batch)
@@ -378,10 +379,21 @@ class Trainer:
                 freeze(self.G.encoder)
                 # ? Freeze decoders != t for memory management purposes ; faster ?
                 self.representation_is_frozen = True
+            step_time = time() - step_start_time
+            self.log_step_time(step_time)
 
         self.log_comet_images("train", "r")
         self.log_comet_images("train", "s")
         self.update_learning_rates()
+
+    def log_step_time(self, step_time):
+        """Logs step-time on comet.ml
+
+        Args:
+            step_time (float): step-time in seconds
+        """
+        if self.exp:
+            self.exp.log_metric("Step-time", step_time, step=self.logger.global_step)
 
     def log_comet_images(self, mode, domain):
 
