@@ -23,18 +23,17 @@ class OmniClassifier(nn.Module):
         self.channels = latent_space[0]
         self.feature_size = latent_space[1]
         self.loss = loss
-        dim = proj_dim
         self.model = nn.Sequential(
             *[
-                Conv2dBlock(self.channels, dim, 3, 1, 1),
+                Conv2dBlock(self.channels, proj_dim, 3, 1, 1),
                 nn.MaxPool2d(2),
-                BasicBlock(dim, int(dim / 2), True),
+                BasicBlock(proj_dim, int(proj_dim / 2), True),
                 nn.MaxPool2d(2),
-                BasicBlock(int(dim / 2), int(dim / 4), True),
+                BasicBlock(int(proj_dim / 2), int(proj_dim / 4), True),
                 nn.AvgPool2d((int(self.feature_size / 4), int(self.feature_size / 4))),
                 Squeeze(-1),
                 Squeeze(-1),
-                nn.Linear(int(dim / 4), 2),
+                nn.Linear(int(proj_dim / 4), 2),
             ]
         )
 

@@ -229,7 +229,7 @@ class SegmentationDecoder(BaseDecoder):
         super().__init__(
             opts.gen.s.n_upsample,
             opts.gen.s.n_res,
-            dim=opts.gen.s.res_dim,
+            proj_dim=opts.gen.s.proj_dim,
             output_dim=opts.gen.s.output_dim,
             res_norm=opts.gen.s.res_norm,
             activ=opts.gen.s.activ,
