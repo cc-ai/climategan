@@ -157,18 +157,20 @@ We provide the script `process_data.py` for the preprocessing task. Given a sour
 
 The data folder must be structured as follows : A specific folder for each category (Semantic, Depth, Height, Flood, etc..), for the same data sample, the name must be the same through all the directories (The ground truth depth of Flood/image_1.jpg is Depth/image_1.jpg), but the extension can change.
 
-The default mapping between a folder and the json key is `"Segmentation": "s", "Depth": "d", "Data": "x", "Height": "h"` change it according to your needs in `process_data.py`.
-
+The default mapping between a folder and the json key is `"Segmentation": "s", "Depth": "d", "Data": "x", "Height": "h", "Mask": "m"` change it according to your needs in `process_data.py`.
+Note that `"m"` corresponds to the mask task, which is not exactly the water mask since for real images we do not have access to that information. 
 
 ```yaml
-# data file ; one for each r|s-f|n
+# data file ; one for each r|s
 - x: /path/to/image
   h: /path/to/height map
   d: /path/to/depth map
   w: /path/to/water map
+  m: /path/to/mask 
   s: /path/to/segmentation map
 - x: /path/to/another image
   d: /path/to/depth map
+  m: /path/to/mask
   s: /path/to/segmentation map
 - x: ...
 ```
@@ -189,13 +191,17 @@ or
     }
 ]
 ```
+The json files used are located at `/network/tmp1/ccai/data/omnigan/`. In the basenames,  `_s` denotes simulated domain data and `_r` real domain data.   
+The `base` folder contains json files with paths to images (`"x"`key) and masks (taken as ground truth for the area that should be flooded, `"m"` key).   
+The `seg` folder contains json files and keys `"x"`, `"m"` and `"s"` (segmentation) for each image. 
+
 
 loaders
 
 ```
 loaders = Dict({
-    train: { rn: loader, rf: loader, sn: loader, sf: loader},
-    val: { rn: loader, rf: loader, sn: loader, sf: loader}
+    train: { r: loader, s: loader},
+    val: { r: loader, s: loader}
 })
 ```
 
