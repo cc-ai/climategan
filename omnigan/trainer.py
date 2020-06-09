@@ -20,7 +20,7 @@ from omnigan.losses import (
     L1Loss,
     MSELoss,
     GANLoss,
-    set_losses
+    get_losses
 )
 from omnigan.optim import get_optimizer
 from omnigan.mega_depth import get_mega_model
