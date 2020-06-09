@@ -180,7 +180,7 @@ class Trainer:
         if self.opts.train.resume:
             self.resume()
 
-        self.losses = set_losses(opts=self.opts, verbose=self.verbose)
+        self.losses = get_losses(self.opts, self.verbose)
 
         if self.verbose > 0:
             for mode, mode_dict in self.loaders.items():

@@ -187,7 +187,7 @@ class L1Loss(MSELoss):
         self.loss = torch.nn.L1Loss()
 
 
-def set_losses(opts, verbose):
+def get_losses(opts, verbose):
     """Sets the loss functions to be used by G, D and C, as specified
     in the opts and returns a dictionnary of losses:
 
