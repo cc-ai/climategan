@@ -39,7 +39,7 @@ import torch.nn as nn
 import torchvision.utils as vutils
 import os
 
-
+# TODO : log step-time
 class Trainer:
     """Main trainer class
     """
