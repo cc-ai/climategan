@@ -39,7 +39,6 @@ import torch.nn as nn
 import torchvision.utils as vutils
 import os
 
-# TODO : log step-time
 class Trainer:
     """Main trainer class
     """
@@ -357,6 +356,7 @@ class Trainer:
             # create a dictionnay (domain => batch) from tuple
             # (batch_domain_0, ..., batch_domain_i)
             # and send it to self.device
+            step_start_time = time()
             print(
                 "\rEpoch {} batch {} step {}".format(
                     self.logger.epoch, i, self.logger.global_step
@@ -378,10 +378,21 @@ class Trainer:
                 freeze(self.G.encoder)
                 # ? Freeze decoders != t for memory management purposes ; faster ?
                 self.representation_is_frozen = True
+            step_time = time() - step_start_time
+            self.log_step_time(step_time)
 
         self.log_comet_images("train", "r")
         self.log_comet_images("train", "s")
         self.update_learning_rates()
+
+    def log_step_time(self, step_time):
+        """Logs step-time on comet.ml
+
+        Args:
+            step_time (float): step-time in seconds
+        """
+        if self.exp:
+            self.exp.log_metric("Step-time", step_time, step=self.logger.global_step)
 
     def log_comet_images(self, mode, domain):
 
