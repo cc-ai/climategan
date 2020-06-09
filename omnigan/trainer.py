@@ -172,7 +172,13 @@ class Trainer:
         self.P = {"s": get_mega_model()}  # P => pseudo labeling models
 
         self.g_opt, self.g_scheduler = get_optimizer(self.G, self.opts.gen.opt)
-         
+
+        print("---------------------------")
+        print("num params encoder: ", get_num_params(self.G.encoder))
+        print("num params decoder: ", get_num_params(self.G.decoders["m"]))
+        print("num params classif: ", get_num_params(self.C))
+        print("---------------------------")
+
         if get_num_params(self.D) > 0:
             self.d_opt, self.d_scheduler = get_optimizer(self.D, self.opts.dis.opt)
         else:
