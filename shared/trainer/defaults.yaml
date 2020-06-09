@@ -163,7 +163,9 @@ train:
       h: 1
       s: 1
       w: 1
-      m: 1
+      m: 
+        main: 1 # Main prediction loss, i.e. GAN or CE
+        tv: 1 # Total varaitional loss (for smoothing)
       t:
         auto: 1 # auto-encoding, reconstruction
         cycle: 1 # cycle consistency
