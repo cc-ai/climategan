@@ -192,16 +192,16 @@ class OmniDiscriminator(nn.ModuleDict):
                     ),
                 }
             )
-        if "m" in opts.tasks:
-            self["m"] = nn.ModuleDict(
-                {
-                    "r": get_fc_discriminator(2),
-                    "s": get_fc_discriminator(2),
-                }
-            )
+        # if "m" in opts.tasks:
+        #     self["m"] = nn.ModuleDict(
+        #         {
+        #             "r": get_fc_discriminator(2),
+        #             "s": get_fc_discriminator(2),
+        #         }
+        #     )
 
 
-def get_fc_discriminator(num_classes=2, ndf=64):
+def get_fc_discriminator(num_classes=256, ndf=64):
     return torch.nn.Sequential(
         torch.nn.Conv2d(num_classes, ndf, kernel_size=4, stride=2, padding=1),
         torch.nn.LeakyReLU(negative_slope=0.2, inplace=True),

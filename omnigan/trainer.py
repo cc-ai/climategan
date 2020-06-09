@@ -20,6 +20,7 @@ from omnigan.losses import (
     L1Loss,
     MSELoss,
     GANLoss,
+    BCELoss,
     ADVENTSegLoss,
     ADVENTAdversarialLoss,
 )
@@ -242,6 +243,10 @@ class Trainer:
         self.latent_shape = self.compute_latent_shape()
         self.output_size = self.latent_shape[0] * 2 ** self.opts.gen.t.spade_n_up
         self.G.set_translation_decoder(self.latent_shape, self.device)
+        # if "a" in self.opts.tasks or "t" in self.opts.tasks:
+        #     self.D = get_dis(self.opts, verbose=self.verbose).to(self.device)
+        # else:
+        #     self.D = None
         self.D = get_dis(self.opts, verbose=self.verbose).to(self.device)
         self.ADVENT_D = get_fc_discriminator().to(self.device)
         self.C = get_classifier(self.opts, self.latent_shape, verbose=self.verbose).to(
@@ -255,9 +260,9 @@ class Trainer:
         else:
             self.d_opt, self.d_scheduler = None, None
         if get_num_params(self.ADVENT_D) > 0:
-            self.ADVENT_d_opt, self.ADVENT_d_scheduler = get_optimizer(self.ADVENT_D, self.opts.dis.opt)
+            self.advent_d_opt, self.advent_d_scheduler = get_optimizer(self.ADVENT_D, self.opts.dis.opt)
         else:
-            self.ADVENT_d_opt, self.ADVENT_d_scheduler = None, None
+            self.advent_d_opt, self.advent_d_scheduler = None, None
         self.c_opt, self.c_scheduler = get_optimizer(self.C, self.opts.classifier.opt)
 
         if self.opts.train.resume:
@@ -314,7 +319,7 @@ class Trainer:
         else:
             self.d_opt.step()
 
-    def ADVENT_D_opt_step(self):
+    def advent_D_opt_step(self):
         """Run an optimizing step ; if using ExtraAdam, there needs to be an extrapolation
         step every other step
         """
@@ -322,9 +327,9 @@ class Trainer:
         if "extra" in self.opts.dis.opt.optimizer.lower() and (
             self.logger.global_step % 2 == 0
         ):
-            self.ADVENT_d_opt.extrapolation()
+            self.advent_d_opt.extrapolation()
         else:
-            self.ADVENT_d_opt.step()
+            self.advent_d_opt.step()
 
     def c_opt_step(self):
         """Run an optimizing step ; if using ExtraAdam, there needs to be an extrapolation
@@ -392,8 +397,9 @@ class Trainer:
             self.update_g(multi_domain_batch)
             if self.d_opt is not None:
                 self.update_d(multi_domain_batch)
-            if self.ADVENT_D_opt is not None:
+            if self.advent_d_opt is not None:
                 self.update_ADVENT_D(multi_domain_batch)
+            print("finish updating ADVENT_D")
             self.update_c(multi_domain_batch)
             self.logger.global_step += 1
             if self.should_freeze_representation():
@@ -882,14 +888,14 @@ class Trainer:
     def update_ADVENT_D(self, multi_domain_batch, verbose=0):
         # ? split representational as in update_g
         # ? repr: domain-adaptation traduction
-        self.ADVENT_D_opt.zero_grad()
-        ADVENT_adver_loss = self.get_ADVENT_adver_loss(multi_domain_batch, verbose)
-        ADVENT_adver_loss.backward()
-        ADVENT_D_loss = self.get_ADVENT_D_loss(multi_domain_batch, verbose)
-        ADVENT_D_loss.backward()
-        self.ADVENT_D_opt_step()
+        self.advent_d_opt.zero_grad()
+        advent_adver_loss = self.get_ADVENT_adver_loss(multi_domain_batch, verbose)
+        advent_adver_loss.backward()
+        advent_D_loss = self.get_ADVENT_D_loss(multi_domain_batch, verbose)
+        advent_D_loss.backward()
+        self.advent_d_opt()
 
-        self.logger.losses.ADVENT_discriminator.total_loss = ADVENT_D_loss.item()
+        self.logger.losses.ADVENT_discriminator.total_loss = advent_D_loss
         self.log_losses(model_to_update="ADVENT_D")
 
     def get_ADVENT_adver_loss(self, multi_domain_batch, verbose=0):
@@ -902,13 +908,13 @@ class Trainer:
             source_label = 0
             target_label = 1
             loss = 0
-            lossCal = ADVENTSegLoss(self.opts)
+            adventAdverloss = BCELoss()
             for i, domain in enumerate(batch_domain):
-                pred = self.ADVENT_D(z.cuda(self.device))
+                pred = self.ADVENT_D(z.to(self.device))
                 if domain == "r":
-                    loss += lossCal(None, pred, target_label)
+                    loss += adventAdverloss(pred, target_label)
                 elif domain == "s":
-                    loss += lossCal(None, pred, source_label)
+                    loss += adventAdverloss(pred, source_label)
                 else:
                     raise Exception("Wrong domain input!")      
         # self.logger.losses.ADVENT_discriminator.update()
@@ -929,13 +935,15 @@ class Trainer:
             source_label = 0
             target_label = 1
             loss = 0
-            lossCal = ADVENTAdversarialLoss(self.opts, None, self.ADVENT_D)
+            advent_DLoss = ADVENTAdversarialLoss(self.opts, None, self.ADVENT_D)
             for i, domain in enumerate(batch_domain):
-                pred = self.ADVENT_D(z.cuda(self.device))
+                print("z shape: ", z.shape)
+                print("x shape: ", x.shape)
+                pred = self.ADVENT_D(z.to(self.device))
                 if domain == "r":
-                    loss += lossCal(None, pred, target_label)
+                    loss += advent_DLoss(None, pred, target_label)
                 elif domain == "s":
-                    loss += lossCal(None, pred, source_label)
+                    loss += advent_DLoss(None, pred, source_label)
                 else:
                     raise Exception("Wrong domain input!")      
         # self.logger.losses.ADVENT_discriminator.update()
