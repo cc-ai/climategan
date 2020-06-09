@@ -2,6 +2,7 @@ import argparse
 import atexit
 import sys
 from pathlib import Path
+from time import time
 
 import comet_ml
 
@@ -84,6 +85,20 @@ if __name__ == "__main__":
 
     trainer.update_g(domain_batch)
     print("update 5")
+    trainer.logger.global_step += 1
+
+    # ------------------------------------------
+    # -----  Test trainer.log_step_time()  -----
+    # ------------------------------------------
+    # Testing log_step_time() assuming that update_g() is the step
+    print_header("test_log_step_time")
+    for i in range(5):
+        start_time = time()
+        trainer.update_g(domain_batch)
+        step_time = time() - start_time
+        trainer.log_step_time(step_time)
+        trainer.logger.global_step += 1
+        print("Logged step-time {} on comet-ml.".format(i+1))
 
     trainer.exp.end()
 

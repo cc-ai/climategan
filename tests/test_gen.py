@@ -9,6 +9,7 @@ import torch
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
 from omnigan.generator import get_gen
 from omnigan.utils import load_test_opts
+from omnigan.tutils import get_num_params
 from run import print_header
 
 
@@ -74,7 +75,8 @@ if __name__ == "__main__":
     # ------------------------------------
     if test_encoder:
         print_header("test_encoder")
-        
+        num_params = get_num_params(G.encoder)
+        print("Number of parameters in encoder : {}".format(num_params))
         encoded = G.encode(image)
         print("Latent space dims {}".format(tuple(encoded.shape)[1:]))
 

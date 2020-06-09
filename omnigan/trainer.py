@@ -20,6 +20,8 @@ from omnigan.losses import (
     L1Loss,
     MSELoss,
     GANLoss,
+    get_losses,
+    TVLoss,
 )
 from omnigan.optim import get_optimizer
 from omnigan.mega_depth import get_mega_model
@@ -68,6 +70,7 @@ class Trainer:
         self.logger.lr.d = opts.dis.opt.lr
         self.logger.epoch = 0
         self.loaders = None
+        self.losses = None
 
         self.is_setup = False
         self.representation_is_frozen = False
@@ -146,83 +149,6 @@ class Trainer:
         z = self.G.encode(b.data.x)
         return z.shape[1:]
 
-    def set_losses(self):
-        """Sets the loss functions to be used by G, D and C, as specified
-        in the opts and losses.py
-
-        self.losses = {
-            "G": {
-                "gan": {"a": ..., "t": ...},
-                "cycle": {"a": ..., "t": ...}
-                "auto": {"a": ..., "t": ...}
-                "tasks": {"h": ..., "d": ..., "s": ..., etc.}
-            },
-            "D": GANLoss,
-            "C": ...
-        }
-        """
-
-        self.losses = {"G": {"a": {}, "t": {}, "tasks": {}}, "D": {}, "C": {}}
-        # ------------------------------
-        # -----  Generator Losses  -----
-        # ------------------------------
-
-        # translation losses
-        if "a" in self.opts.tasks:
-            self.losses["G"]["a"]["gan"] = GANLoss()
-            self.losses["G"]["a"]["cycle"] = MSELoss()
-            self.losses["G"]["a"]["auto"] = MSELoss()
-
-            # ? add sm and dm losses too as in "t"
-
-        if "t" in self.opts.tasks:
-            self.losses["G"]["t"]["gan"] = GANLoss()
-            self.losses["G"]["t"]["cycle"] = MSELoss()
-            self.losses["G"]["t"]["auto"] = MSELoss()
-            self.losses["G"]["t"]["sm"] = PixelCrossEntropy()
-            self.losses["G"]["t"]["dm"] = MSELoss()
-
-        # task losses
-        # ? * add discriminator and gan loss to these task when no ground truth
-        # ?   instead of noisy label
-        if "d" in self.opts.tasks:
-            self.losses["G"]["tasks"]["d"] = MSELoss()
-
-        if "h" in self.opts.tasks:
-            self.losses["G"]["tasks"]["h"] = MSELoss()
-
-        if "s" in self.opts.tasks:
-            self.losses["G"]["tasks"]["s"] = CrossEntropy()
-
-        if "w" in self.opts.tasks:
-            self.losses["G"]["tasks"]["w"] = lambda x, y: (x + y).mean()
-
-        if "m" in self.opts.tasks:
-            self.losses["G"]["tasks"]["m"] = nn.BCELoss()
-
-        # undistinguishable features loss
-        # TODO setup a get_losses func to assign the right loss according to the yaml
-        if self.opts.classifier.loss == "l1":
-            loss_classifier = L1Loss()
-        elif self.opts.classifier.loss == "l2":
-            loss_classifier = MSELoss()
-        else:
-            loss_classifier = CrossEntropy()
-
-        self.losses["G"]["classifier"] = loss_classifier
-        # -------------------------------
-        # -----  Classifier Losses  -----
-        # -------------------------------
-        self.losses["C"] = loss_classifier
-        # ----------------------------------
-        # -----  Discriminator Losses  -----
-        # ----------------------------------
-        self.losses["D"] = GANLoss(
-            soft_shift=self.opts.dis.soft_shift,
-            flip_prob=self.opts.dis.flip_prob,
-            verbose=self.verbose,
-        )
-
     def setup(self):
         """Prepare the trainer before it can be used to train the models:
             * initialize G and D
@@ -238,7 +164,7 @@ class Trainer:
         self.G = get_gen(self.opts, verbose=self.verbose).to(self.device)
         self.latent_shape = self.compute_latent_shape()
         self.output_size = self.latent_shape[0] * 2 ** self.opts.gen.t.spade_n_up
-        self.G.set_translation_decoder(self.latent_shape, self.device)
+        # self.G.set_translation_decoder(self.latent_shape, self.device)
         self.D = get_dis(self.opts, verbose=self.verbose).to(self.device)
         self.C = get_classifier(self.opts, self.latent_shape, verbose=self.verbose).to(
             self.device
@@ -246,6 +172,7 @@ class Trainer:
         self.P = {"s": get_mega_model()}  # P => pseudo labeling models
 
         self.g_opt, self.g_scheduler = get_optimizer(self.G, self.opts.gen.opt)
+         
         if get_num_params(self.D) > 0:
             self.d_opt, self.d_scheduler = get_optimizer(self.D, self.opts.dis.opt)
         else:
@@ -255,7 +182,7 @@ class Trainer:
         if self.opts.train.resume:
             self.resume()
 
-        self.set_losses()
+        self.losses = get_losses(self.opts, self.verbose)
 
         if self.verbose > 0:
             for mode, mode_dict in self.loaders.items():
@@ -363,6 +290,7 @@ class Trainer:
                 )
             )
 
+            step_start_time = time()
             multi_batch_tuple = shuffle_batch_tuple(multi_batch_tuple)
             multi_domain_batch = {
                 batch["domain"][0]: self.batch_to_device(batch)
@@ -378,10 +306,21 @@ class Trainer:
                 freeze(self.G.encoder)
                 # ? Freeze decoders != t for memory management purposes ; faster ?
                 self.representation_is_frozen = True
+            step_time = time() - step_start_time
+            self.log_step_time(step_time)
 
         self.log_comet_images("train", "r")
         self.log_comet_images("train", "s")
         self.update_learning_rates()
+
+    def log_step_time(self, step_time):
+        """Logs step-time on comet.ml
+
+        Args:
+            step_time (float): step-time in seconds
+        """
+        if self.exp:
+            self.exp.log_metric("Step-time", step_time, step=self.logger.global_step)
 
     def log_comet_images(self, mode, domain):
 
@@ -588,7 +527,7 @@ class Trainer:
             for update_task, update_target in batch["data"].items():
                 # task t (=translation) will be done in get_translation_loss
                 # task a (=adaptation) and x (=auto-encoding) will be done hereafter
-                if update_task not in {"t", "a", "x"}:
+                if update_task not in {"t", "a", "x", "m"}:
                     # ? output features classifier
                     prediction = self.G.decoders[update_task](self.z)
                     task_tensors[update_task] = prediction
@@ -598,6 +537,33 @@ class Trainer:
 
                     step_loss += lambdas.G[update_task] * update_loss
                     self.logger.losses.task_loss[update_task][
+                        batch_domain
+                    ] = update_loss.item()
+                if update_task == "m":
+                    # ? output features classifier
+                    prediction = self.G.decoders[update_task](self.z)
+                    task_tensors[update_task] = prediction
+
+                    # Main loss first:
+                    update_loss = (
+                        self.losses["G"]["tasks"][update_task]["main"](
+                            prediction, update_target
+                        )
+                        * lambdas.G[update_task]["main"]
+                    )
+                    step_loss += update_loss
+
+                    self.logger.losses.task_loss[update_task]["main"][
+                        batch_domain
+                    ] = update_loss.item()
+
+                    # Then TV loss
+                    update_loss = self.losses["G"]["tasks"][update_task]["tv"](
+                        prediction
+                    )
+                    step_loss += update_loss
+
+                    self.logger.losses.task_loss[update_task]["tv"][
                         batch_domain
                     ] = update_loss.item()
 
@@ -901,6 +867,7 @@ class Trainer:
     def eval(self, num_threads=5, verbose=0):
         print("*******************EVALUATING***********************")
 
+        lambdas = self.opts.train.lambdas
         for i, multi_batch_tuple in enumerate(self.val_loaders):
             # create a dictionnay (domain => batch) from tuple
             # (batch_domain_0, ..., batch_domain_i)
@@ -930,7 +897,7 @@ class Trainer:
                 for update_task, update_target in domain_batch["data"].items():
                     # task t (=translation) will be done in get_translation_loss
                     # task a (=adaptation) and x (=auto-encoding) will be done hereafter
-                    if update_task not in {"t", "a", "x"}:
+                    if update_task not in {"t", "a", "x", "m"}:
                         # ? output features classifier
                         prediction = self.G.decoders[update_task](self.z)
                         task_tensors[update_task] = prediction
@@ -938,6 +905,30 @@ class Trainer:
                             prediction, update_target
                         )
                         self.logger.losses.task_loss[update_task][
+                            domain
+                        ] = update_loss.item()
+
+                    if update_task == "m":
+                        # ? output features classifier
+                        prediction = self.G.decoders[update_task](self.z)
+                        task_tensors[update_task] = prediction
+
+                        # Main loss first:
+                        update_loss = (
+                            self.losses["G"]["tasks"][update_task]["main"](
+                                prediction, update_target
+                            )
+                            * lambdas.G[update_task]["main"]
+                        )
+                        self.logger.losses.task_loss[update_task]["main"][
+                            domain
+                        ] = update_loss.item()
+
+                        # Then TV loss
+                        update_loss = self.losses["G"]["tasks"][update_task]["tv"](
+                            prediction
+                        )
+                        self.logger.losses.task_loss[update_task]["tv"][
                             domain
                         ] = update_loss.item()
         self.log_losses(model_to_update="G", mode="val")

@@ -128,6 +128,35 @@ class TravelLoss(nn.Module):
         return self.cosine_loss(self.v_real_t, self.v_fake_t)
 
 
+class TVLoss(nn.Module):
+    """Total Variational Regularization: Penalizes differences in 
+        neighboring pixel values
+
+        source: https://github.com/jxgu1016/Total_Variation_Loss.pytorch/blob/master/TVLoss.py
+    """
+
+    def __init__(self, tvloss_weight=1):
+        """
+        Args:
+            TVLoss_weight (int, optional): [lambda i.e. weight for loss]. Defaults to 1.
+        """
+        super(TVLoss, self).__init__()
+        self.tvloss_weight = tvloss_weight
+
+    def forward(self, x):
+        batch_size = x.size()[0]
+        h_x = x.size()[2]
+        w_x = x.size()[3]
+        count_h = self._tensor_size(x[:, :, 1:, :])
+        count_w = self._tensor_size(x[:, :, :, 1:])
+        h_tv = torch.pow((x[:, :, 1:, :] - x[:, :, : h_x - 1, :]), 2).sum()
+        w_tv = torch.pow((x[:, :, :, 1:] - x[:, :, :, : w_x - 1]), 2).sum()
+        return self.tvloss_weight * 2 * (h_tv / count_h + w_tv / count_w) / batch_size
+
+    def _tensor_size(self, t):
+        return t.size()[1] * t.size()[2] * t.size()[3]
+
+
 def cross_entropy_2d(predict, target):
     """
     Args:
@@ -185,3 +214,73 @@ class L1Loss(MSELoss):
     def __init__(self):
         super().__init__()
         self.loss = torch.nn.L1Loss()
+
+
+def get_losses(opts, verbose):
+    """Sets the loss functions to be used by G, D and C, as specified
+    in the opts and returns a dictionnary of losses:
+
+    losses = {
+        "G": {
+            "gan": {"a": ..., "t": ...},
+            "cycle": {"a": ..., "t": ...}
+            "auto": {"a": ..., "t": ...}
+            "tasks": {"h": ..., "d": ..., "s": ..., etc.}
+        },
+        "D": GANLoss,
+        "C": ...
+    }
+    """
+
+    losses = {"G": {"a": {}, "t": {}, "tasks": {}}, "D": {}, "C": {}}
+
+    # ------------------------------
+    # -----  Generator Losses  -----
+    # ------------------------------
+    # translation losses
+    if "a" in opts.tasks:
+        losses["G"]["a"]["gan"] = GANLoss()
+        losses["G"]["a"]["cycle"] = MSELoss()
+        losses["G"]["a"]["auto"] = MSELoss()
+        # ? add sm and dm losses too as in "t"
+    if "t" in opts.tasks:
+        losses["G"]["t"]["gan"] = GANLoss()
+        losses["G"]["t"]["cycle"] = MSELoss()
+        losses["G"]["t"]["auto"] = MSELoss()
+        losses["G"]["t"]["sm"] = PixelCrossEntropy()
+        losses["G"]["t"]["dm"] = MSELoss()
+    # task losses
+    # ? * add discriminator and gan loss to these task when no ground truth
+    # ?   instead of noisy label
+    if "d" in opts.tasks:
+        losses["G"]["tasks"]["d"] = MSELoss()
+    if "h" in opts.tasks:
+        losses["G"]["tasks"]["h"] = MSELoss()
+    if "s" in opts.tasks:
+        losses["G"]["tasks"]["s"] = CrossEntropy()
+    if "w" in opts.tasks:
+        losses["G"]["tasks"]["w"] = lambda x, y: (x + y).mean()
+    if "m" in opts.tasks:
+        losses["G"]["tasks"]["m"] = nn.BCELoss()
+    # undistinguishable features loss
+    # TODO setup a get_losses func to assign the right loss according to the yaml
+    if opts.classifier.loss == "l1":
+        loss_classifier = L1Loss()
+    elif opts.classifier.loss == "l2":
+        loss_classifier = MSELoss()
+    else:
+        loss_classifier = CrossEntropy()
+    losses["G"]["classifier"] = loss_classifier 
+    # -------------------------------
+    # -----  Classifier Losses  -----
+    # -------------------------------
+    losses["C"] = loss_classifier   
+    # ----------------------------------
+    # -----  Discriminator Losses  -----
+    # ----------------------------------
+    losses["D"] = GANLoss(
+        soft_shift=opts.dis.soft_shift,
+        flip_prob=opts.dis.flip_prob,
+        verbose=verbose,
+    )   
+    return losses
