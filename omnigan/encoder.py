@@ -67,7 +67,9 @@ class DeeplabEncoder(nn.Module):
         """
         super().__init__()
 
-        self.model = ResNetMulti(Bottleneck, opts.gen.deeplabv2.nblocks)
+        self.model = ResNetMulti(
+            Bottleneck, opts.gen.deeplabv2.nblocks, opts.gen.default.n_res
+        )
         if opts.gen.deeplabv2.use_pretrained:
             saved_state_dict = torch.load(opts.gen.deeplabv2.pretrained_model)
             print("Load pretrained Deeplab model")
