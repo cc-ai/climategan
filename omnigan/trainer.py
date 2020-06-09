@@ -20,6 +20,7 @@ from omnigan.losses import (
     L1Loss,
     MSELoss,
     GANLoss,
+    set_losses
 )
 from omnigan.optim import get_optimizer
 from omnigan.mega_depth import get_mega_model
@@ -68,6 +69,7 @@ class Trainer:
         self.logger.lr.d = opts.dis.opt.lr
         self.logger.epoch = 0
         self.loaders = None
+        self.losses = None
 
         self.is_setup = False
         self.representation_is_frozen = False
@@ -146,83 +148,6 @@ class Trainer:
         z = self.G.encode(b.data.x)
         return z.shape[1:]
 
-    def set_losses(self):
-        """Sets the loss functions to be used by G, D and C, as specified
-        in the opts and losses.py
-
-        self.losses = {
-            "G": {
-                "gan": {"a": ..., "t": ...},
-                "cycle": {"a": ..., "t": ...}
-                "auto": {"a": ..., "t": ...}
-                "tasks": {"h": ..., "d": ..., "s": ..., etc.}
-            },
-            "D": GANLoss,
-            "C": ...
-        }
-        """
-
-        self.losses = {"G": {"a": {}, "t": {}, "tasks": {}}, "D": {}, "C": {}}
-        # ------------------------------
-        # -----  Generator Losses  -----
-        # ------------------------------
-
-        # translation losses
-        if "a" in self.opts.tasks:
-            self.losses["G"]["a"]["gan"] = GANLoss()
-            self.losses["G"]["a"]["cycle"] = MSELoss()
-            self.losses["G"]["a"]["auto"] = MSELoss()
-
-            # ? add sm and dm losses too as in "t"
-
-        if "t" in self.opts.tasks:
-            self.losses["G"]["t"]["gan"] = GANLoss()
-            self.losses["G"]["t"]["cycle"] = MSELoss()
-            self.losses["G"]["t"]["auto"] = MSELoss()
-            self.losses["G"]["t"]["sm"] = PixelCrossEntropy()
-            self.losses["G"]["t"]["dm"] = MSELoss()
-
-        # task losses
-        # ? * add discriminator and gan loss to these task when no ground truth
-        # ?   instead of noisy label
-        if "d" in self.opts.tasks:
-            self.losses["G"]["tasks"]["d"] = MSELoss()
-
-        if "h" in self.opts.tasks:
-            self.losses["G"]["tasks"]["h"] = MSELoss()
-
-        if "s" in self.opts.tasks:
-            self.losses["G"]["tasks"]["s"] = CrossEntropy()
-
-        if "w" in self.opts.tasks:
-            self.losses["G"]["tasks"]["w"] = lambda x, y: (x + y).mean()
-
-        if "m" in self.opts.tasks:
-            self.losses["G"]["tasks"]["m"] = nn.BCELoss()
-
-        # undistinguishable features loss
-        # TODO setup a get_losses func to assign the right loss according to the yaml
-        if self.opts.classifier.loss == "l1":
-            loss_classifier = L1Loss()
-        elif self.opts.classifier.loss == "l2":
-            loss_classifier = MSELoss()
-        else:
-            loss_classifier = CrossEntropy()
-
-        self.losses["G"]["classifier"] = loss_classifier
-        # -------------------------------
-        # -----  Classifier Losses  -----
-        # -------------------------------
-        self.losses["C"] = loss_classifier
-        # ----------------------------------
-        # -----  Discriminator Losses  -----
-        # ----------------------------------
-        self.losses["D"] = GANLoss(
-            soft_shift=self.opts.dis.soft_shift,
-            flip_prob=self.opts.dis.flip_prob,
-            verbose=self.verbose,
-        )
-
     def setup(self):
         """Prepare the trainer before it can be used to train the models:
             * initialize G and D
@@ -255,7 +180,7 @@ class Trainer:
         if self.opts.train.resume:
             self.resume()
 
-        self.set_losses()
+        self.losses = set_losses(opts=self.opts, verbose=self.verbose)
 
         if self.verbose > 0:
             for mode, mode_dict in self.loaders.items():
