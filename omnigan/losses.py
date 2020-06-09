@@ -128,6 +128,25 @@ class TravelLoss(nn.Module):
         return self.cosine_loss(self.v_real_t, self.v_fake_t)
 
 
+class TVLoss(nn.Module):
+    def __init__(self, TVLoss_weight=1):
+        super(TVLoss, self).__init__()
+        self.TVLoss_weight = TVLoss_weight
+
+    def forward(self, x):
+        batch_size = x.size()[0]
+        h_x = x.size()[2]
+        w_x = x.size()[3]
+        count_h = self._tensor_size(x[:, :, 1:, :])
+        count_w = self._tensor_size(x[:, :, :, 1:])
+        h_tv = torch.pow((x[:, :, 1:, :] - x[:, :, : h_x - 1, :]), 2).sum()
+        w_tv = torch.pow((x[:, :, :, 1:] - x[:, :, :, : w_x - 1]), 2).sum()
+        return self.TVLoss_weight * 2 * (h_tv / count_h + w_tv / count_w) / batch_size
+
+    def _tensor_size(self, t):
+        return t.size()[1] * t.size()[2] * t.size()[3]
+
+
 def cross_entropy_2d(predict, target):
     """
     Args:
@@ -186,6 +205,7 @@ class L1Loss(MSELoss):
         super().__init__()
         self.loss = torch.nn.L1Loss()
 
+
 def prob_2_entropy(prob):
     """ 
     convert probabilistic prediction maps to weighted self-information maps
@@ -198,6 +218,7 @@ class crossEntropyLoss(nn.Module):
     """
     Calculate the cross entropy loss by function cross_entropy_2d
     """
+
     # Almost the same as cross_entropy_2d, I just integrate .long().to(prediction.device) on the target
     def __init__(self):
         super().__init__()
@@ -214,14 +235,17 @@ class BCELoss(nn.Module):
         self.loss = torch.nn.BCEWithLogitsLoss()
 
     def __call__(self, prediction, target):
-        return self.loss(prediction, torch.FloatTensor(prediction.size()).
-                        fill_(target).to(prediction.get_device()))
+        return self.loss(
+            prediction,
+            torch.FloatTensor(prediction.size())
+            .fill_(target)
+            .to(prediction.get_device()),
+        )
 
 
 class ADVENTSegLoss(nn.Module):
     def __init__(
-        self,
-        opt,
+        self, opt,
     ):
         super().__init__()
         self.opt = opt
@@ -233,25 +257,22 @@ class ADVENTSegLoss(nn.Module):
         else:
             loss_seg_src_aux = 0
         loss_seg_src_main = loss_calc(prediction2, target)
-        
-        loss = (self.opt.train.LAMBDA_SEG_MAIN * loss_seg_src_main
-                + self.opt.train.LAMBDA_SEG_AUX * loss_seg_src_aux)
-        
+
+        loss = (
+            self.opt.train.LAMBDA_SEG_MAIN * loss_seg_src_main
+            + self.opt.train.LAMBDA_SEG_AUX * loss_seg_src_aux
+        )
+
         return loss
 
 
 class ADVENTAdversarialLoss(nn.Module):
-    def __init__(
-        self,
-        opt,
-        discriminator_aux,
-        discriminator_main
-    ):
+    def __init__(self, opt, discriminator_aux, discriminator_main):
         super().__init__()
         self.opt = opt
         self.discriminator_aux = discriminator_aux
         self.discriminator_main = discriminator_main
-    
+
     def __call__(self, prediction1, prediction2, target):
         loss_calc = BCELoss()
         if self.opt.train.multi_level == True:
@@ -261,13 +282,15 @@ class ADVENTAdversarialLoss(nn.Module):
             loss_adv_trg_aux = 0
         d_out_main = self.discriminator_main(prob_2_entropy(F.softmax(prediction2)))
         loss_adv_trg_main = loss_calc(d_out_main, target)
-        
-        loss = (self.opt.train.LAMBDA_ADV_MAIN * loss_adv_trg_main
-                + self.opt.train.LAMBDA_ADV_AUX * loss_adv_trg_aux)
-        
+
+        loss = (
+            self.opt.train.LAMBDA_ADV_MAIN * loss_adv_trg_main
+            + self.opt.train.LAMBDA_ADV_AUX * loss_adv_trg_aux
+        )
+
         return loss
 
-        
+
 def get_fc_discriminator(num_classes, ndf=64):
     return torch.nn.Sequential(
         torch.nn.Conv2d(num_classes, ndf, kernel_size=4, stride=2, padding=1),
@@ -280,4 +303,4 @@ def get_fc_discriminator(num_classes, ndf=64):
         torch.nn.LeakyReLU(negative_slope=0.2, inplace=True),
         torch.nn.Conv2d(ndf * 8, 1, kernel_size=4, stride=2, padding=1),
     )
-    
+
