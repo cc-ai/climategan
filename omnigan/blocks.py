@@ -472,4 +472,3 @@ class SpadeDecoder(nn.Module):
 
     def __str__(self):
         return strings.spadedecoder(self)
-
