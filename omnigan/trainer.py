@@ -357,13 +357,13 @@ class Trainer:
             # create a dictionnay (domain => batch) from tuple
             # (batch_domain_0, ..., batch_domain_i)
             # and send it to self.device
-            step_start_time = time()
             print(
                 "\rEpoch {} batch {} step {}".format(
                     self.logger.epoch, i, self.logger.global_step
                 )
             )
 
+            step_start_time = time()
             multi_batch_tuple = shuffle_batch_tuple(multi_batch_tuple)
             multi_domain_batch = {
                 batch["domain"][0]: self.batch_to_device(batch)
