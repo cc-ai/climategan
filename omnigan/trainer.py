@@ -945,7 +945,7 @@ class Trainer:
     def save(self):
         save_dir = Path(self.opts.output_path) / Path("checkpoints")
         save_dir.mkdir(exist_ok=True)
-        save_path = Path(f"ckpt_epoch_{self.logger.epoch}.pth")
+        save_path = Path("latest_ckpt.pth")
         save_path = save_dir / save_path
 
         # Construct relevant state dicts / optims:
@@ -967,7 +967,8 @@ class Trainer:
         torch.save(save_dict, save_path)
 
     def resume(self):
-        load_path = self.get_latest_ckpt()
+        # load_path = self.get_latest_ckpt()
+        load_path = Path(self.opts.output_path) / Path("checkpoints/latest_ckpt.pth")
         checkpoint = torch.load(load_path)
         print(f"Resuming model from {load_path}")
         self.G.load_state_dict(checkpoint["G"])
