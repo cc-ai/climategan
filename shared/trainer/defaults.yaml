@@ -100,7 +100,7 @@ gen:
     output_dim: 1
   m: # specific params for the mask-generation decoder
     <<: *default-gen
-    output_dim: 1
+    output_dim: 2
 # -------------------------
 # ----- Discriminator -----
 # -------------------------
@@ -153,7 +153,7 @@ classifier:
 # ----- Train Params -----
 # ------------------------
 train:
-  epochs: 1000
+  epochs: 3000
   representational_training: True
   representation_steps: 10000 # for how many steps would the representation be trained before we train the translation
   freeze_representation: False # whether or not to backprop into the representation when doing the translation

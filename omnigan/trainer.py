@@ -8,6 +8,7 @@ from time import time
 import torch
 from addict import Dict
 from pathlib import Path
+import torch.nn.functional as F
 
 from omnigan.classifier import get_classifier
 from omnigan.data import get_all_loaders
@@ -21,7 +22,8 @@ from omnigan.losses import (
     MSELoss,
     GANLoss,
     BCELoss,
-    ADVENTSegLoss,
+    crossEntropyLoss,
+    prob_2_entropy,
     ADVENTAdversarialLoss,
 )
 from omnigan.optim import get_optimizer
@@ -202,7 +204,7 @@ class Trainer:
             self.losses["G"]["tasks"]["w"] = lambda x, y: (x + y).mean()
 
         if "m" in self.opts.tasks:
-            self.losses["G"]["tasks"]["m"] = nn.BCELoss()
+            self.losses["G"]["tasks"]["m"] = nn.CrossEntropyLoss(reduction='mean')
 
         # undistinguishable features loss
         # TODO setup a get_losses func to assign the right loss according to the yaml
@@ -399,7 +401,6 @@ class Trainer:
                 self.update_d(multi_domain_batch)
             if self.advent_d_opt is not None:
                 self.update_ADVENT_D(multi_domain_batch)
-            print("finish updating ADVENT_D")
             self.update_c(multi_domain_batch)
             self.logger.global_step += 1
             if self.should_freeze_representation():
@@ -417,8 +418,6 @@ class Trainer:
 
         for im_set in self.display_images[mode][domain]:
             x = im_set["data"]["x"].unsqueeze(0).to(self.device)
-            # print(im_set["data"].items())
-            # print("x: ", x.shape)
             self.z = self.G.encode(x)
 
             for update_task, update_target in im_set["data"].items():
@@ -430,6 +429,7 @@ class Trainer:
                     prediction = self.G.decoders[update_task](self.z)
 
                     if update_task in {"m"}:
+                        prediction = prediction[:, 0, :, :]
                         prediction = prediction.repeat(1, 3, 1, 1)
                         task_saves.append(x * (1.0 - prediction))
                         task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
@@ -606,9 +606,7 @@ class Trainer:
                 output_classifier,
                 fake_domains_to_class_tensor(batch["domain"], one_hot),
             )
-
             step_loss += lambdas.G.classifier * update_loss
-
             # -------------------------------------------------
             # -----  task-specific regression losses (2)  -----
             # -------------------------------------------------
@@ -620,15 +618,15 @@ class Trainer:
                     # ? output features classifier
                     prediction = self.G.decoders[update_task](self.z)
                     task_tensors[update_task] = prediction
+                    update_target = update_target[:,0,:,:]
                     update_loss = self.losses["G"]["tasks"][update_task](
-                        prediction, update_target
+                        prediction.to(self.device), update_target.long().to(self.device)
                     )
-
+                    
                     step_loss += lambdas.G[update_task] * update_loss
                     self.logger.losses.task_loss[update_task][
                         batch_domain
                     ] = update_loss.item()
-
             #! Translation and Adaptation components. Ignore for now...
             """ 
             # ------------------------------------------------------
@@ -857,6 +855,7 @@ class Trainer:
 
             x = batch["data"]["x"]
             z = self.G.encode(x)
+            
             cond = None
             if self.opts.gen.t.use_spade:
                 task_tensors = self.G.decode_tasks(z)
@@ -890,12 +889,12 @@ class Trainer:
         # ? repr: domain-adaptation traduction
         self.advent_d_opt.zero_grad()
         advent_adver_loss = self.get_ADVENT_adver_loss(multi_domain_batch, verbose)
-        advent_adver_loss.backward()
         advent_D_loss = self.get_ADVENT_D_loss(multi_domain_batch, verbose)
-        advent_D_loss.backward()
-        self.advent_d_opt()
+        advent_totalLoss = advent_adver_loss + advent_D_loss
+        advent_totalLoss.backward()
+        self.advent_D_opt_step()
 
-        self.logger.losses.ADVENT_discriminator.total_loss = advent_D_loss
+        self.logger.losses.ADVENT_discriminator.total_loss = advent_totalLoss.detach().cpu().numpy()
         self.log_losses(model_to_update="ADVENT_D")
 
     def get_ADVENT_adver_loss(self, multi_domain_batch, verbose=0):
@@ -905,12 +904,13 @@ class Trainer:
         for batch_domain, batch in multi_domain_batch.items():
             x = batch["data"]["x"]
             z = self.G.encode(x)
+            z_decode = self.G.decoders["m"](z)
             source_label = 0
             target_label = 1
             loss = 0
             adventAdverloss = BCELoss()
             for i, domain in enumerate(batch_domain):
-                pred = self.ADVENT_D(z.to(self.device))
+                pred = self.ADVENT_D(prob_2_entropy(F.softmax(z_decode.to(self.device), dim = 1)))
                 if domain == "r":
                     loss += adventAdverloss(pred, target_label)
                 elif domain == "s":
@@ -918,6 +918,7 @@ class Trainer:
                 else:
                     raise Exception("Wrong domain input!")      
         # self.logger.losses.ADVENT_discriminator.update()
+        #print("ADVENT_adver_loss", loss)
         return loss
 
     def get_ADVENT_D_loss(self, multi_domain_batch, verbose=0):
@@ -932,18 +933,16 @@ class Trainer:
         for batch_domain, batch in multi_domain_batch.items():
             x = batch["data"]["x"]
             z = self.G.encode(x)
+            z_decode = self.G.decoders["m"](z)
             source_label = 0
             target_label = 1
             loss = 0
             advent_DLoss = ADVENTAdversarialLoss(self.opts, None, self.ADVENT_D)
             for i, domain in enumerate(batch_domain):
-                print("z shape: ", z.shape)
-                print("x shape: ", x.shape)
-                pred = self.ADVENT_D(z.to(self.device))
                 if domain == "r":
-                    loss += advent_DLoss(None, pred, target_label)
+                    loss += advent_DLoss(None, z_decode.to(self.device), target_label)
                 elif domain == "s":
-                    loss += advent_DLoss(None, pred, source_label)
+                    loss += advent_DLoss(None, z_decode.to(self.device), source_label)
                 else:
                     raise Exception("Wrong domain input!")      
         # self.logger.losses.ADVENT_discriminator.update()
@@ -1029,7 +1028,7 @@ class Trainer:
                         prediction = self.G.decoders[update_task](self.z)
                         task_tensors[update_task] = prediction
                         update_loss = self.losses["G"]["tasks"][update_task](
-                            prediction, update_target
+                            prediction, update_target[:,0,:,:].long()
                         )
                         self.logger.losses.task_loss[update_task][
                             domain
