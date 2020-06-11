@@ -6,10 +6,12 @@ from pathlib import Path
 import yaml
 import json
 from torch.utils.data import DataLoader, Dataset
+from torchvision import transforms as trsfs
 from imageio import imread
 from torchvision import transforms
 import numpy as np
 from .transforms import get_transforms
+from .transforms import ToTensor
 from PIL import Image
 from omnigan.tutils import get_normalized_depth
 
@@ -76,7 +78,6 @@ def pil_image_loader(path, task):
         arr = imread(path).astype(np.uint8)
     else:
         raise ValueError("Unknown data type {}".format(path))
-
     if task == "m":
         arr[arr != 0] = 255
         # Make sure mask is single-channel
@@ -164,7 +165,7 @@ class OmniListDataset(Dataset):
                 "mode": self.mode,
             }
             if "d" in item["data"].keys():
-                item["data"]["d"] = get_normalized_depth(item["data"]["d"], self.domain)
+                item["data"]["d"] = get_normalized_depth(trsfs.ToTensor()(item["data"]["d"]), self.domain)
         return item
 
     def __len__(self):

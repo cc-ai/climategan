@@ -4,6 +4,7 @@ import torch
 from torchvision import transforms as trsfs
 import torchvision.transforms.functional as TF
 import numpy as np
+from PIL import Image
 
 
 def interpolation(task):
@@ -72,9 +73,9 @@ class ToTensor:
     def __call__(self, data):
         new_data = {}
         for task, im in data.items():
-            if task in {"x", "a"}:
+            if task in {"x", "a", "d"}:
                 new_data[task] = self.ImagetoTensor(im)
-            elif task in {"h", "d", "w", "m"}:
+            elif task in {"h", "w", "m"}:
                 new_data[task] = self.MaptoTensor(im)
             elif task == "s":
                 new_data[task] = torch.squeeze(torch.from_numpy(np.array(im))).to(
