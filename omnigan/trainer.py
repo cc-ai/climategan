@@ -329,8 +329,8 @@ class Trainer:
             self.update_g(multi_domain_batch)
             if self.d_opt is not None:
                 self.update_d(multi_domain_batch)
-            if self.advent_d_opt is not None: # tmp-advent code, will integrate to dis after it working well
-                self.update_ADVENT_D(multi_domain_batch)
+            # if self.advent_d_opt is not None: # tmp-advent code, will integrate to dis after it working well
+            #     self.update_ADVENT_D(multi_domain_batch)
             self.update_c(multi_domain_batch)
             self.logger.global_step += 1
             if self.should_freeze_representation():
@@ -424,7 +424,6 @@ class Trainer:
         * save
         """
         assert self.is_setup
-
         for self.logger.epoch in range(
             self.logger.epoch, self.logger.epoch + self.opts.train.epochs
         ):
@@ -792,6 +791,8 @@ class Trainer:
         # ? repr: domain-adaptation traduction
         self.d_opt.zero_grad()
         d_loss = self.get_d_loss(multi_domain_batch, verbose)
+        advent_D = update_ADVENT_D(multi_domain_batch)
+        d_loss += advent_D
         d_loss.backward()
         self.d_opt_step()
 
@@ -860,11 +861,12 @@ class Trainer:
         advent_adver_loss = self.get_ADVENT_adver_loss(multi_domain_batch, verbose)
         advent_D_loss = self.get_ADVENT_D_loss(multi_domain_batch, verbose)
         advent_totalLoss = advent_adver_loss + advent_D_loss
-        advent_totalLoss.backward()
-        self.advent_D_opt_step()
-
-        self.logger.losses.ADVENT_discriminator.total_loss = advent_totalLoss.detach().cpu().numpy()
+        # advent_totalLoss.backward() # individual loss
+        # self.advent_D_opt_step()
+        advent_totalLoss_log = advent_totalLoss
+        self.logger.losses.ADVENT_discriminator.total_loss = advent_totalLoss_log.detach().cpu().numpy()
         self.log_losses(model_to_update="ADVENT_D")
+        return advent_totalLoss
 
     def get_ADVENT_adver_loss(self, multi_domain_batch, verbose=0): # tmp-advent code, will integrate to dis after it working well
         """Compute the ADVENT adversarial losses:

@@ -121,7 +121,6 @@ if __name__ == "__main__":
     # -------------------
     # -----  Train  -----
     # -------------------
-
     trainer = Trainer(opts, comet_exp=exp)
     trainer.logger.time.start_time = time()
     trainer.setup()

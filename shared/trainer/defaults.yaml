@@ -50,7 +50,6 @@ gen:
   default:
     &default-gen # default parameters for the generator (encoder and decoders)
     activ: lrelu # activation function [relu/lrelu/prelu/selu/tanh]
-    architecture: base  #[deeplabv2 | base]
     init_gain: 0.2
     init_type: kaiming
     n_res: 4 # number of residual blocks before upsampling
@@ -65,6 +64,7 @@ gen:
     input_dim: 3 # input number of channels
     n_res: 4 # number of residual blocks in content encoder/decoder
     norm: spectral # ConvBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
+    architecture: base  #[deeplabv2 | base]
     
   deeplabv2: 
     nblocks: [3, 4, 23, 3]
@@ -100,6 +100,7 @@ gen:
   m: # specific params for the mask-generation decoder
     <<: *default-gen
     output_dim: 1
+    n_res: 0
 # -------------------------
 # ----- Discriminator -----
 # -------------------------

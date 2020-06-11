@@ -135,7 +135,3 @@ class ResNetMulti(nn.Module):
         x = self.layer_res(x)
         return x
 
-
-def get_deeplab_v2(num_classes=2, multi_level=True):
-    model = ResNetMulti(Bottleneck, [3, 4, 23, 3], num_classes, multi_level)
-    return model

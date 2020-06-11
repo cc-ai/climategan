@@ -58,9 +58,10 @@ class OmniGenerator(nn.Module):
 
         if opts.gen.encoder.architecture == "deeplabv2":
             self.encoder = DeeplabEncoder(opts)
+
         else:
             self.encoder = BaseEncoder(opts)
-        print(self.encoder.model)
+
         self.verbose = verbose
         self.decoders = {}
 
@@ -91,7 +92,7 @@ class OmniGenerator(nn.Module):
             self.decoders["s"] = SegmentationDecoder(opts)
 
         if "m" in opts.tasks and not opts.gen.m.ignore:
-            self.decoders["m"] = MaskDecoder(opts)  
+            self.decoders["m"] = MaskDecoder(opts)
 
         self.decoders = nn.ModuleDict(self.decoders)
 
@@ -198,14 +199,15 @@ class HeightDecoder(BaseDecoder):
 class MaskDecoder(BaseDecoder):
     def __init__(self, opts):
         super().__init__(
-            opts.gen.m.n_upsample,
-            opts.gen.m.n_res,
-            opts.gen.m.res_dim,
-            opts.gen.m.output_dim,
+            n_upsample=opts.gen.m.n_upsample,
+            n_res=opts.gen.m.n_res,
+            input_dim=opts.gen.encoder.res_dim,
+            proj_dim=opts.gen.m.proj_dim,
+            output_dim=opts.gen.m.output_dim,
             res_norm=opts.gen.m.res_norm,
             activ=opts.gen.m.activ,
             pad_type=opts.gen.m.pad_type,
-            output_activ="none",
+            output_activ="sigmoid",
         )
 
 
@@ -227,8 +229,8 @@ class SegmentationDecoder(BaseDecoder):
         super().__init__(
             opts.gen.s.n_upsample,
             opts.gen.s.n_res,
-            opts.gen.s.res_dim,
-            opts.gen.s.output_dim,
+            proj_dim=opts.gen.s.proj_dim,
+            output_dim=opts.gen.s.output_dim,
             res_norm=opts.gen.s.res_norm,
             activ=opts.gen.s.activ,
             pad_type=opts.gen.s.pad_type,
