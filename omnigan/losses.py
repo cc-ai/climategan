@@ -128,6 +128,35 @@ class TravelLoss(nn.Module):
         return self.cosine_loss(self.v_real_t, self.v_fake_t)
 
 
+class TVLoss(nn.Module):
+    """Total Variational Regularization: Penalizes differences in 
+        neighboring pixel values
+
+        source: https://github.com/jxgu1016/Total_Variation_Loss.pytorch/blob/master/TVLoss.py
+    """
+
+    def __init__(self, tvloss_weight=1):
+        """
+        Args:
+            TVLoss_weight (int, optional): [lambda i.e. weight for loss]. Defaults to 1.
+        """
+        super(TVLoss, self).__init__()
+        self.tvloss_weight = tvloss_weight
+
+    def forward(self, x):
+        batch_size = x.size()[0]
+        h_x = x.size()[2]
+        w_x = x.size()[3]
+        count_h = self._tensor_size(x[:, :, 1:, :])
+        count_w = self._tensor_size(x[:, :, :, 1:])
+        h_tv = torch.pow((x[:, :, 1:, :] - x[:, :, : h_x - 1, :]), 2).sum()
+        w_tv = torch.pow((x[:, :, :, 1:] - x[:, :, :, : w_x - 1]), 2).sum()
+        return self.tvloss_weight * 2 * (h_tv / count_h + w_tv / count_w) / batch_size
+
+    def _tensor_size(self, t):
+        return t.size()[1] * t.size()[2] * t.size()[3]
+
+
 def cross_entropy_2d(predict, target):
     """
     Args:
@@ -186,6 +215,78 @@ class L1Loss(MSELoss):
         super().__init__()
         self.loss = torch.nn.L1Loss()
 
+
+def get_losses(opts, verbose):
+    """Sets the loss functions to be used by G, D and C, as specified
+    in the opts and returns a dictionnary of losses:
+
+    losses = {
+        "G": {
+            "gan": {"a": ..., "t": ...},
+            "cycle": {"a": ..., "t": ...}
+            "auto": {"a": ..., "t": ...}
+            "tasks": {"h": ..., "d": ..., "s": ..., etc.}
+        },
+        "D": GANLoss,
+        "C": ...
+    }
+    """
+
+    losses = {"G": {"a": {}, "t": {}, "tasks": {}}, "D": {}, "C": {}}
+
+    # ------------------------------
+    # -----  Generator Losses  -----
+    # ------------------------------
+    # translation losses
+    if "a" in opts.tasks:
+        losses["G"]["a"]["gan"] = GANLoss()
+        losses["G"]["a"]["cycle"] = MSELoss()
+        losses["G"]["a"]["auto"] = MSELoss()
+        # ? add sm and dm losses too as in "t"
+    if "t" in opts.tasks:
+        losses["G"]["t"]["gan"] = GANLoss()
+        losses["G"]["t"]["cycle"] = MSELoss()
+        losses["G"]["t"]["auto"] = MSELoss()
+        losses["G"]["t"]["sm"] = PixelCrossEntropy()
+        losses["G"]["t"]["dm"] = MSELoss()
+    # task losses
+    # ? * add discriminator and gan loss to these task when no ground truth
+    # ?   instead of noisy label
+    if "d" in opts.tasks:
+        losses["G"]["tasks"]["d"] = MSELoss()
+    if "h" in opts.tasks:
+        losses["G"]["tasks"]["h"] = MSELoss()
+    if "s" in opts.tasks:
+        losses["G"]["tasks"]["s"] = CrossEntropy()
+    if "w" in opts.tasks:
+        losses["G"]["tasks"]["w"] = lambda x, y: (x + y).mean()
+    if "m" in opts.tasks:
+        losses["G"]["tasks"]["m"] = {}
+        losses["G"]["tasks"]["m"]["main"] = nn.BCELoss()
+        losses["G"]["tasks"]["m"]["tv"] = TVLoss(opts.train.lambdas.G.m.tv)
+
+    # undistinguishable features loss
+    # TODO setup a get_losses func to assign the right loss according to the yaml
+    if opts.classifier.loss == "l1":
+        loss_classifier = L1Loss()
+    elif opts.classifier.loss == "l2":
+        loss_classifier = MSELoss()
+    else:
+        loss_classifier = CrossEntropy()
+    losses["G"]["classifier"] = loss_classifier
+    # -------------------------------
+    # -----  Classifier Losses  -----
+    # -------------------------------
+    losses["C"] = loss_classifier
+    # ----------------------------------
+    # -----  Discriminator Losses  -----
+    # ----------------------------------
+    losses["D"] = GANLoss(
+        soft_shift=opts.dis.soft_shift, flip_prob=opts.dis.flip_prob, verbose=verbose,
+    )
+    return losses
+
+
 def prob_2_entropy(prob):
     """ 
     convert probabilistic prediction maps to weighted self-information maps
@@ -194,17 +295,17 @@ def prob_2_entropy(prob):
     return -torch.mul(prob, torch.log2(prob + 1e-30)) / np.log2(c)
 
 
-class crossEntropyLoss(nn.Module):
-    """
-    Calculate the cross entropy loss by function cross_entropy_2d
-    """
-    # Almost the same as cross_entropy_2d, I just integrate .long().to(prediction.device) on the target
-    def __init__(self):
-        super().__init__()
-        self.loss = cross_entropy_2d
+# class CrossEntropyLoss(nn.Module):
+#     """
+#     Calculate the cross entropy loss by function cross_entropy_2d
+#     """
+#     # Almost the same as cross_entropy_2d, I just integrate .long().to(prediction.device) on the target
+#     def __init__(self):
+#         super().__init__()
+#         self.loss = cross_entropy_2d
 
-    def __call__(self, prediction, target):
-        return self.loss(prediction, target.long().to(prediction.device))
+#     def __call__(self, prediction, target):
+#         return self.loss(prediction, target.long().to(prediction.device))
 
 
 class BCELoss(nn.Module):
@@ -225,17 +326,17 @@ class ADVENTSegLoss(nn.Module):
     ):
         super().__init__()
         self.opt = opt
+        self.loss = cross_entropy_2d
 
     def __call__(self, prediction1, prediction2, target):
-        loss_calc = crossEntropyLoss()
         if self.opt.dis.ADVENT.multi_level == True:
-            loss_seg_src_aux = loss_calc(prediction1, target)
+            loss_seg_src_aux = self.loss(prediction1, target.long().to(prediction1.device))
         else:
             loss_seg_src_aux = 0
-        loss_seg_src_main = loss_calc(prediction2, target)
+        loss_seg_src_main = self.loss(prediction2, target.long().to(prediction2.device))
         
-        loss = (self.opt.dis.ADVENT.LAMBDA_SEG_MAIN * loss_seg_src_main
-                + self.opt.dis.ADVENT.LAMBDA_SEG_AUX * loss_seg_src_aux)
+        loss = (self.opt.train.lambdas.advent.seg_main * loss_seg_src_main
+                + self.opt.train.lambdas.advent.seg_aux * loss_seg_src_aux)
         
         return loss
 
@@ -251,18 +352,19 @@ class ADVENTAdversarialLoss(nn.Module):
         self.opt = opt
         self.discriminator_aux = discriminator_aux
         self.discriminator_main = discriminator_main
+        self.loss = BCELoss()
     
     def __call__(self, prediction1, prediction2, target):
-        loss_calc = BCELoss()
+        
         if self.opt.dis.ADVENT.multi_level == True:
-            d_out_aux = self.discriminator_aux(prob_2_entropy(F.softmax(prediction1)))
-            loss_adv_trg_aux = loss_calc(d_out_aux, target)
+            d_out_aux = self.discriminator_aux(prob_2_entropy(F.softmax(prediction1, dim = 1)))
+            loss_adv_trg_aux = self.loss(d_out_aux, target)
         else:
             loss_adv_trg_aux = 0
-        d_out_main = self.discriminator_main(prob_2_entropy(F.softmax(prediction2)))
-        loss_adv_trg_main = loss_calc(d_out_main, target)
+        d_out_main = self.discriminator_main(prob_2_entropy(F.softmax(prediction2, dim = 1)))
+        loss_adv_trg_main = self.loss(d_out_main, target)
         
-        loss = (self.opt.dis.ADVENT.LAMBDA_ADV_MAIN * loss_adv_trg_main
-                + self.opt.dis.ADVENT.LAMBDA_ADV_AUX * loss_adv_trg_aux)
+        loss = (self.opt.train.lambdas.advent.adv_main * loss_adv_trg_main
+                + self.opt.train.lambdas.advent.adv_aux * loss_adv_trg_aux)
         
         return loss
