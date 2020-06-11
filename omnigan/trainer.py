@@ -8,11 +8,11 @@ from time import time
 import torch
 from addict import Dict
 from pathlib import Path
-import torch.nn.functional as F
 
+import torch.nn.functional as F
 from omnigan.classifier import get_classifier
 from omnigan.data import get_all_loaders
-from omnigan.discriminator import (get_dis,get_fc_discriminator)
+from omnigan.discriminator import (get_dis, get_fc_discriminator)
 from omnigan.generator import get_gen
 from omnigan.losses import (
     BinaryCrossEntropy,
@@ -21,8 +21,9 @@ from omnigan.losses import (
     L1Loss,
     MSELoss,
     GANLoss,
+    get_losses,
+    TVLoss,
     BCELoss,
-    crossEntropyLoss,
     prob_2_entropy,
     ADVENTAdversarialLoss,
 )
@@ -73,6 +74,7 @@ class Trainer:
         self.logger.lr.d = opts.dis.opt.lr
         self.logger.epoch = 0
         self.loaders = None
+        self.losses = None
 
         self.is_setup = False
         self.representation_is_frozen = False
@@ -100,7 +102,7 @@ class Trainer:
             "G",
             "D",
             "C",
-            "ADVENT_D",
+            "ADVENT_D", # tmp-advent code, will integrate to dis after it working well
         }, "unknown model to log losses {}".format(model_to_update)
 
         losses = self.logger.losses.copy()
@@ -152,83 +154,6 @@ class Trainer:
         z = self.G.encode(b.data.x)
         return z.shape[1:]
 
-    def set_losses(self):
-        """Sets the loss functions to be used by G, D and C, as specified
-        in the opts and losses.py
-
-        self.losses = {
-            "G": {
-                "gan": {"a": ..., "t": ...},
-                "cycle": {"a": ..., "t": ...}
-                "auto": {"a": ..., "t": ...}
-                "tasks": {"h": ..., "d": ..., "s": ..., etc.}
-            },
-            "D": GANLoss,
-            "C": ...
-        }
-        """
-
-        self.losses = {"G": {"a": {}, "t": {}, "tasks": {}}, "D": {}, "C": {}}
-        # ------------------------------
-        # -----  Generator Losses  -----
-        # ------------------------------
-
-        # translation losses
-        if "a" in self.opts.tasks:
-            self.losses["G"]["a"]["gan"] = GANLoss()
-            self.losses["G"]["a"]["cycle"] = MSELoss()
-            self.losses["G"]["a"]["auto"] = MSELoss()
-
-            # ? add sm and dm losses too as in "t"
-
-        if "t" in self.opts.tasks:
-            self.losses["G"]["t"]["gan"] = GANLoss()
-            self.losses["G"]["t"]["cycle"] = MSELoss()
-            self.losses["G"]["t"]["auto"] = MSELoss()
-            self.losses["G"]["t"]["sm"] = PixelCrossEntropy()
-            self.losses["G"]["t"]["dm"] = MSELoss()
-
-        # task losses
-        # ? * add discriminator and gan loss to these task when no ground truth
-        # ?   instead of noisy label
-        if "d" in self.opts.tasks:
-            self.losses["G"]["tasks"]["d"] = MSELoss()
-
-        if "h" in self.opts.tasks:
-            self.losses["G"]["tasks"]["h"] = MSELoss()
-
-        if "s" in self.opts.tasks:
-            self.losses["G"]["tasks"]["s"] = CrossEntropy()
-
-        if "w" in self.opts.tasks:
-            self.losses["G"]["tasks"]["w"] = lambda x, y: (x + y).mean()
-
-        if "m" in self.opts.tasks:
-            self.losses["G"]["tasks"]["m"] = nn.CrossEntropyLoss(reduction='mean')
-
-        # undistinguishable features loss
-        # TODO setup a get_losses func to assign the right loss according to the yaml
-        if self.opts.classifier.loss == "l1":
-            loss_classifier = L1Loss()
-        elif self.opts.classifier.loss == "l2":
-            loss_classifier = MSELoss()
-        else:
-            loss_classifier = CrossEntropy()
-
-        self.losses["G"]["classifier"] = loss_classifier
-        # -------------------------------
-        # -----  Classifier Losses  -----
-        # -------------------------------
-        self.losses["C"] = loss_classifier
-        # ----------------------------------
-        # -----  Discriminator Losses  -----
-        # ----------------------------------
-        self.losses["D"] = GANLoss(
-            soft_shift=self.opts.dis.soft_shift,
-            flip_prob=self.opts.dis.flip_prob,
-            verbose=self.verbose,
-        )
-
     def setup(self):
         """Prepare the trainer before it can be used to train the models:
             * initialize G and D
@@ -244,33 +169,37 @@ class Trainer:
         self.G = get_gen(self.opts, verbose=self.verbose).to(self.device)
         self.latent_shape = self.compute_latent_shape()
         self.output_size = self.latent_shape[0] * 2 ** self.opts.gen.t.spade_n_up
-        self.G.set_translation_decoder(self.latent_shape, self.device)
-        # if "a" in self.opts.tasks or "t" in self.opts.tasks:
-        #     self.D = get_dis(self.opts, verbose=self.verbose).to(self.device)
-        # else:
-        #     self.D = None
+        # self.G.set_translation_decoder(self.latent_shape, self.device)
         self.D = get_dis(self.opts, verbose=self.verbose).to(self.device)
-        self.ADVENT_D = get_fc_discriminator().to(self.device)
+        self.ADVENT_D = get_fc_discriminator().to(self.device) # tmp-advent code, will integrate to dis after it working well
         self.C = get_classifier(self.opts, self.latent_shape, verbose=self.verbose).to(
             self.device
         )
         self.P = {"s": get_mega_model()}  # P => pseudo labeling models
 
         self.g_opt, self.g_scheduler = get_optimizer(self.G, self.opts.gen.opt)
+
+        print("---------------------------")
+        print("num params encoder: ", get_num_params(self.G.encoder))
+        print("num params decoder: ", get_num_params(self.G.decoders["m"]))
+        print("num params classif: ", get_num_params(self.C))
+        print("---------------------------")
+
         if get_num_params(self.D) > 0:
             self.d_opt, self.d_scheduler = get_optimizer(self.D, self.opts.dis.opt)
         else:
             self.d_opt, self.d_scheduler = None, None
-        if get_num_params(self.ADVENT_D) > 0:
-            self.advent_d_opt, self.advent_d_scheduler = get_optimizer(self.ADVENT_D, self.opts.dis.opt)
+        self.c_opt, self.c_scheduler = get_optimizer(self.C, self.opts.classifier.opt)
+
+        if get_num_params(self.ADVENT_D) > 0: # tmp-advent code, will integrate to dis after it working well
+            self.advent_d_opt, self.advent_d_scheduler = get_optimizer(self.ADVENT_D, self.opts.dis.advent.opt)
         else:
             self.advent_d_opt, self.advent_d_scheduler = None, None
-        self.c_opt, self.c_scheduler = get_optimizer(self.C, self.opts.classifier.opt)
 
         if self.opts.train.resume:
             self.resume()
 
-        self.set_losses()
+        self.losses = get_losses(self.opts, self.verbose)
 
         if self.verbose > 0:
             for mode, mode_dict in self.loaders.items():
@@ -390,6 +319,7 @@ class Trainer:
                 )
             )
 
+            step_start_time = time()
             multi_batch_tuple = shuffle_batch_tuple(multi_batch_tuple)
             multi_domain_batch = {
                 batch["domain"][0]: self.batch_to_device(batch)
@@ -399,7 +329,7 @@ class Trainer:
             self.update_g(multi_domain_batch)
             if self.d_opt is not None:
                 self.update_d(multi_domain_batch)
-            if self.advent_d_opt is not None:
+            if self.advent_d_opt is not None: # tmp-advent code, will integrate to dis after it working well
                 self.update_ADVENT_D(multi_domain_batch)
             self.update_c(multi_domain_batch)
             self.logger.global_step += 1
@@ -407,10 +337,21 @@ class Trainer:
                 freeze(self.G.encoder)
                 # ? Freeze decoders != t for memory management purposes ; faster ?
                 self.representation_is_frozen = True
+            step_time = time() - step_start_time
+            self.log_step_time(step_time)
 
         self.log_comet_images("train", "r")
         self.log_comet_images("train", "s")
         self.update_learning_rates()
+
+    def log_step_time(self, step_time):
+        """Logs step-time on comet.ml
+
+        Args:
+            step_time (float): step-time in seconds
+        """
+        if self.exp:
+            self.exp.log_metric("Step-time", step_time, step=self.logger.global_step)
 
     def log_comet_images(self, mode, domain):
 
@@ -418,6 +359,8 @@ class Trainer:
 
         for im_set in self.display_images[mode][domain]:
             x = im_set["data"]["x"].unsqueeze(0).to(self.device)
+            # print(im_set["data"].items())
+            # print("x: ", x.shape)
             self.z = self.G.encode(x)
 
             for update_task, update_target in im_set["data"].items():
@@ -429,7 +372,6 @@ class Trainer:
                     prediction = self.G.decoders[update_task](self.z)
 
                     if update_task in {"m"}:
-                        prediction = prediction[:, 0, :, :]
                         prediction = prediction.repeat(1, 3, 1, 1)
                         task_saves.append(x * (1.0 - prediction))
                         task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
@@ -606,7 +548,9 @@ class Trainer:
                 output_classifier,
                 fake_domains_to_class_tensor(batch["domain"], one_hot),
             )
+
             step_loss += lambdas.G.classifier * update_loss
+
             # -------------------------------------------------
             # -----  task-specific regression losses (2)  -----
             # -------------------------------------------------
@@ -614,19 +558,46 @@ class Trainer:
             for update_task, update_target in batch["data"].items():
                 # task t (=translation) will be done in get_translation_loss
                 # task a (=adaptation) and x (=auto-encoding) will be done hereafter
-                if update_task not in {"t", "a", "x"}:
+                if update_task not in {"t", "a", "x", "m"}:
                     # ? output features classifier
                     prediction = self.G.decoders[update_task](self.z)
                     task_tensors[update_task] = prediction
-                    update_target = update_target[:,0,:,:]
                     update_loss = self.losses["G"]["tasks"][update_task](
-                        prediction.to(self.device), update_target.long().to(self.device)
+                        prediction, update_target
                     )
-                    
+
                     step_loss += lambdas.G[update_task] * update_loss
                     self.logger.losses.task_loss[update_task][
                         batch_domain
                     ] = update_loss.item()
+                if update_task == "m":
+                    # ? output features classifier
+                    prediction = self.G.decoders[update_task](self.z)
+                    task_tensors[update_task] = prediction
+
+                    # Main loss first:
+                    update_loss = (
+                        self.losses["G"]["tasks"][update_task]["main"](
+                            prediction, update_target
+                        )
+                        * lambdas.G[update_task]["main"]
+                    )
+                    step_loss += update_loss
+
+                    self.logger.losses.task_loss[update_task]["main"][
+                        batch_domain
+                    ] = update_loss.item()
+
+                    # Then TV loss
+                    update_loss = self.losses["G"]["tasks"][update_task]["tv"](
+                        prediction
+                    )
+                    step_loss += update_loss
+
+                    self.logger.losses.task_loss[update_task]["tv"][
+                        batch_domain
+                    ] = update_loss.item()
+
             #! Translation and Adaptation components. Ignore for now...
             """ 
             # ------------------------------------------------------
@@ -826,7 +797,6 @@ class Trainer:
 
         self.logger.losses.discriminator.total_loss = d_loss.item()
         self.log_losses(model_to_update="D")
-        
 
     def get_d_loss(self, multi_domain_batch, verbose=0):
         """Compute the discriminators' losses:
@@ -855,7 +825,6 @@ class Trainer:
 
             x = batch["data"]["x"]
             z = self.G.encode(x)
-            
             cond = None
             if self.opts.gen.t.use_spade:
                 task_tensors = self.G.decode_tasks(z)
@@ -884,7 +853,7 @@ class Trainer:
         loss = sum(v for d in disc_loss.values() for k, v in d.items())
         return loss
 
-    def update_ADVENT_D(self, multi_domain_batch, verbose=0):
+    def update_ADVENT_D(self, multi_domain_batch, verbose=0): # tmp-advent code, will integrate to dis after it working well
         # ? split representational as in update_g
         # ? repr: domain-adaptation traduction
         self.advent_d_opt.zero_grad()
@@ -897,7 +866,7 @@ class Trainer:
         self.logger.losses.ADVENT_discriminator.total_loss = advent_totalLoss.detach().cpu().numpy()
         self.log_losses(model_to_update="ADVENT_D")
 
-    def get_ADVENT_adver_loss(self, multi_domain_batch, verbose=0):
+    def get_ADVENT_adver_loss(self, multi_domain_batch, verbose=0): # tmp-advent code, will integrate to dis after it working well
         """Compute the ADVENT adversarial losses:
             TODO
         """
@@ -909,8 +878,12 @@ class Trainer:
             target_label = 1
             loss = 0
             adventAdverloss = BCELoss()
+            #print("Positive rate", (z_decode>0).sum().item()/z_decode.numel())
+            z_decode = z_decode[:,0,:,:]
+            z_prime = 1 - z_decode
+            prob = torch.stack([z_decode,z_prime]).transpose(0,1)
             for i, domain in enumerate(batch_domain):
-                pred = self.ADVENT_D(prob_2_entropy(F.softmax(z_decode.to(self.device), dim = 1)))
+                pred = self.ADVENT_D(prob_2_entropy(F.softmax(prob.to(self.device), dim = 1)))
                 if domain == "r":
                     loss += adventAdverloss(pred, target_label)
                 elif domain == "s":
@@ -921,7 +894,7 @@ class Trainer:
         #print("ADVENT_adver_loss", loss)
         return loss
 
-    def get_ADVENT_D_loss(self, multi_domain_batch, verbose=0):
+    def get_ADVENT_D_loss(self, multi_domain_batch, verbose=0): # tmp-advent code, will integrate to dis after it working well
         """Compute the ADVENT discriminators' losses:
             TODO
         Args:
@@ -934,19 +907,23 @@ class Trainer:
             x = batch["data"]["x"]
             z = self.G.encode(x)
             z_decode = self.G.decoders["m"](z)
+            z_decode = z_decode[:,0,:,:]
+            z_prime = 1 - z_decode
+            prob = torch.stack([z_decode,z_prime]).transpose(0,1)
             source_label = 0
             target_label = 1
             loss = 0
             advent_DLoss = ADVENTAdversarialLoss(self.opts, None, self.ADVENT_D)
             for i, domain in enumerate(batch_domain):
                 if domain == "r":
-                    loss += advent_DLoss(None, z_decode.to(self.device), target_label)
+                    loss += advent_DLoss(None, prob.to(self.device), target_label)
                 elif domain == "s":
-                    loss += advent_DLoss(None, z_decode.to(self.device), source_label)
+                    loss += advent_DLoss(None, prob.to(self.device), source_label)
                 else:
                     raise Exception("Wrong domain input!")      
         # self.logger.losses.ADVENT_discriminator.update()
         return loss
+
 
     def update_c(self, multi_domain_batch):
         """
@@ -963,7 +940,6 @@ class Trainer:
         self.logger.losses.classifier = c_loss.item()
         c_loss.backward()
         self.c_opt_step()
-
 
     def get_classifier_loss(self, multi_domain_batch):
         """Compute the loss of the domain classifier with real labels
@@ -994,6 +970,7 @@ class Trainer:
     def eval(self, num_threads=5, verbose=0):
         print("*******************EVALUATING***********************")
 
+        lambdas = self.opts.train.lambdas
         for i, multi_batch_tuple in enumerate(self.val_loaders):
             # create a dictionnay (domain => batch) from tuple
             # (batch_domain_0, ..., batch_domain_i)
@@ -1023,14 +1000,38 @@ class Trainer:
                 for update_task, update_target in domain_batch["data"].items():
                     # task t (=translation) will be done in get_translation_loss
                     # task a (=adaptation) and x (=auto-encoding) will be done hereafter
-                    if update_task not in {"t", "a", "x"}:
+                    if update_task not in {"t", "a", "x", "m"}:
                         # ? output features classifier
                         prediction = self.G.decoders[update_task](self.z)
                         task_tensors[update_task] = prediction
                         update_loss = self.losses["G"]["tasks"][update_task](
-                            prediction, update_target[:,0,:,:].long()
+                            prediction, update_target
                         )
                         self.logger.losses.task_loss[update_task][
+                            domain
+                        ] = update_loss.item()
+
+                    if update_task == "m":
+                        # ? output features classifier
+                        prediction = self.G.decoders[update_task](self.z)
+                        task_tensors[update_task] = prediction
+
+                        # Main loss first:
+                        update_loss = (
+                            self.losses["G"]["tasks"][update_task]["main"](
+                                prediction, update_target
+                            )
+                            * lambdas.G[update_task]["main"]
+                        )
+                        self.logger.losses.task_loss[update_task]["main"][
+                            domain
+                        ] = update_loss.item()
+
+                        # Then TV loss
+                        update_loss = self.losses["G"]["tasks"][update_task]["tv"](
+                            prediction
+                        )
+                        self.logger.losses.task_loss[update_task]["tv"][
                             domain
                         ] = update_loss.item()
         self.log_losses(model_to_update="G", mode="val")
@@ -1041,7 +1042,7 @@ class Trainer:
     def save(self):
         save_dir = Path(self.opts.output_path) / Path("checkpoints")
         save_dir.mkdir(exist_ok=True)
-        save_path = Path(f"ckpt_epoch_{self.logger.epoch}.pth")
+        save_path = Path("latest_ckpt.pth")
         save_path = save_dir / save_path
 
         # Construct relevant state dicts / optims:
@@ -1063,7 +1064,8 @@ class Trainer:
         torch.save(save_dict, save_path)
 
     def resume(self):
-        load_path = self.get_latest_ckpt()
+        # load_path = self.get_latest_ckpt()
+        load_path = Path(self.opts.output_path) / Path("checkpoints/latest_ckpt.pth")
         checkpoint = torch.load(load_path)
         print(f"Resuming model from {load_path}")
         self.G.load_state_dict(checkpoint["G"])

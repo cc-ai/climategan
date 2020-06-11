@@ -192,13 +192,6 @@ class OmniDiscriminator(nn.ModuleDict):
                     ),
                 }
             )
-        # if "m" in opts.tasks:
-        #     self["m"] = nn.ModuleDict(
-        #         {
-        #             "r": get_fc_discriminator(2),
-        #             "s": get_fc_discriminator(2),
-        #         }
-        #     )
 
 
 def get_fc_discriminator(num_classes=2, ndf=64):

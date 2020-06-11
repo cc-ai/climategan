@@ -57,7 +57,7 @@ gen:
     n_downsample: &n_downsample 3 # number of downsampling layers in encoder | dim 32 + down 3 => z = 256 x 32 x 32
     n_upsample: *n_downsample # upsampling in spade decoder ; should match encoder.n_downsample
     pad_type: reflect # padding type [zero/reflect]
-    res_dim: 2048 # Resblock number of channels (=latent space's), should be 2048 if using deeplabv2
+    res_dim: 256 # Resblock number of channels (=latent space's), should be 2048 if using deeplabv2
     res_norm: spectral # ResBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
     proj_dim: 64 # Dim of projection from latent space
   encoder: # specific params for the encoder
@@ -131,7 +131,7 @@ dis:
     <<: *default-dis
   m:
     <<: *default-dis
-  advent:
+  advent: # tmp-advent code, will integrate to dis after it working well
     opt:
       optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
       beta1: 0.9
