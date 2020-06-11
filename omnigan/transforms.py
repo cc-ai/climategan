@@ -6,6 +6,13 @@ import torchvision.transforms.functional as TF
 import numpy as np
 
 
+def interpolation(task):
+    if task in ["d"]:
+        return Image.NEAREST
+    else:
+        return Image.BILINEAR
+
+
 class Resize:
     def __init__(self, target_size):
         assert isinstance(target_size, (int, tuple, list))
@@ -19,7 +26,10 @@ class Resize:
         self.w = int(self.w)
 
     def __call__(self, data):
-        return {task: TF.resize(im, (self.h, self.w)) for task, im in data.items()}
+        return {
+            task: TF.resize(im, (self.h, self.w), interpolation=interpolation(task))
+            for task, im in data.items()
+        }
 
 
 class RandomCrop:

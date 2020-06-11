@@ -1,4 +1,3 @@
-
 """Data-loading functions in order to create a Dataset and DataLoaders.
 Transforms for loaders are in transforms.py
 """
@@ -12,7 +11,7 @@ from torchvision import transforms
 import numpy as np
 from .transforms import get_transforms
 from PIL import Image
-from omnigan.tutils import decode_unity_depth
+from omnigan.tutils import get_normalized_depth
 
 # ? paired dataset
 
@@ -70,7 +69,7 @@ def is_image_file(filename):
     return Path(filename).suffix in IMG_EXTENSIONS
 
 
-def pil_image_loader(path, task, domain):
+def pil_image_loader(path, task):
     if Path(path).suffix == ".npy":
         arr = np.load(path).astype(np.uint8)
     elif is_image_file(path):
@@ -78,22 +77,11 @@ def pil_image_loader(path, task, domain):
     else:
         raise ValueError("Unknown data type {}".format(path))
 
-    if task == "d":
-        if domain == "r":
-            #megadepth depth
-            arr = (arr/255).astype(np.float32)
-            arr[arr != 0] = 1 / arr[arr != 0]
-            arr = arr - np.min(arr)
-            arr /= np.max(arr)
-        elif domain == "s":
-            #from 3-channel depth encoding from Unity simulator to 1-channel [0-1] values
-            arr = decode_unity_depth(arr, normalize= True)
-
-    if task == 'm':
+    if task == "m":
         arr[arr != 0] = 255
-        #Make sure mask is single-channel
+        # Make sure mask is single-channel
         if len(arr.shape) >= 3:
-            arr = arr[:,:,0]
+            arr = arr[:, :, 0]
     # if task == "s":
     #     arr = decode_segmap(arr)
 
@@ -127,16 +115,13 @@ class OmniListDataset(Dataset):
         self.file_list_path = str(file_list_path)
         self.transform = transform
 
-      
-
     def filter_samples(self):
         """
         Filter out data which is not required for the model's tasks
         as defined in opts.tasks
         """
         self.samples_paths = [
-            {k: v for k, v in s.items() if k in self.tasks}
-            for s in self.samples_paths
+            {k: v for k, v in s.items() if k in self.tasks} for s in self.samples_paths
         ]
 
     def __getitem__(self, i):
@@ -157,25 +142,30 @@ class OmniListDataset(Dataset):
         """
         paths = self.samples_paths[i]
 
-        
         if self.transform:
-            return {
+            item = {
                 "data": self.transform(
-                    {task: pil_image_loader(path, task, self.domain) for task, path in paths.items()}
+                    {task: pil_image_loader(path, task) for task, path in paths.items()}
                 ),
                 "paths": paths,
                 "domain": self.domain,
                 "mode": self.mode,
             }
+            if "d" in item["data"].keys():
+                item["data"]["d"] = get_normalized_depth(item["data"]["d"], self.domain)
 
-        return {
-            "data": {
-                    task: pil_image_loader(path, task, self.domain) for task, path in paths.items()
-            },
-            "paths": paths,
-            "domain": self.domain,
-            "mode": self.mode,
-        }
+        else:
+            item = {
+                "data": {
+                    task: pil_image_loader(path, task) for task, path in paths.items()
+                },
+                "paths": paths,
+                "domain": self.domain,
+                "mode": self.mode,
+            }
+            if "d" in item["data"].keys():
+                item["data"]["d"] = get_normalized_depth(item["data"]["d"], self.domain)
+        return item
 
     def __len__(self):
         return len(self.samples_paths)
