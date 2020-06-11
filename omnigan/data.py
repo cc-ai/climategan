@@ -12,6 +12,7 @@ from torchvision import transforms
 import numpy as np
 from .transforms import get_transforms
 from PIL import Image
+from omnigan.tutils import decode_unity_depth
 
 # ? paired dataset
 
@@ -69,7 +70,7 @@ def is_image_file(filename):
     return Path(filename).suffix in IMG_EXTENSIONS
 
 
-def pil_image_loader(path, task):
+def pil_image_loader(path, task, domain):
     if Path(path).suffix == ".npy":
         arr = np.load(path).astype(np.uint8)
     elif is_image_file(path):
@@ -78,8 +79,15 @@ def pil_image_loader(path, task):
         raise ValueError("Unknown data type {}".format(path))
 
     if task == "d":
-        arr = arr.astype(np.float32)
-        arr[arr != 0] = 1 / arr[arr != 0]
+        if domain == "r":
+            #megadepth depth
+            arr = (arr/255).astype(np.float32)
+            arr[arr != 0] = 1 / arr[arr != 0]
+            arr = arr - np.min(arr)
+            arr /= np.max(arr)
+        elif domain == "s":
+            #from 3-channel depth encoding from Unity simulator to 1-channel [0-1] values
+            arr = decode_unity_depth(arr, normalize= True)
 
     if task == 'm':
         arr[arr != 0] = 255
@@ -153,7 +161,7 @@ class OmniListDataset(Dataset):
         if self.transform:
             return {
                 "data": self.transform(
-                    {task: pil_image_loader(path, task) for task, path in paths.items()}
+                    {task: pil_image_loader(path, task, self.domain) for task, path in paths.items()}
                 ),
                 "paths": paths,
                 "domain": self.domain,
@@ -162,7 +170,7 @@ class OmniListDataset(Dataset):
 
         return {
             "data": {
-                    task: pil_image_loader(path, task) for task, path in paths.items()
+                    task: pil_image_loader(path, task, self.domain) for task, path in paths.items()
             },
             "paths": paths,
             "domain": self.domain,

@@ -38,7 +38,9 @@ class RandomCrop:
         h, w = data["x"].size[-2:]
         top = np.random.randint(0, h - self.h)
         left = np.random.randint(0, w - self.w)
-        return {task: TF.crop(im, top, left, self.h, self.w) for task, im in data.items()}
+        return {
+            task: TF.crop(im, top, left, self.h, self.w) for task, im in data.items()
+        }
 
 
 class RandomHorizontalFlip:
@@ -65,7 +67,9 @@ class ToTensor:
             elif task in {"h", "d", "w", "m"}:
                 new_data[task] = self.MaptoTensor(im)
             elif task == "s":
-                new_data[task] = torch.squeeze(torch.from_numpy(np.array(im))).to(torch.int64)
+                new_data[task] = torch.squeeze(torch.from_numpy(np.array(im))).to(
+                    torch.int64
+                )
 
         return new_data
 
@@ -74,7 +78,7 @@ class Normalize:
     def __init__(self):
         self.normImage = trsfs.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         # self.normSeg = trsfs.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
-        self.normDepth = trsfs.Normalize([1 / 255], [1 / 3])
+        self.normDepth = lambda x: x  # trsfs.Normalize([1 / 255], [1 / 3])
         self.normMask = lambda x: x
 
         self.normalize = {
@@ -86,7 +90,8 @@ class Normalize:
 
     def __call__(self, data):
         return {
-            task: self.normalize.get(task, lambda x: x)(tensor) for task, tensor in data.items()
+            task: self.normalize.get(task, lambda x: x)(tensor)
+            for task, tensor in data.items()
         }
 
 
@@ -115,10 +120,7 @@ def get_transforms(opts):
     """Get all the transform functions listed in opts.data.transforms
     using get_transform(transform_item)
     """
-    last_transforms = [
-        ToTensor(),
-        Normalize(),
-    ]
+    last_transforms = [ToTensor(), Normalize()]
 
     conf_transforms = []
     for t in opts.data.transforms:

@@ -201,7 +201,52 @@ def fake_batch(batch, fake):
     return {**batch, **{"data": {**batch["data"], **{"x": fake}}}}
 
 
-def decode_unity_depth(unity_depth, numpy=False, far=1000):
+def decode_unity_depth(unity_depth, normalize=True, far=1000):
+    """FOR NUMPY ARRAY INPUT 
+    Transforms the 3-channel encoded depth map from our Unity simulator to 1-channel depth map 
+    containing metric depth values.
+    The depth is encoded in the following way: 
+    - The information from the simulator is (1 - LinearDepth (in [0,1])). 
+        far corresponds to the furthest distance to the camera included in the depth map. 
+        LinearDepth * far gives the real metric distance to the camera. 
+    - depth is first divided in 31 slices encoded in R channel with values ranging from 0 to 247
+    - each slice is divided again in 31 slices, whose value is encoded in G channel
+    - each of the G slices is divided into 256 slices, encoded in B channel
+    In total, we have a discretization of depth into N = 31*31*256 - 1 possible values, covering a range of 
+    far/N meters.   
+    Note that, what we encode here is 1 - LinearDepth so that the furthest point is [0,0,0] (that is sky) 
+    and the closest point[255,255,255] 
+    The metric distance associated to a pixel whose depth is (R,G,B) is : 
+        d = (far/N) * [((255 - R)//8)*256*31 + ((255 - G)//8)*256 + (255 - B)]
+    * torch.Tensor in [0, 1] as torch.float32 if numpy == False
+    * else numpy.array in [0, 255] as np.uint8
+
+    Args:
+        unity_depth (np array): one depth map obtained from our simulator. (H,W, C)
+        numpy (bool, optional): Whether to return a float tensor or an int array.
+         Defaults to False.
+        far: far parameter of the camera in Unity simulator.
+
+    Returns:
+        [torch.Tensor or numpy.array]: decoded depth
+    """
+    im_array = (unity_depth * 255).astype(np.uint8)
+    R = im_array[:, :, 0]
+    G = im_array[:, :, 1]
+    B = im_array[:, :, 2]
+
+    R = ((247 - R) / 8).astype(float)
+    G = ((247 - G) / 8).astype(float)
+    B = (255 - B).astype(float)
+    depth = ((R * 256 * 31 + G * 256 + B).astype(float)) / (256 * 31 * 31 - 1)
+    depth = depth * far
+    if normalize:
+        depth = depth - np.min(depth)
+        depth /= np.max(depth)
+    return depth
+
+
+def decode_unity_depth_t(unity_depth, normalize=True, numpy=False, far=1000):
     """Transforms the 3-channel encoded depth map from our Unity simulator to 1-channel depth map 
     containing metric depth values.
     The depth is encoded in the following way: 
@@ -238,7 +283,10 @@ def decode_unity_depth(unity_depth, numpy=False, far=1000):
     G = ((247 - G) / 8).type(torch.FloatTensor)
     B = (255 - B).type(torch.FloatTensor)
     depth = ((R * 256 * 31 + G * 256 + B).type(torch.FloatTensor)) / (256 * 31 * 31 - 1)
-    depth = (depth*far).unsqueeze(0)
+    depth = (depth * far).unsqueeze(0)
+    if normalize:
+        depth = depth - torch.min(depth)
+        depth /= torch.max(depth)
     if numpy:
         depth = depth.data.cpu().numpy()
         return depth.astype(np.uint8).squeeze()
