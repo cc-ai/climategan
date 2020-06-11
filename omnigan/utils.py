@@ -145,6 +145,7 @@ def sample_param(sample_dict):
 
 
 def load_opts(path=None, default=None):
+    # TODO add assert: if deeplabv2 then res_dim = 2048
     """Loads a configuration Dict from 2 files:
     1. default files with shared values across runs and users
     2. an overriding file with run- and user-specific values
