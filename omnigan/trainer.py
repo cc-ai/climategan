@@ -881,9 +881,9 @@ class Trainer:
                 multi_domain_batch, fool=False
             )
 
-        # self.logger.losses.discriminator.update(
-        #     {dom: {k: v.item() for k, v in d.items()} for dom, d in disc_loss.items()}
-        # )
+        self.logger.losses.discriminator.update(
+            {dom: {k: v.item() for k, v in d.items()} for dom, d in disc_loss.items()}
+        )
         self.logger.losses.discriminator.update(
             {dom: {k: v for k, v in d.items()} for dom, d in disc_loss.items()}
         )
