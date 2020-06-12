@@ -116,7 +116,7 @@ class OmniListDataset(Dataset):
         self.check_samples()
         self.file_list_path = str(file_list_path)
         self.transform = transform
-        
+
     def filter_samples(self):
         """
         Filter out data which is not required for the model's tasks
@@ -146,7 +146,7 @@ class OmniListDataset(Dataset):
 
         # always apply transforms,
         # if no transform is specified, ToTensor and Normalize will be applied
-        
+
         item = {
             "data": self.transform(
                 {
@@ -184,7 +184,7 @@ class OmniListDataset(Dataset):
 
 
 def get_loader(mode, domain, opts):
-    
+
     return DataLoader(
         OmniListDataset(
             mode, domain, opts, transform=transforms.Compose(get_transforms(opts))
