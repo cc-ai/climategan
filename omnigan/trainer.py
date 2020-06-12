@@ -616,7 +616,7 @@ class Trainer:
                     ] = update_loss.item()
 
             #! Translation and Adaptation components. Ignore for now...
-            """ 
+            """
             # ------------------------------------------------------
             # -----  auto-encoding update for translation (3)  -----
             # ------------------------------------------------------
@@ -840,7 +840,12 @@ class Trainer:
         Returns:
             [type]: [description]
         """
-        disc_loss = {"a": {"r": 0, "s": 0}, "t": {"f": 0, "n": 0}, "m": {"maskAdvent": 0}}
+        zero = torch.tensor(0)
+        disc_loss = {
+            "a": {"r": zero, "s": zero},
+            "t": {"f": zero, "n": zero},
+            "m": {"maskAdvent": zero},
+        }
         if "a" in self.opts.tasks or "t" in self.opts.tasks:
             for batch_domain, batch in multi_domain_batch.items():
 
@@ -863,12 +868,18 @@ class Trainer:
                     disc_loss[decoder][source_domain] += real_loss
 
                     if verbose > 0:
-                        print(f"Batch {batch_domain} > {decoder}: {source_domain} to real ")
-                        print(f"Batch {batch_domain} > {decoder}: {target_domain} to fake ")
+                        print(
+                            f"Batch {batch_domain} > {decoder}: {source_domain} to real "
+                        )
+                        print(
+                            f"Batch {batch_domain} > {decoder}: {target_domain} to fake "
+                        )
         if "m" in self.opts.tasks:
             if verbose > 0:
                 print("Now training the ADVENT discriminator!")
-            disc_loss["m"]["maskAdvent"] = self.update_adversial_Loss(multi_domain_batch, fool=False)
+            disc_loss["m"]["maskAdvent"] = self.update_adversial_Loss(
+                multi_domain_batch, fool=False
+            )
 
         # self.logger.losses.discriminator.update(
         #     {dom: {k: v.item() for k, v in d.items()} for dom, d in disc_loss.items()}
@@ -899,7 +910,7 @@ class Trainer:
                     prob = torch.stack([z_decode, z_prime]).transpose(0, 1)
                     loss += cross_entropy_2d(prob, maskLabel.long().to(self.device))
         return loss
-    
+
     def update_adversial_Loss(self, multi_domain_batch, fool=True, verbose=0):
         """
         - second part of ADVENT
@@ -907,8 +918,7 @@ class Trainer:
         - Only train segnet. Don't accumulate grads in disciminators
         """
         loss = 0
-        loss_func = ADVENTAdversarialLoss(
-                    self.opts, None, self.D["m"]["maskAdvent"])
+        loss_func = ADVENTAdversarialLoss(self.opts, None, self.D["m"]["maskAdvent"])
         for param in self.D["m"]["maskAdvent"].parameters():
             param.requires_grad = not fool
             if verbose > 0:
@@ -939,7 +949,6 @@ class Trainer:
                     else:
                         raise Exception("Wrong Domain Input!")
         return loss
-
 
     def update_c(self, multi_domain_batch):
         """
