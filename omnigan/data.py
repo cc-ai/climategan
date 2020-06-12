@@ -13,7 +13,7 @@ import numpy as np
 from .transforms import get_transforms
 from .transforms import ToTensor
 from PIL import Image
-from omnigan.tutils import get_normalized_depth
+from omnigan.tutils import get_normalized_depth_t
 
 # ? paired dataset
 
@@ -71,13 +71,14 @@ def is_image_file(filename):
     return Path(filename).suffix in IMG_EXTENSIONS
 
 
-def pil_image_loader(path, task):
+def pil_image_loader(path, task, domain):
     if Path(path).suffix == ".npy":
         arr = np.load(path).astype(np.uint8)
     elif is_image_file(path):
         arr = imread(path).astype(np.uint8)
     else:
         raise ValueError("Unknown data type {}".format(path))
+
     if task == "m":
         arr[arr != 0] = 255
         # Make sure mask is single-channel
@@ -115,7 +116,7 @@ class OmniListDataset(Dataset):
         self.check_samples()
         self.file_list_path = str(file_list_path)
         self.transform = transform
-
+        
     def filter_samples(self):
         """
         Filter out data which is not required for the model's tasks
@@ -143,29 +144,23 @@ class OmniListDataset(Dataset):
         """
         paths = self.samples_paths[i]
 
-        if self.transform:
-            item = {
-                "data": self.transform(
-                    {task: pil_image_loader(path, task) for task, path in paths.items()}
-                ),
-                "paths": paths,
-                "domain": self.domain,
-                "mode": self.mode,
-            }
-            if "d" in item["data"].keys():
-                item["data"]["d"] = get_normalized_depth(item["data"]["d"], self.domain)
+        # always apply transforms,
+        # if no transform is specified, ToTensor and Normalize will be applied
+        
+        item = {
+            "data": self.transform(
+                {
+                    task: pil_image_loader(path, task, self.domain)
+                    for task, path in paths.items()
+                }
+            ),
+            "paths": paths,
+            "domain": self.domain,
+            "mode": self.mode,
+        }
+        if "d" in item["data"]:
+            item["data"]["d"] = get_normalized_depth_t(item["data"]["d"], self.domain)
 
-        else:
-            item = {
-                "data": {
-                    task: pil_image_loader(path, task) for task, path in paths.items()
-                },
-                "paths": paths,
-                "domain": self.domain,
-                "mode": self.mode,
-            }
-            if "d" in item["data"].keys():
-                item["data"]["d"] = get_normalized_depth(trsfs.ToTensor()(item["data"]["d"]), self.domain)
         return item
 
     def __len__(self):
@@ -189,6 +184,7 @@ class OmniListDataset(Dataset):
 
 
 def get_loader(mode, domain, opts):
+    
     return DataLoader(
         OmniListDataset(
             mode, domain, opts, transform=transforms.Compose(get_transforms(opts))

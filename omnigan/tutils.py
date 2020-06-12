@@ -201,6 +201,23 @@ def fake_batch(batch, fake):
     return {**batch, **{"data": {**batch["data"], **{"x": fake}}}}
 
 def get_normalized_depth(arr, domain):
+    """
+    Args:
+        arr (np.array) : depth map array read from image
+        domain: "r" or "s"
+    """
+    if domain == "r":
+        #megadepth depth
+        arr = (arr/255)
+        arr[arr != 0] = 1 / arr[arr != 0]
+        arr = arr - np.min(arr)
+        arr /= np.max(arr)
+    elif domain == "s":
+        #from 3-channel depth encoding from Unity simulator to 1-channel [0-1] values
+        arr = decode_unity_depth(arr, normalize= True)
+    return(arr)
+
+def get_normalized_depth_t(arr, domain):
     if domain == "r":
         #megadepth depth
         arr = (arr/255)
