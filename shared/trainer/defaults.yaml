@@ -132,14 +132,6 @@ dis:
     <<: *default-dis
   m:
     <<: *default-dis
-  advent: # tmp-advent code, will integrate to dis after it working well
-    opt:
-      optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
-      beta1: 0.9
-      lr: 0.0005
-      lr_policy: step # constant or step ; if step, specify step_size and gamma
-      lr_step_size: 30 # for linear decay : period of learning rate decay (epochs)
-      lr_gamma: 0.5 # Multiplicative factor of learning rate decay
     multi_level:
       false
 

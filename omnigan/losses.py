@@ -294,7 +294,6 @@ def prob_2_entropy(prob):
     n, c, h, w = prob.size()
     return -torch.mul(prob, torch.log2(prob + 1e-30)) / np.log2(c)
 
-
 # class CrossEntropyLoss(nn.Module):
 #     """
 #     Calculate the cross entropy loss by function cross_entropy_2d

@@ -12,7 +12,7 @@ from pathlib import Path
 import torch.nn.functional as F
 from omnigan.classifier import get_classifier
 from omnigan.data import get_all_loaders
-from omnigan.discriminator import (get_dis, get_fc_discriminator)
+from omnigan.discriminator import get_dis
 from omnigan.generator import get_gen
 from omnigan.losses import (
     BinaryCrossEntropy,
@@ -24,6 +24,7 @@ from omnigan.losses import (
     get_losses,
     TVLoss,
     BCELoss,
+    cross_entropy_2d,
     prob_2_entropy,
     ADVENTAdversarialLoss,
 )
@@ -85,6 +86,8 @@ class Trainer:
         self.exp = None
         if isinstance(comet_exp, Experiment):
             self.exp = comet_exp
+        self.source_label = 0
+        self.target_label = 1
 
     def log_losses(self, model_to_update="G", mode="train"):
         """Logs metrics on comet.ml
@@ -102,7 +105,7 @@ class Trainer:
             "G",
             "D",
             "C",
-            "ADVENT_D", # tmp-advent code, will integrate to dis after it working well
+            # "ADVENT_D", # tmp-advent code, will integrate to dis after it working well
         }, "unknown model to log losses {}".format(model_to_update)
 
         losses = self.logger.losses.copy()
@@ -171,7 +174,7 @@ class Trainer:
         self.output_size = self.latent_shape[0] * 2 ** self.opts.gen.t.spade_n_up
         # self.G.set_translation_decoder(self.latent_shape, self.device)
         self.D = get_dis(self.opts, verbose=self.verbose).to(self.device)
-        self.ADVENT_D = get_fc_discriminator().to(self.device) # tmp-advent code, will integrate to dis after it working well
+        # self.ADVENT_D = get_fc_discriminator().to(self.device) # tmp-advent code, will integrate to dis after it working well
         self.C = get_classifier(self.opts, self.latent_shape, verbose=self.verbose).to(
             self.device
         )
@@ -191,10 +194,10 @@ class Trainer:
             self.d_opt, self.d_scheduler = None, None
         self.c_opt, self.c_scheduler = get_optimizer(self.C, self.opts.classifier.opt)
 
-        if get_num_params(self.ADVENT_D) > 0: # tmp-advent code, will integrate to dis after it working well
-            self.advent_d_opt, self.advent_d_scheduler = get_optimizer(self.ADVENT_D, self.opts.dis.advent.opt)
-        else:
-            self.advent_d_opt, self.advent_d_scheduler = None, None
+        # if get_num_params(self.ADVENT_D) > 0: # tmp-advent code, will integrate to dis after it working well
+        #     self.advent_d_opt, self.advent_d_scheduler = get_optimizer(self.ADVENT_D, self.opts.dis.advent.opt)
+        # else:
+        #     self.advent_d_opt, self.advent_d_scheduler = None, None
 
         if self.opts.train.resume:
             self.resume()
@@ -250,17 +253,17 @@ class Trainer:
         else:
             self.d_opt.step()
 
-    def advent_D_opt_step(self):
-        """Run an optimizing step ; if using ExtraAdam, there needs to be an extrapolation
-        step every other step
-        """
-        # TODO!!
-        if "extra" in self.opts.dis.opt.optimizer.lower() and (
-            self.logger.global_step % 2 == 0
-        ):
-            self.advent_d_opt.extrapolation()
-        else:
-            self.advent_d_opt.step()
+    # def advent_D_opt_step(self):
+    #     """Run an optimizing step ; if using ExtraAdam, there needs to be an extrapolation
+    #     step every other step
+    #     """
+    #     # TODO!!
+    #     if "extra" in self.opts.dis.opt.optimizer.lower() and (
+    #         self.logger.global_step % 2 == 0
+    #     ):
+    #         self.advent_d_opt.extrapolation()
+    #     else:
+    #         self.advent_d_opt.step()
 
     def c_opt_step(self):
         """Run an optimizing step ; if using ExtraAdam, there needs to be an extrapolation
@@ -483,9 +486,12 @@ class Trainer:
         # For now, always compute "representation loss"
         # if self.should_compute_r_loss():
         r_loss = self.get_representation_loss(multi_domain_batch)
-
+        segSim_loss = self.update_segSimLoss(multi_domain_batch)
+        adventFool_Loss = self.update_adversial_Loss(multi_domain_batch, fool=True)
         # if self.should_compute_t_loss():
         #    t_loss = self.get_translation_loss(multi_domain_batch)
+
+        segSim_loss = None
 
         assert any(l is not None for l in [r_loss, t_loss]), "Both losses are None"
 
@@ -501,6 +507,18 @@ class Trainer:
             if verbose > 0:
                 print("adding t_loss {} to g_loss".format(t_loss))
             self.logger.losses.translation = t_loss.item()
+
+        if segSim_loss is not None:
+            g_loss += segSim_loss
+            if verbose > 0:
+                print("adding segSim_loss {} to g_loss".format(segSim_loss))
+            self.logger.losses.representation = segSim_loss.item()
+
+        if adventFool_Loss is not None:
+            g_loss += adventFool_Loss
+            if verbose > 0:
+                print("adding adventFool_Loss {} to g_loss".format(adventFool_Loss))
+            self.logger.losses.representation = adventFool_Loss.item()
 
         if verbose > 0:
             print("g_loss is {}".format(g_loss))
@@ -791,8 +809,8 @@ class Trainer:
         # ? repr: domain-adaptation traduction
         self.d_opt.zero_grad()
         d_loss = self.get_d_loss(multi_domain_batch, verbose)
-        advent_D = update_ADVENT_D(multi_domain_batch)
-        d_loss += advent_D
+        # advent_D = update_ADVENT_D(multi_domain_batch)
+        # d_loss += advent_D
         d_loss.backward()
         self.d_opt_step()
 
@@ -822,108 +840,104 @@ class Trainer:
         Returns:
             [type]: [description]
         """
-        for batch_domain, batch in multi_domain_batch.items():
+        disc_loss = {"a": {"r": 0, "s": 0}, "t": {"f": 0, "n": 0}, "m": {"maskAdvent": 0}}
+        if "a" in self.opts.tasks or "t" in self.opts.tasks:
+            for batch_domain, batch in multi_domain_batch.items():
 
-            x = batch["data"]["x"]
-            z = self.G.encode(x)
-            cond = None
-            if self.opts.gen.t.use_spade:
-                task_tensors = self.G.decode_tasks(z)
-                cond = get_conditioning_tensor(x, task_tensors)
+                x = batch["data"]["x"]
+                z = self.G.encode(x)
+                cond = None
 
-            disc_loss = {"a": {"r": 0, "s": 0}, "t": {"f": 0, "n": 0}}
+                if self.opts.gen.t.use_spade:
+                    task_tensors = self.G.decode_tasks(z)
+                    cond = get_conditioning_tensor(x, task_tensors)
+                for i, source_domain in enumerate(batch_domain):
+                    target_domain = self.translation_map[source_domain]
+                    decoder = "a" if i == 0 else "t"
+                    fake = self.G.decoders[decoder][target_domain](z, cond)
+                    fake_d = self.D[decoder][target_domain](fake)
+                    real_d = self.D[decoder][source_domain](x)
+                    fake_loss = self.losses["D"](fake_d, False)
+                    real_loss = self.losses["D"](real_d, True)
+                    disc_loss[decoder][target_domain] += fake_loss
+                    disc_loss[decoder][source_domain] += real_loss
 
-            for i, source_domain in enumerate(batch_domain):
-                target_domain = self.translation_map[source_domain]
-                decoder = "a" if i == 0 else "t"
-                fake = self.G.decoders[decoder][target_domain](z, cond)
-                fake_d = self.D[decoder][target_domain](fake)
-                real_d = self.D[decoder][source_domain](x)
-                fake_loss = self.losses["D"](fake_d, False)
-                real_loss = self.losses["D"](real_d, True)
-                disc_loss[decoder][target_domain] += fake_loss
-                disc_loss[decoder][source_domain] += real_loss
+                    if verbose > 0:
+                        print(f"Batch {batch_domain} > {decoder}: {source_domain} to real ")
+                        print(f"Batch {batch_domain} > {decoder}: {target_domain} to fake ")
+        if "m" in self.opts.tasks:
+            if verbose > 0:
+                print("Now training the ADVENT discriminator!")
+            disc_loss["m"]["maskAdvent"] = self.update_adversial_Loss(multi_domain_batch, fool=False)
 
-                if verbose > 0:
-                    print(f"Batch {batch_domain} > {decoder}: {source_domain} to real ")
-                    print(f"Batch {batch_domain} > {decoder}: {target_domain} to fake ")
-
+        # self.logger.losses.discriminator.update(
+        #     {dom: {k: v.item() for k, v in d.items()} for dom, d in disc_loss.items()}
+        # )
         self.logger.losses.discriminator.update(
-            {dom: {k: v.item() for k, v in d.items()} for dom, d in disc_loss.items()}
+            {dom: {k: v for k, v in d.items()} for dom, d in disc_loss.items()}
         )
         loss = sum(v for d in disc_loss.values() for k, v in d.items())
         return loss
 
-    def update_ADVENT_D(self, multi_domain_batch, verbose=0): # tmp-advent code, will integrate to dis after it working well
-        # ? split representational as in update_g
-        # ? repr: domain-adaptation traduction
-        self.advent_d_opt.zero_grad()
-        advent_adver_loss = self.get_ADVENT_adver_loss(multi_domain_batch, verbose)
-        advent_D_loss = self.get_ADVENT_D_loss(multi_domain_batch, verbose)
-        advent_totalLoss = advent_adver_loss + advent_D_loss
-        # advent_totalLoss.backward() # individual loss
-        # self.advent_D_opt_step()
-        advent_totalLoss_log = advent_totalLoss
-        self.logger.losses.ADVENT_discriminator.total_loss = advent_totalLoss_log.detach().cpu().numpy()
-        self.log_losses(model_to_update="ADVENT_D")
-        return advent_totalLoss
-
-    def get_ADVENT_adver_loss(self, multi_domain_batch, verbose=0): # tmp-advent code, will integrate to dis after it working well
-        """Compute the ADVENT adversarial losses:
-            TODO
+    def update_segSimLoss(self, multi_domain_batch, verbose=0):
         """
+        - first part of ADVENT
+        - Train on source
+        - Only train segnet. Don't accumulate grads in disciminators
+        - UDA Training
+        """
+        loss = 0
         for batch_domain, batch in multi_domain_batch.items():
-            x = batch["data"]["x"]
-            z = self.G.encode(x)
-            z_decode = self.G.decoders["m"](z)
-            source_label = 0
-            target_label = 1
-            loss = 0
-            adventAdverloss = BCELoss()
-            #print("Positive rate", (z_decode>0).sum().item()/z_decode.numel())
-            z_decode = z_decode[:,0,:,:]
-            z_prime = 1 - z_decode
-            prob = torch.stack([z_decode,z_prime]).transpose(0,1)
             for i, domain in enumerate(batch_domain):
-                pred = self.ADVENT_D(prob_2_entropy(F.softmax(prob.to(self.device), dim = 1)))
-                if domain == "r":
-                    loss += adventAdverloss(pred, target_label)
-                elif domain == "s":
-                    loss += adventAdverloss(pred, source_label)
-                else:
-                    raise Exception("Wrong domain input!")      
-        # self.logger.losses.ADVENT_discriminator.update()
-        #print("ADVENT_adver_loss", loss)
+                if domain == "s":
+                    x = batch["data"]["x"]
+                    maskLabel = batch["data"]["m"][:, 0, :, :]
+                    z = self.G.encode(x)
+                    z_decode = self.G.decoders["m"](z)
+                    z_decode = z_decode[:, 0, :, :]
+                    z_prime = 1 - z_decode
+                    prob = torch.stack([z_decode, z_prime]).transpose(0, 1)
+                    loss += cross_entropy_2d(prob, maskLabel.long().to(self.device))
         return loss
-
-    def get_ADVENT_D_loss(self, multi_domain_batch, verbose=0): # tmp-advent code, will integrate to dis after it working well
-        """Compute the ADVENT discriminators' losses:
-            TODO
-        Args:
-            multi_domain_batch ([type]): [description]
-
-        Returns:
-            [type]: [description]
+    
+    def update_adversial_Loss(self, multi_domain_batch, fool=True, verbose=0):
         """
+        - second part of ADVENT
+        - Train on target
+        - Only train segnet. Don't accumulate grads in disciminators
+        """
+        loss = 0
+        loss_func = ADVENTAdversarialLoss(
+                    self.opts, None, self.D["m"]["maskAdvent"])
+        for param in self.D["m"]["maskAdvent"].parameters():
+            param.requires_grad = not fool
+            if verbose > 0:
+                print("if requires grad:", not fool)
         for batch_domain, batch in multi_domain_batch.items():
-            x = batch["data"]["x"]
-            z = self.G.encode(x)
-            z_decode = self.G.decoders["m"](z)
-            z_decode = z_decode[:,0,:,:]
-            z_prime = 1 - z_decode
-            prob = torch.stack([z_decode,z_prime]).transpose(0,1)
-            source_label = 0
-            target_label = 1
-            loss = 0
-            advent_DLoss = ADVENTAdversarialLoss(self.opts, None, self.ADVENT_D)
             for i, domain in enumerate(batch_domain):
-                if domain == "r":
-                    loss += advent_DLoss(None, prob.to(self.device), target_label)
-                elif domain == "s":
-                    loss += advent_DLoss(None, prob.to(self.device), source_label)
+                if fool == True:
+                    if domain == "r":
+                        x = batch["data"]["x"]
+                        z = self.G.encode(x)
+                        z_decode = self.G.decoders["m"](z)
+                        z_decode = z_decode[:, 0, :, :]
+                        z_prime = 1 - z_decode
+                        prob = torch.stack([z_decode, z_prime]).transpose(0, 1)
+                        loss += loss_func(None, prob.to(self.device), self.source_label)
                 else:
-                    raise Exception("Wrong domain input!")      
-        # self.logger.losses.ADVENT_discriminator.update()
+                    x = batch["data"]["x"]
+                    z = self.G.encode(x)
+                    z_decode = self.G.decoders["m"](z)
+                    z_decode = z_decode[:, 0, :, :]
+                    z_prime = 1 - z_decode
+                    prob = torch.stack([z_decode, z_prime]).transpose(0, 1)
+                    prob = prob.detach()
+                    if domain == "r":
+                        loss += loss_func(None, prob.to(self.device), self.target_label)
+                    elif domain == "s":
+                        loss += loss_func(None, prob.to(self.device), self.source_label)
+                    else:
+                        raise Exception("Wrong Domain Input!")
         return loss
 
 
