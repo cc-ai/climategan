@@ -62,11 +62,7 @@ if __name__ == "__main__":
 
     args = parsed_args()
     output_dir = Path(args.output_dir)
-<<<<<<< HEAD
     output_dir.mkdir(exist_ok=True, parents=True)
-=======
-    output_dir.mkdir(exist_ok=True)
->>>>>>> cf0ea0223271bcb12ca014f7dbbff93bdd109009
 
     # -----------------------
     # -----  Load opts  -----
