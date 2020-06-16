@@ -9,6 +9,7 @@ from torchvision import transforms as trsfs
 import torchvision.utils as vutils
 import torchvision.transforms.functional as TF
 import os
+from tqdm import tqdm
 
 
 def parsed_args():
@@ -53,6 +54,33 @@ def parsed_args():
     )
 
     return parser.parse_args()
+
+
+def eval_folder(path_to_images, output_dir):
+    images = [path_to_images / Path(i) for i in os.listdir(path_to_images)]
+    for img_path in images:
+        img = pil_image_loader(img_path, task="x").convert("RGB")
+        # Resize img:
+        img = TF.resize(img, (new_size, new_size))
+        for tf in transforms:
+            img = tf(img)
+
+        img = img.unsqueeze(0).to(device)
+        z = model.encode(img)
+        mask = model.decoders["m"](z)
+        vutils.save_image(mask, output_dir / img_path.name)
+
+
+def isimg(path_file):
+    if (
+        path_file.suffix == ".jpg"
+        or path_file.suffix == ".png"
+        or path_file.suffix == ".PNG"
+        or path_file.suffix == ".JPG"
+    ):
+        return True
+    else:
+        return False
 
 
 if __name__ == "__main__":
@@ -103,16 +131,33 @@ if __name__ == "__main__":
     # -----  Iterate images  -----
     # ----------------------------
 
-    images = [args.path_to_images / Path(i) for i in os.listdir(args.path_to_images)]
-    for img_path in images:
-        img = pil_image_loader(img_path, task="x")
-        # Resize img:
-        img = TF.resize(img, (new_size, new_size))
+    # eval_folder(args.path_to_images, output_dir)
 
-        for tf in transforms:
-            img = tf(img)
+    rootdir = args.path_to_images
+    writedir = args.output_dir
 
-        img = img.unsqueeze(0).to(device)
-        z = model.encode(img)
-        mask = model.decoders["m"](z)
-        vutils.save_image(mask, output_dir / img_path.name)
+    for root, subdirs, files in tqdm(os.walk(rootdir)):
+        root = Path(root)
+        subdirs = [Path(subdir) for subdir in subdirs]
+        files = [Path(f) for f in files]
+        has_imgs = False
+        for f in files:
+            if isimg(f):
+                # read_path = root / f
+                # rel_path = read_path.relative_to(rootdir)
+                # write_path = writedir / rel_path
+                # write_path.mkdir(parents=True, exist_ok=True)
+                has_imgs = True
+                break
+
+        if has_imgs:
+            print(f"Eval on {root}")
+            rel_path = root.relative_to(rootdir)
+            # read_path = root / f
+            # rel_path = read_path.relative_to(rootdir)
+            write_path = writedir / rel_path
+            write_path.mkdir(parents=True, exist_ok=True)
+            eval_folder(root, write_path)
+
+            # resize_and_save(root, write_path)
+            # run_deeplab(str(root) + "/", str(write_path) + "/")
