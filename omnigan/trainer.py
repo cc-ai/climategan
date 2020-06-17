@@ -495,7 +495,7 @@ class Trainer:
         Returns:
             torch.Tensor: scalar loss tensor, weighted according to opts.train.lambdas
         """
-        step_loss = 0
+        step_loss = torch.tensor(0.)
         lambdas = self.opts.train.lambdas
         one_hot = self.opts.classifier.loss != "cross_entropy"
         # ? should we add all domains to the loss (.backward() and .step() after this
@@ -666,7 +666,7 @@ class Trainer:
         Returns:
             torch.Tensor: scalar loss tensor, weighted according to opts.train.lambdas
         """
-        step_loss = 0
+        step_loss = torch.tensor(0.)
         self.g_opt.zero_grad()
         lambdas = self.opts.train.lambdas
 
@@ -758,13 +758,14 @@ class Trainer:
     def update_d(self, multi_domain_batch, verbose=0):
         # ? split representational as in update_g
         # ? repr: domain-adaptation traduction
-        self.d_opt.zero_grad()
-        d_loss = self.get_d_loss(multi_domain_batch, verbose)
-        d_loss.backward()
-        self.d_opt_step()
+        if self.d_opt is not None:
+            self.d_opt.zero_grad()
+            d_loss = self.get_d_loss(multi_domain_batch, verbose)
+            d_loss.backward()
+            self.d_opt_step()
 
-        self.logger.losses.discriminator.total_loss = d_loss.item()
-        self.log_losses(model_to_update="D")
+            self.logger.losses.discriminator.total_loss = d_loss.item()
+            self.log_losses(model_to_update="D")
 
     def get_d_loss(self, multi_domain_batch, verbose=0):
         """Compute the discriminators' losses:
