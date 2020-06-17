@@ -13,16 +13,7 @@ from omnigan.classifier import get_classifier, OmniClassifier
 from omnigan.data import get_all_loaders
 from omnigan.discriminator import get_dis, OmniDiscriminator
 from omnigan.generator import get_gen, OmniGenerator
-from omnigan.losses import (
-    BinaryCrossEntropy,
-    CrossEntropy,
-    PixelCrossEntropy,
-    L1Loss,
-    MSELoss,
-    GANLoss,
-    get_losses,
-    TVLoss,
-)
+from omnigan.losses import get_losses
 from omnigan.optim import get_optimizer
 from omnigan.mega_depth import get_mega_model
 from omnigan.utils import flatten_opts
