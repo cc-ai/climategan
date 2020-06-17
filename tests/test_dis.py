@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 
 import torch
+import torch.nn as nn
 
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
 from omnigan.discriminator import OmniDiscriminator
@@ -25,18 +26,16 @@ if __name__ == "__main__":
     loss = GANLoss().to(device)
     image = torch.rand(5, 3, 128, 128).to(torch.float32).to(device)
 
-    # --------------------------------
-    # -----  Test number params  -----
-    # --------------------------------
-    print(
-        "Parameters in each domain Discriminator: ",
-        sum(p.numel() for p in D["t"]["n"].parameters()),
-    )
-
     # --------------------------
     # -----  Test Forward  -----
     # --------------------------
     for task, disc in D.items():
+        if not isinstance(disc, nn.ModuleDict):
+            disc = {"": disc}
         for domain in disc.keys():
+            print(
+                f"Parameters in discriminator {task} {domain}: ",
+                sum(p.numel() for p in disc[domain].parameters()),
+            )
             d = disc[domain](image)
             print(task, domain, d.shape, loss(d, True), loss(d, False))

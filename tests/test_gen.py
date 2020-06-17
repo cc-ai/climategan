@@ -14,7 +14,7 @@ from run import print_header
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-c", "--config", default="config/trainer/maskgen_v0.yaml")
+parser.add_argument("-c", "--config", default="config/trainer/de.yaml")
 args = parser.parse_args()
 root = Path(__file__).parent.parent
 opts = load_test_opts(args.config)
@@ -39,6 +39,7 @@ if __name__ == "__main__":
     test_encoder = True
     test_encode_decode = True
     test_translation = True
+    test_rotation = True
 
     # -------------------------------------
     # -----  Test gen.decoder.ignore  -----
@@ -126,3 +127,5 @@ if __name__ == "__main__":
         print(G.forward(image, translator="f").shape)
     """
 
+    if test_rotation:
+        pass

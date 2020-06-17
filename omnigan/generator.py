@@ -6,7 +6,7 @@
 import torch
 import torch.nn as nn
 from omnigan.tutils import init_weights, get_4D_bit, get_conditioning_tensor
-from omnigan.blocks import Conv2dBlock, ResBlocks, SpadeDecoder, BaseDecoder
+from omnigan.blocks import Conv2dBlock, ResBlocks, SpadeDecoder, BaseDecoder, Squeeze
 from omnigan.encoder import DeeplabEncoder, BaseEncoder
 import omnigan.strings as strings
 
@@ -93,6 +93,9 @@ class OmniGenerator(nn.Module):
 
         if "m" in opts.tasks and not opts.gen.m.ignore:
             self.decoders["m"] = MaskDecoder(opts)
+
+        if "r" in opts.tasks and not opts.gen.m.ignore:
+            self.decoders["r"] = RotationDecoder(opts, latent_shape)
 
         self.decoders = nn.ModuleDict(self.decoders)
 
@@ -251,6 +254,30 @@ class AdaptationDecoder(BaseDecoder):
 
     def forward(self, z, cond=None):
         return self.model(z)
+
+
+class RotationDecoder(nn.Module):
+    def __init__(self, opts, latent_shape):
+        super().__init__()
+        assert len(latent_shape) == 3
+        self.channels = latent_shape[0]
+        self.feature_size = latent_shape[1]
+        self.proj_dim = self.opts.r.proj_dim
+        self.norm = self.opts.r.norm
+        self.model = nn.Sequential(
+            *[
+                Conv2dBlock(self.channels, self.proj_dim, 3, 1, 1, norm=self.norm),
+                nn.MaxPool2d(2),
+                Conv2dBlock(self.channels, self.proj_dim * 2, 3, 1, 1, norm=self.norm),
+                nn.MaxPool2d(2),
+                Squeeze(-1),
+                Squeeze(-1),
+                nn.Linear(self.feature_size // 4, 2),
+            ]
+        )
+
+    def forward(self, x):
+        return self.model(x)
 
 
 class BaseTranslationDecoder(BaseDecoder):

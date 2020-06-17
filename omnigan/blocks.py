@@ -75,6 +75,7 @@ class Conv2dBlock(nn.Module):
             raise ValueError("Unsupported activation: {}".format(activation))
 
         # initialize convolution
+
         if norm == "spectral":
             self.conv = SpectralNorm(
                 nn.Conv2d(
@@ -255,6 +256,7 @@ class BaseDecoder(nn.Module):
         self.model += [ResBlocks(n_res, proj_dim, res_norm, activ, pad_type=pad_type)]
         dim = proj_dim
         # upsampling blocks
+        print(dim, n_upsample)
         for i in range(n_upsample):
             self.model += [
                 nn.Upsample(scale_factor=2),
@@ -477,3 +479,14 @@ class SpadeDecoder(nn.Module):
 
     def __str__(self):
         return strings.spadedecoder(self)
+
+
+class Squeeze(nn.Module):
+    def __init__(self, dim=-2):
+        super().__init__()
+        self.dim = dim
+
+    def forward(self, x):
+        if self.dim > -2:
+            return x.squeeze(self.dim)
+        return x.squeeze()

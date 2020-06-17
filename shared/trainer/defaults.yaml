@@ -61,13 +61,14 @@ gen:
     proj_dim: 64 # Dim of projection from latent space
   encoder: # specific params for the encoder
     <<: *default-gen
-    architecture: deeplabv2  #[deeplabv2 (res_dim = 2048) | base (res_dim = 256)] 
+    architecture: deeplabv2  #[deeplabv2 (res_dim = 2048) | base (res_dim = 256)]
     input_dim: 3 # input number of channels
-    n_res: 0 # number of residual blocks in content encoder/decoder
+    dim: 32 # dimension of the first projection before downsamplings
+    n_res: 1 # number of residual blocks in content encoder/decoder
     norm: spectral # ConvBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
 
-  #! Don't change!!!    
-  deeplabv2: 
+  #! Don't change!!!
+  deeplabv2:
     nblocks: [3, 4, 23, 3]
     use_pretrained: True
     pretrained_model: '/network/tmp1/ccai/data/omnigan/pretrained_models/DeepLab_resnet_pretrained_imagenet.pth'
@@ -151,7 +152,7 @@ train:
     G:
       d: 1
       s: 1
-      m: 
+      m:
         main: 1 # Main prediction loss, i.e. GAN or BCE
         tv: 1 # Total variational loss (for smoothing)
       t:
