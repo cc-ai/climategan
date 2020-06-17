@@ -18,8 +18,8 @@ import omnigan.strings as strings
 # TODO think about how to use the classifier probs at inference
 
 
-def get_gen(opts, latent_shape=None, verbose=0):
-    G = OmniGenerator(opts, latent_shape, verbose)
+def get_gen(opts, verbose=0):
+    G = OmniGenerator(opts, verbose)
     for model in G.decoders:
         if model == "t":
             if opts.gen.t.use_spade or opts.gen.t.use_bit_conditioning:
@@ -44,7 +44,7 @@ def get_gen(opts, latent_shape=None, verbose=0):
 
 
 class OmniGenerator(nn.Module):
-    def __init__(self, opts, latent_shape=None, verbose=None):
+    def __init__(self, opts, verbose=None):
         """Creates the generator. All decoders listed in opts.gen will be added
         to the Generator.decoders ModuleDict if opts.gen.DecoderInitial is not True.
         Then can be accessed as G.decoders.T or G.decoders["T"] for instance,
@@ -68,7 +68,6 @@ class OmniGenerator(nn.Module):
         if "t" in opts.tasks and not opts.gen.t.ignore:
             if opts.gen.t.use_bit_conditioning or opts.gen.t.use_spade:
                 self.decoders["t"] = None
-                # call set_translation_decoder(latent_shape, device)
             else:
                 self.decoders["t"] = nn.ModuleDict(
                     {
@@ -94,10 +93,11 @@ class OmniGenerator(nn.Module):
         if "m" in opts.tasks and not opts.gen.m.ignore:
             self.decoders["m"] = MaskDecoder(opts)
 
-        if "r" in opts.tasks and not opts.gen.m.ignore:
-            self.decoders["r"] = RotationDecoder(opts, latent_shape)
-
         self.decoders = nn.ModuleDict(self.decoders)
+
+    def set_latent_shape_decoders(self, latent_shape, device="cpu"):
+        if "r" in self.opts.tasks and not self.opts.gen.r.ignore:
+            self.decoders["r"] = RotationDecoder(self.opts, latent_shape).to(device)
 
     def set_translation_decoder(self, latent_shape, device):
         if self.opts.gen.t.use_bit_conditioning:
@@ -269,13 +269,15 @@ class RotationDecoder(nn.Module):
         assert len(latent_shape) == 3
         self.channels = latent_shape[0]
         self.feature_size = latent_shape[1]
-        self.proj_dim = self.opts.r.proj_dim
-        self.norm = self.opts.r.norm
+        self.proj_dim = opts.gen.r.proj_dim
+        self.conv_norm = opts.gen.r.conv_norm
         self.model = nn.Sequential(
             *[
-                Conv2dBlock(self.channels, self.proj_dim, 3, 1, 1, norm=self.norm),
+                Conv2dBlock(self.channels, self.proj_dim, 3, 1, 1, norm=self.conv_norm),
                 nn.MaxPool2d(2),
-                Conv2dBlock(self.channels, self.proj_dim * 2, 3, 1, 1, norm=self.norm),
+                Conv2dBlock(
+                    self.channels, self.proj_dim * 2, 3, 1, 1, norm=self.conv_norm
+                ),
                 nn.MaxPool2d(2),
                 Squeeze(-1),
                 Squeeze(-1),

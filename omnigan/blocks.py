@@ -244,13 +244,14 @@ class BaseDecoder(nn.Module):
         proj_dim=64,
         output_dim=3,
         res_norm="instance",
+        conv_norm="instance",
         activ="relu",
         pad_type="zero",
         output_activ="tanh",
     ):
         super().__init__()
         self.model = [
-            Conv2dBlock(input_dim, proj_dim, 3, 1, 1, norm=res_norm, activation=activ)
+            Conv2dBlock(input_dim, proj_dim, 3, 1, 1, norm=conv_norm, activation=activ)
         ]
 
         self.model += [ResBlocks(n_res, proj_dim, res_norm, activ, pad_type=pad_type)]

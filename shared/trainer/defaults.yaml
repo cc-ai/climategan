@@ -58,7 +58,9 @@ gen:
     pad_type: reflect # padding type [zero/reflect]
     res_dim: 2048 # Resblock number of channels (=latent space's), should be 2048 if using deeplabv2, 256 otherwise
     res_norm: spectral # ResBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
+    conv_norm: spectral # Conv2dBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
     proj_dim: 64 # Dim of projection from latent space
+    norm:
   encoder: # specific params for the encoder
     <<: *default-gen
     architecture: deeplabv2  #[deeplabv2 (res_dim = 2048) | base (res_dim = 256)]
@@ -93,6 +95,8 @@ gen:
   m: # specific params for the mask-generation decoder
     <<: *default-gen
     output_dim: 1
+  r: # specific params for the mask-generation decoder
+    <<: *default-gen
 
 # -------------------------
 # ----- Discriminator -----
@@ -112,7 +116,7 @@ dis:
     input_nc: 3
     ndf: 64
     n_layers: 3
-    norm: instance
+    norm_after_spectral: instance
     init_type: kaiming
     init_gain: 0.2
     use_sigmoid: false
