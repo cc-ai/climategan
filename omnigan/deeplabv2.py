@@ -1,5 +1,5 @@
 import torch.nn as nn
-from omnigan.blocks import Conv2dBlock, ResBlocks
+from omnigan.blocks import ResBlocks
 
 affine_par = True
 

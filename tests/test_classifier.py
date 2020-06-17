@@ -39,7 +39,8 @@ if __name__ == "__main__":
     C = get_classifier(opts, latent_space, 0).to(device)
     y = C(z)
     tprint(
-        "output of classifier's shape for latent space {} :".format(list(z.shape[1:])), y.shape,
+        "output of classifier's shape for latent space {} :".format(list(z.shape[1:])),
+        y.shape,
     )
     # --------------------------------
     # -----  Test cross_entropy  -----
@@ -61,7 +62,8 @@ if __name__ == "__main__":
     C = get_classifier(opts, latent_space, 0).to(device)
     y = C(z)
     tprint(
-        "output of classifier's shape for latent space {} :".format(list(z.shape[1:])), y.shape,
+        "output of classifier's shape for latent space {} :".format(list(z.shape[1:])),
+        y.shape,
     )
     tprint("CE loss:", cross_entropy(y, labels))
     tprint("l1 loss:", loss_l1(y, one_hot_labels))
@@ -72,7 +74,8 @@ if __name__ == "__main__":
     C = get_classifier(opts, latent_space, 0).to(device)
     y = C(z)
     tprint(
-        "output of classifier's shape for latent space {} :".format(list(z.shape[1:])), y.shape,
+        "output of classifier's shape for latent space {} :".format(list(z.shape[1:])),
+        y.shape,
     )
     tprint("CE loss:", cross_entropy(y, labels))
     tprint("l1 loss:", loss_l1(y, one_hot_labels))

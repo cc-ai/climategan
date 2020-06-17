@@ -16,9 +16,7 @@ class HGModel(BaseModel):
     def __init__(self, opt):
         BaseModel.initialize(self, opt)
 
-        print(
-            "===========================================LOADING Hourglass NETWORK===================================================="
-        )
+        print("========================LOADING Hourglass NETWORK======================")
         model = pytorch_DIW_scratch.pytorch_DIW_scratch
         # model = torch.nn.parallel.DataParallel(model, device_ids = [0,1])
         # model_parameters = self.load_network(model, 'G', 'best_vanila')
@@ -70,7 +68,7 @@ class HGModel(BaseModel):
 
         for i in range(0, prediction_d.size(0)):
 
-            if targets["has_SfM_feature"][i] == False:
+            if targets["has_SfM_feature"][i] is False:
                 continue
 
             x_A_arr = targets["sdr_xA"][i].squeeze(0)

@@ -22,13 +22,10 @@ from omnigan.tutils import (
     fake_batch,
     fake_domains_to_class_tensor,
     freeze,
-    save_batch,
-    slice_batch,
     shuffle_batch_tuple,
     get_conditioning_tensor,
     get_num_params,
 )
-import torch.nn as nn
 import torchvision.utils as vutils
 import os
 
@@ -347,7 +344,7 @@ class Trainer:
                         task_saves.append(x * (1.0 - prediction))
                         task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
                     task_saves.append(prediction)
-                    #! This assumes the output is some kind of image
+                    # ! This assumes the output is some kind of image
                     save_images[update_task].append(x)
                     for im in task_saves:
                         save_images[update_task].append(im)
@@ -569,7 +566,7 @@ class Trainer:
                         batch_domain
                     ] = update_loss.item()
 
-            #! Translation and Adaptation components. Ignore for now...
+            # ! Translation and Adaptation components. Ignore for now...
             """
             # ------------------------------------------------------
             # -----  auto-encoding update for translation (3)  -----

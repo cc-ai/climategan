@@ -97,7 +97,7 @@ if __name__ == "__main__":
                 else:
                     print(dec, G.decoders[dec](z).shape)
 
-    #! Holding off on translation...
+    # ! Holding off on translation...
     """
     # --------------------------------------------------------------------
     # -----  Test translation depending on use_bit_conditioning and  -----

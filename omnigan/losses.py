@@ -129,10 +129,11 @@ class TravelLoss(nn.Module):
 
 
 class TVLoss(nn.Module):
-    """Total Variational Regularization: Penalizes differences in 
+    """Total Variational Regularization: Penalizes differences in
         neighboring pixel values
 
-        source: https://github.com/jxgu1016/Total_Variation_Loss.pytorch/blob/master/TVLoss.py
+        source:
+            https://github.com/jxgu1016/Total_Variation_Loss.pytorch/blob/master/TVLoss.py
     """
 
     def __init__(self, tvloss_weight=1):
