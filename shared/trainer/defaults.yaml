@@ -73,6 +73,12 @@ gen:
     use_pretrained: True
     pretrained_model: "/network/tmp1/ccai/data/omnigan/pretrained_models/DeepLab_resnet_pretrained_imagenet.pth"
 
+  simclr:
+    loss:
+      temp: 0.5
+      use_cosine_similarity: True
+    batch_size: 512
+
   d: # specific params for the depth estimation decoder
     <<: *default-gen
     output_dim: 1
