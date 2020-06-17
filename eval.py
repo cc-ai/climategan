@@ -153,11 +153,6 @@ if __name__ == "__main__":
         if has_imgs:
             print(f"Eval on {root}")
             rel_path = root.relative_to(rootdir)
-            # read_path = root / f
-            # rel_path = read_path.relative_to(rootdir)
             write_path = writedir / rel_path
             write_path.mkdir(parents=True, exist_ok=True)
             eval_folder(root, write_path)
-
-            # resize_and_save(root, write_path)
-            # run_deeplab(str(root) + "/", str(write_path) + "/")
