@@ -71,7 +71,7 @@ gen:
   deeplabv2:
     nblocks: [3, 4, 23, 3]
     use_pretrained: True
-    pretrained_model: '/network/tmp1/ccai/data/omnigan/pretrained_models/DeepLab_resnet_pretrained_imagenet.pth'
+    pretrained_model: "/network/tmp1/ccai/data/omnigan/pretrained_models/DeepLab_resnet_pretrained_imagenet.pth"
 
   d: # specific params for the depth estimation decoder
     <<: *default-gen

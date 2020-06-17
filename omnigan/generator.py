@@ -188,10 +188,11 @@ class OmniGenerator(nn.Module):
 class HeightDecoder(BaseDecoder):
     def __init__(self, opts):
         super().__init__(
-            opts.gen.h.n_upsample,
-            opts.gen.h.n_res,
-            opts.gen.h.res_dim,
-            opts.gen.h.output_dim,
+            n_upsample=opts.gen.h.n_upsample,
+            n_res=opts.gen.h.n_res,
+            input_dim=opts.gen.encoder.res_dim,
+            proj_dim=opts.gen.h.proj_dim,
+            output_dim=opts.gen.h.output_dim,
             res_norm=opts.gen.h.res_norm,
             activ=opts.gen.h.activ,
             pad_type=opts.gen.h.pad_type,
@@ -217,39 +218,45 @@ class MaskDecoder(BaseDecoder):
 class DepthDecoder(BaseDecoder):
     def __init__(self, opts):
         super().__init__(
-            opts.gen.d.n_upsample,
-            opts.gen.d.n_res,
-            opts.gen.d.res_dim,
-            opts.gen.d.output_dim,
+            n_upsample=opts.gen.d.n_upsample,
+            n_res=opts.gen.d.n_res,
+            input_dim=opts.gen.encoder.res_dim,
+            proj_dim=opts.gen.d.proj_dim,
+            output_dim=opts.gen.d.output_dim,
             res_norm=opts.gen.d.res_norm,
             activ=opts.gen.d.activ,
             pad_type=opts.gen.d.pad_type,
+            output_activ="sigmoid",
         )
 
 
 class SegmentationDecoder(BaseDecoder):
     def __init__(self, opts):
         super().__init__(
-            opts.gen.s.n_upsample,
-            opts.gen.s.n_res,
+            n_upsample=opts.gen.s.n_upsample,
+            n_res=opts.gen.s.n_res,
+            input_dim=opts.gen.encoder.res_dim,
             proj_dim=opts.gen.s.proj_dim,
             output_dim=opts.gen.s.output_dim,
             res_norm=opts.gen.s.res_norm,
             activ=opts.gen.s.activ,
             pad_type=opts.gen.s.pad_type,
+            output_activ="sigmoid",
         )
 
 
 class AdaptationDecoder(BaseDecoder):
     def __init__(self, opts):
         super().__init__(
-            opts.gen.a.n_upsample,
-            opts.gen.a.n_res,
-            opts.gen.a.res_dim,
-            opts.gen.a.output_dim,
+            n_upsample=opts.gen.a.n_upsample,
+            n_res=opts.gen.a.n_res,
+            input_dim=opts.gen.encoder.res_dim,
+            proj_dim=opts.gen.a.proj_dim,
+            output_dim=opts.gen.a.output_dim,
             res_norm=opts.gen.a.res_norm,
             activ=opts.gen.a.activ,
             pad_type=opts.gen.a.pad_type,
+            output_activ="sigmoid",
         )
 
     def forward(self, z, cond=None):
@@ -283,13 +290,15 @@ class RotationDecoder(nn.Module):
 class BaseTranslationDecoder(BaseDecoder):
     def __init__(self, opts):
         super().__init__(
-            opts.gen.t.n_upsample,
-            opts.gen.t.n_res,
-            opts.gen.t.res_dim,
-            opts.gen.t.output_dim,
+            n_upsample=opts.gen.t.n_upsample,
+            n_res=opts.gen.t.n_res,
+            input_dim=opts.gen.encoder.res_dim,
+            proj_dim=opts.gen.t.proj_dim,
+            output_dim=opts.gen.t.output_dim,
             res_norm=opts.gen.t.res_norm,
             activ=opts.gen.t.activ,
             pad_type=opts.gen.t.pad_type,
+            output_activ="sigmoid",
         )
 
     def forward(self, z, cond=None):
