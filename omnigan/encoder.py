@@ -16,7 +16,7 @@ class BaseEncoder(nn.Module):
         """
         super().__init__()
         activ = opts.gen.encoder.activ
-        dim = opts.gen.encoder.dim
+        dim = opts.gen.encoder.proj_dim
         input_dim = opts.gen.encoder.input_dim
         n_downsample = opts.gen.encoder.n_downsample
         n_res = opts.gen.encoder.n_res
