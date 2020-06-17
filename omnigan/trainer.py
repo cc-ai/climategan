@@ -9,10 +9,10 @@ import torch
 from addict import Dict
 from pathlib import Path
 
-from omnigan.classifier import get_classifier
+from omnigan.classifier import get_classifier, OmniClassifier
 from omnigan.data import get_all_loaders
-from omnigan.discriminator import get_dis
-from omnigan.generator import get_gen
+from omnigan.discriminator import get_dis, OmniDiscriminator
+from omnigan.generator import get_gen, OmniGenerator
 from omnigan.losses import (
     BinaryCrossEntropy,
     CrossEntropy,
@@ -161,14 +161,17 @@ class Trainer:
 
         self.loaders = get_all_loaders(self.opts)
 
-        self.G = get_gen(self.opts, verbose=self.verbose).to(self.device)
+        self.G: OmniGenerator = get_gen(self.opts, verbose=self.verbose).to(self.device)
         self.latent_shape = self.compute_latent_shape()
         self.output_size = self.latent_shape[0] * 2 ** self.opts.gen.t.spade_n_up
+        self.G.set_latent_shape_decoders(self.latent_shape, self.device)
         # self.G.set_translation_decoder(self.latent_shape, self.device)
-        self.D = get_dis(self.opts, verbose=self.verbose).to(self.device)
-        self.C = get_classifier(self.opts, self.latent_shape, verbose=self.verbose).to(
+        self.D: OmniDiscriminator = get_dis(self.opts, verbose=self.verbose).to(
             self.device
         )
+        self.C: OmniClassifier = get_classifier(
+            self.opts, self.latent_shape, verbose=self.verbose
+        ).to(self.device)
         self.P = {"s": get_mega_model()}  # P => pseudo labeling models
 
         self.g_opt, self.g_scheduler = get_optimizer(self.G, self.opts.gen.opt)
@@ -202,7 +205,7 @@ class Trainer:
         # Create display images:
         print("Creating display images...", end="", flush=True)
 
-        if type(self.opts.comet.display_size) == int:
+        if isinstance(self.opts.comet.display_size, int):
             display_indices = range(self.opts.comet.display_size)
         else:
             display_indices = self.opts.comet.display_size
@@ -212,7 +215,9 @@ class Trainer:
             self.display_images[mode] = {}
             for domain, domain_loader in mode_dict.items():
                 self.display_images[mode][domain] = [
-                    Dict(self.loaders[mode][domain].dataset[i]) for i in display_indices
+                    Dict(self.loaders[mode][domain].dataset[i])
+                    for i in display_indices
+                    if i < len(self.loaders[mode][domain].dataset)
                 ]
 
         self.is_setup = True
@@ -574,7 +579,7 @@ class Trainer:
                     ] = update_loss.item()
 
             #! Translation and Adaptation components. Ignore for now...
-            """ 
+            """
             # ------------------------------------------------------
             # -----  auto-encoding update for translation (3)  -----
             # ------------------------------------------------------

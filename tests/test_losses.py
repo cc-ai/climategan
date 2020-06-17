@@ -32,6 +32,8 @@ if __name__ == "__main__":
     image = torch.randn(opts.data.loaders.batch_size, 3, 32, 32).to(device)
     G = get_gen(opts).to(device)
     z = G.encode(image)
+    latent_shape = z.shape[1:]
+    G.set_latent_shape_decoders(latent_shape, device)
 
     # -----------------------------------
     # -----  Test cross_entropy_2d  -----
