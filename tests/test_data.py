@@ -5,7 +5,12 @@ from pathlib import Path
 from addict import Dict
 
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
-from omnigan.data import OmniListDataset, get_all_loaders, get_loader
+from omnigan.data import (
+    OmniListDataset,
+    get_all_loaders,
+    get_loader,
+    get_simclr_loaders,
+)
 from omnigan.utils import load_test_opts
 from omnigan.tutils import transforms_string
 
@@ -36,6 +41,25 @@ if __name__ == "__main__":
     for sample_path in ds.samples_paths:
         ds_vars = set(sample_path.keys())
         assert ds_vars.issubset(tasks)
+
+    # --------------------------------
+    # -----  Test SimCLR loaders -----
+    # --------------------------------
+    print("--Test simclr_loaders--")
+    sim_loaders = get_simclr_loaders(opts)
+    batch = Dict(next(iter(sim_loaders["train"]["r"])))
+    for k in batch["data"]:
+        print(
+            k,
+            batch["data"][k].shape,
+            batch["data"][k].dtype,
+            batch["data"][k].min().item(),
+            batch["data"][k].max().item(),
+            batch["domain"],
+            batch["mode"],
+        )
+    print("\n")
+
     # ------------------------------------
     # -----  Test transforms_string  -----
     # ------------------------------------
@@ -83,7 +107,9 @@ if __name__ == "__main__":
                 [
                     str(
                         {
-                            k: [(s, t.shape) for s, t in v.items()] if k == "data" else v
+                            k: [(s, t.shape) for s, t in v.items()]
+                            if k == "data"
+                            else v
                             for k, v in m.items()
                             if k != "paths"
                         }
