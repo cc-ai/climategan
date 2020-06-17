@@ -495,7 +495,7 @@ class Trainer:
         Returns:
             torch.Tensor: scalar loss tensor, weighted according to opts.train.lambdas
         """
-        step_loss = torch.tensor(0.)
+        step_loss = torch.tensor(0.0)
         lambdas = self.opts.train.lambdas
         one_hot = self.opts.classifier.loss != "cross_entropy"
         # ? should we add all domains to the loss (.backward() and .step() after this
@@ -549,6 +549,35 @@ class Trainer:
                             prediction, update_target
                         )
                         * lambdas.G[update_task]["main"]
+                    )
+                    step_loss += update_loss
+
+                    self.logger.losses.task_loss[update_task]["main"][
+                        batch_domain
+                    ] = update_loss.item()
+
+                    # Then TV loss
+                    update_loss = self.losses["G"]["tasks"][update_task]["tv"](
+                        prediction
+                    )
+                    step_loss += update_loss
+
+                    self.logger.losses.task_loss[update_task]["tv"][
+                        batch_domain
+                    ] = update_loss.item()
+                if update_task == "r":
+                    # ? output features classifier
+                    xr = batch["data"]["xr"]
+                    zr = self.G.encode(xr)
+                    prediction = self.G.decoders[update_task](zr)
+                    task_tensors[update_task] = prediction
+
+                    # Main loss first:
+                    update_loss = (
+                        self.losses["G"]["tasks"][update_task](
+                            prediction, update_target
+                        )
+                        * lambdas.G[update_task]
                     )
                     step_loss += update_loss
 
@@ -666,7 +695,7 @@ class Trainer:
         Returns:
             torch.Tensor: scalar loss tensor, weighted according to opts.train.lambdas
         """
-        step_loss = torch.tensor(0.)
+        step_loss = torch.tensor(0.0)
         self.g_opt.zero_grad()
         lambdas = self.opts.train.lambdas
 

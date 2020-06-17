@@ -251,7 +251,7 @@ class BaseDecoder(nn.Module):
     ):
         super().__init__()
         self.model = [
-            Conv2dBlock(input_dim, proj_dim, 3, 1, 1, norm=conv_norm, activation=activ)
+            Conv2dBlock(input_dim, proj_dim, 1, 1, 0, norm=conv_norm, activation=activ)
         ]
 
         self.model += [ResBlocks(n_res, proj_dim, res_norm, activ, pad_type=pad_type)]

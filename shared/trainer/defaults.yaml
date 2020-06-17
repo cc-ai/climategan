@@ -156,6 +156,7 @@ train:
     G:
       d: 1
       s: 1
+      r: 1
       m:
         main: 1 # Main prediction loss, i.e. GAN or BCE
         tv: 1 # Total variational loss (for smoothing)

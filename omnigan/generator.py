@@ -265,23 +265,42 @@ class AdaptationDecoder(BaseDecoder):
 
 class RotationDecoder(nn.Module):
     def __init__(self, opts, latent_shape):
+        """
+        (ignoring batch dims)
+        in: res_dim x feature_size x feature_size
+        then proj_dim x feature_size x feature_size (conv)
+        then proj_dim x feature_size / 2 x feature_size / 2 (max-pool)
+        then proj_dim / 2 x feature_size / 2 x feature_size / 2 (conv)
+        then proj_dim / 2 x feature_size / 4 x feature_size / 4 (max-pool)
+        then proj_dim / 2 * (feature_size / 4) ** 2 (reshape)
+        then 512 (linear)
+        then 64 (linear)
+        then 4 (linear)
+        """
         super().__init__()
         assert len(latent_shape) == 3
         self.channels = latent_shape[0]
         self.feature_size = latent_shape[1]
         self.proj_dim = opts.gen.r.proj_dim
         self.conv_norm = opts.gen.r.conv_norm
+        self.mlp_input_size = self.proj_dim // 2 * (self.feature_size // 4) ** 2
         self.model = nn.Sequential(
             *[
-                Conv2dBlock(self.channels, self.proj_dim, 3, 1, 1, norm=self.conv_norm),
+                Conv2dBlock(self.channels, self.proj_dim, 1, 1, 1, norm=self.conv_norm),
                 nn.MaxPool2d(2),
                 Conv2dBlock(
-                    self.channels, self.proj_dim * 2, 3, 1, 1, norm=self.conv_norm
+                    self.proj_dim, self.proj_dim // 2, 3, 1, 1, norm=self.conv_norm
                 ),
                 nn.MaxPool2d(2),
                 Squeeze(-1),
                 Squeeze(-1),
-                nn.Linear(self.feature_size // 4, 2),
+                nn.Linear(self.mlp_input_size, 256),
+                nn.LeakyReLU(0.2, inplace=True),
+                nn.BatchNorm1d(256),
+                nn.Linear(256, 64),
+                nn.LeakyReLU(0.2, inplace=True),
+                nn.BatchNorm1d(64),
+                nn.Linear(64, 4),
             ]
         )
 
