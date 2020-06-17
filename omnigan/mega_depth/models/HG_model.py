@@ -156,4 +156,3 @@ class HGModel(BaseModel):
 
     def switch_to_eval(self):
         self.netG.eval()
-
