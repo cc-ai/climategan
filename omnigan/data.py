@@ -10,7 +10,7 @@ from torchvision import transforms as trsfs
 from imageio import imread
 from torchvision import transforms
 import numpy as np
-from .transforms import get_transforms
+from .transforms import get_transforms, get_simclr_transforms
 from .transforms import ToTensor
 from PIL import Image
 from omnigan.tutils import get_normalized_depth_t
@@ -183,8 +183,28 @@ class OmniListDataset(Dataset):
                 assert Path(v).exists(), f"{k} {v} does not exist"
 
 
-def get_loader(mode, domain, opts):
+class SimCLRDataset(OmniListDataset):
+    def __getitem__(self, i):
+        # Overwriting this function so that we only apply simCLR transforms to the original images ("x")
+        paths = self.samples_paths[i]
 
+        for task, path in paths.items():
+            if task == "x":
+                item = {
+                    "data": {
+                        "xi": self.transform(pil_image_loader(path, task, self.domain)),
+                        "xj": self.transform(pil_image_loader(path, task, self.domain)),
+                    },
+                    "paths": path,
+                    "domain": self.domain,
+                    "mode": self.mode,
+                }
+                break
+
+        return item
+
+
+def get_loader(mode, domain, opts):
     return DataLoader(
         OmniListDataset(
             mode, domain, opts, transform=transforms.Compose(get_transforms(opts))
@@ -204,4 +224,29 @@ def get_all_loaders(opts):
             if mode in opts.data.files:
                 if domain in opts.data.files[mode]:
                     loaders[mode][domain] = get_loader(mode, domain, opts)
+    return loaders
+
+
+def get_simclr_loader(mode, domain, opts):
+    return DataLoader(
+        SimCLRDataset(
+            mode,
+            domain,
+            opts,
+            transform=transforms.Compose(get_simclr_transforms(opts.gen.simclr)),
+        ),
+        batch_size=opts.data.loaders.get("simclr_batch_size", 256),
+        shuffle=True,
+        num_workers=opts.data.loaders.get("num_workers", 8),
+    )
+
+
+def get_simclr_loaders(opts):
+    loaders = {}
+    for mode in ["train", "val"]:
+        loaders[mode] = {}
+        for domain in ["r", "s"]:
+            if mode in opts.data.files:
+                if domain in opts.data.files[mode]:
+                    loaders[mode][domain] = get_simclr_loader(mode, domain, opts)
     return loaders

@@ -4,6 +4,7 @@ import torch
 from torchvision import transforms as trsfs
 import torchvision.transforms.functional as TF
 import numpy as np
+from cv2 import cv2
 from PIL import Image
 
 
@@ -106,6 +107,27 @@ class Normalize:
         }
 
 
+class GaussianBlur:
+    # Implements Gaussian blur as described in the SimCLR paper
+    def __init__(self, kernel_size, min=0.1, max=2.0):
+        self.min = min
+        self.max = max
+        # kernel size is set to be 10% of the image height/width
+        self.kernel_size = kernel_size
+
+    def __call__(self, data):
+        data = np.array(data)
+
+        # blur the image with a 50% chance
+        prob = np.random.random_sample()
+
+        if prob < 0.5:
+            sigma = (self.max - self.min) * np.random.random_sample() + self.min
+            data = cv2.GaussianBlur(data, (self.kernel_size, self.kernel_size), sigma)
+
+        return data
+
+
 def get_transform(transform_item):
     """Returns the torchivion transform function associated to a
     transform_item listed in opts.data.transforms ; transform_item is
@@ -139,3 +161,22 @@ def get_transforms(opts):
             conf_transforms.append(get_transform(t))
 
     return conf_transforms + last_transforms
+
+
+def get_simclr_transforms(simclr_opts):
+    # get a set of data augmentation transformations as described in the SimCLR paper.
+    color_jitter = trsfs.ColorJitter(
+        0.8 * simclr_opts.colorization_s,
+        0.8 * simclr_opts.colorization_s,
+        0.8 * simclr_opts.colorization_s,
+        0.2 * simclr_opts.colorization_s,
+    )
+    data_transforms = [
+        trsfs.RandomResizedCrop(size=simclr_opts.input_size),
+        trsfs.RandomHorizontalFlip(),
+        trsfs.RandomApply([color_jitter], p=0.8),
+        trsfs.RandomGrayscale(p=0.2),
+        GaussianBlur(kernel_size=int(0.1 * simclr_opts.input_size)),
+        trsfs.ToTensor(),
+    ]
+    return data_transforms
