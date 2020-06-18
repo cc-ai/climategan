@@ -79,6 +79,7 @@ gen:
       temp: 0.5
       use_cosine_similarity: True
     input_size: 256 # must be the same as the resize of transforms?
+    output_size: 256
     colorization_s: 1 # parameter between 0 and 1 defining how much we want colorization
 
   d: # specific params for the depth estimation decoder
