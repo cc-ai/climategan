@@ -71,6 +71,71 @@ class GANLoss(nn.Module):
         return self.loss(input, target_tensor.to(input.device))
 
 
+class NTXentLoss(nn.Module):
+    def __init__(self, batch_size, temperature, use_cosine_similarity):
+        super(NTXentLoss, self).__init__()
+        self.batch_size = batch_size
+        self.temperature = temperature
+        self.mask_samples_from_same_repr = self._get_correlated_mask().type(torch.bool)
+        self.similarity_function = self._get_similarity_function(use_cosine_similarity)
+        self.criterion = nn.CrossEntropyLoss(reduction="sum")
+
+    def _get_similarity_function(self, use_cosine_similarity):
+        if use_cosine_similarity:
+            self._cosine_similarity = nn.CosineSimilarity(dim=-1)
+            return self._cosine_simililarity
+        else:
+            return self._dot_simililarity
+
+    def _get_correlated_mask(self):
+        # Creates a mask matrix with "False" when i = j and when (i,j)=positive pair.
+        # True otherwise. Allows to keep only the negative pairs.
+        diag = np.eye(2 * self.batch_size)
+        l1 = np.eye((2 * self.batch_size), 2 * self.batch_size, k=-self.batch_size)
+        l2 = np.eye((2 * self.batch_size), 2 * self.batch_size, k=self.batch_size)
+        mask = torch.from_numpy((diag + l1 + l2))
+        mask = (1 - mask).type(torch.bool)
+        return mask
+
+    @staticmethod
+    def _dot_simililarity(x, y):
+        v = torch.tensordot(x.unsqueeze(1), y.T.unsqueeze(0), dims=2)
+        return v
+
+    def _cosine_simililarity(self, x, y):
+        v = self._cosine_similarity(x.unsqueeze(1), y.unsqueeze(0))
+        return v
+
+    def __call__(self, zi, zj):
+        # get all representations in a matrix of size (batch_size * 2, output_size)
+        representations = torch.cat([zj, zi], dim=0)
+
+        # get similarity matrix of size (batch_size * 2, batch_size * 2) to represent ALL pairs
+        similarity_matrix = self.similarity_function(representations, representations)
+
+        # filter out the scores from the positive pairs
+        l_pos = torch.diag(similarity_matrix, diagonal=self.batch_size)
+        r_pos = torch.diag(similarity_matrix, diagonal=-self.batch_size)
+        # there is 2 positives pairs per actual pair because we consider (i,j) AND (j,i)
+        positives = torch.cat([l_pos, r_pos]).view(2 * self.batch_size, 1)
+
+        # negative is reshaped to size (batch_size * 2, batch_size * 2 - 2)
+        # because for each z, there is (2N - 2) negative pairs
+        negatives = similarity_matrix[
+            self.mask_samples_from_same_repr.to(zi.device)
+        ].view(2 * self.batch_size, -1)
+
+        logits = torch.cat((positives, negatives), dim=1)
+        logits /= self.temperature  # shape is (batch_size * 2, batch_size * 2 - 1)
+
+        # Positive pairs are on first column of logits, so we want CrossEntropyLoss()
+        # to maximize positive pairs similarity (class = 0) and minimize negative pairs similarity
+        labels = torch.zeros(2 * self.batch_size).to(zi.device).long()
+        loss = self.criterion(logits, labels)
+
+        return loss / (2 * self.batch_size)
+
+
 class CrossEntropy(nn.Module):
     def __init__(self):
         super().__init__()
@@ -264,6 +329,12 @@ def get_losses(opts, verbose):
         losses["G"]["tasks"]["m"] = {}
         losses["G"]["tasks"]["m"]["main"] = nn.BCELoss()
         losses["G"]["tasks"]["m"]["tv"] = TVLoss(opts.train.lambdas.G.m.tv)
+    if "simclr" in opts.tasks:  # DEXTER
+        losses["G"]["tasks"]["simclr"] = NTXentLoss(
+            opts.data.loaders.simclr_batch_size,
+            opts.gen.simclr.temperature,
+            opts.gen.simclr.use_cosine_similarity,
+        )
 
     # undistinguishable features loss
     # TODO setup a get_losses func to assign the right loss according to the yaml
