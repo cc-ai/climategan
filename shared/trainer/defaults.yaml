@@ -75,6 +75,9 @@ gen:
     pretrained_model: "/network/tmp1/ccai/data/omnigan/pretrained_models/DeepLab_resnet_pretrained_imagenet.pth"
 
   simclr:
+    ignore: False
+    # pretrained_model not existing yet!
+    pretrained_model: "/network/tmp1/ccai/data/omnigan/pretrained_models/SimCLR_pretrained.pth"
     loss:
       temp: 0.5
       use_cosine_similarity: True
@@ -170,7 +173,7 @@ train:
         gan: 1 # gan loss
         sm: 1 # semantic matching
         dm: 1 # depth matching
-
+      simclr: 1
       classifier: 1
     C: 1
   log_level: 2 # 0: no log, 1: only aggregated losses, >1 detailed losses
