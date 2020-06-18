@@ -10,7 +10,6 @@ from omnigan.generator import get_gen
 from omnigan.losses import PixelCrossEntropy, NTXentLoss
 from omnigan.utils import load_test_opts
 from run import print_header
-from omnigan.simclr import NetSimCLR
 
 
 parser = argparse.ArgumentParser()
@@ -52,17 +51,19 @@ if __name__ == "__main__":
     opts.gen.encoder.architecture = "base"
     opts.gen.default.res_dim = 256
     opts.gen.a.ignore = True
-
+    opts.tasks.append("simclr")
     G = get_gen(opts).to(device)
-    z = G.encode(image)
-
-    latent_shape = z.shape[1:]
-    simclr_model = NetSimCLR(G.encoder, latent_shape, opts.gen.simclr.output_size)
 
     image1 = torch.randn(opts.data.loaders.batch_size, 3, 32, 32).to(device)
     image2 = torch.randn(opts.data.loaders.batch_size, 3, 32, 32).to(device)
-    h1, z1 = simclr_model.forward(image1)
-    h2, z2 = simclr_model.forward(image2)
+
+    h1 = G.encode(image1)
+    h2 = G.encode(image2)
+    latent_shape = h1.shape[1:]
+
+    G.decoders["simclr"].setup(latent_shape, opts.gen.simclr.output_size)
+    z1 = G.decoders["simclr"](h1)
+    z2 = G.decoders["simclr"](h2)
 
     print("Shape of projections:", z1.shape)
     loss = NTXentLoss(opts.data.loaders.batch_size, 0.5, True)
