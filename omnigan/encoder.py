@@ -56,16 +56,10 @@ class BaseEncoder(nn.Module):
         # self.model = nn.Sequential(*self.model)
         self.output_dim = dim
 
-        # Need to add is_used and pretrained_path in options
-        if opts.gen.simclr.is_trained and opts.gen.simclr.used_pretrained:
+        if opts.gen.simclr.is_trained and opts.gen.simclr.use_pretrained:
             saved_state_dict = torch.load(opts.gen.simclr.pretrained_model)
             print("Load pretrained SimCLR encoder")
-            new_params = self.model.state_dict().copy()
-            for i in saved_state_dict:
-                i_parts = i.split(".")
-                if "fc" not in i_parts[0]:
-                    new_params[".".join(i_parts[1:])] = saved_state_dict[i]
-                self.model.load_state_dict(new_params)
+            self.model.load_state_dict(saved_state_dict)
 
     def forward(self, x):
         return self.model(x)

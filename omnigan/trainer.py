@@ -991,6 +991,9 @@ class Trainer:
             save_dict["D"] = self.D.state_dict()
             save_dict["d_opt"] = self.d_opt.state_dict()
 
+        if "simclr" in self.opts.tasks:  # We only want to save the encoder
+            save_dict = self.G.encoder.state_dict()
+
         torch.save(save_dict, save_path)
 
     def resume(self):
