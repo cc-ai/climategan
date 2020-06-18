@@ -160,9 +160,9 @@ class Trainer:
         self.logger.time.start_time = start_time
 
         if "simclr" in self.opts.tasks:
-            get_simclr_loaders(self.opts)
+            self.loaders = get_simclr_loaders(self.opts)
         else:
-            get_all_loaders(self.opts)
+            self.loaders = get_all_loaders(self.opts)
 
         self.G = get_gen(self.opts, verbose=self.verbose).to(self.device)
         self.latent_shape = self.compute_latent_shape()
