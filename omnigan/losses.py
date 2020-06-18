@@ -329,7 +329,7 @@ def get_losses(opts, verbose):
         losses["G"]["tasks"]["m"] = {}
         losses["G"]["tasks"]["m"]["main"] = nn.BCELoss()
         losses["G"]["tasks"]["m"]["tv"] = TVLoss(opts.train.lambdas.G.m.tv)
-    if "simclr" in opts.tasks:  # DEXTER
+    if "simclr" in opts.tasks:
         losses["G"]["tasks"]["simclr"] = NTXentLoss(
             opts.data.loaders.simclr_batch_size,
             opts.gen.simclr.temperature,

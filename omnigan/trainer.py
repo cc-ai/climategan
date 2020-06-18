@@ -10,7 +10,7 @@ from addict import Dict
 from pathlib import Path
 
 from omnigan.classifier import get_classifier
-from omnigan.data import get_all_loaders
+from omnigan.data import get_all_loaders, get_simclr_loaders
 from omnigan.discriminator import get_dis
 from omnigan.generator import get_gen
 from omnigan.losses import (
@@ -159,10 +159,19 @@ class Trainer:
         start_time = time()
         self.logger.time.start_time = start_time
 
-        self.loaders = get_all_loaders(self.opts)
+        if "simclr" in self.opts.tasks:
+            get_simclr_loaders(self.opts)
+        else:
+            get_all_loaders(self.opts)
 
         self.G = get_gen(self.opts, verbose=self.verbose).to(self.device)
         self.latent_shape = self.compute_latent_shape()
+
+        if "simclr" in self.opts.tasks:
+            self.G.decoders["simclr"].setup(
+                self.latent_shape, self.opts.gen.simclr.output_size
+            )
+
         self.output_size = self.latent_shape[0] * 2 ** self.opts.gen.t.spade_n_up
         # self.G.set_translation_decoder(self.latent_shape, self.device)
         self.D = get_dis(self.opts, verbose=self.verbose).to(self.device)
@@ -510,6 +519,12 @@ class Trainer:
         # ? (.backward() and .step() n times)?
         for batch_domain, batch in multi_domain_batch.items():
 
+            if "simclr" in self.opts.tasks:
+                xi = batch["data"]["simclr"][0]
+                xj = batch["data"]["simclr"][1]
+                hi = self.G.encode(xi)
+                hj = self.G.encode(xj)
+
             x = batch["data"]["x"]
             self.z = self.G.encode(x)
             # ---------------------------------
@@ -533,7 +548,7 @@ class Trainer:
             for update_task, update_target in batch["data"].items():
                 # task t (=translation) will be done in get_translation_loss
                 # task a (=adaptation) and x (=auto-encoding) will be done hereafter
-                if update_task not in {"t", "a", "x", "m"}:
+                if update_task not in {"t", "a", "x", "m", "simclr"}:
                     # ? output features classifier
                     prediction = self.G.decoders[update_task](self.z)
                     task_tensors[update_task] = prediction
@@ -570,6 +585,18 @@ class Trainer:
                     step_loss += update_loss
 
                     self.logger.losses.task_loss[update_task]["tv"][
+                        batch_domain
+                    ] = update_loss.item()
+                if update_task == "simclr":
+                    zi = self.G.decoders[update_task](hi)
+                    zj = self.G.decoders[update_task](hj)
+                    task_tensors[update_task] = {
+                        "zi": zi,
+                        "zj": zj,
+                    }
+                    update_loss = self.losses["G"]["tasks"][update_task](zi, zj)
+                    step_loss += update_loss * lambdas.G[update_task]
+                    self.logger.losses.task_loss[update_task][
                         batch_domain
                     ] = update_loss.item()
 

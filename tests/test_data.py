@@ -49,16 +49,18 @@ if __name__ == "__main__":
     sim_loaders = get_simclr_loaders(opts)
     batch = Dict(next(iter(sim_loaders["train"]["r"])))
     for k in batch["data"]:
-        print(
-            k,
-            batch["data"][k].shape,
-            batch["data"][k].dtype,
-            batch["data"][k].min().item(),
-            batch["data"][k].max().item(),
-            batch["domain"],
-            batch["mode"],
-        )
-    print("\n")
+        for i, data in enumerate(batch["data"][k]):
+            print(
+                "Image",
+                i,
+                data.shape,
+                data.dtype,
+                data.min().item(),
+                data.max().item(),
+                batch["domain"],
+                batch["mode"],
+            )
+    print()
 
     # ------------------------------------
     # -----  Test transforms_string  -----

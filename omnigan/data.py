@@ -185,15 +185,18 @@ class OmniListDataset(Dataset):
 
 class SimCLRDataset(OmniListDataset):
     def __getitem__(self, i):
-        # Overwriting this function so that we only apply simCLR transforms to the original images ("x")
+        # Overwriting this function because simclr transforms are applied
+        # to images directly and not to {task: image}.
         paths = self.samples_paths[i]
 
         for task, path in paths.items():
             if task == "x":
                 item = {
                     "data": {
-                        "xi": self.transform(pil_image_loader(path, task, self.domain)),
-                        "xj": self.transform(pil_image_loader(path, task, self.domain)),
+                        "simclr": [
+                            self.transform(pil_image_loader(path, task, self.domain)),
+                            self.transform(pil_image_loader(path, task, self.domain)),
+                        ]
                     },
                     "paths": path,
                     "domain": self.domain,
