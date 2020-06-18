@@ -65,6 +65,9 @@ class OmniGenerator(nn.Module):
         self.verbose = verbose
         self.decoders = {}
 
+        if "simclr" in opts.tasks and not opts.gen.simclr.ignore:
+            self.decoders["simclr"] = SimCLRProjectionHead()
+
         if "t" in opts.tasks and not opts.gen.t.ignore:
             if opts.gen.t.use_bit_conditioning or opts.gen.t.use_spade:
                 self.decoders["t"] = None
@@ -258,6 +261,26 @@ class AdaptationDecoder(BaseDecoder):
 
     def forward(self, z, cond=None):
         return self.model(z)
+
+
+class SimCLRProjectionHead(nn.Module):
+    def __init__(self):
+        super(SimCLRProjectionHead, self).__init__()
+        self.l1 = None
+        self.l2 = None
+
+    # Call setup later when knowing latent shape
+    def setup(self, latent_shape, out_dim):
+        num_ftrs = latent_shape.numel()
+        self.l1 = nn.Linear(num_ftrs, num_ftrs)
+        self.l2 = nn.Linear(num_ftrs, out_dim)
+
+    def forward(self, x):  # h = representation, z = projection
+        h = x.view(x.size(0), -1)
+        z = self.l1(h)
+        z = nn.functional.relu(z)
+        z = self.l2(z)
+        return z
 
 
 class BaseTranslationDecoder(BaseDecoder):
