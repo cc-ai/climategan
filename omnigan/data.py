@@ -193,10 +193,14 @@ class SimCLRDataset(OmniListDataset):
             if task == "x":
                 item = {
                     "data": {
-                        "simclr": [
-                            self.transform(pil_image_loader(path, task, self.domain)),
-                            self.transform(pil_image_loader(path, task, self.domain)),
-                        ]
+                        "simclr": {
+                            "xi": self.transform(
+                                pil_image_loader(path, task, self.domain)
+                            ),
+                            "xj": self.transform(
+                                pil_image_loader(path, task, self.domain)
+                            ),
+                        }
                     },
                     "paths": path,
                     "domain": self.domain,

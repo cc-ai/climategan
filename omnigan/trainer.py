@@ -125,7 +125,11 @@ class Trainer:
             dict: the batch dictionnary with its "data" field sent to self.device
         """
         for task, tensor in b["data"].items():
-            b["data"][task] = tensor.to(self.device)
+            if task == "simclr":
+                for x, tensor in b["data"][task].items():
+                    b["data"][task][x] = tensor.to(self.device)
+            else:
+                b["data"][task] = tensor.to(self.device)
         return b
 
     def compute_latent_shape(self):
@@ -146,7 +150,10 @@ class Trainer:
         if b is None:
             raise ValueError("No batch found to compute_latent_shape")
         b = self.batch_to_device(b)
-        z = self.G.encode(b.data.x)
+        if "simclr" in self.opts.tasks:
+            z = self.G.encode(b.data.simclr.xi)
+        else:
+            z = self.G.encode(b.data.x)
         return z.shape[1:]
 
     def setup(self):
@@ -184,7 +191,8 @@ class Trainer:
 
         print("---------------------------")
         print("num params encoder: ", get_num_params(self.G.encoder))
-        print("num params decoder: ", get_num_params(self.G.decoders["m"]))
+        if "simclr" not in self.opts.tasks:
+            print("num params decoder: ", get_num_params(self.G.decoders["m"]))
         print("num params classif: ", get_num_params(self.C))
         print("---------------------------")
 
@@ -217,12 +225,12 @@ class Trainer:
             display_indices = self.opts.comet.display_size
 
         self.display_images = {}
-        for mode, mode_dict in self.loaders.items():
-            self.display_images[mode] = {}
-            for domain, domain_loader in mode_dict.items():
-                self.display_images[mode][domain] = [
-                    Dict(self.loaders[mode][domain].dataset[i]) for i in display_indices
-                ]
+        # for mode, mode_dict in self.loaders.items():
+        #     self.display_images[mode] = {}
+        #     for domain, domain_loader in mode_dict.items():
+        #         self.display_images[mode][domain] = [
+        #             Dict(self.loaders[mode][domain].dataset[i]) for i in display_indices
+        #         ]
 
         self.is_setup = True
 
@@ -315,7 +323,8 @@ class Trainer:
             self.update_g(multi_domain_batch)
             if self.d_opt is not None:
                 self.update_d(multi_domain_batch)
-            self.update_c(multi_domain_batch)
+            if "simclr" not in self.opts.tasks:
+                self.update_c(multi_domain_batch)
             self.logger.global_step += 1
             if self.should_freeze_representation():
                 freeze(self.G.encoder)
@@ -520,26 +529,26 @@ class Trainer:
         for batch_domain, batch in multi_domain_batch.items():
 
             if "simclr" in self.opts.tasks:
-                xi = batch["data"]["simclr"][0]
-                xj = batch["data"]["simclr"][1]
+                xi = batch["data"]["simclr"]["xi"]
+                xj = batch["data"]["simclr"]["xj"]
                 hi = self.G.encode(xi)
                 hj = self.G.encode(xj)
+            else:
+                x = batch["data"]["x"]
+                self.z = self.G.encode(x)
+                # ---------------------------------
+                # -----  classifier loss (1)  -----
+                # ---------------------------------
+                # Forward pass through classifier, output : (batch_size, 4)
+                output_classifier = self.C(self.z)
 
-            x = batch["data"]["x"]
-            self.z = self.G.encode(x)
-            # ---------------------------------
-            # -----  classifier loss (1)  -----
-            # ---------------------------------
-            # Forward pass through classifier, output : (batch_size, 4)
-            output_classifier = self.C(self.z)
+                # Cross entropy loss (with sigmoid) with fake labels to fool C
+                update_loss = self.losses["G"]["classifier"](
+                    output_classifier,
+                    fake_domains_to_class_tensor(batch["domain"], one_hot),
+                )
 
-            # Cross entropy loss (with sigmoid) with fake labels to fool C
-            update_loss = self.losses["G"]["classifier"](
-                output_classifier,
-                fake_domains_to_class_tensor(batch["domain"], one_hot),
-            )
-
-            step_loss += lambdas.G.classifier * update_loss
+                step_loss += lambdas.G.classifier * update_loss
 
             # -------------------------------------------------
             # -----  task-specific regression losses (2)  -----
@@ -885,6 +894,7 @@ class Trainer:
         lambdas = self.opts.train.lambdas
         one_hot = self.opts.classifier.loss != "cross_entropy"
         for batch_domain, batch in multi_domain_batch.items():
+            # if "simclr" not in self.opts.tasks:
             self.z = self.G.encode(batch["data"]["x"])
             # Forward through classifier, output classifier = (batch_size, 4)
             output_classifier = self.C(self.z)
@@ -893,6 +903,18 @@ class Trainer:
                 output_classifier,
                 domains_to_class_tensor(batch["domain"], one_hot).to(self.device),
             )
+            # else:
+            #     zi = self.G.encode(batch["data"]["simclr"]["xi"])
+            #     zj = self.G.encode(batch["data"]["simclr"]["xj"])
+            #     out_c_i = self.C(zi)
+            #     out_c_j = self.C(zj)
+            #     update_loss = self.losses["C"](
+            #         out_c_i,
+            #         domains_to_class_tensor(batch["domain"], one_hot).to(self.device),
+            #     ) + self.losses["C"](
+            #         out_c_j,
+            #         domains_to_class_tensor(batch["domain"], one_hot).to(self.device),
+            #     )
             loss += update_loss
 
         return lambdas.C * loss

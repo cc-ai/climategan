@@ -332,8 +332,8 @@ def get_losses(opts, verbose):
     if "simclr" in opts.tasks:
         losses["G"]["tasks"]["simclr"] = NTXentLoss(
             opts.data.loaders.simclr_batch_size,
-            opts.gen.simclr.temperature,
-            opts.gen.simclr.use_cosine_similarity,
+            opts.gen.simclr.loss.temperature,
+            opts.gen.simclr.loss.use_cosine_similarity,
         )
 
     # undistinguishable features loss

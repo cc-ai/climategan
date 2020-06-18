@@ -80,7 +80,7 @@ gen:
     # pretrained_model not existing yet!
     pretrained_model: "/network/tmp1/ccai/data/omnigan/pretrained_models/SimCLR_pretrained.pth"
     loss:
-      temp: 0.5
+      temperature: 0.5
       use_cosine_similarity: True
     input_size: 256 # must be the same as the resize of transforms?
     output_size: 256
