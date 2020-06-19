@@ -187,14 +187,9 @@ class Trainer:
         )
         self.P = {"s": get_mega_model()}  # P => pseudo labeling models
 
-        opt_conf = (
-            self.opts.gen.simclr.opt
-            if "simclr" in self.opts.tasks
-            else self.opts.gen.opt
-        )
         self.g_opt, self.g_scheduler = get_optimizer(
             self.G,
-            opt_conf,
+            self.opts.gen.opt,
             T_max=len(self.loaders["train"]["r"]) + len(self.loaders["train"]["s"]),
         )
 
@@ -949,8 +944,14 @@ class Trainer:
             # ----------------------------------------------
             for domain, domain_batch in multi_domain_batch.items():
 
-                x = domain_batch["data"]["x"]
-                self.z = self.G.encode(x)
+                if "simclr" in self.opts.tasks:
+                    xi = domain_batch["data"]["simclr"]["xi"]
+                    xj = domain_batch["data"]["simclr"]["xj"]
+                    hi = self.G.encode(xi)
+                    hj = self.G.encode(xj)
+                else:
+                    x = domain_batch["data"]["x"]
+                    self.z = self.G.encode(x)
                 # Don't infer if domains has enough images
 
                 if verbose > 0:
@@ -964,7 +965,7 @@ class Trainer:
                 for update_task, update_target in domain_batch["data"].items():
                     # task t (=translation) will be done in get_translation_loss
                     # task a (=adaptation) and x (=auto-encoding) will be done hereafter
-                    if update_task not in {"t", "a", "x", "m"}:
+                    if update_task not in {"t", "a", "x", "m", "simclr"}:
                         # ? output features classifier
                         prediction = self.G.decoders[update_task](self.z)
                         task_tensors[update_task] = prediction
@@ -996,6 +997,17 @@ class Trainer:
                             prediction
                         )
                         self.logger.losses.task_loss[update_task]["tv"][
+                            domain
+                        ] = update_loss.item()
+                    if update_task == "simclr":
+                        zi = self.G.decoders[update_task](hi)
+                        zj = self.G.decoders[update_task](hj)
+                        task_tensors[update_task] = {
+                            "zi": zi,
+                            "zj": zj,
+                        }
+                        update_loss = self.losses["G"]["tasks"][update_task](zi, zj)
+                        self.logger.losses.task_loss[update_task][
                             domain
                         ] = update_loss.item()
         self.log_losses(model_to_update="G", mode="val")
