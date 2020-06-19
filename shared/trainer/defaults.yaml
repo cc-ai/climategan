@@ -41,7 +41,7 @@ data:
 # ---------------------
 gen:
   opt:
-    optimizer: ExtraAdam
+    optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam #TODO Test speed/performance difference w/ Adam
     beta1: 0.9
     lr: 0.0005
     lr_policy: step # constant or step ; if step, specify step_size and gamma
@@ -68,7 +68,7 @@ gen:
     norm: spectral # ConvBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
 
   #! Don't change!!!
-  deeplabv2: 
+  deeplabv2:
     nblocks: [3, 4, 23, 3]
     use_pretrained: True
     pretrained_model: "/network/tmp1/ccai/data/omnigan/pretrained_models/DeepLab_resnet_pretrained_imagenet.pth"
@@ -93,7 +93,7 @@ gen:
   m: # specific params for the mask-generation decoder
     <<: *default-gen
     output_dim: 1
-    
+
 # -------------------------
 # ----- Discriminator -----
 # -------------------------
@@ -129,8 +129,7 @@ dis:
 # -------------------------------
 classifier:
   opt:
-    optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam #TODO Test speed/performance difference w/ Adam
-    beta1: 0.5
+    optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
     lr: 0.0005
     lr_policy: step # constant or step ; if step, specify step_size and gamma
     lr_step_size: 30 # for linear decay
