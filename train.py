@@ -7,7 +7,13 @@ from time import time
 from addict import Dict
 
 from omnigan.trainer import Trainer
-from omnigan.utils import env_to_path, flatten_opts, get_increased_path, load_opts
+from omnigan.utils import (
+    env_to_path,
+    flatten_opts,
+    get_increased_path,
+    load_opts,
+)
+import shutil
 
 
 def parsed_args():
@@ -92,6 +98,8 @@ if __name__ == "__main__":
     else:
         Path(opts.output_path).mkdir()
 
+    # Save config file:
+    shutil.copyfile(Path(args.config), Path(opts.output_path) / Path(args.config).name)
     # ----------------------------------
     # -----  Set Comet Experiment  -----
     # ----------------------------------
@@ -121,6 +129,7 @@ if __name__ == "__main__":
     # -------------------
     # -----  Train  -----
     # -------------------
+
     trainer = Trainer(opts, comet_exp=exp)
     trainer.logger.time.start_time = time()
     trainer.setup()
