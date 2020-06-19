@@ -187,7 +187,16 @@ class Trainer:
         )
         self.P = {"s": get_mega_model()}  # P => pseudo labeling models
 
-        self.g_opt, self.g_scheduler = get_optimizer(self.G, self.opts.gen.opt)
+        opt_conf = (
+            self.opts.gen.simclr.opt
+            if "simclr" in self.opts.tasks
+            else self.opts.gen.opt
+        )
+        self.g_opt, self.g_scheduler = get_optimizer(
+            self.G,
+            opt_conf,
+            T_max=len(self.loaders["train"]["r"]) + len(self.loaders["train"]["s"]),
+        )
 
         print("---------------------------")
         print("num params encoder: ", get_num_params(self.G.encoder))
@@ -335,7 +344,10 @@ class Trainer:
 
         self.log_comet_images("train", "r")
         self.log_comet_images("train", "s")
-        self.update_learning_rates()
+        if "simclr" not in self.opts.tasks or (
+            "simclr" in self.opts.tasks and self.logger.epoch >= 10
+        ):
+            self.update_learning_rates()
 
     def log_step_time(self, step_time):
         """Logs step-time on comet.ml

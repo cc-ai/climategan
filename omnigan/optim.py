@@ -5,7 +5,7 @@ import math
 from torch.optim import Optimizer, Adam, lr_scheduler
 
 
-def get_scheduler(optimizer, hyperparameters, iterations=-1):
+def get_scheduler(optimizer, hyperparameters, iterations=-1, T_max=0):
     """Get an optimizer's learning rate scheduler based on opts
 
     Args:
@@ -26,6 +26,10 @@ def get_scheduler(optimizer, hyperparameters, iterations=-1):
             gamma=hyperparameters["lr_gamma"],
             last_epoch=iterations,
         )
+    elif hyperparameters["lr_policy"] == "cosine_annealing":
+        scheduler = lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=T_max, eta_min=0, last_epoch=-1
+        )
     else:
         return NotImplementedError(
             "learning rate policy [%s] is not implemented", hyperparameters["lr_policy"]
@@ -33,7 +37,7 @@ def get_scheduler(optimizer, hyperparameters, iterations=-1):
     return scheduler
 
 
-def get_optimizer(net, opt_conf, iterations=-1):
+def get_optimizer(net, opt_conf, iterations=-1, T_max=0):
     """Returns a tuple (optimizer, scheduler) according to opt_conf which
     should come from the trainer's opts as: trainer.opts.<model>.opt
 
@@ -50,8 +54,13 @@ def get_optimizer(net, opt_conf, iterations=-1):
     if opt_conf.optimizer == "ExtraAdam":
         opt = ExtraAdam(net.parameters(), lr=opt_conf.lr, betas=(opt_conf.beta1, 0.999))
     else:
-        opt = Adam(net.parameters(), lr=opt_conf.lr, betas=(opt_conf.beta1, 0.999))
-    scheduler = get_scheduler(opt, opt_conf, iterations)
+        opt = Adam(
+            net.parameters(),
+            lr=opt_conf.lr,
+            betas=(opt_conf.beta1, 0.999),
+            weight_decay=opt_conf.weight_decay,
+        )
+    scheduler = get_scheduler(opt, opt_conf, iterations, T_max)
     return opt, scheduler
 
 

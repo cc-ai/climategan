@@ -48,6 +48,7 @@ gen:
     lr_policy: step # constant or step ; if step, specify step_size and gamma
     lr_step_size: 30 # for linear decay : period of learning rate decay (epochs)
     lr_gamma: 0.5 # Multiplicative factor of learning rate decay
+    weight_decay: 0
   default:
     &default-gen # default parameters for the generator (encoder and decoders)
     activ: lrelu # activation function [relu/lrelu/prelu/selu/tanh]
@@ -75,7 +76,14 @@ gen:
     pretrained_model: "/network/tmp1/ccai/data/omnigan/pretrained_models/DeepLab_resnet_pretrained_imagenet.pth"
 
   simclr:
+    opt:
+      optimizer: Adam # one in [Adam, ExtraAdam] default: Adam #TODO Test speed/performance difference w/ Adam
+      beta1: 0.9
+      lr: 0.0003
+      lr_policy: cosine_annealing
+      weight_decay: 0.00001
     is_trained: False # Temporary, remove when trained
+    ignore: False
     use_pretrained: True
     # pretrained_model not existing yet!
     pretrained_model: "/network/tmp1/ccai/data/omnigan/pretrained_models/SimCLR_pretrained.pth"
@@ -120,6 +128,7 @@ dis:
     lr_policy: step # constant or step ; if step, specify step_size and gamma
     lr_step_size: 30 # for linear decay
     lr_gamma: 0.5
+    weight_decay: 0
   default:
     &default-dis # default setting for discriminators (there are 4 of them for rn rf sn sf)
     input_nc: 3
@@ -146,6 +155,7 @@ classifier:
     lr_policy: step # constant or step ; if step, specify step_size and gamma
     lr_step_size: 30 # for linear decay
     lr_gamma: 0.5
+    weight_decay: 0
   loss: cross_entropy #Loss can be l1, l2, cross_entropy.  default cross_entropy
   layers: [100, 100, 20, 20, 4] # number of units per hidden layer ; las number is output_dim
   dropout: 0.4 # probability of being set to 0
