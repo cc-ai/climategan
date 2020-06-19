@@ -56,7 +56,7 @@ gen:
     n_downsample: &n_downsample 3 # number of downsampling layers in encoder | dim 32 + down 3 => z = 256 x 32 x 32
     n_upsample: *n_downsample # upsampling in spade decoder ; should match encoder.n_downsample
     pad_type: reflect # padding type [zero/reflect]
-    res_dim: 2048 # Resblock number of channels (=latent space's), should be 2048 if using deeplabv2
+    res_dim: 2048 # Resblock number of channels (=latent space's), should be 2048 if using deeplabv2, 256 otherwise
     res_norm: spectral # ResBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
     proj_dim: 64 # Dim of projection from latent space
   encoder: # specific params for the encoder
@@ -67,10 +67,11 @@ gen:
     n_res: 1 # number of residual blocks in content encoder/decoder
     norm: spectral # ConvBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
 
+  #! Don't change!!!
   deeplabv2: 
     nblocks: [3, 4, 23, 3]
     use_pretrained: True
-    pretrained_model: '/network/tmp1/ccai/data/omnigan/pretrained_models/DeepLab_resnet_pretrained_imagenet.pth'
+    pretrained_model: "/network/tmp1/ccai/data/omnigan/pretrained_models/DeepLab_resnet_pretrained_imagenet.pth"
 
   d: # specific params for the depth estimation decoder
     <<: *default-gen
@@ -92,7 +93,6 @@ gen:
   m: # specific params for the mask-generation decoder
     <<: *default-gen
     output_dim: 1
-    n_res: 0
     
 # -------------------------
 # ----- Discriminator -----
@@ -129,7 +129,7 @@ dis:
 # -------------------------------
 classifier:
   opt:
-    optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
+    optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam #TODO Test speed/performance difference w/ Adam
     beta1: 0.5
     lr: 0.0005
     lr_policy: step # constant or step ; if step, specify step_size and gamma
@@ -154,9 +154,9 @@ train:
     G:
       d: 1
       s: 1
-      m: 
-        main: 1 # Main prediction loss, i.e. GAN or CE
-        tv: 1 # Total varaitional loss (for smoothing)
+      m:
+        main: 1 # Main prediction loss, i.e. GAN or BCE
+        tv: 1 # Total variational loss (for smoothing)
       t:
         auto: 1 # auto-encoding, reconstruction
         cycle: 1 # cycle consistency
@@ -171,9 +171,9 @@ train:
       seg_aux: 0
       adv_main: 1
       adv_aux: 0
-  log_level: 1 # 0: no log, 1: only aggregated losses, >1 detailed losses
-  save_n_epochs: 10 #Save model every n epochs
-  resume: false
+  log_level: 2 # 0: no log, 1: only aggregated losses, >1 detailed losses
+  save_n_epochs: 1 # Save model every n epochs
+  resume: false # Load latest_ckpt.pth checkpoint from `output_path` #TODO Make this path of checkpoint to load
 
 # -----------------------------
 # ----- Validation Params -----
