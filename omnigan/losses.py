@@ -321,21 +321,21 @@ class BCELoss(nn.Module):
 class ADVENTSegLoss(nn.Module):
     def __init__(
         self,
-        opt,
+        opts,
     ):
         super().__init__()
-        self.opt = opt
+        self.opts = opts
         self.loss = cross_entropy_2d
 
     def __call__(self, prediction1, prediction2, target):
-        if self.opt.dis.ADVENT.multi_level == True:
+        if self.opts.dis.ADVENT.multi_level == True:
             loss_seg_src_aux = self.loss(prediction1, target.long().to(prediction1.device))
         else:
             loss_seg_src_aux = 0
         loss_seg_src_main = self.loss(prediction2, target.long().to(prediction2.device))
         
-        loss = (self.opt.train.lambdas.advent.seg_main * loss_seg_src_main
-                + self.opt.train.lambdas.advent.seg_aux * loss_seg_src_aux)
+        loss = (self.opts.train.lambdas.advent.seg_main * loss_seg_src_main
+                + self.opts.train.lambdas.advent.seg_aux * loss_seg_src_aux)
         
         return loss
 
@@ -348,14 +348,14 @@ class ADVENTAdversarialLoss(nn.Module):
         discriminator_main
     ):
         super().__init__()
-        self.opt = opt
+        self.opts = opts
         self.discriminator_aux = discriminator_aux
         self.discriminator_main = discriminator_main
         self.loss = BCELoss()
     
     def __call__(self, prediction1, prediction2, target):
         
-        if self.opt.dis.ADVENT.multi_level == True:
+        if self.opts.dis.ADVENT.multi_level == True:
             d_out_aux = self.discriminator_aux(prob_2_entropy(F.softmax(prediction1, dim = 1)))
             loss_adv_trg_aux = self.loss(d_out_aux, target)
         else:
@@ -363,7 +363,7 @@ class ADVENTAdversarialLoss(nn.Module):
         d_out_main = self.discriminator_main(prob_2_entropy(F.softmax(prediction2, dim = 1)))
         loss_adv_trg_main = self.loss(d_out_main, target)
         
-        loss = (self.opt.train.lambdas.advent.adv_main * loss_adv_trg_main
-                + self.opt.train.lambdas.advent.adv_aux * loss_adv_trg_aux)
+        loss = (self.opts.train.lambdas.advent.adv_main * loss_adv_trg_main
+                + self.opts.train.lambdas.advent.adv_aux * loss_adv_trg_aux)
         
         return loss
