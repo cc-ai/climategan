@@ -36,9 +36,7 @@ def encoder(E):
 
 
 def get_conv_weight(conv):
-    weight = torch.Tensor(
-        conv.out_channels, conv.in_channels // conv.groups, *conv.kernel_size
-    )
+    weight = torch.Tensor(conv.out_channels, conv.in_channels // conv.groups, *conv.kernel_size)
     return weight.shape
 
 

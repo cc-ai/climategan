@@ -3,6 +3,7 @@
 import os
 import re
 import subprocess
+import json
 from copy import deepcopy
 from pathlib import Path
 
@@ -145,7 +146,6 @@ def sample_param(sample_dict):
 
 
 def load_opts(path=None, default=None):
-    # TODO add assert: if deeplabv2 then res_dim = 2048
     """Loads a configuration Dict from 2 files:
     1. default files with shared values across runs and users
     2. an overriding file with run- and user-specific values
@@ -364,3 +364,41 @@ def get_comet_rest_api_key(path_to_config_file=None):
             if "rest_api_key" in l:
                 return l.strip().split("=")[-1].strip()
     raise ValueError("Unable to find your COMET_REST_API_KEY in {}".format(str(p)))
+
+def getListOfFiles(dirName):
+    # create a list of file and sub directories 
+    listOfFile = os.listdir(dirName)
+    allFiles = list()
+    for entry in listOfFile:
+        fullPath = os.path.join(dirName, entry)
+        if os.path.isdir(fullPath):
+            allFiles = allFiles + getListOfFiles(fullPath)
+        else:
+            allFiles.append(fullPath)
+                
+    return allFiles
+​
+​
+def makeJsonFile(list_of_the_keys, list_of_the_addresses, name_of_the_json_file='jsonfile.json'):
+    """
+    How to use it?
+    e.g.
+    main(['x','m','d'], [
+    '/network/tmp1/ccai/data/munit_dataset/trainA_size_1200/',
+    '/network/tmp1/ccai/data/munit_dataset/seg_trainA_size_1200/',
+    '/network/tmp1/ccai/data/munit_dataset/trainA_megadepth_resized/'
+    ], 'train_r_resized.json')
+    """
+    
+    print("Please Make sure there is a file with the same name in each folder!")
+    assert len(list_of_the_keys) == len(list_of_the_addresses), "list_of_the_keys and list_of_the_addresses must have the same length!"
+    List_of_files_0 = getListOfFiles(list_of_the_addresses[0])
+    listofDict = []
+    for file in List_of_files_0:
+        filename = file.split("/")[-1]
+        tmpDict = {}
+        for i in range(len(list_of_the_keys)):
+            tmpDict[list_of_the_keys[i]] = list_of_the_addresses[i] + filename
+        listofDict.append(tmpDict)
+    with open(name_of_the_json_file, 'w', encoding = "utf-8") as outfile:
+        json.dump(listofDict, outfile, ensure_ascii=False)

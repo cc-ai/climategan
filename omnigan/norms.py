@@ -184,3 +184,4 @@ class SPADE(nn.Module):
         out = normalized * (1 + gamma) + beta
 
         return out
+

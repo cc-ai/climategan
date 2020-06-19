@@ -96,9 +96,7 @@ def domains_to_class_tensor(domains, one_hot=False):
     mapping = {"r": 0, "s": 1}
 
     if not all(domain in mapping for domain in domains):
-        raise ValueError(
-            "Unknown domains {} should be in {}".format(domains, list(mapping.keys()))
-        )
+        raise ValueError("Unknown domains {} should be in {}".format(domains, list(mapping.keys())))
 
     target = torch.tensor([mapping[domain] for domain in domains])
 
@@ -140,9 +138,7 @@ def fake_domains_to_class_tensor(domains, one_hot=False):
 
         if not all(domain in mapping for domain in domains):
             raise ValueError(
-                "Unknown domains {} should be in {}".format(
-                    domains, list(mapping.keys())
-                )
+                "Unknown domains {} should be in {}".format(domains, list(mapping.keys()))
             )
 
         target = torch.tensor([mapping[domain] for domain in domains])
@@ -179,11 +175,7 @@ def get_4D_bit(shape, probs):
         torch.Tensor: batch x # of domains x h x w
     """
     probs = probs if isinstance(probs, torch.Tensor) else torch.tensor(probs)
-    bit = (
-        torch.ones(shape[0], probs.shape[-1], *shape[-2:])
-        .to(torch.float32)
-        .to(probs.device)
-    )
+    bit = torch.ones(shape[0], probs.shape[-1], *shape[-2:]).to(torch.float32).to(probs.device)
     bit *= probs[None, :, None, None].to(torch.float32)
     return bit
 
@@ -199,129 +191,6 @@ def fake_batch(batch, fake):
             instance to use in the cycle reconstruction
     """
     return {**batch, **{"data": {**batch["data"], **{"x": fake}}}}
-
-
-def get_normalized_depth(arr, domain):
-    """
-    Args:
-        arr (np.array) : depth map array read from image
-        domain: "r" or "s"
-    """
-    if domain == "r":
-        # megadepth depth
-        arr = arr / 255
-        arr[arr != 0] = 1 / arr[arr != 0]
-        arr = arr - np.min(arr)
-        arr /= np.max(arr)
-    elif domain == "s":
-        # from 3-channel depth encoding from Unity simulator to 1-channel [0-1] values
-        arr = decode_unity_depth(arr, normalize=True)
-    return arr
-
-
-def get_normalized_depth_t(arr, domain):
-    if domain == "r":
-        # megadepth depth
-        arr = arr / 255
-        arr[arr != 0] = 1 / arr[arr != 0]
-        arr = arr - torch.min(arr)
-        arr /= torch.max(arr)
-    elif domain == "s":
-        # from 3-channel depth encoding from Unity simulator to 1-channel [0-1] values
-        arr = decode_unity_depth_t(arr, normalize=True)
-    return arr
-
-
-def decode_unity_depth(unity_depth, normalize=True, far=1000):
-    """FOR NUMPY ARRAY INPUT 
-    Transforms the 3-channel encoded depth map from our Unity simulator to 1-channel depth map 
-    containing metric depth values.
-    The depth is encoded in the following way: 
-    - The information from the simulator is (1 - LinearDepth (in [0,1])). 
-        far corresponds to the furthest distance to the camera included in the depth map. 
-        LinearDepth * far gives the real metric distance to the camera. 
-    - depth is first divided in 31 slices encoded in R channel with values ranging from 0 to 247
-    - each slice is divided again in 31 slices, whose value is encoded in G channel
-    - each of the G slices is divided into 256 slices, encoded in B channel
-    In total, we have a discretization of depth into N = 31*31*256 - 1 possible values, covering a range of 
-    far/N meters.   
-    Note that, what we encode here is 1 - LinearDepth so that the furthest point is [0,0,0] (that is sky) 
-    and the closest point[255,255,255] 
-    The metric distance associated to a pixel whose depth is (R,G,B) is : 
-        d = (far/N) * [((255 - R)//8)*256*31 + ((255 - G)//8)*256 + (255 - B)]
-    * torch.Tensor in [0, 1] as torch.float32 if numpy == False
-    * else numpy.array in [0, 255] as np.uint8
-
-    Args:
-        unity_depth (np array): one depth map obtained from our simulator. (H,W, C)
-        numpy (bool, optional): Whether to return a float tensor or an int array.
-         Defaults to False.
-        far: far parameter of the camera in Unity simulator.
-
-    Returns:
-        [torch.Tensor or numpy.array]: decoded depth
-    """
-    im_array = (unity_depth * 255).astype(np.uint8)
-    R = im_array[:, :, 0]
-    G = im_array[:, :, 1]
-    B = im_array[:, :, 2]
-
-    R = ((247 - R) / 8).astype(float)
-    G = ((247 - G) / 8).astype(float)
-    B = (255 - B).astype(float)
-    depth = ((R * 256 * 31 + G * 256 + B).astype(float)) / (256 * 31 * 31 - 1)
-    depth = depth * far
-    if normalize:
-        depth = depth - np.min(depth)
-        depth /= np.max(depth)
-    return depth
-
-
-def decode_unity_depth_t(unity_depth, normalize=True, numpy=False, far=1000):
-    """Transforms the 3-channel encoded depth map from our Unity simulator to 1-channel depth map 
-    containing metric depth values.
-    The depth is encoded in the following way: 
-    - The information from the simulator is (1 - LinearDepth (in [0,1])). 
-        far corresponds to the furthest distance to the camera included in the depth map. 
-        LinearDepth * far gives the real metric distance to the camera. 
-    - depth is first divided in 31 slices encoded in R channel with values ranging from 0 to 247
-    - each slice is divided again in 31 slices, whose value is encoded in G channel
-    - each of the G slices is divided into 256 slices, encoded in B channel
-    In total, we have a discretization of depth into N = 31*31*256 - 1 possible values, covering a range of 
-    far/N meters.   
-    Note that, what we encode here is 1 - LinearDepth so that the furthest point is [0,0,0] (that is sky) 
-    and the closest point[255,255,255] 
-    The metric distance associated to a pixel whose depth is (R,G,B) is : 
-        d = (far/N) * [((255 - R)//8)*256*31 + ((255 - G)//8)*256 + (255 - B)]
-    * torch.Tensor in [0, 1] as torch.float32 if numpy == False
-    * else numpy.array in [0, 255] as np.uint8
-
-    Args:
-        unity_depth (torch.Tensor): one depth map obtained from our simulator
-        numpy (bool, optional): Whether to return a float tensor or an int array.
-         Defaults to False.
-        far: far parameter of the camera in Unity simulator.
-
-    Returns:
-        [torch.Tensor or numpy.array]: decoded depth
-    """
-    im_array = (unity_depth * 255).type(torch.IntTensor)
-    R = im_array[0, :, :]
-    G = im_array[1, :, :]
-    B = im_array[2, :, :]
-
-    R = ((247 - R) / 8).type(torch.FloatTensor)
-    G = ((247 - G) / 8).type(torch.FloatTensor)
-    B = (255 - B).type(torch.FloatTensor)
-    depth = ((R * 256 * 31 + G * 256 + B).type(torch.FloatTensor)) / (256 * 31 * 31 - 1)
-    depth = (depth * far).unsqueeze(0)
-    if normalize:
-        depth = depth - torch.min(depth)
-        depth /= torch.max(depth)
-    if numpy:
-        depth = depth.data.cpu().numpy()
-        return depth.astype(np.uint8).squeeze()
-    return depth
 
 
 def decode_mega_depth(pred_log_depth, numpy=False):
@@ -453,9 +322,7 @@ def save_batch(multi_domain_batch, root="./", step=0, num_threads=5):
             imtensor = torch.cat([x, y], dim=-1)
             for i, im in enumerate(imtensor):
                 imid = Path(paths[i]).stem[:10]
-                images_to_save["paths"] += [
-                    root / "im_{}_{}_{}.png".format(step, domain, imid)
-                ]
+                images_to_save["paths"] += [root / "im_{}_{}_{}.png".format(step, domain, imid)]
                 images_to_save["images"].append(im)
     if num_threads > 0:
         threaded_write(images_to_save["images"], images_to_save["paths"], num_threads)
@@ -471,18 +338,13 @@ def threaded_write(images, paths, num_threads=5):
         t_im.append(im)
         t_p.append(p)
         if len(t_im) == num_threads:
-            ts = [
-                Thread(target=save_tanh_tensor, args=(_i, _p))
-                for _i, _p in zip(t_im, t_p)
-            ]
+            ts = [Thread(target=save_tanh_tensor, args=(_i, _p)) for _i, _p in zip(t_im, t_p)]
             list(map(lambda t: t.start(), ts))
             list(map(lambda t: t.join(), ts))
             t_im = []
             t_p = []
     if t_im:
-        ts = [
-            Thread(target=save_tanh_tensor, args=(_i, _p)) for _i, _p in zip(t_im, t_p)
-        ]
+        ts = [Thread(target=save_tanh_tensor, args=(_i, _p)) for _i, _p in zip(t_im, t_p)]
         list(map(lambda t: t.start(), ts))
         list(map(lambda t: t.join(), ts))
 

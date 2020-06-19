@@ -285,3 +285,85 @@ def get_losses(opts, verbose):
         soft_shift=opts.dis.soft_shift, flip_prob=opts.dis.flip_prob, verbose=verbose,
     )
     return losses
+
+
+def prob_2_entropy(prob):
+    """ 
+    convert probabilistic prediction maps to weighted self-information maps
+    """
+    n, c, h, w = prob.size()
+    return -torch.mul(prob, torch.log2(prob + 1e-30)) / np.log2(c)
+
+# class CrossEntropyLoss(nn.Module):
+#     """
+#     Calculate the cross entropy loss by function cross_entropy_2d
+#     """
+#     # Almost the same as cross_entropy_2d, I just integrate .long().to(prediction.device) on the target
+#     def __init__(self):
+#         super().__init__()
+#         self.loss = cross_entropy_2d
+
+#     def __call__(self, prediction, target):
+#         return self.loss(prediction, target.long().to(prediction.device))
+
+
+class BCELoss(nn.Module):
+    # Almost the same as BCEWithLogitsLoss
+    def __init__(self):
+        super().__init__()
+        self.loss = torch.nn.BCEWithLogitsLoss()
+
+    def __call__(self, prediction, target):
+        return self.loss(prediction, torch.FloatTensor(prediction.size()).
+                        fill_(target).to(prediction.get_device()))
+
+
+class ADVENTSegLoss(nn.Module):
+    def __init__(
+        self,
+        opt,
+    ):
+        super().__init__()
+        self.opt = opt
+        self.loss = cross_entropy_2d
+
+    def __call__(self, prediction1, prediction2, target):
+        if self.opt.dis.ADVENT.multi_level == True:
+            loss_seg_src_aux = self.loss(prediction1, target.long().to(prediction1.device))
+        else:
+            loss_seg_src_aux = 0
+        loss_seg_src_main = self.loss(prediction2, target.long().to(prediction2.device))
+        
+        loss = (self.opt.train.lambdas.advent.seg_main * loss_seg_src_main
+                + self.opt.train.lambdas.advent.seg_aux * loss_seg_src_aux)
+        
+        return loss
+
+
+class ADVENTAdversarialLoss(nn.Module):
+    def __init__(
+        self,
+        opt,
+        discriminator_aux,
+        discriminator_main
+    ):
+        super().__init__()
+        self.opt = opt
+        self.discriminator_aux = discriminator_aux
+        self.discriminator_main = discriminator_main
+        self.loss = BCELoss()
+    
+    def __call__(self, prediction1, prediction2, target):
+        
+        if self.opt.dis.ADVENT.multi_level == True:
+            d_out_aux = self.discriminator_aux(prob_2_entropy(F.softmax(prediction1, dim = 1)))
+            loss_adv_trg_aux = self.loss(d_out_aux, target)
+        else:
+            loss_adv_trg_aux = 0
+        d_out_main = self.discriminator_main(prob_2_entropy(F.softmax(prediction2, dim = 1)))
+        loss_adv_trg_main = self.loss(d_out_main, target)
+        
+        loss = (self.opt.train.lambdas.advent.adv_main * loss_adv_trg_main
+                + self.opt.train.lambdas.advent.adv_aux * loss_adv_trg_aux)
+        
+        return loss
