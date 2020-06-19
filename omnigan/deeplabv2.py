@@ -134,4 +134,3 @@ class ResNetMulti(nn.Module):
         x = self.layer4(x)
         x = self.layer_res(x)
         return x
-

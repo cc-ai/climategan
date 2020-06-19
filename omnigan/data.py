@@ -1,4 +1,3 @@
-
 """Data-loading functions in order to create a Dataset and DataLoaders.
 Transforms for loaders are in transforms.py
 """
@@ -72,7 +71,7 @@ def is_image_file(filename):
     return Path(filename).suffix in IMG_EXTENSIONS
 
 
-def pil_image_loader(path, task):
+def pil_image_loader(path, task, domain):
     if Path(path).suffix == ".npy":
         arr = np.load(path).astype(np.uint8)
     elif is_image_file(path):
@@ -117,7 +116,7 @@ class OmniListDataset(Dataset):
         self.check_samples()
         self.file_list_path = str(file_list_path)
         self.transform = transform
-    
+
     def filter_samples(self):
         """
         Filter out data which is not required for the model's tasks
@@ -125,8 +124,6 @@ class OmniListDataset(Dataset):
         """
         self.samples_paths = [
             {k: v for k, v in s.items() if k in self.tasks} for s in self.samples_paths
-            {k: v for k, v in s.items() if k in self.tasks}
-            for s in self.samples_paths
         ]
 
     def __getitem__(self, i):
