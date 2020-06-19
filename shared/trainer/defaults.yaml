@@ -2,7 +2,7 @@ output_path: /network/tmp1/schmidtv/yb_runs/test_v1
 # -------------------
 # -----  Tasks  -----
 # -------------------
-tasks: [a, d, h, s, t, m]
+tasks: [d, s, m]
 
 # ----------------
 # ----- Data -----
@@ -19,7 +19,7 @@ data:
 
   loaders:
     batch_size: 2
-    shuffle: false
+    shuffle: true
     num_workers: 8
   transforms:
     - name: hflip
@@ -41,7 +41,7 @@ data:
 # ---------------------
 gen:
   opt:
-    optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
+    optimizer: ExtraAdam
     beta1: 0.9
     lr: 0.0005
     lr_policy: step # constant or step ; if step, specify step_size and gamma
@@ -52,32 +52,27 @@ gen:
     activ: lrelu # activation function [relu/lrelu/prelu/selu/tanh]
     init_gain: 0.2
     init_type: kaiming
-    n_res: 4 # number of residual blocks before upsampling
+    n_res: 1 # number of residual blocks before upsampling
     n_downsample: &n_downsample 3 # number of downsampling layers in encoder | dim 32 + down 3 => z = 256 x 32 x 32
     n_upsample: *n_downsample # upsampling in spade decoder ; should match encoder.n_downsample
     pad_type: reflect # padding type [zero/reflect]
-    res_dim: 256 # Resblock number of channels (=latent space's), should be 2048 if using deeplabv2
+    res_dim: 2048 # Resblock number of channels (=latent space's), should be 2048 if using deeplabv2
     res_norm: spectral # ResBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
     proj_dim: 64 # Dim of projection from latent space
   encoder: # specific params for the encoder
     <<: *default-gen
+    dim: 32
+    architecture: deeplabv2 # [deeplabv2 (res_dim = 2048) | base (res_dim = 256)]
     input_dim: 3 # input number of channels
-    n_res: 4 # number of residual blocks in content encoder/decoder
+    n_res: 1 # number of residual blocks in content encoder/decoder
     norm: spectral # ConvBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
-    architecture: base  #[deeplabv2 | base]
-    
+
   deeplabv2: 
     nblocks: [3, 4, 23, 3]
     use_pretrained: True
     pretrained_model: '/network/tmp1/ccai/data/omnigan/pretrained_models/DeepLab_resnet_pretrained_imagenet.pth'
 
-  a: # specific params for the adaptation decoder
-    <<: *default-gen
-    output_dim: 3
   d: # specific params for the depth estimation decoder
-    <<: *default-gen
-    output_dim: 1
-  h: # specific params for the height estimation decoder
     <<: *default-gen
     output_dim: 1
   s: # specific params for the semantic segmentation decoder
@@ -94,13 +89,11 @@ gen:
     spade_use_spectral_norm: true
     spade_n_up: *n_downsample # number of upsampling layers in the translation decoder is equal to number of downsamplings in the encoder.  output's h and w are z's h and w x 2^spade_num_upsampling_layers | z:32 and spade_n_up:4 => output 512
     use_bit_conditioning: True
-  w: # specific params for the water-segmentation decoder
-    <<: *default-gen
-    output_dim: 1
   m: # specific params for the mask-generation decoder
     <<: *default-gen
     output_dim: 1
     n_res: 0
+    
 # -------------------------
 # ----- Discriminator -----
 # -------------------------
@@ -125,10 +118,6 @@ dis:
     use_sigmoid: false
 
   t:
-    <<: *default-dis
-  a:
-    <<: *default-dis
-  w:
     <<: *default-dis
   m:
     <<: *default-dis
@@ -157,16 +146,14 @@ classifier:
 # ----- Train Params -----
 # ------------------------
 train:
-  epochs: 1000
+  epochs: 100000000
   representational_training: True
   representation_steps: 10000 # for how many steps would the representation be trained before we train the translation
   freeze_representation: False # whether or not to backprop into the representation when doing the translation
   lambdas: # scaling factors in the total loss
     G:
       d: 1
-      h: 1
       s: 1
-      w: 1
       m: 
         main: 1 # Main prediction loss, i.e. GAN or CE
         tv: 1 # Total varaitional loss (for smoothing)
@@ -176,10 +163,7 @@ train:
         gan: 1 # gan loss
         sm: 1 # semantic matching
         dm: 1 # depth matching
-      a:
-        auto: 1 # auto-encoding, reconstruction
-        cycle: 1 # cycle consistency
-        gan: 1 # gan loss
+
       classifier: 1
     C: 1
     advent:
@@ -195,12 +179,7 @@ train:
 # ----- Validation Params -----
 # -----------------------------
 val:
-  max_log_images: 1
-  every_n_steps: 1000
   store_images: false # write to disk on top of comet logging
-  infer_rec: true
-  infer_idt: true # order: real, translated, rec, idt
-
 
 # -----------------------------
 # ----- Comet Params ----------
