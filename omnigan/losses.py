@@ -295,11 +295,11 @@ def get_losses(opts, verbose):
     # painter losses
     if "p" in opts.tasks:
         losses["G"]["p"]["gan"] = GANLoss()
-        losses["G"]["p"]["cycle"] = MSELoss()
-        losses["G"]["p"]["auto"] = MSELoss()
         losses["G"]["p"]["sm"] = PixelCrossEntropy()
         losses["G"]["p"]["dm"] = MSELoss()
         losses["G"]["p"]["vgg"] = VGGLoss()
+        losses["G"]["p"]["tv"] = TVLoss(opts.train.lambdas.G.p.tv)
+        losses["G"]["p"]["context"] = L1Loss()
 
     # task losses
     # ? * add discriminator and gan loss to these task when no ground truth

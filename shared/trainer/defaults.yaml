@@ -156,12 +156,13 @@ train:
       m:
         main: 1 # Main prediction loss, i.e. GAN or BCE
         tv: 1 # Total variational loss (for smoothing)
-      t:
-        auto: 1 # auto-encoding, reconstruction
-        cycle: 1 # cycle consistency
+      p:
         gan: 1 # gan loss
         sm: 1 # semantic matching
         dm: 1 # depth matching
+        tv: 500
+        vgg: 1
+        context: 12
 
       classifier: 1
     C: 1

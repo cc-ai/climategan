@@ -443,6 +443,15 @@ class SpadeDecoder(nn.Module):
 
         self.final_nc = self.z_nc // 2 ** (spade_n_up - 2)
 
+        self.final_spade = SPADEResnetBlock(
+            self.final_nc,
+            self.final_nc,
+            cond_nc,
+            spade_use_spectral_norm,
+            spade_param_free_norm,
+            spade_kernel_size,
+        )
+
         self.conv_img = nn.Conv2d(self.final_nc, 3, 3, padding=1)
 
         self.upsample = nn.Upsample(scale_factor=2)
@@ -470,6 +479,7 @@ class SpadeDecoder(nn.Module):
             y = self.upsample(y)
             y = up(y, cond)
 
+        y = self.final_spade(y, cond)
         y = self.conv_img(F.leaky_relu(y, 2e-1))
         y = torch.tanh(y)
         return y

@@ -337,7 +337,7 @@ class Trainer:
             self.update_g(multi_domain_batch)
             if self.d_opt is not None:
                 self.update_d(multi_domain_batch)
-            # self.update_c(multi_domain_batch)
+            self.update_c(multi_domain_batch)
             self.logger.global_step += 1
             if self.should_freeze_representation():
                 freeze(self.G.encoder)
@@ -678,20 +678,40 @@ class Trainer:
 
             gen_flood_img = self.G.painter(z, x * (1.0 - m))
 
-            update_loss = self.losses["G"]["p"]["vgg"](
-                vgg_preprocess(gen_flood_img), vgg_preprocess(x)
+            update_loss = (
+                self.losses["G"]["p"]["vgg"](
+                    vgg_preprocess(gen_flood_img), vgg_preprocess(x)
+                )
+                * lambdas.G["p"]["vgg"]
             )
-            self.logger.losses.generator.p.vgg = update_loss.item()
+
+            self.logger.losses.generator.p.vgg = (
+                update_loss.item() * lambdas.G["p"]["vgg"]
+            )
+            step_loss += update_loss
+
+            update_loss = self.losses["G"]["p"]["tv"](gen_flood_img)
+            self.logger.losses.generator.p.tv = update_loss.item()
+            step_loss += update_loss
+
+            update_loss = (
+                self.losses["G"]["p"]["context"](
+                    gen_flood_img * (1.0 - m), x * (1.0 - m)
+                )
+                * lambdas.G["p"]["context"]
+            )
+
+            self.logger.losses.generator.p.context = update_loss.item()
             step_loss += update_loss
 
             fake_d_global = self.D["p"]["global"](gen_flood_img)
             fake_d_local = self.D["p"]["local"](gen_flood_img * m)
+            update_loss = (
+                self.losses["G"]["p"]["gan"](fake_d_global, True)
+                + self.losses["G"]["p"]["gan"](fake_d_local, True)
+            ) * lambdas.G["p"]["gan"]
 
-            update_loss = self.losses["G"]["p"]["gan"](
-                fake_d_global, True
-            ) + self.losses["G"]["p"]["gan"](fake_d_local, True)
             self.logger.losses.generator.p.gan = update_loss.item()
-
             step_loss += update_loss
 
         return step_loss
