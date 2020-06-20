@@ -118,7 +118,6 @@ class Trainer:
         # convert losses into a single-level dictionnary
 
         losses = flatten_opts(losses)
-
         self.exp.log_metrics(
             losses, prefix=f"{model_to_update}_{mode}", step=self.logger.global_step
         )
@@ -328,7 +327,6 @@ class Trainer:
                 batch["domain"][0]: self.batch_to_device(batch)
                 for batch in multi_batch_tuple
             }
-
             self.update_g(multi_domain_batch)
             if self.d_opt is not None:
                 self.update_d(multi_domain_batch)
@@ -486,12 +484,10 @@ class Trainer:
         # For now, always compute "representation loss"
         # if self.should_compute_r_loss():
         r_loss = self.get_representation_loss(multi_domain_batch)
-        segSim_loss = self.update_segSimLoss(multi_domain_batch)
-        adventFool_Loss = self.update_adversial_Loss(multi_domain_batch, fool=True)
+        segSim_loss = self.update_segSim_loss(multi_domain_batch)
+        adventFool_loss = self.update_adversial_loss(multi_domain_batch, fool=True)
         # if self.should_compute_t_loss():
         #    t_loss = self.get_translation_loss(multi_domain_batch)
-
-        segSim_loss = None
 
         assert any(l is not None for l in [r_loss, t_loss]), "Both losses are None"
 
@@ -512,13 +508,13 @@ class Trainer:
             g_loss += segSim_loss
             if verbose > 0:
                 print("adding segSim_loss {} to g_loss".format(segSim_loss))
-            self.logger.losses.representation = segSim_loss.item()
+            self.logger.losses.representation = segSim_loss.cpu().item()
 
-        if adventFool_Loss is not None:
-            g_loss += adventFool_Loss
+        if adventFool_loss is not None:
+            g_loss += adventFool_loss
             if verbose > 0:
-                print("adding adventFool_Loss {} to g_loss".format(adventFool_Loss))
-            self.logger.losses.representation = adventFool_Loss.item()
+                print("adding adventFool_Loss {} to g_loss".format(adventFool_loss))
+            self.logger.losses.representation = adventFool_loss.cpu().item()
 
         if verbose > 0:
             print("g_loss is {}".format(g_loss))
@@ -526,6 +522,7 @@ class Trainer:
         g_loss.backward()
         self.g_opt_step()
         self.log_losses(model_to_update="G", mode="train")
+
 
     def get_representation_loss(self, multi_domain_batch):
         """Only update the representation part of the model, meaning everything
@@ -808,6 +805,7 @@ class Trainer:
         # ? split representational as in update_g
         # ? repr: domain-adaptation traduction
         self.d_opt.zero_grad()
+        
         d_loss = self.get_d_loss(multi_domain_batch, verbose)
         # advent_D = update_ADVENT_D(multi_domain_batch)
         # d_loss += advent_D
@@ -840,7 +838,8 @@ class Trainer:
         Returns:
             [type]: [description]
         """
-        disc_loss = {"a": {"r": 0, "s": 0}, "t": {"f": 0, "n": 0}, "m": {"maskAdvent": 0}}
+        zerotensor = torch.tensor(0).to(self.device)
+        disc_loss = {"a": {"r": zerotensor, "s": zerotensor}, "t": {"f": zerotensor, "n": zerotensor}, "m": {"maskAdvent": zerotensor}}
         if "a" in self.opts.tasks or "t" in self.opts.tasks:
             for batch_domain, batch in multi_domain_batch.items():
 
@@ -868,18 +867,15 @@ class Trainer:
         if "m" in self.opts.tasks:
             if verbose > 0:
                 print("Now training the ADVENT discriminator!")
-            disc_loss["m"]["maskAdvent"] = self.update_adversial_Loss(multi_domain_batch, fool=False)
+            disc_loss["m"]["maskAdvent"] = self.update_adversial_loss(multi_domain_batch, fool=False)
 
-        # self.logger.losses.discriminator.update(
-        #     {dom: {k: v.item() for k, v in d.items()} for dom, d in disc_loss.items()}
-        # )
         self.logger.losses.discriminator.update(
-            {dom: {k: v for k, v in d.items()} for dom, d in disc_loss.items()}
+            {dom: {k: v.item() for k, v in d.items()} for dom, d in disc_loss.items()}
         )
         loss = sum(v for d in disc_loss.values() for k, v in d.items())
         return loss
 
-    def update_segSimLoss(self, multi_domain_batch, verbose=0):
+    def update_segSim_loss(self, multi_domain_batch, verbose=0):
         """
         - first part of ADVENT
         - Train on source
@@ -900,7 +896,7 @@ class Trainer:
                     loss += cross_entropy_2d(prob, maskLabel.long().to(self.device))
         return loss
     
-    def update_adversial_Loss(self, multi_domain_batch, fool=True, verbose=0):
+    def update_adversial_loss(self, multi_domain_batch, fool=True, verbose=0):
         """
         - second part of ADVENT
         - Train on target
