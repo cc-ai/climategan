@@ -508,13 +508,13 @@ class Trainer:
             g_loss += segSim_loss
             if verbose > 0:
                 print("adding segSim_loss {} to g_loss".format(segSim_loss))
-            self.logger.losses.representation = segSim_loss.cpu().item()
+            self.logger.losses.representation = segSim_loss.item()
 
         if adventFool_loss is not None:
             g_loss += adventFool_loss
             if verbose > 0:
                 print("adding adventFool_Loss {} to g_loss".format(adventFool_loss))
-            self.logger.losses.representation = adventFool_loss.cpu().item()
+            self.logger.losses.representation = adventFool_loss.item()
 
         if verbose > 0:
             print("g_loss is {}".format(g_loss))
