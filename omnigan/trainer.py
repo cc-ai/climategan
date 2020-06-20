@@ -105,7 +105,6 @@ class Trainer:
             "G",
             "D",
             "C",
-            # "ADVENT_D", # tmp-advent code, will integrate to dis after it working well
         }, "unknown model to log losses {}".format(model_to_update)
 
         losses = self.logger.losses.copy()
@@ -118,6 +117,7 @@ class Trainer:
         # convert losses into a single-level dictionnary
 
         losses = flatten_opts(losses)
+
         self.exp.log_metrics(
             losses, prefix=f"{model_to_update}_{mode}", step=self.logger.global_step
         )
@@ -173,7 +173,6 @@ class Trainer:
         self.output_size = self.latent_shape[0] * 2 ** self.opts.gen.t.spade_n_up
         # self.G.set_translation_decoder(self.latent_shape, self.device)
         self.D = get_dis(self.opts, verbose=self.verbose).to(self.device)
-        # self.ADVENT_D = get_fc_discriminator().to(self.device) # tmp-advent code, will integrate to dis after it working well
         self.C = get_classifier(self.opts, self.latent_shape, verbose=self.verbose).to(
             self.device
         )
@@ -192,11 +191,6 @@ class Trainer:
         else:
             self.d_opt, self.d_scheduler = None, None
         self.c_opt, self.c_scheduler = get_optimizer(self.C, self.opts.classifier.opt)
-
-        # if get_num_params(self.ADVENT_D) > 0: # tmp-advent code, will integrate to dis after it working well
-        #     self.advent_d_opt, self.advent_d_scheduler = get_optimizer(self.ADVENT_D, self.opts.dis.advent.opt)
-        # else:
-        #     self.advent_d_opt, self.advent_d_scheduler = None, None
 
         if self.opts.train.resume:
             self.resume()
@@ -251,18 +245,6 @@ class Trainer:
             self.d_opt.extrapolation()
         else:
             self.d_opt.step()
-
-    # def advent_D_opt_step(self):
-    #     """Run an optimizing step ; if using ExtraAdam, there needs to be an extrapolation
-    #     step every other step
-    #     """
-    #     # TODO!!
-    #     if "extra" in self.opts.dis.opt.optimizer.lower() and (
-    #         self.logger.global_step % 2 == 0
-    #     ):
-    #         self.advent_d_opt.extrapolation()
-    #     else:
-    #         self.advent_d_opt.step()
 
     def c_opt_step(self):
         """Run an optimizing step ; if using ExtraAdam, there needs to be an extrapolation
@@ -327,11 +309,10 @@ class Trainer:
                 batch["domain"][0]: self.batch_to_device(batch)
                 for batch in multi_batch_tuple
             }
+
             self.update_g(multi_domain_batch)
             if self.d_opt is not None:
                 self.update_d(multi_domain_batch)
-            # if self.advent_d_opt is not None: # tmp-advent code, will integrate to dis after it working well
-            #     self.update_ADVENT_D(multi_domain_batch)
             self.update_c(multi_domain_batch)
             self.logger.global_step += 1
             if self.should_freeze_representation():
@@ -425,6 +406,7 @@ class Trainer:
         * save
         """
         assert self.is_setup
+        
         for self.logger.epoch in range(
             self.logger.epoch, self.logger.epoch + self.opts.train.epochs
         ):
@@ -486,6 +468,7 @@ class Trainer:
         r_loss = self.get_representation_loss(multi_domain_batch)
         segSim_loss = self.update_segSim_loss(multi_domain_batch)
         adventFool_loss = self.update_adversial_loss(multi_domain_batch, fool=True)
+        
         # if self.should_compute_t_loss():
         #    t_loss = self.get_translation_loss(multi_domain_batch)
 
@@ -522,7 +505,6 @@ class Trainer:
         g_loss.backward()
         self.g_opt_step()
         self.log_losses(model_to_update="G", mode="train")
-
 
     def get_representation_loss(self, multi_domain_batch):
         """Only update the representation part of the model, meaning everything
@@ -805,10 +787,7 @@ class Trainer:
         # ? split representational as in update_g
         # ? repr: domain-adaptation traduction
         self.d_opt.zero_grad()
-        
         d_loss = self.get_d_loss(multi_domain_batch, verbose)
-        # advent_D = update_ADVENT_D(multi_domain_batch)
-        # d_loss += advent_D
         d_loss.backward()
         self.d_opt_step()
 
@@ -910,6 +889,7 @@ class Trainer:
             if verbose > 0:
                 print("if requires grad:", not fool)
         for batch_domain, batch in multi_domain_batch.items():
+            # UDA Training on source domain 
             for i, domain in enumerate(batch_domain):
                 if fool == True:
                     if domain == "r":
@@ -921,13 +901,14 @@ class Trainer:
                         prob = torch.stack([z_decode, z_prime]).transpose(0, 1)
                         loss += loss_func(None, prob.to(self.device), self.source_label)
                 else:
+                    # Stoped updating generator and only updated the discriminator
                     x = batch["data"]["x"]
                     z = self.G.encode(x)
                     z_decode = self.G.decoders["m"](z)
                     z_decode = z_decode[:, 0, :, :]
                     z_prime = 1 - z_decode
                     prob = torch.stack([z_decode, z_prime]).transpose(0, 1)
-                    prob = prob.detach()
+                    prob = prob.detach()    
                     if domain == "r":
                         loss += loss_func(None, prob.to(self.device), self.target_label)
                     elif domain == "s":
@@ -935,7 +916,6 @@ class Trainer:
                     else:
                         raise Exception("Wrong Domain Input!")
         return loss
-
 
     def update_c(self, multi_domain_batch):
         """
