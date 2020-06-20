@@ -366,7 +366,7 @@ class SPADEResnetBlock(nn.Module):
 class SpadeDecoder(nn.Module):
     def __init__(
         self,
-        latent_shape,
+        latent_dim,
         cond_nc,
         spade_n_up,
         spade_use_spectral_norm,
@@ -398,8 +398,7 @@ class SpadeDecoder(nn.Module):
         """
         super().__init__()
 
-        assert len(latent_shape) in {3, 4}
-        self.z_nc = latent_shape[0 if len(latent_shape) == 3 else 1]
+        self.z_nc = latent_dim
         self.spade_n_up = spade_n_up
 
         self.head_0 = SPADEResnetBlock(
@@ -459,7 +458,7 @@ class SpadeDecoder(nn.Module):
         # self.conv_img = fn(self.conv_img)
         return self
 
-    def _forward(self, z, cond):
+    def forward(self, z, cond):
         y = self.head_0(z, cond)
 
         y = self.upsample(y)
