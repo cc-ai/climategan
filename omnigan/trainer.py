@@ -216,7 +216,7 @@ class Trainer:
         if self.opts.train.resume:
             self.resume()
 
-        self.losses = get_losses(self.opts, self.verbose)
+        self.losses = get_losses(self.opts, self.verbose, device=self.device)
 
         if self.verbose > 0:
             for mode, mode_dict in self.loaders.items():
@@ -241,7 +241,9 @@ class Trainer:
             for domain, domain_loader in mode_dict.items():
 
                 self.display_images[mode][domain] = [
-                    Dict(self.loaders[mode][domain].dataset[i]) for i in display_indices
+                    Dict(self.loaders[mode][domain].dataset[i])
+                    for i in display_indices
+                    if i < len(self.loaders[mode][domain].dataset)
                 ]
 
         self.is_setup = True

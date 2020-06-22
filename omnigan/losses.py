@@ -129,7 +129,7 @@ class TravelLoss(nn.Module):
 
 
 class TVLoss(nn.Module):
-    """Total Variational Regularization: Penalizes differences in 
+    """Total Variational Regularization: Penalizes differences in
         neighboring pixel values
 
         source: https://github.com/jxgu1016/Total_Variation_Loss.pytorch/blob/master/TVLoss.py
@@ -257,9 +257,9 @@ class Vgg19(torch.nn.Module):
 
 # Source: https://github.com/NVIDIA/pix2pixHD
 class VGGLoss(nn.Module):
-    def __init__(self):
-        super(VGGLoss, self).__init__()
-        self.vgg = Vgg19().cuda().eval()
+    def __init__(self, device):
+        super().__init__()
+        self.vgg = Vgg19().to(device).eval()
         self.criterion = nn.L1Loss()
         self.weights = [1.0 / 32, 1.0 / 16, 1.0 / 8, 1.0 / 4, 1.0]
 
@@ -271,7 +271,7 @@ class VGGLoss(nn.Module):
         return loss
 
 
-def get_losses(opts, verbose):
+def get_losses(opts, verbose, device=None):
     """Sets the loss functions to be used by G, D and C, as specified
     in the opts and returns a dictionnary of losses:
 
@@ -297,7 +297,7 @@ def get_losses(opts, verbose):
         losses["G"]["p"]["gan"] = GANLoss()
         losses["G"]["p"]["sm"] = PixelCrossEntropy()
         losses["G"]["p"]["dm"] = MSELoss()
-        losses["G"]["p"]["vgg"] = VGGLoss()
+        losses["G"]["p"]["vgg"] = VGGLoss(device)
         losses["G"]["p"]["tv"] = TVLoss(opts.train.lambdas.G.p.tv)
         losses["G"]["p"]["context"] = L1Loss()
 
