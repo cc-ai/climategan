@@ -153,7 +153,7 @@ class Trainer:
         z = self.G.encode(b.data.x)
         return z.shape[1:]
 
-    def compute_input_size(self):
+    def compute_input_shape(self):
         """Compute the latent shape, i.e. the Encoder's output shape,
         from a batch.
 
@@ -171,8 +171,7 @@ class Trainer:
         if b is None:
             raise ValueError("No batch found to compute_latent_shape")
         b = self.batch_to_device(b)
-        z = b.data.x
-        return z.shape[1:]
+        return b.data.x.shape[1:]
 
     def setup(self):
         """Prepare the trainer before it can be used to train the models:
@@ -188,9 +187,9 @@ class Trainer:
 
         self.G = get_gen(self.opts, verbose=self.verbose).to(self.device)
         self.latent_shape = self.compute_latent_shape()
-        self.input_shape = self.compute_input_size()
-        self.latent_size1 = self.input_shape[-2] // (2 ** self.opts.gen.p.spade_n_up)
-        self.latent_size2 = self.input_shape[-1] // (2 ** self.opts.gen.p.spade_n_up)
+        self.input_shape = self.compute_input_shape()
+        self.painter_z_h = self.input_shape[-2] // (2 ** self.opts.gen.p.spade_n_up)
+        self.painter_z_w = self.input_shape[-1] // (2 ** self.opts.gen.p.spade_n_up)
 
         self.D = get_dis(self.opts, verbose=self.verbose).to(self.device)
         self.C = get_classifier(self.opts, self.latent_shape, verbose=self.verbose).to(
@@ -346,9 +345,14 @@ class Trainer:
             step_time = time() - step_start_time
             self.log_step_time(step_time)
 
-        # self.log_comet_images("train", "r")
-        # self.log_comet_images("train", "s")
-        self.log_comet_images("train", "rf")
+        if self.opts.art == "mask":
+            self.log_comet_images("train", "r")
+            self.log_comet_images("train", "s")
+        elif self.opts.art == "paint":
+            self.log_comet_images("train", "rf")
+        else:
+            raise ValueError("Unknown opts.art {}".format(self.opts.art))
+
         self.update_learning_rates()
 
     def log_step_time(self, step_time):
@@ -408,8 +412,8 @@ class Trainer:
                     torch.empty(
                         batch_size,
                         self.opts.gen.p.latent_dim,
-                        self.latent_size1,
-                        self.latent_size2,
+                        self.painter_z_h,
+                        self.painter_z_w,
                     )
                     .normal_(mean=0, std=1.0)
                     .to(self.device)
@@ -465,8 +469,7 @@ class Trainer:
             self.logger.epoch, self.logger.epoch + self.opts.train.epochs
         ):
             self.run_epoch()
-            if self.opts.art != "paint":
-                self.eval(verbose=1)
+            self.eval(verbose=1)
             if (
                 self.logger.epoch != 0
                 and self.logger.epoch % self.opts.train.save_n_epochs == 0
@@ -516,14 +519,14 @@ class Trainer:
             multi_domain_batch (dict): dictionnary of domain batches
         """
         self.g_opt.zero_grad()
-        r_loss = t_loss = None
+        r_loss = p_loss = None
 
         # For now, always compute "representation loss"
-        # if self.should_compute_r_loss():
-        r_loss = None
-        # r_loss = self.get_representation_loss(multi_domain_batch)
+        if self.opts.art == "mask":
+            r_loss = self.get_representation_loss(multi_domain_batch)
 
-        p_loss = self.get_painter_loss(multi_domain_batch)
+        if self.opts.art == "paint":
+            p_loss = self.get_painter_loss(multi_domain_batch)
 
         # if self.should_compute_t_loss():
         #    t_loss = self.get_translation_loss(multi_domain_batch)
@@ -545,6 +548,7 @@ class Trainer:
 
         if verbose > 0:
             print("g_loss is {}".format(g_loss))
+
         self.logger.losses.generator.total_loss = g_loss.item()
         g_loss.backward()
         self.g_opt_step()
@@ -669,8 +673,8 @@ class Trainer:
                 torch.empty(
                     batch_size,
                     self.opts.gen.p.latent_dim,
-                    self.latent_size1,
-                    self.latent_size2,
+                    self.painter_z_h,
+                    self.painter_z_w,
                 )
                 .normal_(mean=0, std=1.0)
                 .to(self.device)
@@ -765,8 +769,8 @@ class Trainer:
                     torch.empty(
                         batch_size,
                         self.opts.gen.p.latent_dim,
-                        self.latent_size1,
-                        self.latent_size2,
+                        self.painter_z_h,
+                        self.painter_z_w,
                     )
                     .normal_(mean=0, std=1.0)
                     .to(self.device)
@@ -910,9 +914,14 @@ class Trainer:
                             domain
                         ] = update_loss.item()
         self.log_losses(model_to_update="G", mode="val")
-        # self.log_comet_images("val", "r")
-        # self.log_comet_images("val", "s")
-        self.log_comet_images("val", "rf")
+
+        if self.opts.art == "mask":
+            self.log_comet_images("val", "r")
+            self.log_comet_images("val", "s")
+        elif self.opts.art == "paint":
+            self.log_comet_images("val", "rf")
+        else:
+            raise ValueError("Unknown opts.art {}".format(self.opts.art))
         print("******************DONE EVALUATING*********************")
 
     def save(self):
