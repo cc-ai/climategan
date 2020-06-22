@@ -466,7 +466,7 @@ class Trainer:
         # For now, always compute "representation loss"
         # if self.should_compute_r_loss():
         r_loss = self.get_representation_loss(multi_domain_batch)
-        segSim_loss = self.update_segSim_loss(multi_domain_batch)
+        # segSim_loss = self.update_segSim_loss(multi_domain_batch)
         adventFool_loss = self.update_adversial_loss(multi_domain_batch, fool=True)
         
         # if self.should_compute_t_loss():
@@ -487,17 +487,17 @@ class Trainer:
                 print("adding t_loss {} to g_loss".format(t_loss))
             self.logger.losses.translation = t_loss.item()
 
-        if segSim_loss is not None:
-            g_loss += segSim_loss
-            if verbose > 0:
-                print("adding segSim_loss {} to g_loss".format(segSim_loss))
-            self.logger.losses.representation = segSim_loss.item()
+        # if segSim_loss is not None:
+        #     g_loss += segSim_loss
+        #     if verbose > 0:
+        #         print("adding segSim_loss {} to g_loss".format(segSim_loss))
+        #     self.logger.losses.segSim = segSim_loss.item()
 
         if adventFool_loss is not None:
             g_loss += adventFool_loss
             if verbose > 0:
                 print("adding adventFool_Loss {} to g_loss".format(adventFool_loss))
-            self.logger.losses.representation = adventFool_loss.item()
+            self.logger.losses.adventFool = adventFool_loss.item()
 
         if verbose > 0:
             print("g_loss is {}".format(g_loss))
@@ -854,26 +854,28 @@ class Trainer:
         loss = sum(v for d in disc_loss.values() for k, v in d.items())
         return loss
 
-    def update_segSim_loss(self, multi_domain_batch, verbose=0):
-        """
-        - first part of ADVENT
-        - Train on source
-        - Only train segnet. Don't accumulate grads in disciminators
-        - UDA Training
-        """
-        loss = 0
-        for batch_domain, batch in multi_domain_batch.items():
-            for i, domain in enumerate(batch_domain):
-                if domain == "s":
-                    x = batch["data"]["x"]
-                    maskLabel = batch["data"]["m"][:, 0, :, :]
-                    z = self.G.encode(x)
-                    z_decode = self.G.decoders["m"](z)
-                    z_decode = z_decode[:, 0, :, :]
-                    z_prime = 1 - z_decode
-                    prob = torch.stack([z_decode, z_prime]).transpose(0, 1)
-                    loss += cross_entropy_2d(prob, maskLabel.long().to(self.device))
-        return loss
+    # def update_segSim_loss(self, multi_domain_batch, verbose=0):
+    #     """
+    #     - first part of ADVENT
+    #     - Train on source
+    #     - Only train segnet. Don't accumulate grads in disciminators
+    #     - UDA Training
+    #     """
+    #     for param in self.D["m"]["maskAdvent"].parameters():
+    #         param.requires_grad = False
+    #     loss = 0
+    #     for batch_domain, batch in multi_domain_batch.items():
+    #         for i, domain in enumerate(batch_domain):
+    #             if domain == "s":
+    #                 x = batch["data"]["x"]
+    #                 maskLabel = batch["data"]["m"][:, 0, :, :]
+    #                 z = self.G.encode(x)
+    #                 z_decode = self.G.decoders["m"](z)
+    #                 z_decode = z_decode[:, 0, :, :]
+    #                 z_prime = 1 - z_decode
+    #                 prob = torch.stack([z_decode, z_prime]).transpose(0, 1)
+    #                 loss += cross_entropy_2d(prob, maskLabel.long().to(self.device))
+    #     return loss
     
     def update_adversial_loss(self, multi_domain_batch, fool=True, verbose=0):
         """
@@ -883,7 +885,7 @@ class Trainer:
         """
         loss = 0
         loss_func = ADVENTAdversarialLoss(
-                    self.opts, None, self.D["m"]["maskAdvent"])
+                    self.opts)
         for param in self.D["m"]["maskAdvent"].parameters():
             param.requires_grad = not fool
             if verbose > 0:
@@ -893,13 +895,13 @@ class Trainer:
             for i, domain in enumerate(batch_domain):
                 if fool == True:
                     if domain == "r":
-                        x = batch["data"]["x"]
+                        x = batch["data"]["x"]  
                         z = self.G.encode(x)
                         z_decode = self.G.decoders["m"](z)
                         z_decode = z_decode[:, 0, :, :]
                         z_prime = 1 - z_decode
                         prob = torch.stack([z_decode, z_prime]).transpose(0, 1)
-                        loss += loss_func(None, prob.to(self.device), self.source_label)
+                        loss += loss_func(None, prob.to(self.device), self.source_label, self.D["m"]["maskAdvent"])
                 else:
                     # Stoped updating generator and only updated the discriminator
                     x = batch["data"]["x"]
@@ -910,9 +912,9 @@ class Trainer:
                     prob = torch.stack([z_decode, z_prime]).transpose(0, 1)
                     prob = prob.detach()    
                     if domain == "r":
-                        loss += loss_func(None, prob.to(self.device), self.target_label)
+                        loss += loss_func(None, prob.to(self.device), self.target_label, self.D["m"]["maskAdvent"])
                     elif domain == "s":
-                        loss += loss_func(None, prob.to(self.device), self.source_label)
+                        loss += loss_func(None, prob.to(self.device), self.source_label, self.D["m"]["maskAdvent"])
                     else:
                         raise Exception("Wrong Domain Input!")
         return loss

@@ -366,6 +366,7 @@ def get_comet_rest_api_key(path_to_config_file=None):
                 return l.strip().split("=")[-1].strip()
     raise ValueError("Unable to find your COMET_REST_API_KEY in {}".format(str(p)))
 
+
 def getListOfFiles(dirName):
     # create a list of file and sub directories 
     listOfFile = os.listdir(dirName)
@@ -376,10 +377,10 @@ def getListOfFiles(dirName):
             allFiles = allFiles + getListOfFiles(fullPath)
         else:
             allFiles.append(fullPath)
-                
+
     return allFiles
-​
-​
+
+
 def makeJsonFile(list_of_the_keys, list_of_the_addresses, name_of_the_json_file='jsonfile.json'):
     """
     How to use it?

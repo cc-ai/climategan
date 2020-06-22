@@ -343,24 +343,20 @@ class ADVENTSegLoss(nn.Module):
 class ADVENTAdversarialLoss(nn.Module):
     def __init__(
         self,
-        opt,
-        discriminator_aux,
-        discriminator_main
+        opts
     ):
         super().__init__()
         self.opts = opts
-        self.discriminator_aux = discriminator_aux
-        self.discriminator_main = discriminator_main
         self.loss = BCELoss()
     
-    def __call__(self, prediction1, prediction2, target):
+    def __call__(self, prediction1, prediction2, target, discriminator_main, discriminator_aux=None):
         
         if self.opts.dis.ADVENT.multi_level == True:
-            d_out_aux = self.discriminator_aux(prob_2_entropy(F.softmax(prediction1, dim = 1)))
+            d_out_aux = discriminator_aux(prob_2_entropy(F.softmax(prediction1, dim = 1)))
             loss_adv_trg_aux = self.loss(d_out_aux, target)
         else:
             loss_adv_trg_aux = 0
-        d_out_main = self.discriminator_main(prob_2_entropy(F.softmax(prediction2, dim = 1)))
+        d_out_main = discriminator_main(prob_2_entropy(F.softmax(prediction2, dim = 1)))
         loss_adv_trg_main = self.loss(d_out_main, target)
         
         loss = (self.opts.train.lambdas.advent.adv_main * loss_adv_trg_main
