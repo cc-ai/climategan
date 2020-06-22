@@ -345,7 +345,10 @@ class Trainer:
                     if update_task not in save_images:
                         save_images[update_task] = []
                     prediction = self.G.decoders[update_task](self.z)
-
+                    if update_task in {"d"}:
+                        prediction = prediction.repeat(1, 3, 1, 1)                      
+                        task_saves.append(target.repeat(1, 3, 1, 1))
+                        task_saves.append(x * (1.0 - prediction))
                     if update_task in {"m"}:
                         prediction = prediction.repeat(1, 3, 1, 1)
                         task_saves.append(x * (1.0 - prediction))
