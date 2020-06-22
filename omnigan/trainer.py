@@ -187,17 +187,21 @@ class Trainer:
         )
         self.P = {"s": get_mega_model()}  # P => pseudo labeling models
 
+        t_max = len(self.loaders["train"]["r"])
+        if self.opts.gen.simclr.domain_adaptation:
+            t_max += len(self.loaders["train"]["s"])
+
         self.g_opt, self.g_scheduler = get_optimizer(
-            self.G,
-            self.opts.gen.opt,
-            T_max=len(self.loaders["train"]["r"]) + len(self.loaders["train"]["s"]),
+            self.G, self.opts.gen.opt, T_max=t_max,
         )
 
         print("---------------------------")
         print("num params encoder: ", get_num_params(self.G.encoder))
         if "simclr" not in self.opts.tasks:
             print("num params decoder: ", get_num_params(self.G.decoders["m"]))
-        print("num params classif: ", get_num_params(self.C))
+            print("num params classif: ", get_num_params(self.C))
+        elif "simclr" in self.opts.tasks and self.opts.gen.simclr.domain_adaptation:
+            print("num params classif: ", get_num_params(self.C))
         print("---------------------------")
 
         if get_num_params(self.D) > 0:
@@ -229,12 +233,15 @@ class Trainer:
             display_indices = self.opts.comet.display_size
 
         self.display_images = {}
-        for mode, mode_dict in self.loaders.items():
-            self.display_images[mode] = {}
-            for domain, domain_loader in mode_dict.items():
-                self.display_images[mode][domain] = [
-                    Dict(self.loaders[mode][domain].dataset[i]) for i in display_indices
-                ]
+
+        if "simclr" not in self.opts.tasks:  # no image to store if simclr pretraining
+            for mode, mode_dict in self.loaders.items():
+                self.display_images[mode] = {}
+                for domain, domain_loader in mode_dict.items():
+                    self.display_images[mode][domain] = [
+                        Dict(self.loaders[mode][domain].dataset[i])
+                        for i in display_indices
+                    ]
 
         self.is_setup = True
 
@@ -327,7 +334,9 @@ class Trainer:
             self.update_g(multi_domain_batch)
             if self.d_opt is not None:
                 self.update_d(multi_domain_batch)
-            if "simclr" not in self.opts.tasks:
+            if "simclr" not in self.opts.tasks or (
+                "simclr" in self.opts.tasks and self.opts.gen.simclr.domain_adaptation
+            ):
                 self.update_c(multi_domain_batch)
             self.logger.global_step += 1
             if self.should_freeze_representation():
@@ -337,11 +346,11 @@ class Trainer:
             step_time = time() - step_start_time
             self.log_step_time(step_time)
 
-        self.log_comet_images("train", "r")
-        self.log_comet_images("train", "s")
-        if "simclr" not in self.opts.tasks or (
-            "simclr" in self.opts.tasks and self.logger.epoch >= 10
-        ):
+        if "simclr" not in self.opts.tasks:
+            self.log_comet_images("train", "r")
+            self.log_comet_images("train", "s")
+            self.update_learning_rates()
+        elif "simclr" in self.opts.tasks and self.logger.epoch >= 10:
             self.update_learning_rates()
 
     def log_step_time(self, step_time):
@@ -543,19 +552,34 @@ class Trainer:
             else:
                 x = batch["data"]["x"]
                 self.z = self.G.encode(x)
-                # ---------------------------------
-                # -----  classifier loss (1)  -----
-                # ---------------------------------
+
+            # ---------------------------------
+            # -----  classifier loss (1)  -----
+            # ---------------------------------
+            update_loss = 0
+            if "simclr" not in self.opts.tasks:
                 # Forward pass through classifier, output : (batch_size, 4)
                 output_classifier = self.C(self.z)
 
                 # Cross entropy loss (with sigmoid) with fake labels to fool C
-                update_loss = self.losses["G"]["classifier"](
+                update_loss += self.losses["G"]["classifier"](
                     output_classifier,
                     fake_domains_to_class_tensor(batch["domain"], one_hot),
                 )
+            elif "simclr" in self.opts.tasks and self.opts.gen.simclr.domain_adaptation:
+                # Forward pass through classifier
+                out_c_i = self.C(hi)
+                out_c_j = self.C(hj)
 
-                step_loss += lambdas.G.classifier * update_loss
+                # Cross entropy loss (with sigmoid) with fake labels to fool C
+                update_loss += self.losses["C"](
+                    out_c_i,
+                    domains_to_class_tensor(batch["domain"], one_hot).to(self.device),
+                ) + self.losses["C"](
+                    out_c_j,
+                    domains_to_class_tensor(batch["domain"], one_hot).to(self.device),
+                )
+            step_loss += lambdas.G.classifier * update_loss
 
             # -------------------------------------------------
             # -----  task-specific regression losses (2)  -----
@@ -901,15 +925,27 @@ class Trainer:
         lambdas = self.opts.train.lambdas
         one_hot = self.opts.classifier.loss != "cross_entropy"
         for batch_domain, batch in multi_domain_batch.items():
-            # if "simclr" not in self.opts.tasks:
-            self.z = self.G.encode(batch["data"]["x"])
-            # Forward through classifier, output classifier = (batch_size, 4)
-            output_classifier = self.C(self.z)
-            # Cross entropy loss (with sigmoid)
-            update_loss = self.losses["C"](
-                output_classifier,
-                domains_to_class_tensor(batch["domain"], one_hot).to(self.device),
-            )
+            if "simclr" not in self.opts.tasks:
+                self.z = self.G.encode(batch["data"]["x"])
+                # Forward through classifier, output classifier = (batch_size, 4)
+                output_classifier = self.C(self.z)
+                # Cross entropy loss (with sigmoid)
+                update_loss = self.losses["C"](
+                    output_classifier,
+                    domains_to_class_tensor(batch["domain"], one_hot).to(self.device),
+                )
+            else:
+                zi = self.G.encode(batch["data"]["simclr"]["xi"])
+                zj = self.G.encode(batch["data"]["simclr"]["xj"])
+                out_c_i = self.C(zi)
+                out_c_j = self.C(zj)
+                update_loss = self.losses["C"](
+                    out_c_i,
+                    domains_to_class_tensor(batch["domain"], one_hot).to(self.device),
+                ) + self.losses["C"](
+                    out_c_j,
+                    domains_to_class_tensor(batch["domain"], one_hot).to(self.device),
+                )
             loss += update_loss
 
         return lambdas.C * loss
@@ -999,8 +1035,9 @@ class Trainer:
                             domain
                         ] = update_loss.item()
         self.log_losses(model_to_update="G", mode="val")
-        self.log_comet_images("val", "r")
-        self.log_comet_images("val", "s")
+        if "simclr" not in self.opts.tasks:
+            self.log_comet_images("val", "r")
+            self.log_comet_images("val", "s")
         print("******************DONE EVALUATING*********************")
 
     def save(self):

@@ -76,6 +76,7 @@ gen:
     pretrained_model: "/network/tmp1/ccai/data/omnigan/pretrained_models/DeepLab_resnet_pretrained_imagenet.pth"
 
   simclr:
+    domain_adaptation: True # whether to use only real data or real+simulated+classifier
     is_trained: False # Temporary, remove when trained
     ignore: False
     use_pretrained: True
@@ -86,7 +87,7 @@ gen:
       use_cosine_similarity: True
     input_size: 256 # must be the same as the resize of transforms?
     output_size: 256
-    colorization_s: 1 # parameter between 0 and 1 defining how much we want colorization
+    colorization_s: 1 # parameter between 0 and 1 defining how much colorization we want
 
   d: # specific params for the depth estimation decoder
     <<: *default-gen

@@ -255,5 +255,8 @@ def get_simclr_loaders(opts):
         for domain in ["r", "s"]:
             if mode in opts.data.files:
                 if domain in opts.data.files[mode]:
-                    loaders[mode][domain] = get_simclr_loader(mode, domain, opts)
+                    if opts.gen.simclr.domain_adaptation or (
+                        not opts.gen.simclr.domain_adaptation and domain == "r"
+                    ):
+                        loaders[mode][domain] = get_simclr_loader(mode, domain, opts)
     return loaders

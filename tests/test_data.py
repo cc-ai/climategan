@@ -48,15 +48,14 @@ if __name__ == "__main__":
     print("--Test simclr_loaders--")
     sim_loaders = get_simclr_loaders(opts)
     batch = Dict(next(iter(sim_loaders["train"]["r"])))
-    for k in batch["data"]:
-        for i, data in enumerate(batch["data"][k]):
+    for k, value in batch["data"].items():
+        for task, tensor in value.items():
             print(
-                "Image",
-                i,
-                data.shape,
-                data.dtype,
-                data.min().item(),
-                data.max().item(),
+                task,
+                tensor.shape,
+                tensor.dtype,
+                tensor.min().item(),
+                tensor.max().item(),
                 batch["domain"],
                 batch["mode"],
             )
