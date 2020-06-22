@@ -229,12 +229,12 @@ class Trainer:
             display_indices = self.opts.comet.display_size
 
         self.display_images = {}
-        # for mode, mode_dict in self.loaders.items():
-        #     self.display_images[mode] = {}
-        #     for domain, domain_loader in mode_dict.items():
-        #         self.display_images[mode][domain] = [
-        #             Dict(self.loaders[mode][domain].dataset[i]) for i in display_indices
-        #         ]
+        for mode, mode_dict in self.loaders.items():
+            self.display_images[mode] = {}
+            for domain, domain_loader in mode_dict.items():
+                self.display_images[mode][domain] = [
+                    Dict(self.loaders[mode][domain].dataset[i]) for i in display_indices
+                ]
 
         self.is_setup = True
 
@@ -910,18 +910,6 @@ class Trainer:
                 output_classifier,
                 domains_to_class_tensor(batch["domain"], one_hot).to(self.device),
             )
-            # else:
-            #     zi = self.G.encode(batch["data"]["simclr"]["xi"])
-            #     zj = self.G.encode(batch["data"]["simclr"]["xj"])
-            #     out_c_i = self.C(zi)
-            #     out_c_j = self.C(zj)
-            #     update_loss = self.losses["C"](
-            #         out_c_i,
-            #         domains_to_class_tensor(batch["domain"], one_hot).to(self.device),
-            #     ) + self.losses["C"](
-            #         out_c_j,
-            #         domains_to_class_tensor(batch["domain"], one_hot).to(self.device),
-            #     )
             loss += update_loss
 
         return lambdas.C * loss
