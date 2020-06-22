@@ -71,7 +71,7 @@ def is_image_file(filename):
     return Path(filename).suffix in IMG_EXTENSIONS
 
 
-def pil_image_loader(path, task, domain):
+def pil_image_loader(path, task):
     if Path(path).suffix == ".npy":
         arr = np.load(path).astype(np.uint8)
     elif is_image_file(path):
@@ -150,7 +150,7 @@ class OmniListDataset(Dataset):
         item = {
             "data": self.transform(
                 {
-                    task: pil_image_loader(path, task, self.domain)
+                    task: pil_image_loader(path, task)
                     for task, path in paths.items()
                 }
             ),
