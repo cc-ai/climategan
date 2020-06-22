@@ -134,6 +134,26 @@ class SegmentationDecoder(BaseDecoder):
         )
 
 
+class SimCLRProjectionHead(nn.Module):
+    def __init__(self):
+        super(SimCLRProjectionHead, self).__init__()
+        self.l1 = None
+        self.l2 = None
+
+    # Call setup later when knowing latent shape
+    def setup(self, latent_shape, out_dim):
+        num_ftrs = latent_shape.numel()
+        self.l1 = nn.Linear(num_ftrs, num_ftrs)
+        self.l2 = nn.Linear(num_ftrs, out_dim)
+
+    def forward(self, x):  # h = representation, z = projection
+        h = x.view(x.size(0), -1)
+        z = self.l1(h)
+        z = nn.functional.relu(z)
+        z = self.l2(z)
+        return z
+
+
 class SpadeTranslationDict(nn.ModuleDict):
     def __init__(self, latent_shape, opts):
         super().__init__()
