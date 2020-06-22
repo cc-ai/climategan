@@ -68,28 +68,8 @@ class OmniGenerator(nn.Module):
         if "simclr" in opts.tasks and not opts.gen.simclr.ignore:
             self.decoders["simclr"] = SimCLRProjectionHead()
 
-        if "t" in opts.tasks and not opts.gen.t.ignore:
-            if opts.gen.t.use_bit_conditioning or opts.gen.t.use_spade:
-                self.decoders["t"] = None
-                # call set_translation_decoder(latent_shape, device)
-            else:
-                self.decoders["t"] = nn.ModuleDict(
-                    {
-                        "f": BaseTranslationDecoder(opts),
-                        "n": BaseTranslationDecoder(opts),
-                    }
-                )
-
-        if "a" in opts.tasks and not opts.gen.a.ignore:
-            self.decoders["a"] = nn.ModuleDict(
-                {"r": AdaptationDecoder(opts), "s": AdaptationDecoder(opts)}
-            )
-
         if "d" in opts.tasks and not opts.gen.d.ignore:
             self.decoders["d"] = DepthDecoder(opts)
-
-        if "h" in opts.tasks and not opts.gen.h.ignore:
-            self.decoders["h"] = HeightDecoder(opts)
 
         if "s" in opts.tasks and not opts.gen.s.ignore:
             self.decoders["s"] = SegmentationDecoder(opts)
@@ -99,105 +79,14 @@ class OmniGenerator(nn.Module):
 
         self.decoders = nn.ModuleDict(self.decoders)
 
-    def set_translation_decoder(self, latent_shape, device):
-        if self.opts.gen.t.use_bit_conditioning:
-            if not self.opts.gen.t.use_spade:
-                raise ValueError("cannot have use_bit_conditioning but not use_spade")
-            self.decoders["t"] = SpadeTranslationDict(latent_shape, self.opts)
-            self.decoders["t"] = self.decoders["t"].to(device)
-        elif self.opts.gen.t.use_spade:
-            self.decoders["t"] = nn.ModuleDict(
-                {
-                    "f": SpadeTranslationDecoder(latent_shape, self.opts).to(device),
-                    "n": SpadeTranslationDecoder(latent_shape, self.opts).to(device),
-                }
-            )
-        for k in ["f", "n"]:
-            init_weights(
-                self.decoders["t"][k],
-                init_type=self.opts.gen.t.init_type,
-                init_gain=self.opts.gen.t.init_gain,
-                verbose=self.verbose,
-            )
-        else:
-            pass  # not using spade in anyway: do nothing
-
-    def translate_batch(self, batch, translator="f", z=None):
-        """Computes the translation of the images in a batch, according amongst
-        other things to batch["domain"]
-
-        Args:
-            batch (dict): Batch dict with keys ['data', 'paths', 'domain', 'mode']
-            translator (str, optional): Translation decoder to use. Defaults to "f".
-            z (torch.Tensor, optional): Precomputed z. Defaults to None.
-
-        Returns:
-            torch.Tensor: 4D image tensor
-        """
-        x = batch["data"]["x"]
-        if z is None:
-            z = self.encode(x)
-
-        K = None
-        if self.opts.gen.t.use_spade:
-            task_tensors = self.decode_tasks(z)
-            K = get_conditioning_tensor(x, task_tensors)
-
-        y = self.decoders["t"][translator](z, K)
-        return y
-
-    def decode_tasks(self, z):
-        return {
-            task: self.decoders[task](z)
-            for task in self.opts.tasks
-            if task not in {"t", "a"}
-        }
-
     def encode(self, x):
         return self.encoder.forward(x)
 
-    def forward_x(self, x, translator="f"):
-        """Computes the translation of an image x to `translator`'s domain.
-        Note this function will encode z and decode the necessary conditioning
-        task tensors
-
-        Args:
-            x (torch.Tensor): images to translate
-            translator (str, optional): translation translator to use. Defaults to "f".
-            classifier_probs (list, optional): probabilities of belonging to a domain.
-                Defaults to None.
-
-        Returns:
-            torch.Tensor: translated image
-        """
-        z = self.encode(x)
-        cond = None
-        if self.opts.gen.t.use_spade:
-            task_tensors = self.decode_tasks(z)
-            cond = get_conditioning_tensor(x, task_tensors)
-        y = self.decoders["t"][translator](z, cond)
-        return y
-
-    def forward(self, x, translator="f"):
-        return self.forward_x(x, translator)
+    def forward(self, x):
+        return self.encode(x)
 
     def __str__(self):
         return strings.generator(self)
-
-
-class HeightDecoder(BaseDecoder):
-    def __init__(self, opts):
-        super().__init__(
-            n_upsample=opts.gen.h.n_upsample,
-            n_res=opts.gen.h.n_res,
-            input_dim=opts.gen.encoder.res_dim,
-            proj_dim=opts.gen.h.proj_dim,
-            output_dim=opts.gen.h.output_dim,
-            res_norm=opts.gen.h.res_norm,
-            activ=opts.gen.h.activ,
-            pad_type=opts.gen.h.pad_type,
-            output_activ="sigmoid",
-        )
 
 
 class MaskDecoder(BaseDecoder):
@@ -243,62 +132,6 @@ class SegmentationDecoder(BaseDecoder):
             pad_type=opts.gen.s.pad_type,
             output_activ="sigmoid",
         )
-
-
-class AdaptationDecoder(BaseDecoder):
-    def __init__(self, opts):
-        super().__init__(
-            n_upsample=opts.gen.a.n_upsample,
-            n_res=opts.gen.a.n_res,
-            input_dim=opts.gen.encoder.res_dim,
-            proj_dim=opts.gen.a.proj_dim,
-            output_dim=opts.gen.a.output_dim,
-            res_norm=opts.gen.a.res_norm,
-            activ=opts.gen.a.activ,
-            pad_type=opts.gen.a.pad_type,
-            output_activ="sigmoid",
-        )
-
-    def forward(self, z, cond=None):
-        return self.model(z)
-
-
-class SimCLRProjectionHead(nn.Module):
-    def __init__(self):
-        super(SimCLRProjectionHead, self).__init__()
-        self.l1 = None
-        self.l2 = None
-
-    # Call setup later when knowing latent shape
-    def setup(self, latent_shape, out_dim):
-        num_ftrs = latent_shape.numel()
-        self.l1 = nn.Linear(num_ftrs, num_ftrs)
-        self.l2 = nn.Linear(num_ftrs, out_dim)
-
-    def forward(self, x):  # h = representation, z = projection
-        h = x.view(x.size(0), -1)
-        z = self.l1(h)
-        z = nn.functional.relu(z)
-        z = self.l2(z)
-        return z
-
-
-class BaseTranslationDecoder(BaseDecoder):
-    def __init__(self, opts):
-        super().__init__(
-            n_upsample=opts.gen.t.n_upsample,
-            n_res=opts.gen.t.n_res,
-            input_dim=opts.gen.encoder.res_dim,
-            proj_dim=opts.gen.t.proj_dim,
-            output_dim=opts.gen.t.output_dim,
-            res_norm=opts.gen.t.res_norm,
-            activ=opts.gen.t.activ,
-            pad_type=opts.gen.t.pad_type,
-            output_activ="sigmoid",
-        )
-
-    def forward(self, z, cond=None):
-        return self.model(z)
 
 
 class SpadeTranslationDict(nn.ModuleDict):

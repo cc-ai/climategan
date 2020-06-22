@@ -67,8 +67,6 @@ if __name__ == "__main__":
     # ------------------------------------
     print(transforms_string(loaders["train"]["r"].dataset.transform))
 
-    sample = ds[0]
-
     batch = Dict(next(iter(loaders["train"]["r"])))
     print("Batch: ", "items, ", " ".join(batch.keys()), "keys")
 
