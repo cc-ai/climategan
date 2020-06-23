@@ -263,17 +263,15 @@ class Trainer:
             display_indices = self.opts.comet.display_size
 
         self.display_images = {}
+        for mode, mode_dict in self.loaders.items():
+            self.display_images[mode] = {}
+            for domain, domain_loader in mode_dict.items():
 
-        if "simclr" not in self.opts.tasks:  # no image to store if simclr pretraining
-            for mode, mode_dict in self.loaders.items():
-                self.display_images[mode] = {}
-                for domain, domain_loader in mode_dict.items():
-
-                    self.display_images[mode][domain] = [
-                        Dict(self.loaders[mode][domain].dataset[i])
-                        for i in display_indices
-                        if i < len(self.loaders[mode][domain].dataset)
-                    ]
+                self.display_images[mode][domain] = [
+                    Dict(self.loaders[mode][domain].dataset[i])
+                    for i in display_indices
+                    if i < len(self.loaders[mode][domain].dataset)
+                ]
 
         self.is_setup = True
 
@@ -388,8 +386,12 @@ class Trainer:
             else:
                 raise ValueError("Unknown opts.art {}".format(self.opts.art))
             self.update_learning_rates()
-        elif "simclr" in self.opts.tasks and self.logger.epoch >= 10:
-            self.update_learning_rates()
+        else:
+            self.log_comet_images("train", "r")
+            if self.opts.gen.simclr.domain_adaptation:
+                self.log_comet_images("train", "s")
+            if self.logger.epoch >= 10:
+                self.update_learning_rates()
 
     def log_step_time(self, step_time):
         """Logs step-time on comet.ml
@@ -405,27 +407,36 @@ class Trainer:
         save_images = {}
         if domain != "rf":
             for im_set in self.display_images[mode][domain]:
-                x = im_set["data"]["x"].unsqueeze(0).to(self.device)
+                if "simclr" not in self.opts.tasks:
+                    x = im_set["data"]["x"].unsqueeze(0).to(self.device)
 
-                self.z = self.G.encode(x)
+                    self.z = self.G.encode(x)
 
-                for update_task, update_target in im_set["data"].items():
-                    target = im_set["data"][update_task].unsqueeze(0).to(self.device)
-                    task_saves = []
-                    if update_task != "x":
-                        if update_task not in save_images:
-                            save_images[update_task] = []
-                        prediction = self.G.decoders[update_task](self.z)
+                    for update_task, update_target in im_set["data"].items():
+                        target = (
+                            im_set["data"][update_task].unsqueeze(0).to(self.device)
+                        )
+                        task_saves = []
+                        if update_task != "x":
+                            if update_task not in save_images:
+                                save_images[update_task] = []
+                            prediction = self.G.decoders[update_task](self.z)
 
-                        if update_task in {"m"}:
-                            prediction = prediction.repeat(1, 3, 1, 1)
-                            task_saves.append(x * (1.0 - prediction))
-                            task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
-                        task_saves.append(prediction)
-                        #! This assumes the output is some kind of image
-                        save_images[update_task].append(x)
-                        for im in task_saves:
-                            save_images[update_task].append(im)
+                            if update_task in {"m"}:
+                                prediction = prediction.repeat(1, 3, 1, 1)
+                                task_saves.append(x * (1.0 - prediction))
+                                task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
+                            task_saves.append(prediction)
+                            #! This assumes the output is some kind of image
+                            save_images[update_task].append(x)
+                            for im in task_saves:
+                                save_images[update_task].append(im)
+                else:
+                    xi = im_set["data"]["simclr"]["xi"].unsqueeze(0).to(self.device)
+                    xj = im_set["data"]["simclr"]["xj"].unsqueeze(0).to(self.device)
+                    save_images["simclr"] = []
+                    save_images["simclr"].append(xi)
+                    save_images["simclr"].append(xj)
 
             for task in save_images.keys():
                 # Write images:
@@ -642,9 +653,7 @@ class Trainer:
                 )
             elif "simclr" in self.opts.tasks and self.opts.gen.simclr.domain_adaptation:
                 # Forward pass through classifier
-                print("shape hi", hi.shape)
                 out_c_i = self.C(hi)
-                print("shape out", out_c_i.shape)
                 out_c_j = self.C(hj)
 
                 # Cross entropy loss (with sigmoid) with fake labels to fool C
@@ -1016,6 +1025,10 @@ class Trainer:
                 self.log_comet_images("val", "rf")
             else:
                 raise ValueError("Unknown opts.art {}".format(self.opts.art))
+        else:
+            self.log_comet_images("train", "r")
+            if self.opts.gen.simclr.domain_adaptation:
+                self.log_comet_images("train", "s")
         print("******************DONE EVALUATING*********************")
 
     def save(self):
