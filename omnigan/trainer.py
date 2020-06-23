@@ -466,9 +466,7 @@ class Trainer:
         # For now, always compute "representation loss"
         # if self.should_compute_r_loss():
         r_loss = self.get_representation_loss(multi_domain_batch)
-        # segSim_loss = self.update_segSim_loss(multi_domain_batch)
-        adventFool_loss = self.update_adversial_loss(multi_domain_batch, fool=True)
-        
+
         # if self.should_compute_t_loss():
         #    t_loss = self.get_translation_loss(multi_domain_batch)
 
@@ -486,18 +484,6 @@ class Trainer:
             if verbose > 0:
                 print("adding t_loss {} to g_loss".format(t_loss))
             self.logger.losses.translation = t_loss.item()
-
-        # if segSim_loss is not None:
-        #     g_loss += segSim_loss
-        #     if verbose > 0:
-        #         print("adding segSim_loss {} to g_loss".format(segSim_loss))
-        #     self.logger.losses.segSim = segSim_loss.item()
-
-        if adventFool_loss is not None:
-            g_loss += adventFool_loss
-            if verbose > 0:
-                print("adding adventFool_Loss {} to g_loss".format(adventFool_loss))
-            self.logger.losses.adventFool = adventFool_loss.item()
 
         if verbose > 0:
             print("g_loss is {}".format(g_loss))
@@ -593,6 +579,21 @@ class Trainer:
                     self.logger.losses.task_loss[update_task]["tv"][
                         batch_domain
                     ] = update_loss.item()
+
+                    # Then ADVENT Fool loss
+                    if batch_domain == 'r':
+                        for param in self.D["m"]["maskAdvent"].parameters():
+                            param.requires_grad = False
+                        pred = prediction[:, 0, :, :]
+                        pred_prime = 1 - pred
+                        prob = torch.stack([pred, pred_prime]).transpose(0, 1)
+                        update_loss = self.losses["G"]["tasks"][update_task]["advent"](
+                            None, prob.to(self.device), self.source_label, 
+                            self.D["m"]["maskAdvent"]
+                        )
+                        self.logger.losses.task_loss[update_task]["advent"][
+                            batch_domain
+                        ] = update_loss.item()
 
             #! Translation and Adaptation components. Ignore for now...
             """ 
@@ -819,13 +820,12 @@ class Trainer:
         """
         zerotensor = torch.tensor(0).to(self.device)
         disc_loss = {"a": {"r": zerotensor, "s": zerotensor}, "t": {"f": zerotensor, "n": zerotensor}, "m": {"maskAdvent": zerotensor}}
-        if "a" in self.opts.tasks or "t" in self.opts.tasks:
-            for batch_domain, batch in multi_domain_batch.items():
-
-                x = batch["data"]["x"]
-                z = self.G.encode(x)
-                cond = None
-
+        
+        for batch_domain, batch in multi_domain_batch.items():
+            x = batch["data"]["x"]
+            z = self.G.encode(x)
+            cond = None
+            if "a" in self.opts.tasks or "t" in self.opts.tasks:
                 if self.opts.gen.t.use_spade:
                     task_tensors = self.G.decode_tasks(z)
                     cond = get_conditioning_tensor(x, task_tensors)
@@ -843,10 +843,34 @@ class Trainer:
                     if verbose > 0:
                         print(f"Batch {batch_domain} > {decoder}: {source_domain} to real ")
                         print(f"Batch {batch_domain} > {decoder}: {target_domain} to fake ")
-        if "m" in self.opts.tasks:
-            if verbose > 0:
-                print("Now training the ADVENT discriminator!")
-            disc_loss["m"]["maskAdvent"] = self.update_adversial_loss(multi_domain_batch, fool=False)
+            if "m" in self.opts.tasks:
+                if verbose > 0:
+                    print("Now training the ADVENT discriminator!")
+
+                for param in self.D["m"]["maskAdvent"].parameters():
+                    param.requires_grad = True
+                z_decode = self.G.decoders["m"](z)
+                z_decode = z_decode[:, 0, :, :]
+                z_prime = 1 - z_decode
+                prob = torch.stack([z_decode, z_prime]).transpose(0, 1)
+                prob = prob.detach()    
+                if batch_domain == "r":
+                    disc_loss["m"]["maskAdvent"] += self.losses["D.m.advent"](
+                        None,
+                        prob.to(self.device),
+                        self.target_label,
+                        self.D["m"]["maskAdvent"]
+                    )
+                elif batch_domain == "s":
+                    disc_loss["m"]["maskAdvent"] += self.losses["D.m.advent"](
+                        None,
+                        prob.to(self.device),
+                        self.source_label,
+                        self.D["m"]["maskAdvent"]
+                    )
+                else:
+                    raise Exception("Wrong Domain Input!")
+                # disc_loss["m"]["maskAdvent"] = self.update_adversial_loss(multi_domain_batch, fool=False)
 
         self.logger.losses.discriminator.update(
             {dom: {k: v.item() for k, v in d.items()} for dom, d in disc_loss.items()}

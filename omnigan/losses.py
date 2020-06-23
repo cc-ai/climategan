@@ -264,6 +264,7 @@ def get_losses(opts, verbose):
         losses["G"]["tasks"]["m"] = {}
         losses["G"]["tasks"]["m"]["main"] = nn.BCELoss()
         losses["G"]["tasks"]["m"]["tv"] = TVLoss(opts.train.lambdas.G.m.tv)
+        losses["G"]["tasks"]["m"]["advent"] = ADVENTAdversarialLoss(opts)
 
     # undistinguishable features loss
     # TODO setup a get_losses func to assign the right loss according to the yaml
@@ -284,6 +285,7 @@ def get_losses(opts, verbose):
     losses["D"] = GANLoss(
         soft_shift=opts.dis.soft_shift, flip_prob=opts.dis.flip_prob, verbose=verbose,
     )
+    losses["D.m.advent"] = ADVENTAdversarialLoss(opts)
     return losses
 
 
