@@ -146,49 +146,26 @@ class NLayerDiscriminator(nn.Module):
 class OmniDiscriminator(nn.ModuleDict):
     def __init__(self, opts):
         super().__init__()
-        if "a" in opts.tasks:
-            self["a"] = nn.ModuleDict(
+        if "p" in opts.tasks:
+            self["p"] = nn.ModuleDict(
                 {
-                    "r": define_D(
-                        3,
-                        opts.dis.a.ndf,
-                        n_layers_D=opts.dis.a.n_layers,
-                        norm=opts.dis.a.norm,
-                        use_sigmoid=opts.dis.a.use_sigmoid,
-                        init_type=opts.dis.a.init_type,
-                        init_gain=opts.dis.a.init_gain,
+                    "global": define_D(
+                        input_nc=3,
+                        ndf=opts.dis.p.ndf,
+                        n_layers_D=opts.dis.p.n_layers,
+                        norm=opts.dis.p.norm,
+                        use_sigmoid=opts.dis.p.use_sigmoid,
+                        init_type=opts.dis.p.init_type,
+                        init_gain=opts.dis.p.init_gain,
                     ),
-                    "s": define_D(
-                        3,
-                        opts.dis.a.ndf,
-                        n_layers_D=opts.dis.a.n_layers,
-                        norm=opts.dis.a.norm,
-                        use_sigmoid=opts.dis.a.use_sigmoid,
-                        init_type=opts.dis.a.init_type,
-                        init_gain=opts.dis.a.init_gain,
-                    ),
-                }
-            )
-        if "t" in opts.tasks:
-            self["t"] = nn.ModuleDict(
-                {
-                    "f": define_D(
-                        3,
-                        opts.dis.t.ndf,
-                        n_layers_D=opts.dis.t.n_layers,
-                        norm=opts.dis.t.norm,
-                        use_sigmoid=opts.dis.t.use_sigmoid,
-                        init_type=opts.dis.t.init_type,
-                        init_gain=opts.dis.t.init_gain,
-                    ),
-                    "n": define_D(
-                        3,
-                        opts.dis.t.ndf,
-                        n_layers_D=opts.dis.t.n_layers,
-                        norm=opts.dis.t.norm,
-                        use_sigmoid=opts.dis.t.use_sigmoid,
-                        init_type=opts.dis.t.init_type,
-                        init_gain=opts.dis.t.init_gain,
+                    "local": define_D(
+                        input_nc=3,
+                        ndf=opts.dis.p.ndf,
+                        n_layers_D=opts.dis.p.n_layers,
+                        norm=opts.dis.p.norm,
+                        use_sigmoid=opts.dis.p.use_sigmoid,
+                        init_type=opts.dis.p.init_type,
+                        init_gain=opts.dis.p.init_gain,
                     ),
                 }
             )
