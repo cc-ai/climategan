@@ -41,8 +41,6 @@ if __name__ == "__main__":
     # ------------------------------------
     print(transforms_string(loaders["train"]["r"].dataset.transform))
 
-    sample = ds[0]
-
     batch = Dict(next(iter(loaders["train"]["r"])))
     print("Batch: ", "items, ", " ".join(batch.keys()), "keys")
 
@@ -83,7 +81,9 @@ if __name__ == "__main__":
                 [
                     str(
                         {
-                            k: [(s, t.shape) for s, t in v.items()] if k == "data" else v
+                            k: [(s, t.shape) for s, t in v.items()]
+                            if k == "data"
+                            else v
                             for k, v in m.items()
                             if k != "paths"
                         }
