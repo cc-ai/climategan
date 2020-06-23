@@ -364,8 +364,9 @@ class Trainer:
             self.update_g(multi_domain_batch)
             if self.d_opt is not None:
                 self.update_d(multi_domain_batch)
-            if "simclr" not in self.opts.tasks or (
-                "simclr" in self.opts.tasks and self.opts.gen.simclr.domain_adaptation
+            if (
+                "simclr" not in self.opts.tasks
+                or self.opts.gen.simclr.domain_adaptation
             ):
                 self.update_c(multi_domain_batch)
             self.logger.global_step += 1

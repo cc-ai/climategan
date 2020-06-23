@@ -393,7 +393,7 @@ def get_losses(opts, verbose, device=None):
         losses["G"]["tasks"]["m"]["tv"] = TVLoss(opts.train.lambdas.G.m.tv)
     if "simclr" in opts.tasks:
         losses["G"]["tasks"]["simclr"] = NTXentLoss(
-            opts.data.loaders.simclr_batch_size,
+            opts.data.loaders.batch_size,
             opts.gen.simclr.loss.temperature,
             opts.gen.simclr.loss.use_cosine_similarity,
         )

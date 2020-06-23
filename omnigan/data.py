@@ -246,7 +246,7 @@ def get_simclr_loader(mode, domain, opts):
             opts,
             transform=transforms.Compose(get_simclr_transforms(opts.gen.simclr)),
         ),
-        batch_size=opts.data.loaders.get("simclr_batch_size", 256),
+        batch_size=opts.data.loaders.get("batch_size", 256),
         shuffle=True,
         num_workers=opts.data.loaders.get("num_workers", 8),
     )
@@ -259,8 +259,6 @@ def get_simclr_loaders(opts):
         for domain in ["r", "s"]:
             if mode in opts.data.files:
                 if domain in opts.data.files[mode]:
-                    if opts.gen.simclr.domain_adaptation or (
-                        not opts.gen.simclr.domain_adaptation and domain == "r"
-                    ):
+                    if opts.gen.simclr.domain_adaptation or domain == "r":
                         loaders[mode][domain] = get_simclr_loader(mode, domain, opts)
     return loaders
