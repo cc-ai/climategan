@@ -7,6 +7,7 @@ from threading import Thread
 
 import numpy as np
 import torch
+from torch.autograd import Variable
 from skimage import io as skio
 from torch.nn import init
 
@@ -490,3 +491,18 @@ def threaded_write(images, paths, num_threads=5):
 def get_num_params(model):
     total_params = sum(p.numel() for p in model.parameters())
     return total_params
+
+
+def vgg_preprocess(batch):
+    """Preprocess batch to use VGG model
+    """
+    tensortype = type(batch.data)
+    (r, g, b) = torch.chunk(batch, 3, dim=1)
+    batch = torch.cat((b, g, r), dim=1)  # convert RGB to BGR
+    batch = (batch + 1) * 255 * 0.5  # [-1, 1] -> [0, 255]
+    mean = tensortype(batch.data.size()).cuda()
+    mean[:, 0, :, :] = 103.939
+    mean[:, 1, :, :] = 116.779
+    mean[:, 2, :, :] = 123.680
+    batch = batch.sub(Variable(mean))  # subtract mean
+    return batch

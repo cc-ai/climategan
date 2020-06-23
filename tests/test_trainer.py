@@ -59,14 +59,15 @@ if __name__ == "__main__":
     # -------------------------------------------------
     # -----  Test trainer.get_translation_loss()  -----
     # -------------------------------------------------
-    if test_get_translation_loss:
-        print_header("test_get_translation_loss")
-        if not trainer.is_setup:
-            print("Setting up")
-            trainer.setup()
 
-        loss = trainer.get_translation_loss(multi_domain_batch)
-        print("Loss {}".format(loss))
+    # if test_get_translation_loss:
+    #     print_header("test_get_translation_loss")
+    #     if not trainer.is_setup:
+    #         print("Setting up")
+    #         trainer.setup()
+
+    #     loss = trainer.get_translation_loss(multi_domain_batch)
+    #     print("Loss {}".format(loss))
 
     # ------------------------------------------------
     # -----  Test trainer.get_classifier_loss()  -----
