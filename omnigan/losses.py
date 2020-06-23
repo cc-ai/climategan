@@ -129,7 +129,7 @@ class TravelLoss(nn.Module):
 
 
 class TVLoss(nn.Module):
-    """Total Variational Regularization: Penalizes differences in 
+    """Total Variational Regularization: Penalizes differences in
         neighboring pixel values
 
         source: https://github.com/jxgu1016/Total_Variation_Loss.pytorch/blob/master/TVLoss.py
@@ -290,78 +290,54 @@ def get_losses(opts, verbose):
 
 
 def prob_2_entropy(prob):
-    """ 
+    """
     convert probabilistic prediction maps to weighted self-information maps
     """
     n, c, h, w = prob.size()
     return -torch.mul(prob, torch.log2(prob + 1e-30)) / np.log2(c)
 
-# class CrossEntropyLoss(nn.Module):
-#     """
-#     Calculate the cross entropy loss by function cross_entropy_2d
-#     """
-#     # Almost the same as cross_entropy_2d, I just integrate .long().to(prediction.device) on the target
-#     def __init__(self):
-#         super().__init__()
-#         self.loss = cross_entropy_2d
 
-#     def __call__(self, prediction, target):
-#         return self.loss(prediction, target.long().to(prediction.device))
-
-
-class BCELoss(nn.Module):
+class CustomBCELoss(nn.Module):
     # Almost the same as BCEWithLogitsLoss
     def __init__(self):
         super().__init__()
         self.loss = torch.nn.BCEWithLogitsLoss()
 
     def __call__(self, prediction, target):
-        return self.loss(prediction, torch.FloatTensor(prediction.size()).
-                        fill_(target).to(prediction.get_device()))
-
-
-class ADVENTSegLoss(nn.Module):
-    def __init__(
-        self,
-        opts,
-    ):
-        super().__init__()
-        self.opts = opts
-        self.loss = cross_entropy_2d
-
-    def __call__(self, prediction1, prediction2, target):
-        if self.opts.dis.ADVENT.multi_level == True:
-            loss_seg_src_aux = self.loss(prediction1, target.long().to(prediction1.device))
-        else:
-            loss_seg_src_aux = 0
-        loss_seg_src_main = self.loss(prediction2, target.long().to(prediction2.device))
-        
-        loss = (self.opts.train.lambdas.advent.seg_main * loss_seg_src_main
-                + self.opts.train.lambdas.advent.seg_aux * loss_seg_src_aux)
-        
-        return loss
+        return self.loss(
+            prediction,
+            torch.FloatTensor(prediction.size())
+            .fill_(target)
+            .to(prediction.get_device()),
+        )
 
 
 class ADVENTAdversarialLoss(nn.Module):
-    def __init__(
-        self,
-        opts
-    ):
+    def __init__(self, opts):
         super().__init__()
         self.opts = opts
-        self.loss = BCELoss()
-    
-    def __call__(self, prediction1, prediction2, target, discriminator_main, discriminator_aux=None):
-        
-        if self.opts.dis.ADVENT.multi_level == True:
-            d_out_aux = discriminator_aux(prob_2_entropy(F.softmax(prediction1, dim = 1)))
+        self.loss = CustomBCELoss()
+
+    def __call__(
+        self,
+        prediction1,
+        prediction2,
+        target,
+        discriminator_main,
+        discriminator_aux=None,
+    ):
+
+        if self.opts.dis.ADVENT.multi_level is True:
+            d_out_aux = discriminator_aux(prob_2_entropy(F.softmax(prediction1, dim=1)))
             loss_adv_trg_aux = self.loss(d_out_aux, target)
         else:
             loss_adv_trg_aux = 0
-        d_out_main = discriminator_main(prob_2_entropy(F.softmax(prediction2, dim = 1)))
+        d_out_main = discriminator_main(prob_2_entropy(F.softmax(prediction2, dim=1)))
         loss_adv_trg_main = self.loss(d_out_main, target)
-        
-        loss = (self.opts.train.lambdas.advent.adv_main * loss_adv_trg_main
-                + self.opts.train.lambdas.advent.adv_aux * loss_adv_trg_aux)
-        
+
+        loss = (
+            self.opts.train.lambdas.advent.adv_main * loss_adv_trg_main
+            + self.opts.train.lambdas.advent.adv_aux * loss_adv_trg_aux
+        )
+
         return loss

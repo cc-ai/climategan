@@ -121,8 +121,7 @@ dis:
     <<: *default-dis
   m:
     <<: *default-dis
-    multi_level:
-      false
+    multi_level: false
 
 # -------------------------------
 # -----  Domain Classifier  -----
