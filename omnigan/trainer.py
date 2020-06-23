@@ -107,12 +107,11 @@ class Trainer:
 
         losses = loss_to_update.copy()
 
-        if "simclr" not in self.opts.tasks:
-            if self.opts.train.log_level == 1:
-                # Only log aggregated losses: delete other keys in losses
-                for k in self.logger.losses:
-                    if k not in {"representation", "generator", "painter"}:
-                        del losses[k]
+        if self.opts.train.log_level == 1:
+            # Only log aggregated losses: delete other keys in losses
+            for k in loss_to_update:
+                if k not in {"representation", "generator", "painter"}:
+                    del losses[k]
         # convert losses into a single-level dictionnary
 
         losses = flatten_opts(losses)
