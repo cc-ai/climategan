@@ -167,6 +167,7 @@ class Trainer:
         self.logger.time.start_time = start_time
 
         if "simclr" in self.opts.tasks:
+            assert len(self.opts.tasks) == 1  # We want to train simclr alone
             self.loaders = get_simclr_loaders(self.opts)
         else:
             self.loaders = get_all_loaders(self.opts)
@@ -630,10 +631,6 @@ class Trainer:
                 if update_task == "simclr":
                     zi = self.G.decoders[update_task](hi)
                     zj = self.G.decoders[update_task](hj)
-                    task_tensors[update_task] = {
-                        "zi": zi,
-                        "zj": zj,
-                    }
                     update_loss = self.losses["G"]["tasks"][update_task](zi, zj)
                     step_loss += update_loss * lambdas.G[update_task]
                     self.logger.losses.task_loss[update_task][
@@ -1026,10 +1023,6 @@ class Trainer:
                     if update_task == "simclr":
                         zi = self.G.decoders[update_task](hi)
                         zj = self.G.decoders[update_task](hj)
-                        task_tensors[update_task] = {
-                            "zi": zi,
-                            "zj": zj,
-                        }
                         update_loss = self.losses["G"]["tasks"][update_task](zi, zj)
                         self.logger.losses.task_loss[update_task][
                             domain
