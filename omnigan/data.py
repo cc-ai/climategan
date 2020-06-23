@@ -79,6 +79,10 @@ def pil_image_loader(path, task, domain):
     else:
         raise ValueError("Unknown data type {}".format(path))
 
+    # Convert from RGBA to RGB for images
+    if len(arr.shape) == 3 and arr.shape[-1] == 4:
+        arr = arr[:, :, 0:3]
+
     if task == "m":
         arr[arr != 0] = 255
         # Make sure mask is single-channel
@@ -200,7 +204,7 @@ def get_all_loaders(opts):
     loaders = {}
     for mode in ["train", "val"]:
         loaders[mode] = {}
-        for domain in ["r", "s"]:
+        for domain in ["r", "rf", "s"]:
             if mode in opts.data.files:
                 if domain in opts.data.files[mode]:
                     loaders[mode][domain] = get_loader(mode, domain, opts)

@@ -21,9 +21,6 @@ import omnigan.strings as strings
 def get_gen(opts, latent_shape=None, verbose=0):
     G = OmniGenerator(opts, latent_shape, verbose)
     for model in G.decoders:
-        if model == "t":
-            if opts.gen.t.use_spade or opts.gen.t.use_bit_conditioning:
-                continue
         net = G.decoders[model]
         if isinstance(net, nn.ModuleDict):
             for domain_model in net.keys():
@@ -75,6 +72,7 @@ class OmniGenerator(nn.Module):
             self.decoders["m"] = MaskDecoder(opts)
 
         self.decoders = nn.ModuleDict(self.decoders)
+        self.painter = FullSpadeGen(opts)
 
     def encode(self, x):
         return self.encoder.forward(x)
@@ -131,71 +129,24 @@ class SegmentationDecoder(BaseDecoder):
         )
 
 
-class SpadeTranslationDict(nn.ModuleDict):
-    def __init__(self, latent_shape, opts):
-        super().__init__()
-        self.opts = opts
-        self._model = SpadeTranslationDecoder(latent_shape, opts)
+class FullSpadeGen(nn.Module):
+    def __init__(self, opts):
+        super(FullSpadeGen, self).__init__()
 
-    def keys(self):
-        return ["f", "n"]
+        n_downsample = opts.gen.p.spade_n_up
 
-    def __getitem__(self, key):
-        self._model.update_bit(key)
-        return self._model
+        self.latent_dim = opts.gen.p.latent_dim
+        self.batch_size = opts.data.loaders.batch_size
 
-    def forward(self, *args, **kwargs):
-        raise NotImplementedError(
-            "Cannot forward the SpadeTranslationDict, chose a domain"
+        # Get size of latent vector based on downsampling:
+        self.dec = SpadeDecoder(
+            latent_dim=self.latent_dim,
+            cond_nc=3,
+            spade_n_up=n_downsample,
+            spade_use_spectral_norm=True,
+            spade_param_free_norm="instance",
+            spade_kernel_size=3,
         )
 
-    def __str__(self):
-        return str(self._model).strip()
-
-
-class SpadeTranslationDecoder(SpadeDecoder):
-    def __init__(self, latent_shape, opts):
-        self.bit = None
-        self.use_bit_conditioning = opts.gen.t.use_bit_conditioning
-
-        cond_nc = 4  # 4 domains => 4-channel bitmap
-        cond_nc = 2 if self.use_bit_conditioning else 0  # 2 domains => 2-channel bitmap
-        if "d" in opts.tasks:
-            cond_nc += 1
-        if "h" in opts.tasks:
-            cond_nc += 1
-        if "s" in opts.tasks:
-            cond_nc += opts.gen.s.num_classes
-        if "w" in opts.tasks:
-            cond_nc += 1
-        self.cond_nc = cond_nc
-
-        super().__init__(
-            latent_shape,  # c x h x w of z
-            cond_nc,  # number of channels in the conditioning tensor
-            opts.gen.t.spade_n_up,  # number of upsampling
-            opts.gen.t.spade_use_spectral_norm,  # use spectral norm in spade blocks?
-            opts.gen.t.spade_param_free_norm,  # parameter-free norm in spade blocks
-            opts.gen.t.spade_kernel_size,  # 3
-        )
-        self.register_buffer("f_bit", torch.tensor([1, 0]))
-        self.register_buffer("n_bit", torch.tensor([0, 1]))
-
-    def update_bit(self, key):
-        if key == "f":
-            self.bit = self.f_bit
-        elif key == "n":
-            self.bit = self.n_bit
-        else:
-            raise KeyError(f"update_bit: unknown key {key}")
-
-    def concat_bit_to_seg(self, seg):
-        bit = get_4D_bit(seg.shape, self.bit)
-        return torch.cat(
-            [bit.to(torch.float32).to(seg.device), seg.to(torch.float32)], dim=1
-        )
-
-    def forward(self, z, seg):
-        if self.use_bit_conditioning:
-            seg = self.concat_bit_to_seg(seg)
-        return self._forward(z, seg)
+    def forward(self, z, cond):
+        return self.dec(z, cond)

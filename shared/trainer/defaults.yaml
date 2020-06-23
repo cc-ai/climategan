@@ -2,8 +2,8 @@ output_path: /network/tmp1/schmidtv/yb_runs/test_v1
 # -------------------
 # -----  Tasks  -----
 # -------------------
-tasks: [d, s, m]
-
+tasks: [d, s, m, p]
+art: paint # one of {"paint", "mask"}
 # ----------------
 # ----- Data -----
 # ----------------
@@ -13,9 +13,11 @@ data:
     train:
       r: train_r.json
       s: train_s.json
+      rf: train_rf.json
     val:
       r: val_r.json
       s: val_s.json
+      rf: val_rf.json
 
   loaders:
     batch_size: 2
@@ -56,13 +58,13 @@ gen:
     n_downsample: &n_downsample 3 # number of downsampling layers in encoder | dim 32 + down 3 => z = 256 x 32 x 32
     n_upsample: *n_downsample # upsampling in spade decoder ; should match encoder.n_downsample
     pad_type: reflect # padding type [zero/reflect]
-    res_dim: 2048 # Resblock number of channels (=latent space's), should be 2048 if using deeplabv2, 256 otherwise
+    res_dim: 256 # Resblock number of channels (=latent space's), should be 2048 if using deeplabv2, 256 otherwise
     res_norm: spectral # ResBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
-    proj_dim: 64 # Dim of projection from latent space
+    proj_dim: 32 # Dim of projection from latent space
   encoder: # specific params for the encoder
     <<: *default-gen
     dim: 32
-    architecture: deeplabv2 # [deeplabv2 (res_dim = 2048) | base (res_dim = 256)]
+    architecture: base # [deeplabv2 (res_dim = 2048) | base (res_dim = 256)]
     input_dim: 3 # input number of channels
     n_res: 1 # number of residual blocks in content encoder/decoder
     norm: spectral # ConvBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
@@ -80,16 +82,15 @@ gen:
     <<: *default-gen
     num_classes: 19
     output_dim: 19
-  t: # specific params for the translation SPADE decoder
-    <<: *default-gen
+  p: # specific params for the SPADE painter
+    latent_dim: 512
     output_dim: 3 # output dimension
     pad_type: zero # padding type [zero/reflect]
-    use_spade: True # whether to condition the decoding on other inferences, à la SPADE or not
     spade_kernel_size: 3 # kernel size within SPADE norm layers
     spade_param_free_norm: instance # what param-free normalization to apply in SPADE normalization
     spade_use_spectral_norm: true
-    spade_n_up: *n_downsample # number of upsampling layers in the translation decoder is equal to number of downsamplings in the encoder.  output's h and w are z's h and w x 2^spade_num_upsampling_layers | z:32 and spade_n_up:4 => output 512
-    use_bit_conditioning: True
+    spade_n_up: 7 # number of upsampling layers in the translation decoder is equal to number of downsamplings in the encoder.  output's h and w are z's h and w x 2^spade_num_upsampling_layers | z:32 and spade_n_up:4 => output 512
+
   m: # specific params for the mask-generation decoder
     <<: *default-gen
     output_dim: 1
@@ -117,7 +118,7 @@ dis:
     init_gain: 0.2
     use_sigmoid: false
 
-  t:
+  p:
     <<: *default-dis
   m:
     <<: *default-dis
@@ -155,12 +156,13 @@ train:
       m:
         main: 1 # Main prediction loss, i.e. GAN or BCE
         tv: 1 # Total variational loss (for smoothing)
-      t:
-        auto: 1 # auto-encoding, reconstruction
-        cycle: 1 # cycle consistency
+      p:
         gan: 1 # gan loss
         sm: 1 # semantic matching
         dm: 1 # depth matching
+        tv: 500
+        vgg: 1
+        context: 12
 
       classifier: 1
     C: 1
