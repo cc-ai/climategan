@@ -387,10 +387,11 @@ class Trainer:
                 raise ValueError("Unknown opts.art {}".format(self.opts.art))
             self.update_learning_rates()
         else:
-            self.log_comet_images("train", "r")
-            if self.opts.gen.simclr.domain_adaptation:
-                self.log_comet_images("train", "s")
-            if self.logger.epoch >= 10:
+            if self.logger.epoch == 0:  # Only want to store input images once
+                self.log_comet_images("train", "r")
+                if self.opts.gen.simclr.domain_adaptation:
+                    self.log_comet_images("train", "s")
+            elif self.logger.epoch >= 10:
                 self.update_learning_rates()
 
     def log_step_time(self, step_time):
@@ -406,7 +407,7 @@ class Trainer:
 
         save_images = {}
         if domain != "rf":
-            for im_set in self.display_images[mode][domain]:
+            for i, im_set in enumerate(self.display_images[mode][domain]):
                 if "simclr" not in self.opts.tasks:
                     x = im_set["data"]["x"].unsqueeze(0).to(self.device)
 
@@ -434,9 +435,10 @@ class Trainer:
                 else:
                     xi = im_set["data"]["simclr"]["xi"].unsqueeze(0).to(self.device)
                     xj = im_set["data"]["simclr"]["xj"].unsqueeze(0).to(self.device)
-                    save_images["simclr"] = []
-                    save_images["simclr"].append(xi)
-                    save_images["simclr"].append(xj)
+                    key_name = "simclr" + str(i)
+                    save_images[key_name] = []
+                    save_images[key_name].append(xi)
+                    save_images[key_name].append(xj)
 
             for task in save_images.keys():
                 # Write images:
@@ -1026,9 +1028,10 @@ class Trainer:
             else:
                 raise ValueError("Unknown opts.art {}".format(self.opts.art))
         else:
-            self.log_comet_images("train", "r")
-            if self.opts.gen.simclr.domain_adaptation:
-                self.log_comet_images("train", "s")
+            if self.logger.epoch == 0:  # Only want to store input images once
+                self.log_comet_images("train", "r")
+                if self.opts.gen.simclr.domain_adaptation:
+                    self.log_comet_images("train", "s")
         print("******************DONE EVALUATING*********************")
 
     def save(self):

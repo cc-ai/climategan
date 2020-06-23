@@ -113,6 +113,8 @@ class GaussianBlur:
         self.min = min
         self.max = max
         # kernel size is set to be 10% of the image height/width
+        if int(kernel_size) % 2 == 0:
+            kernel_size += 1  # Kernel size must be odd
         self.kernel_size = kernel_size
 
     def __call__(self, data):
