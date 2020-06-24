@@ -129,7 +129,7 @@ class TravelLoss(nn.Module):
 
 
 class TVLoss(nn.Module):
-    """Total Variational Regularization: Penalizes differences in 
+    """Total Variational Regularization: Penalizes differences in
         neighboring pixel values
 
         source: https://github.com/jxgu1016/Total_Variation_Loss.pytorch/blob/master/TVLoss.py
@@ -216,7 +216,62 @@ class L1Loss(MSELoss):
         self.loss = torch.nn.L1Loss()
 
 
-def get_losses(opts, verbose):
+##################################################################################
+# VGG network definition
+##################################################################################
+from torchvision import models
+
+# Source: https://github.com/NVIDIA/pix2pixHD
+class Vgg19(torch.nn.Module):
+    def __init__(self, requires_grad=False):
+        super(Vgg19, self).__init__()
+        vgg_pretrained_features = models.vgg19(pretrained=True).features
+        self.slice1 = torch.nn.Sequential()
+        self.slice2 = torch.nn.Sequential()
+        self.slice3 = torch.nn.Sequential()
+        self.slice4 = torch.nn.Sequential()
+        self.slice5 = torch.nn.Sequential()
+        for x in range(2):
+            self.slice1.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(2, 7):
+            self.slice2.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(7, 12):
+            self.slice3.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(12, 21):
+            self.slice4.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(21, 30):
+            self.slice5.add_module(str(x), vgg_pretrained_features[x])
+        if not requires_grad:
+            for param in self.parameters():
+                param.requires_grad = False
+
+    def forward(self, X):
+        h_relu1 = self.slice1(X)
+        h_relu2 = self.slice2(h_relu1)
+        h_relu3 = self.slice3(h_relu2)
+        h_relu4 = self.slice4(h_relu3)
+        h_relu5 = self.slice5(h_relu4)
+        out = [h_relu1, h_relu2, h_relu3, h_relu4, h_relu5]
+        return out
+
+
+# Source: https://github.com/NVIDIA/pix2pixHD
+class VGGLoss(nn.Module):
+    def __init__(self, device):
+        super().__init__()
+        self.vgg = Vgg19().to(device).eval()
+        self.criterion = nn.L1Loss()
+        self.weights = [1.0 / 32, 1.0 / 16, 1.0 / 8, 1.0 / 4, 1.0]
+
+    def forward(self, x, y):
+        x_vgg, y_vgg = self.vgg(x), self.vgg(y)
+        loss = 0
+        for i in range(len(x_vgg)):
+            loss += self.weights[i] * self.criterion(x_vgg[i], y_vgg[i].detach())
+        return loss
+
+
+def get_losses(opts, verbose, device=None):
     """Sets the loss functions to be used by G, D and C, as specified
     in the opts and returns a dictionnary of losses:
 
@@ -232,23 +287,24 @@ def get_losses(opts, verbose):
     }
     """
 
-    losses = {"G": {"a": {}, "t": {}, "tasks": {}}, "D": {}, "C": {}}
+    losses = {
+        "G": {"a": {}, "p": {}, "tasks": {}},
+        "D": {"default": {}, "advent": {}},
+        "C": {},
+    }
 
     # ------------------------------
     # -----  Generator Losses  -----
     # ------------------------------
-    # translation losses
-    if "a" in opts.tasks:
-        losses["G"]["a"]["gan"] = GANLoss()
-        losses["G"]["a"]["cycle"] = MSELoss()
-        losses["G"]["a"]["auto"] = MSELoss()
-        # ? add sm and dm losses too as in "t"
-    if "t" in opts.tasks:
-        losses["G"]["t"]["gan"] = GANLoss()
-        losses["G"]["t"]["cycle"] = MSELoss()
-        losses["G"]["t"]["auto"] = MSELoss()
-        losses["G"]["t"]["sm"] = PixelCrossEntropy()
-        losses["G"]["t"]["dm"] = MSELoss()
+    # painter losses
+    if "p" in opts.tasks:
+        losses["G"]["p"]["gan"] = GANLoss()
+        losses["G"]["p"]["sm"] = PixelCrossEntropy()
+        losses["G"]["p"]["dm"] = MSELoss()
+        losses["G"]["p"]["vgg"] = VGGLoss(device)
+        losses["G"]["p"]["tv"] = TVLoss(opts.train.lambdas.G.p.tv)
+        losses["G"]["p"]["context"] = L1Loss()
+
     # task losses
     # ? * add discriminator and gan loss to these task when no ground truth
     # ?   instead of noisy label
@@ -282,86 +338,52 @@ def get_losses(opts, verbose):
     # ----------------------------------
     # -----  Discriminator Losses  -----
     # ----------------------------------
-    losses["D"] = GANLoss(
+    losses["D"]["default"] = GANLoss(
         soft_shift=opts.dis.soft_shift, flip_prob=opts.dis.flip_prob, verbose=verbose,
     )
-    losses["D.m.advent"] = ADVENTAdversarialLoss(opts)
+    losses["D"]["advent"] = ADVENTAdversarialLoss(opts)
     return losses
 
 
 def prob_2_entropy(prob):
-    """ 
+    """
     convert probabilistic prediction maps to weighted self-information maps
     """
     n, c, h, w = prob.size()
     return -torch.mul(prob, torch.log2(prob + 1e-30)) / np.log2(c)
 
-# class CrossEntropyLoss(nn.Module):
-#     """
-#     Calculate the cross entropy loss by function cross_entropy_2d
-#     """
-#     # Almost the same as cross_entropy_2d, I just integrate .long().to(prediction.device) on the target
-#     def __init__(self):
-#         super().__init__()
-#         self.loss = cross_entropy_2d
 
-#     def __call__(self, prediction, target):
-#         return self.loss(prediction, target.long().to(prediction.device))
+class CustomBCELoss(nn.Module):
+    """
+        The first argument is a tensor and the second arguement is an int.
+        There is no need to take simoid before calling this function.
+    """
 
-
-class BCELoss(nn.Module):
-    # Almost the same as BCEWithLogitsLoss
     def __init__(self):
         super().__init__()
         self.loss = torch.nn.BCEWithLogitsLoss()
 
     def __call__(self, prediction, target):
-        return self.loss(prediction, torch.FloatTensor(prediction.size()).
-                        fill_(target).to(prediction.get_device()))
-
-
-class ADVENTSegLoss(nn.Module):
-    def __init__(
-        self,
-        opts,
-    ):
-        super().__init__()
-        self.opts = opts
-        self.loss = cross_entropy_2d
-
-    def __call__(self, prediction1, prediction2, target):
-        if self.opts.dis.ADVENT.multi_level == True:
-            loss_seg_src_aux = self.loss(prediction1, target.long().to(prediction1.device))
-        else:
-            loss_seg_src_aux = 0
-        loss_seg_src_main = self.loss(prediction2, target.long().to(prediction2.device))
-        
-        loss = (self.opts.train.lambdas.advent.seg_main * loss_seg_src_main
-                + self.opts.train.lambdas.advent.seg_aux * loss_seg_src_aux)
-        
-        return loss
+        return self.loss(
+            prediction,
+            torch.FloatTensor(prediction.size())
+            .fill_(target)
+            .to(prediction.get_device()),
+        )
 
 
 class ADVENTAdversarialLoss(nn.Module):
-    def __init__(
-        self,
-        opts
-    ):
+    """
+        TODO
+    """
+
+    def __init__(self, opts):
         super().__init__()
         self.opts = opts
-        self.loss = BCELoss()
-    
-    def __call__(self, prediction1, prediction2, target, discriminator_main, discriminator_aux=None):
-        
-        if self.opts.dis.ADVENT.multi_level == True:
-            d_out_aux = discriminator_aux(prob_2_entropy(F.softmax(prediction1, dim = 1)))
-            loss_adv_trg_aux = self.loss(d_out_aux, target)
-        else:
-            loss_adv_trg_aux = 0
-        d_out_main = discriminator_main(prob_2_entropy(F.softmax(prediction2, dim = 1)))
-        loss_adv_trg_main = self.loss(d_out_main, target)
-        
-        loss = (self.opts.train.lambdas.advent.adv_main * loss_adv_trg_main
-                + self.opts.train.lambdas.advent.adv_aux * loss_adv_trg_aux)
-        
-        return loss
+        self.loss = CustomBCELoss()
+
+    def __call__(self, prediction, target, discriminator):
+        d_out = discriminator(prob_2_entropy(F.softmax(prediction, dim=1)))
+        loss_ = self.loss(d_out, target)
+
+        return loss_
