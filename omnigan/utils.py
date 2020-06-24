@@ -368,7 +368,7 @@ def get_comet_rest_api_key(path_to_config_file=None):
 
 
 def getListOfFiles(dirName):
-    # create a list of file and sub directories 
+    # create a list of file and sub directories
     listOfFile = os.listdir(dirName)
     allFiles = list()
     for entry in listOfFile:
@@ -381,7 +381,12 @@ def getListOfFiles(dirName):
     return allFiles
 
 
-def makeJsonFile(list_of_the_keys, list_of_the_addresses, name_of_the_json_file='jsonfile.json'):
+def makeJsonFile(
+    list_of_the_keys,
+    list_of_the_addresses,
+    splitter="/",  # for windows user, use "\\" instead of using "/"
+    name_of_the_json_file="jsonfile.json",
+):
     """
     How to use it?
     e.g.
@@ -391,16 +396,40 @@ def makeJsonFile(list_of_the_keys, list_of_the_addresses, name_of_the_json_file=
     '/network/tmp1/ccai/data/munit_dataset/trainA_megadepth_resized/'
     ], 'train_r_resized.json')
     """
-    
+
     print("Please Make sure there is a file with the same name in each folder!")
-    assert len(list_of_the_keys) == len(list_of_the_addresses), "list_of_the_keys and list_of_the_addresses must have the same length!"
-    List_of_files_0 = getListOfFiles(list_of_the_addresses[0])
+    assert len(list_of_the_keys) == len(
+        list_of_the_addresses
+    ), "list_of_the_keys and list_of_the_addresses must have the same length!"
+
+    Lists_of_files = [
+        getListOfFiles(list_of_the_addresses[j]) for j in range(len(list_of_the_keys))
+    ]
+
+    Dict_of_fileAddressMap = {
+        list_of_the_keys[j]: {
+            ".".join(file.split(splitter)[-1].split(".")[:-1]): file
+            for file in Lists_of_files[j]
+        }
+        for j in range(len(list_of_the_keys))
+    }
+    # The keys of the Dict_of_fileAddressMap are like 'x', 'm', 'd'...
+    # The values of the Dict_of_fileAddressMap are a dictionary whose keys are the filenames without extension
+    # whose values are the path of the filename
+    # e.g. Dict_of_fileAddressMap = {'x': {'A': '/network/tmp1/ccai/data/munit_dataset/trainA_size_1200/A.png', ...},
+    #                                'm': {'A': '/network/tmp1/ccai/data/munit_dataset/seg_trainA_size_1200/A.jpg',...}
+    #                                'd': {'A': '/network/tmp1/ccai/data/munit_dataset/trainA_megadepth_resized/A.bmp',...}
+    #                                ...}
+
     listofDict = []
-    for file in List_of_files_0:
-        filename = file.split("/")[-1]
+    for file in Lists_of_files[0]:
+        filename = file.split(splitter)[-1]  # the filename with 'x' extension
+        filename_ = ".".join(filename.split(".")[:-1])  # the filename without extension
         tmpDict = {}
         for i in range(len(list_of_the_keys)):
-            tmpDict[list_of_the_keys[i]] = list_of_the_addresses[i] + filename
+            tmpDict[list_of_the_keys[i]] = Dict_of_fileAddressMap[list_of_the_keys[i]][
+                filename_
+            ]
         listofDict.append(tmpDict)
-    with open(name_of_the_json_file, 'w', encoding = "utf-8") as outfile:
+    with open(name_of_the_json_file, "w", encoding="utf-8") as outfile:
         json.dump(listofDict, outfile, ensure_ascii=False)
