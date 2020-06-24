@@ -249,7 +249,7 @@ class BaseDecoder(nn.Module):
     ):
         super().__init__()
         self.model = [
-            Conv2dBlock(input_dim, proj_dim, 3, 1, 1, norm=res_norm, activation=activ)
+            Conv2dBlock(input_dim, proj_dim, 1, 1, 0, norm=res_norm, activation=activ)
         ]
 
         self.model += [ResBlocks(n_res, proj_dim, res_norm, activ, pad_type=pad_type)]
@@ -366,7 +366,7 @@ class SPADEResnetBlock(nn.Module):
 class SpadeDecoder(nn.Module):
     def __init__(
         self,
-        latent_shape,
+        latent_dim,
         cond_nc,
         spade_n_up,
         spade_use_spectral_norm,
@@ -398,8 +398,7 @@ class SpadeDecoder(nn.Module):
         """
         super().__init__()
 
-        assert len(latent_shape) in {3, 4}
-        self.z_nc = latent_shape[0 if len(latent_shape) == 3 else 1]
+        self.z_nc = latent_dim
         self.spade_n_up = spade_n_up
 
         self.head_0 = SPADEResnetBlock(
@@ -444,6 +443,15 @@ class SpadeDecoder(nn.Module):
 
         self.final_nc = self.z_nc // 2 ** (spade_n_up - 2)
 
+        self.final_spade = SPADEResnetBlock(
+            self.final_nc,
+            self.final_nc,
+            cond_nc,
+            spade_use_spectral_norm,
+            spade_param_free_norm,
+            spade_kernel_size,
+        )
+
         self.conv_img = nn.Conv2d(self.final_nc, 3, 3, padding=1)
 
         self.upsample = nn.Upsample(scale_factor=2)
@@ -459,7 +467,7 @@ class SpadeDecoder(nn.Module):
         # self.conv_img = fn(self.conv_img)
         return self
 
-    def _forward(self, z, cond):
+    def forward(self, z, cond):
         y = self.head_0(z, cond)
 
         y = self.upsample(y)
@@ -471,6 +479,7 @@ class SpadeDecoder(nn.Module):
             y = self.upsample(y)
             y = up(y, cond)
 
+        y = self.final_spade(y, cond)
         y = self.conv_img(F.leaky_relu(y, 2e-1))
         y = torch.tanh(y)
         return y

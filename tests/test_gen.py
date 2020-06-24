@@ -8,6 +8,7 @@ import torch
 
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
 from omnigan.generator import get_gen
+from omnigan.generator import FullSpadeGen
 from omnigan.utils import load_test_opts
 from omnigan.tutils import get_num_params
 from run import print_header
@@ -60,7 +61,6 @@ if __name__ == "__main__":
         print(sum(p.numel() for p in G.decoders.parameters()))
 
     G = get_gen(opts).to(device)
-    G.set_translation_decoder(latent_space_dims, device)
 
     # -------------------------------
     # -----  Test Architecture  -----
@@ -96,33 +96,27 @@ if __name__ == "__main__":
                 else:
                     print(dec, G.decoders[dec](z).shape)
 
-    #! Holding off on translation...
-    """
-    # --------------------------------------------------------------------
-    # -----  Test translation depending on use_bit_conditioning and  -----
-    # -----  use_spade                                               -----
-    # --------------------------------------------------------------------
-    if test_translation:
-        print_header("test_translation use_bit_conditioning")
-        opts.gen.t.use_spade = True
-        opts.gen.t.use_bit_conditioning = True
-        G = get_gen(opts).to(device)
-        z = G.encode(image)
-        G.set_translation_decoder(latent_space_dims, device)
-        print(G.forward(image, translator="f").shape)
+    # --------------------------
+    # -----  Test painter  -----
+    # --------------------------
 
-        print_header("test_translation use_spade no use_bit_conditioning")
-        opts.gen.t.use_spade = True
-        opts.gen.t.use_bit_conditioning = False
-        G = get_gen(opts).to(device)
-        G.set_translation_decoder(latent_space_dims, device)
-        print(G.forward(image, translator="f").shape)
+    print_header("testing painter")
 
-        print_header("test_translation vanilla")
-        opts.gen.t.use_spade = False
-        opts.gen.t.use_bit_conditioning = False
-        G = get_gen(opts).to(device)
-        G.set_translation_decoder(latent_space_dims, device)
-        print(G.forward(image, translator="f").shape)
-    """
+    size = 256
+    image = torch.Tensor(batch_size, 3, size, size).uniform_(-1, 1).to(device)
+    mask = torch.Tensor(batch_size, 3, size, size).uniform_(0, 1).to(device)
+    latent_size = size // (2 ** opts.gen.p.spade_n_up)
 
+    painter = FullSpadeGen(opts).to(device)
+
+    # Sample latent vector
+    z = (
+        torch.empty(batch_size, opts.gen.p.latent_dim, latent_size, latent_size,)
+        .normal_(mean=0, std=1.0)
+        .to(device)
+    )
+
+    out = painter(z, image * mask)
+    out2 = G.painter(z, image * mask)
+    assert out.shape == out2.shape
+    print("Shape of painter output: ", out.shape)

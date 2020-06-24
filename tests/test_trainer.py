@@ -23,16 +23,17 @@ if __name__ == "__main__":
     trainer.setup()
     multi_batch_tuple = next(iter(trainer.train_loaders))
     multi_domain_batch = {
-        batch["domain"][0]: trainer.batch_to_device(batch) for batch in multi_batch_tuple
+        batch["domain"][0]: trainer.batch_to_device(batch)
+        for batch in multi_batch_tuple
     }
     # -------------------------
     # -----  Test Config  -----
     # -------------------------
-    test_setup = False
-    test_get_representation_loss = False
-    test_get_translation_loss = False
-    test_get_classifier_loss = False
-    test_update_g = False
+    test_setup = True
+    test_get_representation_loss = True
+    test_get_translation_loss = True
+    test_get_classifier_loss = True
+    test_update_g = True
     test_update_d = False
     test_full_step = True
 
@@ -53,19 +54,20 @@ if __name__ == "__main__":
             trainer.setup()
 
         loss = trainer.get_representation_loss(multi_domain_batch)
-        print("Loss {}".format(loss.item()))
+        print("Loss {}".format(loss))
 
     # -------------------------------------------------
     # -----  Test trainer.get_translation_loss()  -----
     # -------------------------------------------------
-    if test_get_translation_loss:
-        print_header("test_get_translation_loss")
-        if not trainer.is_setup:
-            print("Setting up")
-            trainer.setup()
 
-        loss = trainer.get_translation_loss(multi_domain_batch)
-        print("Loss {}".format(loss.item()))
+    # if test_get_translation_loss:
+    #     print_header("test_get_translation_loss")
+    #     if not trainer.is_setup:
+    #         print("Setting up")
+    #         trainer.setup()
+
+    #     loss = trainer.get_translation_loss(multi_domain_batch)
+    #     print("Loss {}".format(loss))
 
     # ------------------------------------------------
     # -----  Test trainer.get_classifier_loss()  -----
@@ -131,7 +133,9 @@ if __name__ == "__main__":
         trainer.opts.train.representational_training = False
         trainer.opts.train.representation_steps = 100
         trainer.logger.global_step = 200
-        print(False, 100, 200, "Not Using repr_tr and step < repr_step and step % 2 == 0")
+        print(
+            False, 100, 200, "Not Using repr_tr and step < repr_step and step % 2 == 0"
+        )
         trainer.update_g(multi_domain_batch, 1)
         print()
 
@@ -139,7 +143,9 @@ if __name__ == "__main__":
         trainer.opts.train.representational_training = False
         trainer.opts.train.representation_steps = 100
         trainer.logger.global_step = 201
-        print(False, 100, 201, "Not Using repr_tr and step > repr_step and step % 2 == 1")
+        print(
+            False, 100, 201, "Not Using repr_tr and step > repr_step and step % 2 == 1"
+        )
         trainer.update_g(multi_domain_batch, 1)
         print()
 
@@ -169,6 +175,7 @@ if __name__ == "__main__":
     # -----  Test full update step  -----
     # -----------------------------------
     if test_full_step:
+        trainer.logger.global_step = 0
         trainer.verbose = 0
         trainer.losses["D"].verbose = 0
         print_header("test FULL STEP")
@@ -176,7 +183,9 @@ if __name__ == "__main__":
             print("Setting up")
             trainer.setup()
 
-        encoder_weights = [[p.detach().cpu().numpy()[:5] for p in trainer.G.encoder.parameters()]]
+        encoder_weights = [
+            [p.detach().cpu().numpy()[:5] for p in trainer.G.encoder.parameters()]
+        ]
 
         print("First update: extrapolation")
         print("  - Update g")
@@ -202,7 +211,9 @@ if __name__ == "__main__":
         print("Freezing encoder")
         freeze(trainer.G.encoder)
         trainer.representation_is_frozen = True
-        encoder_weights += [[p.cpu().numpy()[:5] for p in trainer.G.encoder.parameters()]]
+        encoder_weights += [
+            [p.cpu().numpy()[:5] for p in trainer.G.encoder.parameters()]
+        ]
         trainer.logger.global_step += 1
 
         print("Third update: extrapolation")
@@ -223,7 +234,9 @@ if __name__ == "__main__":
         print("  - Update c")
         trainer.update_c(multi_domain_batch)
 
-        encoder_weights += [[p.cpu().numpy()[:5] for p in trainer.G.encoder.parameters()]]
+        encoder_weights += [
+            [p.cpu().numpy()[:5] for p in trainer.G.encoder.parameters()]
+        ]
 
         # # ? triggers segmentation fault for some unknown reason
         # # encoder was updated
