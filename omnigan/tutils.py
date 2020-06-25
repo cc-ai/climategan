@@ -66,16 +66,6 @@ def init_weights(net, init_type="normal", init_gain=0.02, verbose=0):
     net.apply(init_func)
 
 
-def freeze(net):
-    """Sets requires_grad = False to all the net's parameters
-
-    Args:
-        net (nn.Module): Network to freeze
-    """
-    for p in net.parameters():
-        p.requires_grad = False
-
-
 def domains_to_class_tensor(domains, one_hot=False):
     """Converts a list of strings to a 1D Tensor representing the domains
 
@@ -134,7 +124,7 @@ def fake_domains_to_class_tensor(domains, one_hot=False):
     """
     if one_hot:
         target = torch.FloatTensor(len(domains), 2)
-        target.fill_(0.25)
+        target.fill_(0.5)
 
     else:
         mapping = {"r": 1, "s": 0}
@@ -202,24 +192,6 @@ def fake_batch(batch, fake):
     return {**batch, **{"data": {**batch["data"], **{"x": fake}}}}
 
 
-def get_normalized_depth(arr, domain):
-    """
-    Args:
-        arr (np.array) : depth map array read from image
-        domain: "r" or "s"
-    """
-    if domain == "r":
-        # megadepth depth
-        arr = arr / 255
-        arr[arr != 0] = 1 / arr[arr != 0]
-        arr = arr - np.min(arr)
-        arr /= np.max(arr)
-    elif domain == "s":
-        # from 3-channel depth encoding from Unity simulator to 1-channel [0-1] values
-        arr = decode_unity_depth(arr, normalize=True)
-    return arr
-
-
 def get_normalized_depth_t(arr, domain):
     if domain == "r":
         # megadepth depth
@@ -233,66 +205,21 @@ def get_normalized_depth_t(arr, domain):
     return arr
 
 
-def decode_unity_depth(unity_depth, normalize=True, far=1000):
-    """FOR NUMPY ARRAY INPUT 
-    Transforms the 3-channel encoded depth map from our Unity simulator to 1-channel depth map 
-    containing metric depth values.
-    The depth is encoded in the following way: 
-    - The information from the simulator is (1 - LinearDepth (in [0,1])). 
-        far corresponds to the furthest distance to the camera included in the depth map. 
-        LinearDepth * far gives the real metric distance to the camera. 
-    - depth is first divided in 31 slices encoded in R channel with values ranging from 0 to 247
-    - each slice is divided again in 31 slices, whose value is encoded in G channel
-    - each of the G slices is divided into 256 slices, encoded in B channel
-    In total, we have a discretization of depth into N = 31*31*256 - 1 possible values, covering a range of 
-    far/N meters.   
-    Note that, what we encode here is 1 - LinearDepth so that the furthest point is [0,0,0] (that is sky) 
-    and the closest point[255,255,255] 
-    The metric distance associated to a pixel whose depth is (R,G,B) is : 
-        d = (far/N) * [((255 - R)//8)*256*31 + ((255 - G)//8)*256 + (255 - B)]
-    * torch.Tensor in [0, 1] as torch.float32 if numpy == False
-    * else numpy.array in [0, 255] as np.uint8
-
-    Args:
-        unity_depth (np array): one depth map obtained from our simulator. (H,W, C)
-        numpy (bool, optional): Whether to return a float tensor or an int array.
-         Defaults to False.
-        far: far parameter of the camera in Unity simulator.
-
-    Returns:
-        [torch.Tensor or numpy.array]: decoded depth
-    """
-    im_array = (unity_depth * 255).astype(np.uint8)
-    R = im_array[:, :, 0]
-    G = im_array[:, :, 1]
-    B = im_array[:, :, 2]
-
-    R = ((247 - R) / 8).astype(float)
-    G = ((247 - G) / 8).astype(float)
-    B = (255 - B).astype(float)
-    depth = ((R * 256 * 31 + G * 256 + B).astype(float)) / (256 * 31 * 31 - 1)
-    depth = depth * far
-    if normalize:
-        depth = depth - np.min(depth)
-        depth /= np.max(depth)
-    return depth
-
-
 def decode_unity_depth_t(unity_depth, normalize=True, numpy=False, far=1000):
-    """Transforms the 3-channel encoded depth map from our Unity simulator to 1-channel depth map 
+    """Transforms the 3-channel encoded depth map from our Unity simulator to 1-channel depth map
     containing metric depth values.
-    The depth is encoded in the following way: 
-    - The information from the simulator is (1 - LinearDepth (in [0,1])). 
-        far corresponds to the furthest distance to the camera included in the depth map. 
-        LinearDepth * far gives the real metric distance to the camera. 
+    The depth is encoded in the following way:
+    - The information from the simulator is (1 - LinearDepth (in [0,1])).
+        far corresponds to the furthest distance to the camera included in the depth map.
+        LinearDepth * far gives the real metric distance to the camera.
     - depth is first divided in 31 slices encoded in R channel with values ranging from 0 to 247
     - each slice is divided again in 31 slices, whose value is encoded in G channel
     - each of the G slices is divided into 256 slices, encoded in B channel
-    In total, we have a discretization of depth into N = 31*31*256 - 1 possible values, covering a range of 
-    far/N meters.   
-    Note that, what we encode here is 1 - LinearDepth so that the furthest point is [0,0,0] (that is sky) 
-    and the closest point[255,255,255] 
-    The metric distance associated to a pixel whose depth is (R,G,B) is : 
+    In total, we have a discretization of depth into N = 31*31*256 - 1 possible values, covering a range of
+    far/N meters.
+    Note that, what we encode here is 1 - LinearDepth so that the furthest point is [0,0,0] (that is sky)
+    and the closest point[255,255,255]
+    The metric distance associated to a pixel whose depth is (R,G,B) is :
         d = (far/N) * [((255 - R)//8)*256*31 + ((255 - G)//8)*256 + (255 - B)]
     * torch.Tensor in [0, 1] as torch.float32 if numpy == False
     * else numpy.array in [0, 255] as np.uint8

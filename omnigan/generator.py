@@ -55,7 +55,6 @@ class OmniGenerator(nn.Module):
 
         if opts.gen.encoder.architecture == "deeplabv2":
             self.encoder = DeeplabEncoder(opts)
-
         else:
             self.encoder = BaseEncoder(opts)
 
@@ -72,7 +71,11 @@ class OmniGenerator(nn.Module):
             self.decoders["m"] = MaskDecoder(opts)
 
         self.decoders = nn.ModuleDict(self.decoders)
-        self.painter = FullSpadeGen(opts)
+
+        if "p" in self.opts.tasks:
+            self.painter = FullSpadeGen(opts)
+        else:
+            self.painter = nn.Module()
 
     def encode(self, x):
         return self.encoder.forward(x)

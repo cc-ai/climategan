@@ -188,6 +188,8 @@ class OmniListDataset(Dataset):
 
 
 def get_loader(mode, domain, opts):
+    if "simclr" in opts.tasks:
+        return "SIMCLR LOADER"
 
     return DataLoader(
         OmniListDataset(
@@ -204,7 +206,7 @@ def get_all_loaders(opts):
     loaders = {}
     for mode in ["train", "val"]:
         loaders[mode] = {}
-        for domain in ["r", "rf", "s"]:
+        for domain in opts.domains:
             if mode in opts.data.files:
                 if domain in opts.data.files[mode]:
                     loaders[mode][domain] = get_loader(mode, domain, opts)

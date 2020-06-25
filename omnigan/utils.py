@@ -176,6 +176,17 @@ def load_opts(path=None, default=None):
 
     default_opts.update(overriding_opts)
 
+    default_opts.domains = []
+    if "m" in default_opts.tasks:
+        default_opts.domains.extend(["r", "s"])
+    if "p" in default_opts.tasks:
+        default_opts.domains.append("rf")
+    if "simclr" in default_opts.tasks:
+        default_opts.domains.append("r")
+        if default_opts.gen.simclr.domain_adaptation:
+            default_opts.domains.append("s")
+    default_opts.domains = list(set(default_opts.domains))
+
     return set_data_paths(default_opts)
 
 
