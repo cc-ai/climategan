@@ -568,21 +568,32 @@ class Trainer:
             multi_domain_batch (dict): dictionnary of domain batches
         """
         self.g_opt.zero_grad()
-        r_loss = p_loss = None
+        pretrain_loss = r_loss = p_loss = None
+
+        if self.opts.art == "pretraining":
+            pretrain_loss = self.get_pretraining_loss(multi_domain_batch)
 
         # For now, always compute "representation loss"
-        if self.opts.art == "mask" or "simclr" in self.opts.tasks:
+        if self.opts.art == "mask":
             r_loss = self.get_representation_loss(multi_domain_batch)
 
-        if self.opts.art == "paint" and "simclr" not in self.opts.tasks:
+        if self.opts.art == "paint":
             p_loss = self.get_painter_loss(multi_domain_batch)
 
         # if self.should_compute_t_loss():
         #    t_loss = self.get_translation_loss(multi_domain_batch)
 
-        assert any(l is not None for l in [r_loss, p_loss]), "Both losses are None"
+        assert any(
+            l is not None for l in [pretrain_loss, r_loss, p_loss]
+        ), "All losses are None"
 
         g_loss = 0
+        if pretrain_loss is not None:
+            g_loss += pretrain_loss
+            if verbose > 0:
+                print("adding pretrain_loss {} to g_loss".format(pretrain_loss))
+            self.logger.losses.pretraining = pretrain_loss.item()
+
         if r_loss is not None:
             g_loss += r_loss
             if verbose > 0:
@@ -602,6 +613,52 @@ class Trainer:
         g_loss.backward()
         self.g_opt_step()
         self.log_losses(model_to_update="G", mode="train")
+
+    def get_pretraining_loss(self, multi_domain_batch):
+        step_loss = 0
+        lambdas = self.opts.train.lambdas
+        one_hot = self.opts.classifier.loss != "cross_entropy"
+
+        for batch_domain, batch in multi_domain_batch.items():
+            if "simclr" in self.opts.tasks:
+                xi = batch["data"]["simclr"]["xi"]
+                xj = batch["data"]["simclr"]["xj"]
+                hi = self.G.encode(xi)
+                hj = self.G.encode(xj)
+
+            # ---------------------------------
+            # -----  classifier loss (1)  -----
+            # ---------------------------------
+            update_loss = 0
+            if "simclr" in self.opts.tasks and self.opts.gen.simclr.domain_adaptation:
+                # Forward pass through classifier
+                out_c_i = self.C(hi)
+                out_c_j = self.C(hj)
+
+                # Cross entropy loss (with sigmoid) with fake labels to fool C
+                update_loss += self.losses["C"](
+                    out_c_i,
+                    domains_to_class_tensor(batch["domain"], one_hot).to(self.device),
+                ) + self.losses["C"](
+                    out_c_j,
+                    domains_to_class_tensor(batch["domain"], one_hot).to(self.device),
+                )
+            step_loss += lambdas.G.classifier * update_loss
+
+            # --------------------------------------------------
+            # -----  task-specific pretraining losses (2)  -----
+            # --------------------------------------------------
+            for update_task, update_target in batch["data"].items():
+                if update_task == "simclr":
+                    zi = self.G.decoders[update_task](hi)
+                    zj = self.G.decoders[update_task](hj)
+                    update_loss = self.losses["G"]["tasks"][update_task](zi, zj)
+                    step_loss += update_loss * lambdas.G[update_task]
+                    self.logger.losses.task_loss[update_task][
+                        batch_domain
+                    ] = update_loss.item()
+
+        return step_loss
 
     def get_representation_loss(self, multi_domain_batch):
         """Only update the representation part of the model, meaning everything
@@ -631,41 +688,19 @@ class Trainer:
             if batch_domain == "rf":
                 continue
 
-            if "simclr" in self.opts.tasks:
-                xi = batch["data"]["simclr"]["xi"]
-                xj = batch["data"]["simclr"]["xj"]
-                hi = self.G.encode(xi)
-                hj = self.G.encode(xj)
-            else:
-                x = batch["data"]["x"]
-                self.z = self.G.encode(x)
+            x = batch["data"]["x"]
+            self.z = self.G.encode(x)
 
             # ---------------------------------
             # -----  classifier loss (1)  -----
             # ---------------------------------
-            update_loss = 0
-            if "simclr" not in self.opts.tasks:
-                # Forward pass through classifier, output : (batch_size, 4)
-                output_classifier = self.C(self.z)
-
-                # Cross entropy loss (with sigmoid) with fake labels to fool C
-                update_loss += self.losses["G"]["classifier"](
-                    output_classifier,
-                    fake_domains_to_class_tensor(batch["domain"], one_hot),
-                )
-            elif "simclr" in self.opts.tasks and self.opts.gen.simclr.domain_adaptation:
-                # Forward pass through classifier
-                out_c_i = self.C(hi)
-                out_c_j = self.C(hj)
-
-                # Cross entropy loss (with sigmoid) with fake labels to fool C
-                update_loss += self.losses["C"](
-                    out_c_i,
-                    domains_to_class_tensor(batch["domain"], one_hot).to(self.device),
-                ) + self.losses["C"](
-                    out_c_j,
-                    domains_to_class_tensor(batch["domain"], one_hot).to(self.device),
-                )
+            # Forward pass through classifier, output : (batch_size, 4)
+            output_classifier = self.C(self.z)
+            # Cross entropy loss (with sigmoid) with fake labels to fool C
+            update_loss = self.losses["G"]["classifier"](
+                output_classifier,
+                fake_domains_to_class_tensor(batch["domain"], one_hot),
+            )
             step_loss += lambdas.G.classifier * update_loss
 
             # -------------------------------------------------
@@ -675,7 +710,7 @@ class Trainer:
             for update_task, update_target in batch["data"].items():
                 # task t (=translation) will be done in get_translation_loss
                 # task a (=adaptation) and x (=auto-encoding) will be done hereafter
-                if update_task not in {"t", "a", "x", "m", "simclr"}:
+                if update_task not in {"t", "a", "x", "m"}:
                     # ? output features classifier
                     prediction = self.G.decoders[update_task](self.z)
                     task_tensors[update_task] = prediction
@@ -712,14 +747,6 @@ class Trainer:
                     step_loss += update_loss
 
                     self.logger.losses.generator.task_loss[update_task]["tv"][
-                        batch_domain
-                    ] = update_loss.item()
-                if update_task == "simclr":
-                    zi = self.G.decoders[update_task](hi)
-                    zj = self.G.decoders[update_task](hj)
-                    update_loss = self.losses["G"]["tasks"][update_task](zi, zj)
-                    step_loss += update_loss * lambdas.G[update_task]
-                    self.logger.losses.task_loss[update_task][
                         batch_domain
                     ] = update_loss.item()
 

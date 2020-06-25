@@ -3,7 +3,7 @@ output_path: /network/tmp1/schmidtv/yb_runs/test_v1
 # -----  Tasks  -----
 # -------------------
 tasks: [d, s, m, p]
-art: paint # one of {"paint", "mask"}
+art: pretraining # one of {"pretraining", "paint", "mask"}
 # ----------------
 # ----- Data -----
 # ----------------
