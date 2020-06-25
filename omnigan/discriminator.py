@@ -170,7 +170,7 @@ class OmniDiscriminator(nn.ModuleDict):
                 }
             )
         if "m" in opts.tasks:
-            self["m"] = nn.ModuleDict({"maskAdvent": get_fc_discriminator()})
+            self["m"] = nn.ModuleDict({"Advent": get_fc_discriminator()})
 
 
 def get_fc_discriminator(num_classes=2, ndf=64):
