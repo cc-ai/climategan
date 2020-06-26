@@ -208,48 +208,4 @@ if __name__ == "__main__":
         print("  - Update c")
         trainer.update_c(multi_domain_batch)
 
-        print("Freezing encoder")
-        freeze(trainer.G.encoder)
-        trainer.representation_is_frozen = True
-        encoder_weights += [
-            [p.cpu().numpy()[:5] for p in trainer.G.encoder.parameters()]
-        ]
-        trainer.logger.global_step += 1
 
-        print("Third update: extrapolation")
-        print("  - Update g")
-        trainer.update_g(multi_domain_batch)
-        # print("  - Update d")
-        # trainer.update_d(multi_domain_batch)
-        print("  - Update c")
-        trainer.update_c(multi_domain_batch)
-
-        trainer.logger.global_step += 1
-
-        print("Fourth update: gradient step")
-        print("  - Update g")
-        trainer.update_g(multi_domain_batch)
-        # print("  - Update d")
-        # trainer.update_d(multi_domain_batch)
-        print("  - Update c")
-        trainer.update_c(multi_domain_batch)
-
-        encoder_weights += [
-            [p.cpu().numpy()[:5] for p in trainer.G.encoder.parameters()]
-        ]
-
-        # # ? triggers segmentation fault for some unknown reason
-        # # encoder was updated
-        # assert all(
-        #     [
-        #         (p0[:5] != p1[:5]).all()
-        #         for p0, p1 in zip(encoder_weights[0], encoder_weights[1])
-        #     ]
-        # )
-        # # encoder was not updated
-        # assert all(
-        #     [
-        #         (p1[:5] == p2[:5]).all()
-        #         for p1, p2 in zip(encoder_weights[1], encoder_weights[2])
-        #     ]
-        # )

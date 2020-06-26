@@ -3,10 +3,9 @@
     * Encoder
     * Decoders
 """
-import torch
 import torch.nn as nn
-from omnigan.tutils import init_weights, get_4D_bit, get_conditioning_tensor
-from omnigan.blocks import Conv2dBlock, ResBlocks, SpadeDecoder, BaseDecoder
+from omnigan.tutils import init_weights
+from omnigan.blocks import SpadeDecoder, BaseDecoder
 from omnigan.encoder import DeeplabEncoder, BaseEncoder
 import omnigan.strings as strings
 
@@ -37,6 +36,13 @@ def get_gen(opts, latent_shape=None, verbose=0):
                 init_gain=opts.gen[model].init_gain,
                 verbose=verbose,
             )
+    if G.encoder is not None and opts.gen.encoder.architecture != "deeplabv2":
+        init_weights(
+            G.encoder,
+            init_type=opts.encoder.init_type,
+            init_gain=opts.encoder.init_gain,
+            verbose=verbose,
+        )
     return G
 
 
@@ -53,10 +59,12 @@ class OmniGenerator(nn.Module):
         super().__init__()
         self.opts = opts
 
-        if opts.gen.encoder.architecture == "deeplabv2":
-            self.encoder = DeeplabEncoder(opts)
-        else:
-            self.encoder = BaseEncoder(opts)
+        self.encoder = None
+        if "m" in opts.tasks or "simclr" in opts.tasks:
+            if opts.gen.encoder.architecture == "deeplabv2":
+                self.encoder = DeeplabEncoder(opts)
+            else:
+                self.encoder = BaseEncoder(opts)
 
         self.verbose = verbose
         self.decoders = {}
@@ -78,10 +86,8 @@ class OmniGenerator(nn.Module):
             self.painter = nn.Module()
 
     def encode(self, x):
+        assert self.encoder is not None
         return self.encoder.forward(x)
-
-    def forward(self, x):
-        return self.encode(x)
 
     def __str__(self):
         return strings.generator(self)

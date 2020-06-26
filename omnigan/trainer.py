@@ -8,6 +8,7 @@ from time import time
 import torch
 from addict import Dict
 from pathlib import Path
+from copy import deepcopy
 
 from omnigan.classifier import get_classifier
 from omnigan.data import get_all_loaders
@@ -19,7 +20,6 @@ from omnigan.utils import flatten_opts
 from omnigan.tutils import (
     domains_to_class_tensor,
     fake_domains_to_class_tensor,
-    freeze,
     shuffle_batch_tuple,
     get_num_params,
     vgg_preprocess,
@@ -92,8 +92,8 @@ class Trainer:
 
         if self.opts.train.log_level == 1:
             # Only log aggregated losses: delete other keys in losses
-            for k in self.logger.losses:
-                if k not in {"masker", "generator", "painter"}:
+            for k in loss_to_update:
+                if k not in {"masker", "total_loss", "painter"}:
                     del losses[k]
         # convert losses into a single-level dictionnary
 
@@ -340,7 +340,8 @@ class Trainer:
             # -------------------------------
             # -----  Update Classifier  -----
             # -------------------------------
-            self.update_c(multi_domain_batch)
+            if self.opts.train.latent_domain_adaptation:
+                self.update_c(multi_domain_batch)
 
             # -----------------
             # -----  Log  -----
@@ -397,7 +398,7 @@ class Trainer:
                     mode=mode,
                     domain=domain,
                     task=task,
-                    im_per_row=4,
+                    im_per_row=self.opts.comet.im_per_row.get(task, 4),
                     comet_exp=self.exp,
                 )
         else:
@@ -406,17 +407,7 @@ class Trainer:
                 x = im_set["data"]["x"].unsqueeze(0).to(self.device)
                 m = im_set["data"]["m"].unsqueeze(0).to(self.device)
 
-                batch_size = x.shape[0]
-                z = (
-                    torch.empty(
-                        batch_size,
-                        self.opts.gen.p.latent_dim,
-                        self.painter_z_h,
-                        self.painter_z_w,
-                    )
-                    .normal_(mean=0, std=1.0)
-                    .to(self.device)
-                )
+                z = self.sample_z(x.shape[0])
                 prediction = self.G.painter(z, x * (1.0 - m))
                 image_outputs.append(x * (1.0 - m))
                 image_outputs.append(prediction)
@@ -428,7 +419,7 @@ class Trainer:
                 mode=mode,
                 domain=domain,
                 task="painter",
-                im_per_row=4,
+                im_per_row=self.opts.comet.im_per_row.get("p", 4),
                 comet_exp=self.exp,
             )
         return 0
@@ -475,19 +466,36 @@ class Trainer:
             ):
                 self.save()
 
-    def should_compute_r_loss(self):
-        if not self.opts.train.representational_training:
-            return True
-        if self.logger.global_step < self.opts.train.representation_steps:
-            return True
-        return False
+    def get_g_loss(self, multi_domain_batch, verbose=0):
+        m_loss = p_loss = None
 
-    def should_compute_t_loss(self):
-        if not self.opts.train.representational_training:
-            return True
-        if self.logger.global_step >= self.opts.train.representation_steps:
-            return True
-        return False
+        # For now, always compute "representation loss"
+        if "m" in self.opts.tasks:
+            m_loss = self.get_masker_loss(multi_domain_batch)
+
+        if "p" in self.opts.tasks:
+            p_loss = self.get_painter_loss(multi_domain_batch)
+
+        assert any(l is not None for l in [m_loss, p_loss]), "Both losses are None"
+
+        g_loss = 0
+        if m_loss is not None:
+            g_loss += m_loss
+            if verbose > 0:
+                print("adding m_loss {} to g_loss".format(m_loss))
+            self.logger.losses.generator.masker = m_loss.item()
+
+        if p_loss is not None:
+            g_loss += p_loss
+            if verbose > 0:
+                print("adding p_loss {} to g_loss".format(p_loss))
+            self.logger.losses.generator.painter = p_loss.item()
+
+        if verbose > 0:
+            print("g_loss is {}".format(g_loss))
+        self.logger.losses.generator.total_loss = g_loss.item()
+
+        return g_loss
 
     def update_g(self, multi_domain_batch, verbose=0):
         """Perform an update on g from multi_domain_batch which is a dictionary
@@ -507,34 +515,7 @@ class Trainer:
             multi_domain_batch (dict): dictionnary of domain batches
         """
         self.g_opt.zero_grad()
-        m_loss = p_loss = None
-
-        # For now, always compute "representation loss"
-        if "m" in self.opts.tasks:
-            m_loss = self.get_masker_loss(multi_domain_batch)
-
-        if "p" in self.opts.tasks:
-            p_loss = self.get_painter_loss(multi_domain_batch)
-
-        assert any(l is not None for l in [m_loss, p_loss]), "Both losses are None"
-
-        g_loss = 0
-        if m_loss is not None:
-            g_loss += m_loss
-            if verbose > 0:
-                print("adding m_loss {} to g_loss".format(m_loss))
-            self.logger.losses.masker = m_loss.item()
-
-        if p_loss is not None:
-            g_loss += p_loss
-            if verbose > 0:
-                print("adding p_loss {} to g_loss".format(p_loss))
-            self.logger.losses.painter = p_loss.item()
-
-        if verbose > 0:
-            print("g_loss is {}".format(g_loss))
-
-        self.logger.losses.generator.total_loss = g_loss.item()
+        g_loss = self.get_g_loss(multi_domain_batch, verbose)
         g_loss.backward()
         self.g_opt_step()
         self.log_losses(model_to_update="G", mode="train")
@@ -579,6 +560,9 @@ class Trainer:
                 )
 
                 step_loss += lambdas.G.classifier * update_loss
+                self.logger.losses.generator.classifier[
+                    batch_domain
+                ] = update_loss.item()
 
             # -------------------------------------------------
             # -----  task-specific regression losses (2)  -----
@@ -656,10 +640,8 @@ class Trainer:
                 continue
 
             x = batch["data"]["x"]
-            m = batch["data"]["m"]
-            batch_size = x.shape[0]
-            z = self.sample_z(batch_size)
-
+            m = batch["data"]["m"]  # ! different mask: hides water to be reconstructed
+            z = self.sample_z(x.shape[0])
             masked_x = x * (1.0 - m)
 
             fake_flooded = self.G.painter(z, masked_x)
@@ -734,27 +716,16 @@ class Trainer:
         Returns:
             [type]: [description]
         """
-
-        disc_loss = {"p": {"global": 0, "local": 0}}
+        zerotensor = torch.tensor(0.)
+        disc_loss = {"p": {"global": zerotensor, "local": zerotensor}}
         for batch_domain, batch in multi_domain_batch.items():
 
             x = batch["data"]["x"]
             m = batch["data"]["m"]
-            z = self.G.encode(x)
 
             if batch_domain == "rf":
                 # sample vector
-                batch_size = x.shape[0]
-                z_paint = (
-                    torch.empty(
-                        batch_size,
-                        self.opts.gen.p.latent_dim,
-                        self.painter_z_h,
-                        self.painter_z_w,
-                    )
-                    .normal_(mean=0, std=1.0)
-                    .to(self.device)
-                )
+                z_paint = self.sample_z(x.shape[0])
                 fake = self.G.painter(z_paint, x * (1.0 - m))
                 fake_d_global = self.D["p"]["global"](fake)
                 real_d_global = self.D["p"]["global"](x)
@@ -828,71 +799,27 @@ class Trainer:
 
     def eval(self, num_threads=5, verbose=0):
         print("*******************EVALUATING***********************")
-
-        lambdas = self.opts.train.lambdas
+        val_logger = None
         for i, multi_batch_tuple in enumerate(self.val_loaders):
-            # create a dictionnay (domain => batch) from tuple
+            # create a dictionnary (domain => batch) from tuple
             # (batch_domain_0, ..., batch_domain_i)
             # and send it to self.device
             multi_domain_batch = {
-                batch["domain"][0]: self.batch_to_device(batch)
+                batch["domain"]: self.batch_to_device(batch)
                 for batch in multi_batch_tuple
             }
+            self.get_g_loss(multi_domain_batch, verbose)
+            if val_logger is None:
+                val_logger = deepcopy(self.logger.losses.generator)
+            else:
+                for k, v in val_logger.items():
+                    if not isinstance(v, dict):
+                        val_logger[k] += v
+                    else:
+                        for kk, vv in v.items():
+                            val_logger[k][kk] += vv
 
-            # ----------------------------------------------
-            # -----  Infer separately for each domain  -----
-            # ----------------------------------------------
-            for domain, domain_batch in multi_domain_batch.items():
-
-                x = domain_batch["data"]["x"]
-                self.z = self.G.encode(x)
-                # Don't infer if domains has enough images
-
-                if verbose > 0:
-                    print(f"Inferring batch {i} domain {domain}")
-
-                # translator = "f" if "n" in domain else "n"
-                # domain_batch = slice_batch(domain_batch, remaining)
-                # translated = self.G.translate_batch(domain_batch, translator)
-                # Get task losses:
-                task_tensors = {}
-                for update_task, update_target in domain_batch["data"].items():
-                    # task t (=translation) will be done in get_translation_loss
-                    # task a (=adaptation) and x (=auto-encoding) will be done hereafter
-                    if update_task not in {"t", "a", "x", "m"}:
-                        # ? output features classifier
-                        prediction = self.G.decoders[update_task](self.z)
-                        task_tensors[update_task] = prediction
-                        update_loss = self.losses["G"]["tasks"][update_task](
-                            prediction, update_target
-                        )
-                        self.logger.losses.generator.task_loss[update_task][
-                            domain
-                        ] = update_loss.item()
-
-                    if update_task == "m":
-                        # ? output features classifier
-                        prediction = self.G.decoders[update_task](self.z)
-                        task_tensors[update_task] = prediction
-
-                        # Main loss first:
-                        update_loss = (
-                            self.losses["G"]["tasks"][update_task]["main"](
-                                prediction, update_target
-                            )
-                            * lambdas.G[update_task]["main"]
-                        )
-                        self.logger.losses.generator.task_loss[update_task]["main"][
-                            domain
-                        ] = update_loss.item()
-
-                        # Then TV loss
-                        update_loss = self.losses["G"]["tasks"][update_task]["tv"](
-                            prediction
-                        )
-                        self.logger.losses.generator.task_loss[update_task]["tv"][
-                            domain
-                        ] = update_loss.item()
+        self.logger.losses.generator = val_logger
         self.log_losses(model_to_update="G", mode="val")
 
         for d in self.opts.domains:

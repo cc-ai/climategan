@@ -103,6 +103,9 @@ class OmniListDataset(Dataset):
         self.mode = mode
         self.tasks = set(opts.tasks)
         self.tasks.add("x")
+        if "p" in self.tasks:
+            self.tasks.add("m")
+
         file_list_path = Path(opts.data.files[mode][domain])
         if "/" not in str(file_list_path):
             file_list_path = Path(opts.data.files.base) / Path(

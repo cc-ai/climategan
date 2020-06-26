@@ -147,7 +147,6 @@ train:
   epochs: 100000000
   representational_training: True
   representation_steps: 10000 # for how many steps would the representation be trained before we train the translation
-  freeze_representation: False # whether or not to backprop into the representation when doing the translation
   latent_domain_adaptation: True # whether or not to do domain adaptation on the latent vectors
   lambdas: # scaling factors in the total loss
     G:
@@ -181,3 +180,9 @@ val:
 # -----------------------------
 comet:
   display_size: 5
+  im_per_row:
+    simclr: 2
+    p: 4
+    m: 4
+    s: 3
+    d: 3

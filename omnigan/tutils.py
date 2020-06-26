@@ -157,41 +157,6 @@ def show_tanh_tensor(tensor):
     skimage.io.imshow(image)
 
 
-def get_4D_bit(shape, probs):
-    """transforms domain probabilities (batch x # of domains)
-    into a 4D tensor repeating probs as feature maps
-
-    Args:
-        shape (list): batch_size x (useless) x h x w
-        probs (torch.Tensor): probabilities of belonging to a domain
-            (batch x # of domains)
-
-    Returns:
-        torch.Tensor: batch x # of domains x h x w
-    """
-    probs = probs if isinstance(probs, torch.Tensor) else torch.tensor(probs)
-    bit = (
-        torch.ones(shape[0], probs.shape[-1], *shape[-2:])
-        .to(torch.float32)
-        .to(probs.device)
-    )
-    bit *= probs[None, :, None, None].to(torch.float32)
-    return bit
-
-
-def fake_batch(batch, fake):
-    """create fake batch for the cycle reconstruction: copy all references in batch into
-    cycle_batch BUT overwrite batch["data"]["x"] in order to save memory (instead of
-    just deepcopy(batch) which would unnecessarily duplicate the rest of the data)
-
-    Args:
-        batch (dict): batch dictionnary with keys ['data', 'paths', 'domain', 'mode']
-        fake (torch.Tensor): tensor which should replace batch["data"]["x"], for
-            instance to use in the cycle reconstruction
-    """
-    return {**batch, **{"data": {**batch["data"], **{"x": fake}}}}
-
-
 def get_normalized_depth_t(arr, domain):
     if domain == "r":
         # megadepth depth
@@ -252,38 +217,6 @@ def decode_unity_depth_t(unity_depth, normalize=True, numpy=False, far=1000):
     return depth
 
 
-def decode_mega_depth(pred_log_depth, numpy=False):
-    """Transforms the inference of a mega_depth model into an image:
-    * torch.Tensor in [0, 1] as torch.float32 if numpy == False
-    * else numpy.array in [0, 255] as np.uint8
-
-    Args:
-        pred_log_depth (torch.Tensor): inference on 1 image of mega_depth
-        numpy (bool, optional): Whether to return a float tensor or an int array.
-         Defaults to False.
-
-    Returns:
-        [torch.Tensor or numpy.array]: decoded depth
-    """
-    pred_depth = torch.exp(pred_log_depth)
-    # visualize prediction using inverse depth, so that we don't need
-    # sky segmentation (if you want to use RGB map for visualization,
-    # you have to run semantic segmentation to mask the sky first
-    # since the depth of sky is random from CNN)
-    pred_inv_depth = 1 / pred_depth
-    # you might also use percentile for better visualization
-    max = pred_inv_depth.max(dim=-1, keepdim=True)[0]
-    _max = pred_inv_depth.max(dim=-1, keepdim=False)[0]
-    while len(_max.shape) != 1:
-        max = max.max(dim=-1, keepdim=True)[0]
-        _max = _max.max(dim=-1, keepdim=False)[0]
-    pred_inv_depth = pred_inv_depth / max
-    if numpy:
-        pred_inv_depth = pred_inv_depth.data.cpu().numpy()
-        return (pred_inv_depth * 255).astype(np.uint8).squeeze()
-    return pred_inv_depth
-
-
 def shuffle_batch_tuple(mbt):
     """shuffle the order of domains in the batch
 
@@ -297,42 +230,6 @@ def shuffle_batch_tuple(mbt):
     assert len(mbt) > 0
     perm = np.random.permutation(len(mbt))
     return [mbt[i] for i in perm]
-
-
-def get_conditioning_tensor(x, task_tensors, classifier_probs=None):
-    """creates the 4D tensor to condition the translation on by concatenating d, h, s, w
-    and an optional conditioning bit:
-
-    Args:
-        x (torch.Tensor): tensor whose shape we'll use to expand the bit
-        task_tensors (torch.Tensor): dictionnary task: conditioning tensor
-        classifier_probs (list, optional): 1-hot encoded depending on the
-            domain to use. Defaults to None.
-
-    Returns:
-        torch.Tensor: conditioning tensor, all tensors concatenated
-            on the channel dim
-    """
-
-    K = [v for k, v in sorted(task_tensors.items(), key=lambda t: t[0])]
-
-    assert all(len(t.shape) == 4 for t in K)
-
-    if classifier_probs is None:
-        return torch.cat(K, dim=1)
-
-    bit = get_4D_bit(x.shape, classifier_probs).detach().to(x.device)
-    # bit => batchsize * conditioning tensor
-    # conditioning tensor => 4 x h x d, with 0s or 1s as classifier_probs
-    return torch.cat(K + [bit], dim=1)
-
-
-def print_net(net):
-    if hasattr(net, "model"):
-        for b in net.model:
-            name = b.__class__.__name__
-            if "Conv2dBlock" in name:
-                print(f"{name}: {b.weight.shape}")
 
 
 def slice_batch(batch, slice_size):
