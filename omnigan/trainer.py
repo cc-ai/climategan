@@ -385,7 +385,7 @@ class Trainer:
                             task_saves.append(x * (1.0 - prediction))
                             task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
                         task_saves.append(prediction)
-                        #! This assumes the output is some kind of image
+                        # ! This assumes the output is some kind of image
                         save_images[update_task].append(x)
                         for im in task_saves:
                             save_images[update_task].append(im)
@@ -624,6 +624,18 @@ class Trainer:
 
         return step_loss
 
+    def sample_z(self, batch_size):
+        return (
+            torch.empty(
+                batch_size,
+                self.opts.gen.p.latent_dim,
+                self.painter_z_h,
+                self.painter_z_w,
+            )
+            .normal_(mean=0, std=1.0)
+            .to(self.device)
+        )
+
     def get_painter_loss(self, multi_domain_batch):
         """Computes the translation loss when flooding/deflooding images
 
@@ -646,22 +658,15 @@ class Trainer:
             x = batch["data"]["x"]
             m = batch["data"]["m"]
             batch_size = x.shape[0]
-            z = (
-                torch.empty(
-                    batch_size,
-                    self.opts.gen.p.latent_dim,
-                    self.painter_z_h,
-                    self.painter_z_w,
-                )
-                .normal_(mean=0, std=1.0)
-                .to(self.device)
-            )
+            z = self.sample_z(batch_size)
 
-            gen_flood_img = self.G.painter(z, x * (1.0 - m))
+            masked_x = x * (1.0 - m)
+
+            fake_flooded = self.G.painter(z, masked_x)
 
             update_loss = (
                 self.losses["G"]["p"]["vgg"](
-                    vgg_preprocess(gen_flood_img), vgg_preprocess(x)
+                    vgg_preprocess(fake_flooded), vgg_preprocess(x)
                 )
                 * lambdas.G["p"]["vgg"]
             )
@@ -671,22 +676,20 @@ class Trainer:
             )
             step_loss += update_loss
 
-            update_loss = self.losses["G"]["p"]["tv"](gen_flood_img)
+            update_loss = self.losses["G"]["p"]["tv"](fake_flooded)
             self.logger.losses.generator.p.tv = update_loss.item()
             step_loss += update_loss
 
             update_loss = (
-                self.losses["G"]["p"]["context"](
-                    gen_flood_img * (1.0 - m), x * (1.0 - m)
-                )
+                self.losses["G"]["p"]["context"](fake_flooded * (1.0 - m), masked_x)
                 * lambdas.G["p"]["context"]
             )
 
             self.logger.losses.generator.p.context = update_loss.item()
             step_loss += update_loss
 
-            fake_d_global = self.D["p"]["global"](gen_flood_img)
-            fake_d_local = self.D["p"]["local"](gen_flood_img * m)
+            fake_d_global = self.D["p"]["global"](fake_flooded)
+            fake_d_local = self.D["p"]["local"](fake_flooded * m)
             update_loss = (
                 self.losses["G"]["p"]["gan"](fake_d_global, True)
                 + self.losses["G"]["p"]["gan"](fake_d_local, True)
