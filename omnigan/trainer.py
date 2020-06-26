@@ -158,7 +158,8 @@ class Trainer:
 
     def print_num_parameters(self):
         print("---------------------------")
-        print("num params encoder: ", get_num_params(self.G.encoder))
+        if self.G.encoder is not None:
+            print("num params encoder: ", get_num_params(self.G.encoder))
         for d in self.G.decoders.keys():
             print(
                 "num params decoder {}: {}".format(
@@ -168,7 +169,8 @@ class Trainer:
         for d in self.D.keys():
             print("num params discrim {}: {}".format(d, get_num_params(self.D[d])))
         print("num params painter: ", get_num_params(self.G.painter))
-        print("num params classif: ", get_num_params(self.C))
+        if self.C is not None:
+            print("num params classif: ", get_num_params(self.C))
         print("---------------------------")
 
     def setup(self):
@@ -184,16 +186,17 @@ class Trainer:
         self.loaders = get_all_loaders(self.opts)
 
         self.G = get_gen(self.opts, verbose=self.verbose).to(self.device)
-        self.latent_shape = self.compute_latent_shape()
+        if self.G.encoder is not None:
+            self.latent_shape = self.compute_latent_shape()
         self.input_shape = self.compute_input_shape()
         self.painter_z_h = self.input_shape[-2] // (2 ** self.opts.gen.p.spade_n_up)
         self.painter_z_w = self.input_shape[-1] // (2 ** self.opts.gen.p.spade_n_up)
-
         self.D = get_dis(self.opts, verbose=self.verbose).to(self.device)
-        self.C = get_classifier(self.opts, self.latent_shape, verbose=self.verbose).to(
-            self.device
-        )
-
+        self.C = None
+        if self.G.encoder is not None and self.opts.train.latent_domain_adaptation:
+            self.C = get_classifier(
+                self.opts, self.latent_shape, verbose=self.verbose
+            ).to(self.device)
         self.print_num_parameters()
 
         self.g_opt, self.g_scheduler = get_optimizer(self.G, self.opts.gen.opt)
@@ -202,7 +205,13 @@ class Trainer:
             self.d_opt, self.d_scheduler = get_optimizer(self.D, self.opts.dis.opt)
         else:
             self.d_opt, self.d_scheduler = None, None
-        self.c_opt, self.c_scheduler = get_optimizer(self.C, self.opts.classifier.opt)
+
+        if self.C is not None:
+            self.c_opt, self.c_scheduler = get_optimizer(
+                self.C, self.opts.classifier.opt
+            )
+        else:
+            self.c_opt, self.c_scheduler = None, None
 
         if self.opts.train.resume:
             self.resume()
@@ -321,8 +330,11 @@ class Trainer:
 
             step_start_time = time()
             multi_batch_tuple = shuffle_batch_tuple(multi_batch_tuple)
+
+            # The `[0]` is because the domain is contained in a list
+            # i.e. domain "r" is ["r"]
             multi_domain_batch = {
-                batch["domain"]: self.batch_to_device(batch)
+                batch["domain"][0]: self.batch_to_device(batch)
                 for batch in multi_batch_tuple
             }
 
@@ -716,7 +728,7 @@ class Trainer:
         Returns:
             [type]: [description]
         """
-        zerotensor = torch.tensor(0.)
+        zerotensor = torch.tensor(0.0)
         disc_loss = {"p": {"global": zerotensor, "local": zerotensor}}
         for batch_domain, batch in multi_domain_batch.items():
 

@@ -39,8 +39,8 @@ def get_gen(opts, latent_shape=None, verbose=0):
     if G.encoder is not None and opts.gen.encoder.architecture != "deeplabv2":
         init_weights(
             G.encoder,
-            init_type=opts.encoder.init_type,
-            init_gain=opts.encoder.init_gain,
+            init_type=opts.gen.encoder.init_type,
+            init_gain=opts.gen.encoder.init_gain,
             verbose=verbose,
         )
     return G
