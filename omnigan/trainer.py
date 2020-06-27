@@ -767,7 +767,11 @@ class Trainer:
         Returns:
             [type]: [description]
         """
+<<<<<<< Updated upstream
         zerotensor = torch.tensor(0).to(self.device)
+=======
+        zerotensor = torch.tensor(0.0).to(self.device)
+>>>>>>> Stashed changes
         disc_loss = {
             "m": {"Advent": zerotensor},
             "p": {"global": zerotensor, "local": zerotensor},
@@ -778,16 +782,21 @@ class Trainer:
             m = batch["data"]["m"]
             z = self.G.encode(x)
 
-            if batch_domain == "rf":
-                # sample vector
-                batch_size = x.shape[0]
-                z_paint = (
-                    torch.empty(
-                        batch_size,
-                        self.opts.gen.p.latent_dim,
-                        self.painter_z_h,
-                        self.painter_z_w,
+            if "p" in self.opts.tasks:
+                if batch_domain == "rf":
+                    # sample vector
+                    batch_size = x.shape[0]
+                    z_paint = (
+                        torch.empty(
+                            batch_size,
+                            self.opts.gen.p.latent_dim,
+                            self.painter_z_h,
+                            self.painter_z_w,
+                        )
+                        .normal_(mean=0, std=1.0)
+                        .to(self.device)
                     )
+<<<<<<< Updated upstream
                     .normal_(mean=0, std=1.0)
                     .to(self.device)
                 )
@@ -804,9 +813,24 @@ class Trainer:
                 local_loss = self.losses["D"]["default"](
                     fake_d_local, False
                 ) + self.losses["D"]["default"](real_d_local, True)
+=======
+                    fake = self.G.painter(z_paint, x * (1.0 - m))
+                    fake_d_global = self.D["p"]["global"](fake)
+                    real_d_global = self.D["p"]["global"](x)
+                    fake_d_local = self.D["p"]["local"](fake * m)
+                    real_d_local = self.D["p"]["local"](x * m)
 
-                disc_loss["p"]["global"] += global_loss
-                disc_loss["p"]["local"] += local_loss
+                    global_loss = self.losses["D"]["default"](
+                        fake_d_global, False
+                    ) + self.losses["D"]["default"](real_d_global, True)
+>>>>>>> Stashed changes
+
+                    local_loss = self.losses["D"]["default"](
+                        fake_d_local, False
+                    ) + self.losses["D"]["default"](real_d_local, True)
+
+                    disc_loss["p"]["global"] += global_loss
+                    disc_loss["p"]["local"] += local_loss
 
             else:
                 if "m" in self.opts.tasks:
@@ -833,7 +857,10 @@ class Trainer:
                         disc_loss["m"]["Advent"] += (
                             self.opts.train.lambdas.advent.adv_main * loss_main
                         )
+<<<<<<< Updated upstream
 
+=======
+>>>>>>> Stashed changes
                     elif batch_domain == "s":
                         loss_main = self.losses["D"]["advent"](
                             prob.to(self.device),
@@ -851,7 +878,11 @@ class Trainer:
                             self.opts.train.lambdas.advent.adv_main * loss_main
                         )
                     else:
+<<<<<<< Updated upstream
                         raise Exception("Wrong Domain Input!")
+=======
+                        continue
+>>>>>>> Stashed changes
 
         self.logger.losses.discriminator.update(
             {dom: {k: v.item() for k, v in d.items()} for dom, d in disc_loss.items()}
