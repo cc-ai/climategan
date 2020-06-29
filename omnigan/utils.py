@@ -240,3 +240,27 @@ def get_comet_rest_api_key(path_to_config_file=None):
             if "rest_api_key" in l:
                 return l.strip().split("=")[-1].strip()
     raise ValueError("Unable to find your COMET_REST_API_KEY in {}".format(str(p)))
+
+
+def sum_dict(dict1, dict2):
+    """[Add dict2 into dict1]
+    """
+
+    for k, v in dict2.items():
+        if not isinstance(v, dict):
+            dict1[k] += v
+        else:
+            sum_dict(dict1[k], dict2[k])
+    return dict1
+
+
+def div_dict(dict1, div_by):
+    """[Divide elements of {dict1} by {div_by}]
+    """
+
+    for k, v in dict1.items():
+        if not isinstance(v, dict):
+            dict1[k] /= div_by
+        else:
+            div_dict(dict1[k], div_by)
+    return dict1

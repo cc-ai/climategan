@@ -16,7 +16,7 @@ from omnigan.discriminator import get_dis
 from omnigan.generator import get_gen
 from omnigan.losses import get_losses
 from omnigan.optim import get_optimizer
-from omnigan.utils import flatten_opts
+from omnigan.utils import flatten_opts, sum_dict, div_dict
 from omnigan.tutils import (
     domains_to_class_tensor,
     fake_domains_to_class_tensor,
@@ -26,6 +26,7 @@ from omnigan.tutils import (
 )
 import torchvision.utils as vutils
 import os
+from collections import Counter
 
 
 class Trainer:
@@ -352,7 +353,7 @@ class Trainer:
             # -------------------------------
             # -----  Update Classifier  -----
             # -------------------------------
-            if self.opts.train.latent_domain_adaptation:
+            if self.opts.train.latent_domain_adaptation and self.C is not None:
                 self.update_c(multi_domain_batch)
 
             # -----------------
@@ -470,6 +471,7 @@ class Trainer:
         for self.logger.epoch in range(
             self.logger.epoch, self.logger.epoch + self.opts.train.epochs
         ):
+            self.eval()
             self.run_epoch()
             self.eval(verbose=1)
             if (
@@ -699,6 +701,7 @@ class Trainer:
         # ? repr: domain-adaptation traduction
         self.d_opt.zero_grad()
         d_loss = self.get_d_loss(multi_domain_batch, verbose)
+
         d_loss.backward()
         self.d_opt_step()
 
@@ -729,7 +732,7 @@ class Trainer:
             [type]: [description]
         """
         zerotensor = torch.tensor(0.0)
-        disc_loss = {"p": {"global": zerotensor, "local": zerotensor}}
+        disc_loss = {"p": {"global": 0, "local": 0}}
         for batch_domain, batch in multi_domain_batch.items():
 
             x = batch["data"]["x"]
@@ -758,9 +761,17 @@ class Trainer:
             else:
                 continue
 
+        # v.item() if isinstance(v, torch.Tensor) else v
         self.logger.losses.discriminator.update(
-            {dom: {k: v.item() for k, v in d.items()} for dom, d in disc_loss.items()}
+            {
+                dom: {
+                    k: v.item() if isinstance(v, torch.Tensor) else v
+                    for k, v in d.items()
+                }
+                for dom, d in disc_loss.items()
+            }
         )
+
         loss = sum(v for d in disc_loss.values() for k, v in d.items())
         return loss
 
@@ -817,20 +828,17 @@ class Trainer:
             # (batch_domain_0, ..., batch_domain_i)
             # and send it to self.device
             multi_domain_batch = {
-                batch["domain"]: self.batch_to_device(batch)
+                batch["domain"][0]: self.batch_to_device(batch)
                 for batch in multi_batch_tuple
             }
             self.get_g_loss(multi_domain_batch, verbose)
+
             if val_logger is None:
                 val_logger = deepcopy(self.logger.losses.generator)
             else:
-                for k, v in val_logger.items():
-                    if not isinstance(v, dict):
-                        val_logger[k] += v
-                    else:
-                        for kk, vv in v.items():
-                            val_logger[k][kk] += vv
+                val_logger = sum_dict(val_logger, self.logger.losses.generator)
 
+        val_logger = div_dict(val_logger, i + 1)
         self.logger.losses.generator = val_logger
         self.log_losses(model_to_update="G", mode="val")
 
