@@ -75,7 +75,9 @@ class OmniGenerator(nn.Module):
             self.decoders["m"] = MaskDecoder(opts)
 
         self.decoders = nn.ModuleDict(self.decoders)
-        self.painter = FullSpadeGen(opts)
+
+        if "p" in opts.tasks:
+            self.painter = FullSpadeGen(opts)
 
     def encode(self, x):
         return self.encoder.forward(x)
@@ -137,12 +139,14 @@ class SimCLRProjectionHead(nn.Module):
         super(SimCLRProjectionHead, self).__init__()
         self.l1 = None
         self.l2 = None
+        self.device = None
 
     # Call setup later when knowing latent shape
-    def setup(self, latent_shape, out_dim):
+    def setup(self, latent_shape, out_dim, device):
+        self.device = device
         num_ftrs = latent_shape.numel()
-        self.l1 = nn.Linear(num_ftrs, num_ftrs)
-        self.l2 = nn.Linear(num_ftrs, out_dim)
+        self.l1 = nn.Linear(num_ftrs, num_ftrs).to(self.device)
+        self.l2 = nn.Linear(num_ftrs, out_dim).to(self.device)
 
     def forward(self, x):  # h = representation, z = projection
         h = x.view(x.size(0), -1)

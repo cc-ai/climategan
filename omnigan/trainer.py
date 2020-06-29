@@ -147,17 +147,19 @@ class Trainer:
             tuple: (c, h, w)
         """
         b = None
-        for mode in self.loaders:
-            for domain in self.loaders[mode]:
-                b = Dict(next(iter(self.loaders[mode][domain])))
-                break
-        if b is None:
-            raise ValueError("No batch found to compute_latent_shape")
-        b = self.batch_to_device(b)
-        if "simclr" in self.opts.tasks:
-            z = self.G.encode(b.data.simclr.xi)
-        else:
+        if "simclr" not in self.opts.tasks:
+            for mode in self.loaders:
+                for domain in self.loaders[mode]:
+                    b = Dict(next(iter(self.loaders[mode][domain])))
+                    break
+            if b is None:
+                raise ValueError("No batch found to compute_latent_shape")
+            b = self.batch_to_device(b)
             z = self.G.encode(b.data.x)
+        else:
+            b = Dict(next(iter(self.loaders["train"]["r"])))
+            b = self.batch_to_device(b)
+            z = self.G.encode(b.data.simclr.xi)
         return z.shape[1:]
 
     def compute_input_shape(self):
@@ -201,7 +203,7 @@ class Trainer:
 
         if "simclr" in self.opts.tasks:
             self.G.decoders["simclr"].setup(
-                self.latent_shape, self.opts.gen.simclr.output_size
+                self.latent_shape, self.opts.gen.simclr.output_size, self.device
             )
         else:
             self.input_shape = self.compute_input_shape()
@@ -570,14 +572,14 @@ class Trainer:
         self.g_opt.zero_grad()
         pretrain_loss = r_loss = p_loss = None
 
-        if self.opts.art == "pretraining":
+        if "simclr" in self.opts.tasks:
             pretrain_loss = self.get_pretraining_loss(multi_domain_batch)
 
         # For now, always compute "representation loss"
-        if self.opts.art == "mask":
+        if "m" in self.opts.tasks:
             r_loss = self.get_representation_loss(multi_domain_batch)
 
-        if self.opts.art == "paint":
+        if "p" in self.opts.tasks:
             p_loss = self.get_painter_loss(multi_domain_batch)
 
         # if self.should_compute_t_loss():
@@ -623,8 +625,8 @@ class Trainer:
             if "simclr" in self.opts.tasks:
                 xi = batch["data"]["simclr"]["xi"]
                 xj = batch["data"]["simclr"]["xj"]
-                hi = self.G.encode(xi)
-                hj = self.G.encode(xj)
+                zi = self.G.encode(xi)
+                zj = self.G.encode(xj)
 
             # ---------------------------------
             # -----  classifier loss (1)  -----
@@ -632,8 +634,8 @@ class Trainer:
             update_loss = 0
             if "simclr" in self.opts.tasks and self.opts.gen.simclr.domain_adaptation:
                 # Forward pass through classifier
-                out_c_i = self.C(hi)
-                out_c_j = self.C(hj)
+                out_c_i = self.C(zi)
+                out_c_j = self.C(zj)
 
                 # Cross entropy loss (with sigmoid) with fake labels to fool C
                 update_loss += self.losses["C"](
@@ -650,9 +652,9 @@ class Trainer:
             # --------------------------------------------------
             for update_task, update_target in batch["data"].items():
                 if update_task == "simclr":
-                    zi = self.G.decoders[update_task](hi)
-                    zj = self.G.decoders[update_task](hj)
-                    update_loss = self.losses["G"]["tasks"][update_task](zi, zj)
+                    hi = self.G.decoders[update_task](zi)
+                    hj = self.G.decoders[update_task](zj)
+                    update_loss = self.losses["G"]["tasks"][update_task](hi, hj)
                     step_loss += update_loss * lambdas.G[update_task]
                     self.logger.losses.task_loss[update_task][
                         batch_domain
@@ -985,8 +987,8 @@ class Trainer:
                 if "simclr" in self.opts.tasks:
                     xi = domain_batch["data"]["simclr"]["xi"]
                     xj = domain_batch["data"]["simclr"]["xj"]
-                    hi = self.G.encode(xi)
-                    hj = self.G.encode(xj)
+                    zi = self.G.encode(xi)
+                    zj = self.G.encode(xj)
                 else:
                     x = domain_batch["data"]["x"]
                     self.z = self.G.encode(x)
@@ -1038,9 +1040,9 @@ class Trainer:
                             domain
                         ] = update_loss.item()
                     if update_task == "simclr":
-                        zi = self.G.decoders[update_task](hi)
-                        zj = self.G.decoders[update_task](hj)
-                        update_loss = self.losses["G"]["tasks"][update_task](zi, zj)
+                        hi = self.G.decoders[update_task](zi)
+                        hj = self.G.decoders[update_task](zj)
+                        update_loss = self.losses["G"]["tasks"][update_task](hi, hj)
                         self.logger.losses.task_loss[update_task][
                             domain
                         ] = update_loss.item()
