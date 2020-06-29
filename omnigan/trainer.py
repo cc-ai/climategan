@@ -322,16 +322,17 @@ class Trainer:
                 batch["domain"][0]: self.batch_to_device(batch)
                 for batch in multi_batch_tuple
             }
-
-            # freeze params of advent discriminator
-            for param in self.D["m"]["Advent"].parameters():
-                param.requires_grad = False
+            if self.opts.train.use_advent:
+                # freeze params of advent discriminator
+                for param in self.D["m"]["Advent"].parameters():
+                    param.requires_grad = False
 
             self.update_g(multi_domain_batch)
             if self.d_opt is not None:
-                # unfreeze params of advent discriminator
-                for param in self.D["m"]["Advent"].parameters():
-                    param.requires_grad = True
+                if self.opts.train.use_advent:
+                    # unfreeze params of advent discriminator
+                    for param in self.D["m"]["Advent"].parameters():
+                        param.requires_grad = True
 
                 self.update_d(multi_domain_batch)
             self.update_c(multi_domain_batch)
@@ -642,22 +643,24 @@ class Trainer:
                     self.logger.losses.generator.task_loss[update_task]["tv"][
                         batch_domain
                     ] = update_loss.item()
+                    if self.opts.train.use_advent:
+                        # Then Advent loss
+                        if batch_domain == "r":
+                            pred_prime = 1 - prediction
+                            prob = torch.cat([prediction, pred_prime], dim=1)
 
-                    # Then Advent loss
-                    if batch_domain == "r":
-                        pred_prime = 1 - prediction
-                        prob = torch.cat([prediction, pred_prime], dim=1)
+                            update_loss = self.losses["G"]["tasks"][update_task][
+                                "advent"
+                            ](
+                                prob.to(self.device),
+                                self.source_label,
+                                self.D["m"]["Advent"],
+                            )
+                        step_loss += update_loss
 
-                        update_loss = self.losses["G"]["tasks"]["m"]["advent"](
-                            prob.to(self.device),
-                            self.source_label,
-                            self.D["m"]["Advent"],
-                        )
-                    step_loss += update_loss
-
-                    self.logger.losses.generator.task_loss[update_task]["advent"][
-                        batch_domain
-                    ] = update_loss.item()
+                        self.logger.losses.generator.task_loss[update_task]["advent"][
+                            batch_domain
+                        ] = update_loss.item()
         return step_loss
 
     def get_painter_loss(self, multi_domain_batch):
@@ -811,47 +814,48 @@ class Trainer:
 
             else:
                 if "m" in self.opts.tasks:
-                    if verbose > 0:
-                        print("Now training the ADVENT discriminator!")
-                    z_decode = self.G.decoders["m"](z)
-                    z_prime = 1 - z_decode
-                    prob = torch.cat([z_decode, z_prime], dim=1)
-                    prob = prob.detach()
+                    if self.opts.train.use_advent:
+                        if verbose > 0:
+                            print("Now training the ADVENT discriminator!")
+                        z_decode = self.G.decoders["m"](z)
+                        z_prime = 1 - z_decode
+                        prob = torch.cat([z_decode, z_prime], dim=1)
+                        prob = prob.detach()
 
-                    if batch_domain == "r":
-                        loss_main = self.losses["D"]["advent"](
-                            prob.to(self.device),
-                            self.target_label,
-                            self.D["m"]["Advent"],
-                        )
+                        if batch_domain == "r":
+                            loss_main = self.losses["D"]["advent"](
+                                prob.to(self.device),
+                                self.target_label,
+                                self.D["m"]["Advent"],
+                            )
 
-                        # loss_aux = self.losses["D"]["advent"](
-                        #     prob_aux.to(self.device),
-                        #     self.target_label,
-                        #     self.D["m"]["Advent_aux"]
-                        # )
+                            # loss_aux = self.losses["D"]["advent"](
+                            #     prob_aux.to(self.device),
+                            #     self.target_label,
+                            #     self.D["m"]["Advent_aux"]
+                            # )
 
-                        disc_loss["m"]["Advent"] += (
-                            self.opts.train.lambdas.advent.adv_main * loss_main
-                        )
-                    elif batch_domain == "s":
-                        loss_main = self.losses["D"]["advent"](
-                            prob.to(self.device),
-                            self.source_label,
-                            self.D["m"]["Advent"],
-                        )
+                            disc_loss["m"]["Advent"] += (
+                                self.opts.train.lambdas.advent.adv_main * loss_main
+                            )
+                        elif batch_domain == "s":
+                            loss_main = self.losses["D"]["advent"](
+                                prob.to(self.device),
+                                self.source_label,
+                                self.D["m"]["Advent"],
+                            )
 
-                        # loss_aux = self.losses["D"]["advent"](
-                        #     prob_aux.to(self.device),
-                        #     self.source_label,
-                        #     self.D["m"]["Advent_aux"]
-                        # )
+                            # loss_aux = self.losses["D"]["advent"](
+                            #     prob_aux.to(self.device),
+                            #     self.source_label,
+                            #     self.D["m"]["Advent_aux"]
+                            # )
 
-                        disc_loss["m"]["Advent"] += (
-                            self.opts.train.lambdas.advent.adv_main * loss_main
-                        )
-                    else:
-                        continue
+                            disc_loss["m"]["Advent"] += (
+                                self.opts.train.lambdas.advent.adv_main * loss_main
+                            )
+                        else:
+                            continue
 
         self.logger.losses.discriminator.update(
             {dom: {k: v.item() for k, v in d.items()} for dom, d in disc_loss.items()}
@@ -971,6 +975,25 @@ class Trainer:
                         self.logger.losses.generator.task_loss[update_task]["tv"][
                             domain
                         ] = update_loss.item()
+
+                        if self.opts.val.use_advent == True:
+                            # Then Advent loss
+                            if domain == "r":
+                                pred_prime = 1 - prediction
+                                prob = torch.cat([prediction, pred_prime], dim=1)
+
+                                update_loss = self.losses["G"]["tasks"][update_task][
+                                    "advent"
+                                ](
+                                    prob.to(self.device),
+                                    self.source_label,
+                                    self.D["m"]["Advent"],
+                                )
+
+                            self.logger.losses.generator.task_loss[update_task][
+                                "advent"
+                            ][domain] = update_loss.item()
+
         self.log_losses(model_to_update="G", mode="val")
 
         if self.opts.art == "mask":
