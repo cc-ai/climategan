@@ -767,11 +767,7 @@ class Trainer:
         Returns:
             [type]: [description]
         """
-<<<<<<< Updated upstream
-        zerotensor = torch.tensor(0).to(self.device)
-=======
         zerotensor = torch.tensor(0.0).to(self.device)
->>>>>>> Stashed changes
         disc_loss = {
             "m": {"Advent": zerotensor},
             "p": {"global": zerotensor, "local": zerotensor},
@@ -796,24 +792,6 @@ class Trainer:
                         .normal_(mean=0, std=1.0)
                         .to(self.device)
                     )
-<<<<<<< Updated upstream
-                    .normal_(mean=0, std=1.0)
-                    .to(self.device)
-                )
-                fake = self.G.painter(z_paint, x * (1.0 - m))
-                fake_d_global = self.D["p"]["global"](fake)
-                real_d_global = self.D["p"]["global"](x)
-                fake_d_local = self.D["p"]["local"](fake * m)
-                real_d_local = self.D["p"]["local"](x * m)
-
-                global_loss = self.losses["D"]["default"](
-                    fake_d_global, False
-                ) + self.losses["D"]["default"](real_d_global, True)
-
-                local_loss = self.losses["D"]["default"](
-                    fake_d_local, False
-                ) + self.losses["D"]["default"](real_d_local, True)
-=======
                     fake = self.G.painter(z_paint, x * (1.0 - m))
                     fake_d_global = self.D["p"]["global"](fake)
                     real_d_global = self.D["p"]["global"](x)
@@ -823,7 +801,6 @@ class Trainer:
                     global_loss = self.losses["D"]["default"](
                         fake_d_global, False
                     ) + self.losses["D"]["default"](real_d_global, True)
->>>>>>> Stashed changes
 
                     local_loss = self.losses["D"]["default"](
                         fake_d_local, False
@@ -857,10 +834,6 @@ class Trainer:
                         disc_loss["m"]["Advent"] += (
                             self.opts.train.lambdas.advent.adv_main * loss_main
                         )
-<<<<<<< Updated upstream
-
-=======
->>>>>>> Stashed changes
                     elif batch_domain == "s":
                         loss_main = self.losses["D"]["advent"](
                             prob.to(self.device),
@@ -878,11 +851,7 @@ class Trainer:
                             self.opts.train.lambdas.advent.adv_main * loss_main
                         )
                     else:
-<<<<<<< Updated upstream
-                        raise Exception("Wrong Domain Input!")
-=======
                         continue
->>>>>>> Stashed changes
 
         self.logger.losses.discriminator.update(
             {dom: {k: v.item() for k, v in d.items()} for dom, d in disc_loss.items()}
