@@ -30,9 +30,6 @@ def parsed_args():
         help="What configuration file to use to overwrite shared/defaults.yaml",
     )
     parser.add_argument(
-        "--exp_desc", default="", type=str, help="Description of the experiment",
-    )
-    parser.add_argument(
         "--note", default="", type=str, help="Note about this training",
     )
     parser.add_argument(
@@ -50,7 +47,6 @@ def parsed_args():
         action="append",
         help="Repeatable flag to add tags to the comet exp (--tag a --tag b ...)",
     )
-
     return parser.parse_args()
 
 
@@ -108,8 +104,6 @@ if __name__ == "__main__":
     if not args.no_comet and not args.dev_mode:
         exp = Experiment(project_name="omnigan", auto_metric_logging=False)
         exp.log_parameters(flatten_opts(opts))
-        if args.exp_desc:
-            exp.log_parameter("exp_desc", args.exp_desc)
         if args.note:
             exp.log_parameter("note", args.note)
         with open(Path(opts.output_path) / "comet_url.txt", "w") as f:

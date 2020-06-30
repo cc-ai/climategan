@@ -2,8 +2,7 @@ output_path: /network/tmp1/schmidtv/yb_runs/test_v1
 # -------------------
 # -----  Tasks  -----
 # -------------------
-tasks: [d, s, m, p]
-art: paint # one of {"paint", "mask"}
+tasks: [d, s, m, p] # [p] [m, s, d] [simclr]
 # ----------------
 # ----- Data -----
 # ----------------
@@ -134,7 +133,7 @@ classifier:
     lr_policy: step # constant or step ; if step, specify step_size and gamma
     lr_step_size: 30 # for linear decay
     lr_gamma: 0.5
-  loss: cross_entropy #Loss can be l1, l2, cross_entropy.  default cross_entropy
+  loss: l2 #Loss can be l1, l2, cross_entropy.  default cross_entropy
   layers: [100, 100, 20, 20, 4] # number of units per hidden layer ; las number is output_dim
   dropout: 0.4 # probability of being set to 0
   init_type: kaiming
@@ -148,7 +147,7 @@ train:
   epochs: 100000000
   representational_training: True
   representation_steps: 10000 # for how many steps would the representation be trained before we train the translation
-  freeze_representation: False # whether or not to backprop into the representation when doing the translation
+  latent_domain_adaptation: True # whether or not to do domain adaptation on the latent vectors
   lambdas: # scaling factors in the total loss
     G:
       d: 1
@@ -181,3 +180,9 @@ val:
 # -----------------------------
 comet:
   display_size: 5
+  im_per_row:
+    simclr: 2
+    p: 4
+    m: 4
+    s: 3
+    d: 3
