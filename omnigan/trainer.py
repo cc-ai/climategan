@@ -322,14 +322,14 @@ class Trainer:
                 batch["domain"][0]: self.batch_to_device(batch)
                 for batch in multi_batch_tuple
             }
-            if self.opts.train.use_advent:
+            if self.opts.gen.m.use_advent:
                 # freeze params of advent discriminator
                 for param in self.D["m"]["Advent"].parameters():
                     param.requires_grad = False
 
             self.update_g(multi_domain_batch)
             if self.d_opt is not None:
-                if self.opts.train.use_advent:
+                if self.opts.gen.m.use_advent:
                     # unfreeze params of advent discriminator
                     for param in self.D["m"]["Advent"].parameters():
                         param.requires_grad = True
@@ -643,7 +643,7 @@ class Trainer:
                     self.logger.losses.generator.task_loss[update_task]["tv"][
                         batch_domain
                     ] = update_loss.item()
-                    if self.opts.train.use_advent:
+                    if self.opts.gen.m.use_advent:
                         # Then Advent loss
                         if batch_domain == "r":
                             pred_prime = 1 - prediction
@@ -814,7 +814,7 @@ class Trainer:
 
             else:
                 if "m" in self.opts.tasks:
-                    if self.opts.train.use_advent:
+                    if self.opts.gen.m.use_advent:
                         if verbose > 0:
                             print("Now training the ADVENT discriminator!")
                         z_decode = self.G.decoders["m"](z)

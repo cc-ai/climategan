@@ -94,6 +94,8 @@ gen:
   m: # specific params for the mask-generation decoder
     <<: *default-gen
     output_dim: 1
+    use_advent: True
+
 
 # -------------------------
 # ----- Discriminator -----
@@ -150,7 +152,6 @@ train:
   representational_training: True
   representation_steps: 10000 # for how many steps would the representation be trained before we train the translation
   freeze_representation: False # whether or not to backprop into the representation when doing the translation
-  use_advent: True
   lambdas: # scaling factors in the total loss
     G:
       d: 1
@@ -182,7 +183,6 @@ train:
 # -----------------------------
 val:
   store_images: false # write to disk on top of comet logging
-  use_advent: True
 # -----------------------------
 # ----- Comet Params ----------
 # -----------------------------
