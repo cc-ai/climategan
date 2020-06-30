@@ -322,17 +322,16 @@ class Trainer:
                 batch["domain"][0]: self.batch_to_device(batch)
                 for batch in multi_batch_tuple
             }
-            if self.opts.gen.m.use_advent:
-                # freeze params of advent discriminator
-                for param in self.D["m"]["Advent"].parameters():
+            if self.d_opt is not None:
+                # freeze params of the discriminator
+                for param in self.D.parameters():
                     param.requires_grad = False
 
             self.update_g(multi_domain_batch)
             if self.d_opt is not None:
-                if self.opts.gen.m.use_advent:
-                    # unfreeze params of advent discriminator
-                    for param in self.D["m"]["Advent"].parameters():
-                        param.requires_grad = True
+                # unfreeze params of advent discriminator
+                for param in self.D.parameters():
+                    param.requires_grad = True
 
                 self.update_d(multi_domain_batch)
             self.update_c(multi_domain_batch)
@@ -817,9 +816,9 @@ class Trainer:
                     if self.opts.gen.m.use_advent:
                         if verbose > 0:
                             print("Now training the ADVENT discriminator!")
-                        z_decode = self.G.decoders["m"](z)
-                        z_prime = 1 - z_decode
-                        prob = torch.cat([z_decode, z_prime], dim=1)
+                        fake_mask = self.G.decoders["m"](z)
+                        fake_complementary_mask = 1 - fake_mask
+                        prob = torch.cat([fake_mask, fake_complementary_mask], dim=1)
                         prob = prob.detach()
 
                         if batch_domain == "r":
@@ -828,12 +827,6 @@ class Trainer:
                                 self.target_label,
                                 self.D["m"]["Advent"],
                             )
-
-                            # loss_aux = self.losses["D"]["advent"](
-                            #     prob_aux.to(self.device),
-                            #     self.target_label,
-                            #     self.D["m"]["Advent_aux"]
-                            # )
 
                             disc_loss["m"]["Advent"] += (
                                 self.opts.train.lambdas.advent.adv_main * loss_main
@@ -844,12 +837,6 @@ class Trainer:
                                 self.source_label,
                                 self.D["m"]["Advent"],
                             )
-
-                            # loss_aux = self.losses["D"]["advent"](
-                            #     prob_aux.to(self.device),
-                            #     self.source_label,
-                            #     self.D["m"]["Advent_aux"]
-                            # )
 
                             disc_loss["m"]["Advent"] += (
                                 self.opts.train.lambdas.advent.adv_main * loss_main
