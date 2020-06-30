@@ -310,12 +310,8 @@ def get_losses(opts, verbose, device=None):
     # ?   instead of noisy label
     if "d" in opts.tasks:
         losses["G"]["tasks"]["d"] = MSELoss()
-    if "h" in opts.tasks:
-        losses["G"]["tasks"]["h"] = MSELoss()
     if "s" in opts.tasks:
         losses["G"]["tasks"]["s"] = CrossEntropy()
-    if "w" in opts.tasks:
-        losses["G"]["tasks"]["w"] = lambda x, y: (x + y).mean()
     if "m" in opts.tasks:
         losses["G"]["tasks"]["m"] = {}
         losses["G"]["tasks"]["m"]["main"] = nn.BCELoss()

@@ -95,7 +95,7 @@ class NLayerDiscriminator(nn.Module):
             nf_mult = min(2 ** n, 8)
             sequence += [
                 # Use spectral normalization
-                SpectralNorm(
+                SpectralNorm(  # TODO replace with Conv2dBlock
                     nn.Conv2d(
                         ndf * nf_mult_prev,
                         ndf * nf_mult,

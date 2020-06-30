@@ -107,24 +107,6 @@ class BasicBlock(nn.Module):
         return out
 
 
-def conv_block(in_channels, out_channels):
-    """returns a block Convolution - batch normalization - ReLU - Pooling
-
-    Arguments:
-        in_channels {int} -- Number of channels in the input image
-        out_channels {int} -- Number of channels produced by the convolution
-
-    Returns:
-        block -- Convolution - batch normalization - ReLU - Pooling
-    """
-    return nn.Sequential(
-        nn.Conv2d(in_channels, out_channels, 3, padding=1),
-        nn.BatchNorm2d(out_channels),
-        nn.ReLU(),
-        nn.MaxPool2d(2),
-    )
-
-
 def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
     """3x3 convolution with padding
     Arguments:
