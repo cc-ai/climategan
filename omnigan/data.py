@@ -103,6 +103,9 @@ class OmniListDataset(Dataset):
         self.mode = mode
         self.tasks = set(opts.tasks)
         self.tasks.add("x")
+        if "p" in self.tasks:
+            self.tasks.add("m")
+
         file_list_path = Path(opts.data.files[mode][domain])
         if "/" not in str(file_list_path):
             file_list_path = Path(opts.data.files.base) / Path(
@@ -231,7 +234,7 @@ def get_all_loaders(opts):
     loaders = {}
     for mode in ["train", "val"]:
         loaders[mode] = {}
-        for domain in ["r", "rf", "s"]:
+        for domain in opts.domains:
             if mode in opts.data.files:
                 if domain in opts.data.files[mode]:
                     loaders[mode][domain] = get_loader(mode, domain, opts)

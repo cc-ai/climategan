@@ -3,145 +3,12 @@
 import os
 import re
 import subprocess
+import json
 from copy import deepcopy
 from pathlib import Path
 
-import numpy as np
 import yaml
 from addict import Dict
-
-
-def load_exp(path):
-    path = Path(path)
-    with open(path, "r") as f:
-        xopts = Dict(yaml.safe_load(f))
-
-    if xopts.experiment.repeat and xopts.experiment.repeat > 1:
-        xopts.runs = [
-            deepcopy(run) for run in xopts.runs for _ in range(xopts.experiment.repeat)
-        ]
-
-    for i, run in enumerate(xopts.runs):
-        xopts.runs[i].trainer = resolve_sample(run.trainer)
-
-    for i, run in enumerate(xopts.runs):
-        conf = (
-            env_to_path(xopts.experiment.config)
-            if xopts.experiment.config_file
-            else None
-        )
-        defaults = (
-            env_to_path(xopts.experiment.defaults)
-            if xopts.experiment.defaults
-            else None
-        )
-        trainer_opts = load_opts(conf, defaults)
-        trainer_opts.update(run.trainer)
-        trainer_opts.output_path = str(
-            Path(env_to_path(xopts.experiment.base_dir)) / "run"
-        )
-        xopts.runs[i].trainer = trainer_opts
-
-    return xopts
-
-
-def write_run_template(xopts, i, template_path, write_path):
-    ropt = xopts.runs[i]
-    exp = xopts.experiment
-    with open(template_path, "r") as f:
-        template = f.readlines()
-
-    beluga = bool(os.environ.get("SCRATCH"))
-
-    new_template = []
-    for line in template:
-        line = line.strip()
-        if "{{" not in line:
-            new_template.append(line)
-            continue
-        for pattern in re.findall(r"{{\w+}}", line):
-            ignore = False
-            param = pattern.replace("{{", "").replace("}}", "")
-            replace = ""
-            if param == "cpu":
-                replace = str(ropt.sbatch.cpu)
-            elif param == "gpu":
-                replace = str(ropt.sbatch.gpu)
-            elif param == "mem":
-                replace = str(ropt.sbatch.mem)
-            elif param == "time":
-                if not beluga:
-                    ignore = True
-                replace = str(ropt.sbatch.duration)
-            elif param == "output_path":
-                replace = str(ropt.trainer.output_path)
-            elif param == "main_partition":
-                if beluga:
-                    ignore = True
-                replace = f"#SBATCH -p {ropt.sbatch.partition}"
-            elif param == "config":
-                replace = "--config=" + str(
-                    Path(ropt.trainer.output_path) / "config.yaml"
-                )
-            elif param == "no_comet":
-                replace = "--no_comet" if ropt.experiment.no_comet else ""
-            elif param == "exp_desc":
-                replace = f'--exp_desc="{str(exp.exp_desc)}"' if exp.exp_desc else ""
-            elif param == "dev_mode":
-                replace = "--dev_mode" if exp.dev_mode else ""
-            elif param == "note":
-                replace = f'--note="{str(ropt.comet.note)}"' if ropt.comet.note else ""
-            elif param == "tags":
-                replace = ""
-                for t in ropt.comet.tags:
-                    replace += f"--tag {'_'.join(t.split())} "
-            else:
-                ignore = True
-            line = re.sub(pattern, replace, line)
-        if not ignore:
-            new_template.append(line)
-
-    with open(write_path, "w") as f:
-        f.write("\n".join(new_template))
-
-
-def resolve_sample(dic):
-    for k, v in dic.items():
-        if isinstance(v, Dict):
-            if "sample" in v:
-                dic[k] = sample_param(v)
-            else:
-                dic[k] = resolve_sample(v)
-    return dic
-
-
-def sample_param(sample_dict):
-    """sample a value (hyperparameter) from the instruction in the
-    sample dict:
-    {
-        "sample": "range | list",
-        "from": [min, max, step] | [v0, v1, v2 etc.]
-    }
-    if range, as np.arange is used, "from" MUST be a list, but may contain
-    only 1 (=min) or 2 (min and max) values, not necessarily 3
-
-    Args:
-        sample_dict (dict): instructions to sample a value
-
-    Returns:
-        scalar: sampled value
-    """
-    if "sample" not in sample_dict:
-        return sample_dict
-    if sample_dict["sample"] == "range":
-        value = np.random.choice(np.arange(*sample_dict["from"]))
-    elif sample_dict["sample"] == "list":
-        value = np.random.choice(sample_dict["from"])
-    elif sample_dict["sample"] == "uniform":
-        value = np.random.uniform(*sample_dict["from"])
-    else:
-        raise ValueError("Unknown sample type in dict " + str(sample_dict))
-    return value
 
 
 def load_opts(path=None, default=None):
@@ -175,6 +42,17 @@ def load_opts(path=None, default=None):
             overriding_opts = Dict(yaml.safe_load(f))
 
     default_opts.update(overriding_opts)
+
+    default_opts.domains = []
+    if "m" in default_opts.tasks:
+        default_opts.domains.extend(["r", "s"])
+    if "p" in default_opts.tasks:
+        default_opts.domains.append("rf")
+    if "simclr" in default_opts.tasks:
+        default_opts.domains.append("r")
+        if default_opts.gen.simclr.domain_adaptation:
+            default_opts.domains.append("s")
+    default_opts.domains = list(set(default_opts.domains))
 
     return set_data_paths(default_opts)
 
@@ -364,3 +242,95 @@ def get_comet_rest_api_key(path_to_config_file=None):
             if "rest_api_key" in l:
                 return l.strip().split("=")[-1].strip()
     raise ValueError("Unable to find your COMET_REST_API_KEY in {}".format(str(p)))
+
+
+def get_files(dirName):
+    # create a list of file and sub directories
+    files = os.listdir(dirName)
+    all_files = list()
+    for entry in files:
+        fullPath = os.path.join(dirName, entry)
+        if os.path.isdir(fullPath):
+            all_files = all_files + get_files(fullPath)
+        else:
+            all_files.append(fullPath)
+
+    return all_files
+
+
+def make_json_file(
+    keys,
+    addresses,
+    splitter="/",  # for windows user, use "\\" instead of using "/"
+    name_of_the_json_file="jsonfile.json",
+):
+    """
+        How to use it?
+    e.g.
+    main(['x','m','d'], [
+    '/network/tmp1/ccai/data/munit_dataset/trainA_size_1200/',
+    '/network/tmp1/ccai/data/munit_dataset/seg_trainA_size_1200/',
+    '/network/tmp1/ccai/data/munit_dataset/trainA_megadepth_resized/'
+    ], 'train_r_resized.json')
+
+    Args:
+        keys (list): [description]
+        addresses (list): [description]
+        splitter (str, optional): [description]. Defaults to "/".
+    """
+
+    print("Please Make sure there is a file with the same name in each folder!")
+    assert len(keys) == len(addresses), "keys and addresses must have the same length!"
+
+    files = [get_files(addresses[j]) for j in range(len(keys))]
+
+    file_address_map = {
+        keys[j]: {
+            ".".join(file.split(splitter)[-1].split(".")[:-1]): file
+            for file in files[j]
+        }
+        for j in range(len(keys))
+    }
+    # The keys of the file_address_map are like 'x', 'm', 'd'...
+    # The values of the file_address_map are a dictionary whose keys are the
+    # filenames without extension whose values are the path of the filename
+    # e.g. file_address_map =
+    # {'x': {'A': 'path/to/trainA_size_1200/A.png', ...},
+    #  'm': {'A': 'path/to/seg_trainA_size_1200/A.jpg',...}
+    #  'd': {'A': 'path/to/trainA_megadepth_resized/A.bmp',...}
+    # ...}
+
+    dicts = []
+    for file in files[0]:
+        filename = file.split(splitter)[-1]  # the filename with 'x' extension
+        filename_ = ".".join(filename.split(".")[:-1])  # the filename without extension
+        tmp_dict = {}
+        for i in range(len(keys)):
+            tmp_dict[keys[i]] = file_address_map[keys[i]][
+                filename_
+            ]
+        dicts.append(tmp_dict)
+    with open(name_of_the_json_file, "w", encoding="utf-8") as outfile:
+        json.dump(dicts, outfile, ensure_ascii=False)
+
+
+def sum_dict(dict1, dict2):
+    """Add dict2 into dict1
+    """
+    for k, v in dict2.items():
+        if not isinstance(v, dict):
+            dict1[k] += v
+        else:
+            sum_dict(dict1[k], dict2[k])
+    return dict1
+
+
+def div_dict(dict1, div_by):
+    """Divide elements of dict1 by div_by
+    """
+    for k, v in dict1.items():
+        if not isinstance(v, dict):
+            dict1[k] /= div_by
+        else:
+            div_dict(dict1[k], div_by)
+    return dict1
