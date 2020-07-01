@@ -195,16 +195,14 @@ class Trainer:
         start_time = time()
         self.logger.time.start_time = start_time
 
-        if "simclr" in self.opts.tasks:
-            assert len(self.opts.tasks) == 1  # We want to train simclr alone
-            self.loaders = get_simclr_loaders(self.opts)
-        else:
-            self.loaders = get_all_loaders(self.opts)
+        self.loaders = get_all_loaders(self.opts)
 
         self.G: OmniGenerator = get_gen(self.opts, verbose=self.verbose).to(self.device)
         if self.G.encoder is not None:
             self.latent_shape = self.compute_latent_shape()
+
         if "simclr" in self.opts.tasks:
+            assert len(self.opts.tasks) == 1  # We want to train simclr alone
             self.G.decoders["simclr"].setup(
                 self.latent_shape, self.opts.gen.simclr.output_size, self.device
             )
@@ -212,6 +210,7 @@ class Trainer:
             self.input_shape = self.compute_input_shape()
             self.painter_z_h = self.input_shape[-2] // (2 ** self.opts.gen.p.spade_n_up)
             self.painter_z_w = self.input_shape[-1] // (2 ** self.opts.gen.p.spade_n_up)
+
         self.D: OmniDiscriminator = get_dis(self.opts, verbose=self.verbose).to(
             self.device
         )
@@ -223,7 +222,7 @@ class Trainer:
         self.print_num_parameters()
 
         t_max = len(self.loaders["train"]["r"])
-        if self.opts.gen.simclr.domain_adaptation:
+        if self.opts.train.latent_domain_adaptation:
             t_max += len(self.loaders["train"]["s"])
 
         self.g_opt, self.g_scheduler = get_optimizer(
@@ -594,7 +593,7 @@ class Trainer:
             # -----  classifier loss (1)  -----
             # ---------------------------------
             update_loss = 0
-            if "simclr" in self.opts.tasks and self.opts.gen.simclr.domain_adaptation:
+            if "simclr" in self.opts.tasks and self.opts.train.latent_domain_adaptation:
                 # Forward pass through classifier
                 out_c_i = self.C(zi)
                 out_c_j = self.C(zj)

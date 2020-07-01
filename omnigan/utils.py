@@ -50,7 +50,7 @@ def load_opts(path=None, default=None):
         default_opts.domains.append("rf")
     if "simclr" in default_opts.tasks:
         default_opts.domains.append("r")
-        if default_opts.gen.simclr.domain_adaptation:
+        if default_opts.train.latent_domain_adaptation:
             default_opts.domains.append("s")
     default_opts.domains = list(set(default_opts.domains))
 
@@ -306,9 +306,7 @@ def make_json_file(
         filename_ = ".".join(filename.split(".")[:-1])  # the filename without extension
         tmp_dict = {}
         for i in range(len(keys)):
-            tmp_dict[keys[i]] = file_address_map[keys[i]][
-                filename_
-            ]
+            tmp_dict[keys[i]] = file_address_map[keys[i]][filename_]
         dicts.append(tmp_dict)
     with open(name_of_the_json_file, "w", encoding="utf-8") as outfile:
         json.dump(dicts, outfile, ensure_ascii=False)

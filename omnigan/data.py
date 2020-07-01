@@ -219,10 +219,20 @@ class SimCLRDataset(OmniListDataset):
 
 
 def get_loader(mode, domain, opts):
-    return DataLoader(
-        OmniListDataset(
+    dataset = None
+    if "simclr" not in opts.tasks:
+        dataset = OmniListDataset(
             mode, domain, opts, transform=transforms.Compose(get_transforms(opts))
-        ),
+        )
+    else:
+        dataset = SimCLRDataset(
+            mode,
+            domain,
+            opts,
+            transform=transforms.Compose(get_simclr_transforms(opts.gen.simclr)),
+        )
+    return DataLoader(
+        dataset,
         batch_size=opts.data.loaders.get("batch_size", 4),
         # shuffle=opts.data.loaders.get("shuffle", True),
         shuffle=True,
@@ -238,30 +248,4 @@ def get_all_loaders(opts):
             if mode in opts.data.files:
                 if domain in opts.data.files[mode]:
                     loaders[mode][domain] = get_loader(mode, domain, opts)
-    return loaders
-
-
-def get_simclr_loader(mode, domain, opts):
-    return DataLoader(
-        SimCLRDataset(
-            mode,
-            domain,
-            opts,
-            transform=transforms.Compose(get_simclr_transforms(opts.gen.simclr)),
-        ),
-        batch_size=opts.data.loaders.get("batch_size", 256),
-        shuffle=True,
-        num_workers=opts.data.loaders.get("num_workers", 8),
-    )
-
-
-def get_simclr_loaders(opts):
-    loaders = {}
-    for mode in ["train", "val"]:
-        loaders[mode] = {}
-        for domain in ["r", "s"]:
-            if mode in opts.data.files:
-                if domain in opts.data.files[mode]:
-                    if opts.gen.simclr.domain_adaptation or domain == "r":
-                        loaders[mode][domain] = get_simclr_loader(mode, domain, opts)
     return loaders

@@ -61,7 +61,7 @@ if __name__ == "__main__":
     h2 = G.encode(image2)
     latent_shape = h1.shape[1:]
 
-    G.decoders["simclr"].setup(latent_shape, opts.gen.simclr.output_size)
+    G.decoders["simclr"].setup(latent_shape, opts.gen.simclr.output_size, device)
     z1 = G.decoders["simclr"](h1)
     z2 = G.decoders["simclr"](h2)
 

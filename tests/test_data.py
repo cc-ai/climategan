@@ -46,9 +46,11 @@ if __name__ == "__main__":
     # -----  Test SimCLR loaders -----
     # --------------------------------
     print("--Test simclr_loaders--")
-    sim_loaders = get_simclr_loaders(opts)
-    batch = Dict(next(iter(sim_loaders["train"]["r"])))
-    for k, value in batch["data"].items():
+    simclr_opts = opts
+    simclr_opts.tasks = ["simclr"]
+    sim_loaders = get_all_loaders(opts)
+    simclr_batch = Dict(next(iter(sim_loaders["train"]["r"])))
+    for k, value in simclr_batch["data"].items():
         for task, tensor in value.items():
             print(
                 task,
@@ -56,8 +58,8 @@ if __name__ == "__main__":
                 tensor.dtype,
                 tensor.min().item(),
                 tensor.max().item(),
-                batch["domain"],
-                batch["mode"],
+                simclr_batch["domain"],
+                simclr_batch["mode"],
             )
     print()
 
