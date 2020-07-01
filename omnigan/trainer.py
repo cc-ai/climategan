@@ -3,30 +3,30 @@
     * training
     * saving
 """
-from comet_ml import Experiment
-from time import time
-import torch
-from addict import Dict
-from pathlib import Path
+import os
 from copy import deepcopy
+from pathlib import Path
+from time import time
 
-from omnigan.classifier import get_classifier
+import torch
+import torchvision.utils as vutils
+from addict import Dict
+from comet_ml import Experiment
+
+from omnigan.classifier import OmniClassifier, get_classifier
 from omnigan.data import get_all_loaders
-from omnigan.discriminator import get_dis
-from omnigan.generator import get_gen
+from omnigan.discriminator import OmniDiscriminator, get_dis
+from omnigan.generator import OmniGenerator, get_gen
 from omnigan.losses import get_losses
 from omnigan.optim import get_optimizer
-from omnigan.utils import flatten_opts, sum_dict, div_dict
 from omnigan.tutils import (
     domains_to_class_tensor,
     fake_domains_to_class_tensor,
-    shuffle_batch_tuple,
     get_num_params,
+    shuffle_batch_tuple,
     vgg_preprocess,
 )
-import torchvision.utils as vutils
-import os
-from collections import Counter
+from omnigan.utils import div_dict, flatten_opts, sum_dict
 
 
 class Trainer:
@@ -66,6 +66,8 @@ class Trainer:
         self.exp = None
         if isinstance(comet_exp, Experiment):
             self.exp = comet_exp
+        self.source_label = 0
+        self.target_label = 1
 
     def log_losses(self, model_to_update="G", mode="train"):
         """Logs metrics on comet.ml
@@ -186,14 +188,16 @@ class Trainer:
 
         self.loaders = get_all_loaders(self.opts)
 
-        self.G = get_gen(self.opts, verbose=self.verbose).to(self.device)
+        self.G: OmniGenerator = get_gen(self.opts, verbose=self.verbose).to(self.device)
         if self.G.encoder is not None:
             self.latent_shape = self.compute_latent_shape()
         self.input_shape = self.compute_input_shape()
         self.painter_z_h = self.input_shape[-2] // (2 ** self.opts.gen.p.spade_n_up)
         self.painter_z_w = self.input_shape[-1] // (2 ** self.opts.gen.p.spade_n_up)
-        self.D = get_dis(self.opts, verbose=self.verbose).to(self.device)
-        self.C = None
+        self.D: OmniDiscriminator = get_dis(self.opts, verbose=self.verbose).to(
+            self.device
+        )
+        self.C: OmniClassifier = None
         if self.G.encoder is not None and self.opts.train.latent_domain_adaptation:
             self.C = get_classifier(
                 self.opts, self.latent_shape, verbose=self.verbose
@@ -338,6 +342,10 @@ class Trainer:
                 batch["domain"][0]: self.batch_to_device(batch)
                 for batch in multi_batch_tuple
             }
+            if self.d_opt is not None:
+                # freeze params of the discriminator
+                for param in self.D.parameters():
+                    param.requires_grad = False
 
             # ------------------------------
             # -----  Update Generator  -----
@@ -348,6 +356,10 @@ class Trainer:
             # -----  Update Discriminator  -----
             # ----------------------------------
             if self.d_opt is not None:
+                # unfreeze params of advent discriminator
+                for param in self.D.parameters():
+                    param.requires_grad = True
+
                 self.update_d(multi_domain_batch)
 
             # -------------------------------
@@ -484,29 +496,20 @@ class Trainer:
         m_loss = p_loss = None
 
         # For now, always compute "representation loss"
+        g_loss = 0
+
         if "m" in self.opts.tasks:
             m_loss = self.get_masker_loss(multi_domain_batch)
+            self.logger.losses.generator.masker = m_loss.item()
+            g_loss += m_loss
 
         if "p" in self.opts.tasks:
             p_loss = self.get_painter_loss(multi_domain_batch)
-
-        assert any(l is not None for l in [m_loss, p_loss]), "Both losses are None"
-
-        g_loss = 0
-        if m_loss is not None:
-            g_loss += m_loss
-            if verbose > 0:
-                print("adding m_loss {} to g_loss".format(m_loss))
-            self.logger.losses.generator.masker = m_loss.item()
-
-        if p_loss is not None:
-            g_loss += p_loss
-            if verbose > 0:
-                print("adding p_loss {} to g_loss".format(p_loss))
             self.logger.losses.generator.painter = p_loss.item()
+            g_loss += p_loss
 
-        if verbose > 0:
-            print("g_loss is {}".format(g_loss))
+        assert g_loss != 0 and not isinstance(g_loss, int), "No update in get_g_loss!"
+
         self.logger.losses.generator.total_loss = g_loss.item()
 
         return g_loss
@@ -594,7 +597,7 @@ class Trainer:
                     ] = update_loss.item()
 
                 # REFACTOR CONTINUE HERE
-                if update_task == "m":
+                elif update_task == "m":
                     # ? output features classifier
                     prediction = self.G.decoders[update_task](self.z)
                     # Main loss first:
@@ -619,7 +622,24 @@ class Trainer:
                     self.logger.losses.generator.task_loss[update_task]["tv"][
                         batch_domain
                     ] = update_loss.item()
+                    if self.opts.gen.m.use_advent:
+                        # Then Advent loss
+                        if batch_domain == "r":
+                            pred_prime = 1 - prediction
+                            prob = torch.cat([prediction, pred_prime], dim=1)
 
+                            update_loss = self.losses["G"]["tasks"][update_task][
+                                "advent"
+                            ](
+                                prob.to(self.device),
+                                self.source_label,
+                                self.D["m"]["Advent"],
+                            )
+                        step_loss += update_loss
+
+                        self.logger.losses.generator.task_loss[update_task]["advent"][
+                            batch_domain
+                        ] = update_loss.item()
         return step_loss
 
     def sample_z(self, batch_size):
@@ -731,10 +751,13 @@ class Trainer:
         Returns:
             [type]: [description]
         """
-        zerotensor = torch.tensor(0.0)
-        disc_loss = {"p": {"global": 0, "local": 0}}
-        for batch_domain, batch in multi_domain_batch.items():
 
+        disc_loss = {
+            "m": {"Advent": 0},
+            "p": {"global": 0, "local": 0},
+        }
+
+        for batch_domain, batch in multi_domain_batch.items():
             x = batch["data"]["x"]
             m = batch["data"]["m"]
 
@@ -747,21 +770,51 @@ class Trainer:
                 fake_d_local = self.D["p"]["local"](fake * m)
                 real_d_local = self.D["p"]["local"](x * m)
 
-                global_loss = self.losses["D"](fake_d_global, False) + self.losses["D"](
-                    real_d_global, True
-                )
+                global_loss = self.losses["D"]["default"](
+                    fake_d_global, False
+                ) + self.losses["D"]["default"](real_d_global, True)
 
-                local_loss = self.losses["D"](fake_d_local, False) + self.losses["D"](
-                    real_d_local, True
-                )
+                local_loss = self.losses["D"]["default"](
+                    fake_d_local, False
+                ) + self.losses["D"]["default"](real_d_local, True)
 
                 disc_loss["p"]["global"] += global_loss
                 disc_loss["p"]["local"] += local_loss
 
             else:
-                continue
+                z = self.G.encode(x)
+                if "m" in self.opts.tasks:
+                    if self.opts.gen.m.use_advent:
+                        if verbose > 0:
+                            print("Now training the ADVENT discriminator!")
+                        fake_mask = self.G.decoders["m"](z)
+                        fake_complementary_mask = 1 - fake_mask
+                        prob = torch.cat([fake_mask, fake_complementary_mask], dim=1)
+                        prob = prob.detach()
 
-        # v.item() if isinstance(v, torch.Tensor) else v
+                        if batch_domain == "r":
+                            loss_main = self.losses["D"]["advent"](
+                                prob.to(self.device),
+                                self.target_label,
+                                self.D["m"]["Advent"],
+                            )
+
+                            disc_loss["m"]["Advent"] += (
+                                self.opts.train.lambdas.advent.adv_main * loss_main
+                            )
+                        elif batch_domain == "s":
+                            loss_main = self.losses["D"]["advent"](
+                                prob.to(self.device),
+                                self.source_label,
+                                self.D["m"]["Advent"],
+                            )
+
+                            disc_loss["m"]["Advent"] += (
+                                self.opts.train.lambdas.advent.adv_main * loss_main
+                            )
+                        else:
+                            continue
+
         self.logger.losses.discriminator.update(
             {
                 dom: {
