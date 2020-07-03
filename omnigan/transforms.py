@@ -174,7 +174,9 @@ def get_simclr_transforms(simclr_opts):
         0.2 * simclr_opts.colorization_s,
     )
     data_transforms = [
-        trsfs.RandomResizedCrop(size=simclr_opts.input_size),
+        trsfs.RandomResizedCrop(
+            size=simclr_opts.input_size, scale=(simclr_opts.min_scale, 1.0)
+        ),
         trsfs.RandomHorizontalFlip(),
         trsfs.RandomApply([color_jitter], p=0.8),
         trsfs.RandomGrayscale(p=0.2),

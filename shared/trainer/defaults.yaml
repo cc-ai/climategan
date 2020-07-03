@@ -76,7 +76,7 @@ gen:
     pretrained_model: "/network/tmp1/ccai/data/omnigan/pretrained_models/DeepLab_resnet_pretrained_imagenet.pth"
 
   simclr:
-    is_trained: False # Temporary, remove when trained
+    is_trained: True # Temporary, remove when trained
     ignore: False
     use_pretrained: True
     # pretrained_model not existing yet!
@@ -86,6 +86,7 @@ gen:
       use_cosine_similarity: True
     input_size: 256 # must be the same as the resize of transforms?
     output_size: 256
+    min_scale: 0.08 # the origin size will be cropped with a scale going from min_scale to 1.0
     colorization_s: 1 # parameter between 0 and 1 defining how much colorization we want
 
   d: # specific params for the depth estimation decoder

@@ -58,7 +58,7 @@ class BaseEncoder(nn.Module):
 
         if opts.gen.simclr.is_trained and opts.gen.simclr.use_pretrained:
             saved_state_dict = torch.load(opts.gen.simclr.pretrained_model)
-            print("Load pretrained SimCLR encoder")
+            print("Loading pretrained SimCLR encoder")
             new_params = self.model.state_dict().copy()
             for i in saved_state_dict:
                 i_parts = i.split(".")

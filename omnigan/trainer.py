@@ -519,7 +519,6 @@ class Trainer:
         for self.logger.epoch in range(
             self.logger.epoch, self.logger.epoch + self.opts.train.epochs
         ):
-            self.eval()
             self.run_epoch()
             self.eval(verbose=1)
             if (
@@ -601,10 +600,14 @@ class Trainer:
                 # Cross entropy loss (with sigmoid) with fake labels to fool C
                 update_loss += self.losses["C"](
                     out_c_i,
-                    domains_to_class_tensor(batch["domain"], one_hot).to(self.device),
+                    fake_domains_to_class_tensor(batch["domain"], one_hot).to(
+                        self.device
+                    ),
                 ) + self.losses["C"](
                     out_c_j,
-                    domains_to_class_tensor(batch["domain"], one_hot).to(self.device),
+                    fake_domains_to_class_tensor(batch["domain"], one_hot).to(
+                        self.device
+                    ),
                 )
             step_loss += lambdas.G.classifier * update_loss
 
@@ -714,7 +717,6 @@ class Trainer:
                         if batch_domain == "r":
                             pred_prime = 1 - prediction
                             prob = torch.cat([prediction, pred_prime], dim=1)
-
                             update_loss = self.losses["G"]["tasks"][update_task][
                                 "advent"
                             ](
