@@ -166,11 +166,11 @@ def get_normalized_depth_t(arr, domain):
         arr /= torch.max(arr)
     elif domain == "s":
         # from 3-channel depth encoding from Unity simulator to 1-channel [0-1] values
-        arr = decode_unity_depth_t(arr, normalize=True)
+        arr = decode_unity_depth_t(arr, log=True, normalize=False)
     return arr
 
 
-def decode_unity_depth_t(unity_depth, normalize=True, numpy=False, far=1000):
+def decode_unity_depth_t(unity_depth, log=True, normalize=False, numpy=False, far=1000):
     """Transforms the 3-channel encoded depth map from our Unity simulator to 1-channel depth map
     containing metric depth values.
     The depth is encoded in the following way:
@@ -208,6 +208,8 @@ def decode_unity_depth_t(unity_depth, normalize=True, numpy=False, far=1000):
     B = (255 - B).type(torch.FloatTensor)
     depth = ((R * 256 * 31 + G * 256 + B).type(torch.FloatTensor)) / (256 * 31 * 31 - 1)
     depth = (depth * far).unsqueeze(0)
+    if log:
+        depth = torch.log(depth)
     if normalize:
         depth = depth - torch.min(depth)
         depth /= torch.max(depth)

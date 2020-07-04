@@ -216,6 +216,20 @@ class L1Loss(MSELoss):
         self.loss = torch.nn.L1Loss()
 
 
+class SIMSELoss(nn.Module):
+    """Scale invariant MSE Loss
+    """
+
+    def __init__(self):
+        super(SIMSELoss, self).__init__()
+
+    def __call__(self, prediction, target):
+        d = prediction - target
+        diff = torch.mean(d * d)
+        relDiff = (d.sum() * d.sum()) / float(d.size * d.size)
+        return diff - relDiff
+
+
 ##################################################################################
 # VGG network definition
 ##################################################################################
@@ -309,7 +323,7 @@ def get_losses(opts, verbose, device=None):
     # ? * add discriminator and gan loss to these task when no ground truth
     # ?   instead of noisy label
     if "d" in opts.tasks:
-        losses["G"]["tasks"]["d"] = MSELoss()
+        losses["G"]["tasks"]["d"] = SIMSELoss()
     if "s" in opts.tasks:
         losses["G"]["tasks"]["s"] = CrossEntropy()
     if "m" in opts.tasks:
@@ -335,7 +349,7 @@ def get_losses(opts, verbose, device=None):
     # -----  Discriminator Losses  -----
     # ----------------------------------
     losses["D"]["default"] = GANLoss(
-        soft_shift=opts.dis.soft_shift, flip_prob=opts.dis.flip_prob, verbose=verbose,
+        soft_shift=opts.dis.soft_shift, flip_prob=opts.dis.flip_prob, verbose=verbose
     )
     losses["D"]["advent"] = ADVENTAdversarialLoss(opts)
     return losses
