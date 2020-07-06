@@ -804,14 +804,13 @@ class Trainer:
                 for i in range(num_D):
                     # Take last element for GAN loss on discrim prediction
 
-                    global_loss = self.losses["D"](
+                    global_loss = self.losses["D"]["default"](
                         fake_d_global[i][-1], False
-                    ) + self.losses["D"](real_d_global[i][-1], True)
+                    ) + self.losses["D"]["default"](real_d_global[i][-1], True)
 
-                    local_loss = self.losses["D"](
+                    local_loss = self.losses["D"]["default"](
                         fake_d_local[i][-1], False
-                    ) + self.losses["D"](real_d_local[i][-1], True)
-
+                    ) + self.losses["D"]["default"](real_d_local[i][-1], True)
 
                     disc_loss["p"]["global"] += global_loss / num_D
                     disc_loss["p"]["local"] += local_loss / num_D
