@@ -316,7 +316,11 @@ def get_losses(opts, verbose, device=None):
     }
     """
 
-    losses = {"G": {"a": {}, "p": {}, "tasks": {}}, "D": {}, "C": {}}
+    losses = {
+        "G": {"a": {}, "p": {}, "tasks": {}},
+        "D": {"default": {}, "advent": {}},
+        "C": {},
+    }
 
     # ------------------------------
     # -----  Generator Losses  -----
@@ -342,6 +346,7 @@ def get_losses(opts, verbose, device=None):
         losses["G"]["tasks"]["m"] = {}
         losses["G"]["tasks"]["m"]["main"] = nn.BCELoss()
         losses["G"]["tasks"]["m"]["tv"] = TVLoss(opts.train.lambdas.G.m.tv)
+        losses["G"]["tasks"]["m"]["advent"] = ADVENTAdversarialLoss(opts)
 
     # undistinguishable features loss
     # TODO setup a get_losses func to assign the right loss according to the yaml
@@ -359,7 +364,52 @@ def get_losses(opts, verbose, device=None):
     # ----------------------------------
     # -----  Discriminator Losses  -----
     # ----------------------------------
-    losses["D"] = GANLoss(
+    losses["D"]["default"] = GANLoss(
         soft_shift=opts.dis.soft_shift, flip_prob=opts.dis.flip_prob, verbose=verbose,
     )
+    losses["D"]["advent"] = ADVENTAdversarialLoss(opts)
     return losses
+
+
+def prob_2_entropy(prob):
+    """
+    convert probabilistic prediction maps to weighted self-information maps
+    """
+    n, c, h, w = prob.size()
+    return -torch.mul(prob, torch.log2(prob + 1e-30)) / np.log2(c)
+
+
+class CustomBCELoss(nn.Module):
+    """
+        The first argument is a tensor and the second arguement is an int.
+        There is no need to take simoid before calling this function.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.loss = torch.nn.BCEWithLogitsLoss()
+
+    def __call__(self, prediction, target):
+        return self.loss(
+            prediction,
+            torch.FloatTensor(prediction.size())
+            .fill_(target)
+            .to(prediction.get_device()),
+        )
+
+
+class ADVENTAdversarialLoss(nn.Module):
+    """
+        TODO
+    """
+
+    def __init__(self, opts):
+        super().__init__()
+        self.opts = opts
+        self.loss = CustomBCELoss()
+
+    def __call__(self, prediction, target, discriminator):
+        d_out = discriminator(prob_2_entropy(F.softmax(prediction, dim=1)))
+        loss_ = self.loss(d_out, target)
+
+        return loss_

@@ -3,6 +3,8 @@
 import os
 import re
 import subprocess
+import json
+from copy import deepcopy
 from pathlib import Path
 
 import yaml
@@ -242,10 +244,79 @@ def get_comet_rest_api_key(path_to_config_file=None):
     raise ValueError("Unable to find your COMET_REST_API_KEY in {}".format(str(p)))
 
 
-def sum_dict(dict1, dict2):
-    """[Add dict2 into dict1]
+def get_files(dirName):
+    # create a list of file and sub directories
+    files = os.listdir(dirName)
+    all_files = list()
+    for entry in files:
+        fullPath = os.path.join(dirName, entry)
+        if os.path.isdir(fullPath):
+            all_files = all_files + get_files(fullPath)
+        else:
+            all_files.append(fullPath)
+
+    return all_files
+
+
+def make_json_file(
+    keys,
+    addresses,
+    splitter="/",  # for windows user, use "\\" instead of using "/"
+    name_of_the_json_file="jsonfile.json",
+):
+    """
+        How to use it?
+    e.g.
+    main(['x','m','d'], [
+    '/network/tmp1/ccai/data/munit_dataset/trainA_size_1200/',
+    '/network/tmp1/ccai/data/munit_dataset/seg_trainA_size_1200/',
+    '/network/tmp1/ccai/data/munit_dataset/trainA_megadepth_resized/'
+    ], 'train_r_resized.json')
+
+    Args:
+        keys (list): [description]
+        addresses (list): [description]
+        splitter (str, optional): [description]. Defaults to "/".
     """
 
+    print("Please Make sure there is a file with the same name in each folder!")
+    assert len(keys) == len(addresses), "keys and addresses must have the same length!"
+
+    files = [get_files(addresses[j]) for j in range(len(keys))]
+
+    file_address_map = {
+        keys[j]: {
+            ".".join(file.split(splitter)[-1].split(".")[:-1]): file
+            for file in files[j]
+        }
+        for j in range(len(keys))
+    }
+    # The keys of the file_address_map are like 'x', 'm', 'd'...
+    # The values of the file_address_map are a dictionary whose keys are the
+    # filenames without extension whose values are the path of the filename
+    # e.g. file_address_map =
+    # {'x': {'A': 'path/to/trainA_size_1200/A.png', ...},
+    #  'm': {'A': 'path/to/seg_trainA_size_1200/A.jpg',...}
+    #  'd': {'A': 'path/to/trainA_megadepth_resized/A.bmp',...}
+    # ...}
+
+    dicts = []
+    for file in files[0]:
+        filename = file.split(splitter)[-1]  # the filename with 'x' extension
+        filename_ = ".".join(filename.split(".")[:-1])  # the filename without extension
+        tmp_dict = {}
+        for i in range(len(keys)):
+            tmp_dict[keys[i]] = file_address_map[keys[i]][
+                filename_
+            ]
+        dicts.append(tmp_dict)
+    with open(name_of_the_json_file, "w", encoding="utf-8") as outfile:
+        json.dump(dicts, outfile, ensure_ascii=False)
+
+
+def sum_dict(dict1, dict2):
+    """Add dict2 into dict1
+    """
     for k, v in dict2.items():
         if not isinstance(v, dict):
             dict1[k] += v
@@ -255,9 +326,8 @@ def sum_dict(dict1, dict2):
 
 
 def div_dict(dict1, div_by):
-    """[Divide elements of {dict1} by {div_by}]
+    """Divide elements of dict1 by div_by
     """
-
     for k, v in dict1.items():
         if not isinstance(v, dict):
             dict1[k] /= div_by
