@@ -56,6 +56,33 @@ class Bottleneck(nn.Module):
         return out
 
 
+class ClassifierModule(nn.Module):
+    def __init__(self, inplanes, dilation_series, padding_series, num_classes):
+        super(ClassifierModule, self).__init__()
+        self.conv2d_list = nn.ModuleList()
+        for dilation, padding in zip(dilation_series, padding_series):
+            self.conv2d_list.append(
+                nn.Conv2d(
+                    inplanes,
+                    num_classes,
+                    kernel_size=3,
+                    stride=1,
+                    padding=padding,
+                    dilation=dilation,
+                    bias=True,
+                )
+            )
+
+        for m in self.conv2d_list:
+            m.weight.data.normal_(0, 0.01)
+
+    def forward(self, x):
+        out = self.conv2d_list[0](x)
+        for i in range(len(self.conv2d_list) - 1):
+            out += self.conv2d_list[i + 1](x)
+        return out
+
+
 class ResNetMulti(nn.Module):
     def __init__(
         self,
@@ -65,7 +92,9 @@ class ResNetMulti(nn.Module):
         res_norm="instance",
         activ="lrelu",
         pad_type="reflect",
+        multi_level=False,
     ):
+        self.multi_level = multi_level
         self.inplanes = 64
         super(ResNetMulti, self).__init__()
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
@@ -80,7 +109,9 @@ class ResNetMulti(nn.Module):
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=1, dilation=2)
         self.layer4 = self._make_layer(block, 512, layers[3], stride=1, dilation=4)
-
+        # if self.multi_level:
+        #     self.layer5 = ClassifierModule(1024, [6, 12, 18, 24], [6, 12, 18, 24], 2048)
+        # self.layer6 = ClassifierModule(2048, [6, 12, 18, 24], [6, 12, 18, 24], 2048)
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 m.weight.data.normal_(0, 0.01)
@@ -123,6 +154,22 @@ class ResNetMulti(nn.Module):
 
         return nn.Sequential(*layers)
 
+    # def forward(self, x):
+    #     x = self.conv1(x)
+    #     x = self.bn1(x)
+    #     x = self.relu(x)
+    #     x = self.maxpool(x)
+    #     x = self.layer1(x)
+    #     x = self.layer2(x)
+    #     x = self.layer3(x)
+    #     if self.multi_level:
+    #         x1 = self.layer5(x)  # produce segmap 1
+    #     else:
+    #         x1 = None
+    #     x2 = self.layer4(x)
+    #     x2 = self.layer6(x2)  # produce segmap 2
+    #     return x1, x2
+
     def forward(self, x):
         x = self.conv1(x)
         x = self.bn1(x)
@@ -130,7 +177,7 @@ class ResNetMulti(nn.Module):
         x = self.maxpool(x)
         x = self.layer1(x)
         x = self.layer2(x)
-        x = self.layer3(x)
-        x = self.layer4(x)
-        x = self.layer_res(x)
-        return x
+        layer3_out = self.layer3(x)
+        layer4_out = self.layer4(layer3_out)
+        x = self.layer_res(layer4_out)
+        return layer3_out, layer4_out, x

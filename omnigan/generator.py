@@ -8,6 +8,7 @@ from omnigan.tutils import init_weights
 from omnigan.blocks import SpadeDecoder, BaseDecoder
 from omnigan.encoder import DeeplabEncoder, BaseEncoder
 import omnigan.strings as strings
+from omnigan.deeplabv2 import ClassifierModule
 
 # --------------------------------------------------------------------------
 # -----  For now no network structure, just project in a 64 x 32 x 32  -----
@@ -93,7 +94,7 @@ class OmniGenerator(nn.Module):
         return strings.generator(self)
 
 
-class MaskDecoder(BaseDecoder):
+class MaskDecoder_(BaseDecoder):
     def __init__(self, opts):
         super().__init__(
             n_upsample=opts.gen.m.n_upsample,
@@ -106,6 +107,27 @@ class MaskDecoder(BaseDecoder):
             pad_type=opts.gen.m.pad_type,
             output_activ="sigmoid",
         )
+
+
+class MaskDecoder(nn.Module):
+    def __init__(self, opts):
+        super(MaskDecoder, self).__init__()
+        self.multi_level = opts.dis.m.multi_level
+        if self.multi_level:
+            self.layer5 = ClassifierModule(1024, [6, 12, 18, 24], [6, 12, 18, 24], 2)
+        self.layer6 = ClassifierModule(2048, [6, 12, 18, 24], [6, 12, 18, 24], 2)
+
+    def forward(self, x):
+        layer3_out, layer4_out, _ = x
+        if self.multi_level:
+            x1 = self.layer5(layer3_out)  # produce segmap 1
+        else:
+            x1 = None
+        x2 = self.layer6(layer4_out)  # produce segmap 2
+        return x1, x2
+
+    # def __str__(self):
+    #     return strings.basedecoder(self)
 
 
 class DepthDecoder(BaseDecoder):
