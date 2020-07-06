@@ -25,6 +25,7 @@ from omnigan.tutils import (
     get_num_params,
     shuffle_batch_tuple,
     vgg_preprocess,
+    to_im_depth,
 )
 from omnigan.utils import div_dict, flatten_opts, sum_dict
 
@@ -410,6 +411,14 @@ class Trainer:
                             prediction = prediction.repeat(1, 3, 1, 1)
                             task_saves.append(x * (1.0 - prediction))
                             task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
+
+                        if update_task in {"d"}:
+                            # prediction is a log depth tensor
+                            target = to_im_depth(target)
+                            prediction = to_im_depth(prediction)
+                            prediction = prediction.repeat(1, 3, 1, 1)
+                            task_saves.append(target.repeat(1, 3, 1, 1))
+
                         task_saves.append(prediction)
                         # ! This assumes the output is some kind of image
                         save_images[update_task].append(x)
@@ -752,10 +761,7 @@ class Trainer:
             [type]: [description]
         """
 
-        disc_loss = {
-            "m": {"Advent": 0},
-            "p": {"global": 0, "local": 0},
-        }
+        disc_loss = {"m": {"Advent": 0}, "p": {"global": 0, "local": 0}}
 
         for batch_domain, batch in multi_domain_batch.items():
             x = batch["data"]["x"]
