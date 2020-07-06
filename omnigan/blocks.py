@@ -3,7 +3,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.nn.utils.spectral_norm as spectral_norm
 from omnigan.norms import SPADE, SpectralNorm, LayerNorm, AdaptiveInstanceNorm2d
 import omnigan.strings as strings
 
@@ -328,10 +327,10 @@ class SPADEResnetBlock(nn.Module):
 
         # apply spectral norm if specified
         if spade_use_spectral_norm:
-            self.conv_0 = spectral_norm(self.conv_0)
-            self.conv_1 = spectral_norm(self.conv_1)
+            self.conv_0 = SpectralNorm(self.conv_0)
+            self.conv_1 = SpectralNorm(self.conv_1)
             if self.learned_shortcut:
-                self.conv_s = spectral_norm(self.conv_s)
+                self.conv_s = SpectralNorm(self.conv_s)
 
         self.norm_0 = SPADE(spade_param_free_norm, spade_kernel_size, fin, cond_nc)
         self.norm_1 = SPADE(spade_param_free_norm, spade_kernel_size, fmiddle, cond_nc)
@@ -372,27 +371,24 @@ class SpadeDecoder(nn.Module):
         spade_use_spectral_norm,
         spade_param_free_norm,
         spade_kernel_size,
+        fullspade=True,
     ):
         """Create a SPADE-based decoder, which forwards z and the conditioning
         tensors seg (in the original paper, conditioning is on a semantic map only).
-
         All along, z is conditioned on seg. First 3 SpadeResblocks (SRB) do not shrink
         the channel dimension, and an upsampling is applied after each. Therefore
         2 upsamplings at this point. Then, for each remaining upsamplings
         (w.r.t. spade_n_up), the SRB shrinks channels by 2. Before final conv to get 3
         channels, the number of channels is therefore:
-
             final_nc = channels(z) * 2 ** (spade_n_up - 2)
-
-
         Args:
-            latent_shape (tuple): z's shape (only the number of channels matters)
+            latent_dim (tuple): z's shape (only the number of channels matters)
             cond_nc (int): conditioning tensor's expected number of channels
             spade_n_up (int): Number of total upsamplings from z
             spade_use_spectral_norm (bool): use spectral normalization?
             spade_param_free_norm (str): norm to use before SPADE de-normalization
             spade_kernel_size (int): SPADE conv layers' kernel size
-
+            fullspade (bool): Produces an image as a final  result
         Returns:
             [type]: [description]
         """
@@ -469,7 +465,6 @@ class SpadeDecoder(nn.Module):
 
     def forward(self, z, cond):
         y = self.head_0(z, cond)
-
         y = self.upsample(y)
         y = self.G_middle_0(y, cond)
         y = self.upsample(y)

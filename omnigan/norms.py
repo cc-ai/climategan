@@ -83,14 +83,13 @@ def l2normalize(v, eps=1e-12):
 
 class SpectralNorm(nn.Module):
     """
-    Based on the paper "Spectral Normalization for Generative Adversarial Networks"
-    by Takeru Miyato, Toshiki Kataoka, Masanori Koyama, Yuichi Yoshida
-    and the Pytorch implementation
-    https://github.com/christiancosgrove/pytorch-spectral-normalization-gan
+    Based on the paper "Spectral Normalization for Generative Adversarial Networks" by Takeru Miyato, 
+    Toshiki Kataoka, Masanori Koyama, Yuichi Yoshida and the 
+    Pytorch implementation https://github.com/christiancosgrove/pytorch-spectral-normalization-gan
     """
 
     def __init__(self, module, name="weight", power_iterations=1):
-        super().__init__()
+        super(SpectralNorm, self).__init__()
         self.module = module
         self.name = name
         self.power_iterations = power_iterations
@@ -113,9 +112,9 @@ class SpectralNorm(nn.Module):
 
     def _made_params(self):
         try:
-            u = getattr(self.module, self.name + "_u")  # noqa: F841
-            v = getattr(self.module, self.name + "_v")  # noqa: F841
-            w = getattr(self.module, self.name + "_bar")  # noqa: F841
+            u = getattr(self.module, self.name + "_u")
+            v = getattr(self.module, self.name + "_v")
+            w = getattr(self.module, self.name + "_bar")
             return True
         except AttributeError:
             return False
