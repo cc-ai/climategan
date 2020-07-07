@@ -5,7 +5,6 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
 from omnigan.trainer import Trainer
 from omnigan.utils import load_test_opts
-from omnigan.tutils import freeze
 from run import print_header
 
 parser = argparse.ArgumentParser()
@@ -207,5 +206,4 @@ if __name__ == "__main__":
         # trainer.update_d(multi_domain_batch)
         print("  - Update c")
         trainer.update_c(multi_domain_batch)
-
 
