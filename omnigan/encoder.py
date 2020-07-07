@@ -60,9 +60,9 @@ class BaseEncoder(nn.Module):
             saved_state_dict = torch.load(opts.gen.simclr.pretrained_model)
             print("Loading pretrained SimCLR encoder")
             new_params = self.model.state_dict().copy()
-            for i in saved_state_dict:
+            for i in saved_state_dict["encoder"]:
                 i_parts = i.split(".")
-                new_params[".".join(i_parts[1:])] = saved_state_dict[i]
+                new_params[".".join(i_parts[1:])] = saved_state_dict["encoder"][i]
             self.model.load_state_dict(new_params)
 
     def forward(self, x):
