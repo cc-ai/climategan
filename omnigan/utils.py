@@ -11,6 +11,26 @@ import yaml
 from addict import Dict
 
 
+def merge(source, destination):
+    """
+    run me with nosetests --with-doctest file.py
+
+    >>> a = { 'first' : { 'all_rows' : { 'pass' : 'dog', 'number' : '1' } } }
+    >>> b = { 'first' : { 'all_rows' : { 'fail' : 'cat', 'number' : '5' } } }
+    >>> merge(b, a) == { 'first' : { 'all_rows' : { 'pass' : 'dog', 'fail' : 'cat', 'number' : '5' } } }
+    True
+    """
+    for key, value in source.items():
+        if isinstance(value, dict):
+            # get node or create one
+            node = destination.setdefault(key, {})
+            merge(value, node)
+        else:
+            destination[key] = value
+
+    return destination
+
+
 def load_opts(path=None, default=None):
     # TODO add assert: if deeplabv2 then res_dim = 2048
     """Loads a configuration Dict from 2 files:
@@ -47,22 +67,20 @@ def load_opts(path=None, default=None):
         with open(path, "r") as f:
             overriding_opts = yaml.safe_load(f)
 
-    default_opts.update(overriding_opts)
+    opts = Dict(merge(overriding_opts, default_opts))
 
-    default_opts = Dict(default_opts)
+    opts.domains = []
+    if "m" in opts.tasks:
+        opts.domains.extend(["r", "s"])
+    if "p" in opts.tasks:
+        opts.domains.append("rf")
+    if "simclr" in opts.tasks:
+        opts.domains.append("r")
+        if opts.gen.simclr.domain_adaptation:
+            opts.domains.append("s")
+    opts.domains = list(set(opts.domains))
 
-    default_opts.domains = []
-    if "m" in default_opts.tasks:
-        default_opts.domains.extend(["r", "s"])
-    if "p" in default_opts.tasks:
-        default_opts.domains.append("rf")
-    if "simclr" in default_opts.tasks:
-        default_opts.domains.append("r")
-        if default_opts.gen.simclr.domain_adaptation:
-            default_opts.domains.append("s")
-    default_opts.domains = list(set(default_opts.domains))
-
-    return set_data_paths(default_opts)
+    return set_data_paths(opts)
 
 
 def set_data_paths(opts):
@@ -314,9 +332,7 @@ def make_json_file(
         filename_ = ".".join(filename.split(".")[:-1])  # the filename without extension
         tmp_dict = {}
         for i in range(len(keys)):
-            tmp_dict[keys[i]] = file_address_map[keys[i]][
-                filename_
-            ]
+            tmp_dict[keys[i]] = file_address_map[keys[i]][filename_]
         dicts.append(tmp_dict)
     with open(name_of_the_json_file, "w", encoding="utf-8") as outfile:
         json.dump(dicts, outfile, ensure_ascii=False)

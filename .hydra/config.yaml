@@ -45,7 +45,7 @@ data:
       s: val_s.json
   loaders:
     batch_size: 2
-    num_workers: 8
+    num_workers: 0
     shuffle: true
   transforms:
   - ignore: false
@@ -63,21 +63,26 @@ data:
     new_size: 256
 dis:
   default:
+    get_intermediate_features: false
     init_gain: 0.2
     init_type: kaiming
     input_nc: 3
     n_layers: 3
     ndf: 64
     norm: instance
+    num_D: 3
     use_sigmoid: false
   flip_prob: 0.05
   m:
+    get_intermediate_features: false
     init_gain: 0.2
     init_type: kaiming
     input_nc: 3
+    multi_level: false
     n_layers: 3
     ndf: 64
     norm: instance
+    num_D: 3
     use_sigmoid: false
   opt:
     beta1: 0.5
@@ -87,12 +92,14 @@ dis:
     lr_step_size: 30
     optimizer: ExtraAdam
   p:
+    get_intermediate_features: false
     init_gain: 0.2
     init_type: kaiming
     input_nc: 3
     n_layers: 3
     ndf: 64
     norm: instance
+    num_D: 3
     use_sigmoid: false
   soft_shift: 0.2
 gen:
@@ -154,6 +161,7 @@ gen:
     proj_dim: 32
     res_dim: 256
     res_norm: spectral
+    use_advent: true
   opt:
     beta1: 0.9
     lr: 0.0005
@@ -162,9 +170,18 @@ gen:
     lr_step_size: 30
     optimizer: ExtraAdam
   p:
+    activ: lrelu
+    init_gain: 0.2
+    init_type: kaiming
     latent_dim: 512
+    n_downsample: 3
+    n_res: 1
+    n_upsample: 3
     output_dim: 3
     pad_type: zero
+    proj_dim: 32
+    res_dim: 256
+    res_norm: spectral
     spade_kernel_size: 3
     spade_n_up: 7
     spade_param_free_norm: instance
@@ -201,11 +218,17 @@ train:
       p:
         context: 12
         dm: 1
+        featmatch: 10
         gan: 1
         sm: 1
         tv: 500
         vgg: 1
       s: 1
+    advent:
+      adv_aux: 0
+      adv_main: 1
+      seg_aux: 0
+      seg_main: 1
   latent_domain_adaptation: true
   log_level: 2
   representation_steps: 10000

@@ -79,7 +79,7 @@ hydra:
     id: ???
     name: train
     num: ???
-    override_dirname: args.config=./config/trainer/local_tests.yaml,args.dev=True
+    override_dirname: args.config=./config/trainer/local_tests.yaml,args.dev=True,data.loaders.num_workers=0
   job_logging:
     disable_existing_loggers: false
     formatters:
@@ -108,6 +108,7 @@ hydra:
     task:
     - args.dev=True
     - args.config=./config/trainer/local_tests.yaml
+    - data.loaders.num_workers=0
   run:
     dir: .
   runtime:

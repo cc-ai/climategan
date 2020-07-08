@@ -42,7 +42,7 @@ def main(opts):
     # -----------------------------
 
     opts = Dict(OC.to_container(opts))
-    args = aropts.args
+    args = opts.args
 
     # -----------------------
     # -----  Load opts  -----
@@ -96,7 +96,6 @@ def main(opts):
     # -------------------
     # -----  Train  -----
     # -------------------
-
     trainer = Trainer(opts, comet_exp=exp)
     trainer.logger.time.start_time = time()
     trainer.setup()

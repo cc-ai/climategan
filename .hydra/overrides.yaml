@@ -1,2 +1,3 @@
 - args.dev=True
 - args.config=./config/trainer/local_tests.yaml
+- data.loaders.num_workers=0
