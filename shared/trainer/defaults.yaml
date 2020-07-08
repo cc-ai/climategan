@@ -119,7 +119,7 @@ dis:
     init_type: kaiming
     init_gain: 0.2
     use_sigmoid: false
-    num_D: 1 #Number of discriminators to use (>1 means multi-scale)
+    num_D: 3 #Number of discriminators to use (>1 means multi-scale)
     get_intermediate_features: false
 
   p:

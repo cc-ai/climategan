@@ -89,7 +89,7 @@ class SpectralNorm(nn.Module):
     """
 
     def __init__(self, module, name="weight", power_iterations=1):
-        super(SpectralNorm, self).__init__()
+        super().__init__()
         self.module = module
         self.name = name
         self.power_iterations = power_iterations

@@ -371,7 +371,6 @@ class SpadeDecoder(nn.Module):
         spade_use_spectral_norm,
         spade_param_free_norm,
         spade_kernel_size,
-        fullspade=True,
     ):
         """Create a SPADE-based decoder, which forwards z and the conditioning
         tensors seg (in the original paper, conditioning is on a semantic map only).
@@ -388,7 +387,6 @@ class SpadeDecoder(nn.Module):
             spade_use_spectral_norm (bool): use spectral normalization?
             spade_param_free_norm (str): norm to use before SPADE de-normalization
             spade_kernel_size (int): SPADE conv layers' kernel size
-            fullspade (bool): Produces an image as a final  result
         Returns:
             [type]: [description]
         """
