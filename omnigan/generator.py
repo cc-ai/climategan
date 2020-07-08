@@ -43,6 +43,13 @@ def get_gen(opts, latent_shape=None, verbose=0):
             init_gain=opts.gen.encoder.init_gain,
             verbose=verbose,
         )
+    # Init painter weights
+    init_weights(
+        G.painter,
+        init_type=opts.gen.p.init_type,
+        init_gain=opts.gen.p.init_gain,
+        verbose=verbose,
+    )
     return G
 
 
