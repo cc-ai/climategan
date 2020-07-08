@@ -85,3 +85,9 @@ class DeeplabEncoder(nn.Module):
 
     def forward(self, x):
         return self.model(x)
+
+    def get_layer3_out(self, x):
+        return self.model.get_layer3_out(x)
+
+    def deeplabv2layer4(self, x):
+        return self.model.deeplabv2layer4(x)

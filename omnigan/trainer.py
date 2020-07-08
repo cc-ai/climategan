@@ -137,7 +137,7 @@ class Trainer:
         if b is None:
             raise ValueError("No batch found to compute_latent_shape")
         b = self.batch_to_device(b)
-        z = self.G.encode(b.data.x)[2]
+        z = self.G.encode(b.data.x)
         return z.shape[1:]
 
     def compute_input_shape(self):
@@ -415,9 +415,10 @@ class Trainer:
             for im_set in self.display_images[mode][domain]:
                 x = im_set["data"]["x"].unsqueeze(0).to(self.device)
 
-                self.z = self.G.encode(x)[2]
-                self.z_all = self.G.encode(x)
-
+                self.z = self.G.encode(x)
+                self.z_3 = self.G.getlayer3out(x)
+                self.z_4 = self.G.getlayer4out(self.z_3)
+                self.z_all = (self.z_3, self.z_4, self.z)
                 for update_task, update_target in im_set["data"].items():
                     target = im_set["data"][update_task].unsqueeze(0).to(self.device)
                     task_saves = []
@@ -439,7 +440,7 @@ class Trainer:
                                 "Warning! The input domain is not 'r' or 's', please check it!"
                             )
                             continue
-
+                        prediction = torch.sigmoid(prediction)
                         if update_task in {"m"}:
                             prediction = prediction.repeat(1, 3, 1, 1)
                             task_saves.append(x * (1.0 - prediction))
@@ -597,8 +598,10 @@ class Trainer:
                 continue
 
             x = batch["data"]["x"]
-            self.z_all = self.G.encode(x)
-            self.z = self.G.encode(x)[2]
+            self.z = self.G.encode(x)
+            self.z_3 = self.G.getlayer3out(x)
+            self.z_4 = self.G.getlayer4out(self.z_3)
+            self.z_all = (self.z_3, self.z_4, self.z)
             # ---------------------------------
             # -----  classifier loss (1)  -----
             # ---------------------------------
@@ -653,33 +656,38 @@ class Trainer:
                         continue
 
                     if self.opts.dis.m.multi_level:
-                        # Main loss first:
-                        update_loss = lambdas.G[update_task]["main"] * (
-                            self.losses["G"]["tasks"][update_task]["main"](
-                                torch.sigmoid(prediction_main[:, 0, :, :].unsqueeze(1)),
-                                update_target,
+                        if batch_domain == "s":
+                            # Main loss first:
+                            update_loss = lambdas.G[update_task]["main"] * (
+                                self.losses["G"]["tasks"][update_task]["main"](
+                                    torch.sigmoid(
+                                        prediction_main[:, 0, :, :].unsqueeze(1)
+                                    ),
+                                    update_target,
+                                )
+                                * self.opts.train.lambdas.advent.seg_main
+                                + self.losses["G"]["tasks"][update_task]["main"](
+                                    torch.sigmoid(
+                                        prediction_aux[:, 0, :, :].unsqueeze(1)
+                                    ),
+                                    update_target,
+                                )
+                                * self.opts.train.lambdas.advent.seg_aux
                             )
-                            * self.opts.train.lambdas.advent.seg_main
-                            + self.losses["G"]["tasks"][update_task]["main"](
-                                torch.sigmoid(prediction_aux[:, 0, :, :].unsqueeze(1)),
-                                update_target,
-                            )
-                            * self.opts.train.lambdas.advent.seg_aux
-                        )
-                        step_loss += update_loss
+                            step_loss += update_loss
 
-                        self.logger.losses.generator.task_loss[update_task]["main"][
-                            batch_domain
-                        ] = update_loss.item()
+                            self.logger.losses.generator.task_loss[update_task]["main"][
+                                batch_domain
+                            ] = update_loss.item()
 
                         # Then TV loss
                         update_loss = (
                             self.losses["G"]["tasks"][update_task]["tv"](
-                                prediction_main[:, 0, :, :].unsqueeze(1)
+                                torch.sigmoid(prediction_main[:, 0, :, :].unsqueeze(1))
                             )
                             * self.opts.train.lambdas.advent.seg_main
                             + self.losses["G"]["tasks"][update_task]["tv"](
-                                prediction_aux[:, 0, :, :].unsqueeze(1)
+                                torch.sigmoid(prediction_aux[:, 0, :, :].unsqueeze(1))
                             )
                             * self.opts.train.lambdas.advent.seg_aux
                         )
@@ -721,22 +729,23 @@ class Trainer:
                             prediction_main = self.interp_src(prediction_main)
 
                         prediction = prediction_main[:, 0, :, :].unsqueeze(1)
-                        # Main loss first:
-                        update_loss = (
-                            self.losses["G"]["tasks"][update_task]["main"](
-                                torch.sigmoid(prediction), update_target
+                        if batch_domain == "s":
+                            # Main loss first:
+                            update_loss = (
+                                self.losses["G"]["tasks"][update_task]["main"](
+                                    torch.sigmoid(prediction), update_target
+                                )
+                                * lambdas.G[update_task]["main"]
                             )
-                            * lambdas.G[update_task]["main"]
-                        )
-                        step_loss += update_loss
+                            step_loss += update_loss
 
-                        self.logger.losses.generator.task_loss[update_task]["main"][
-                            batch_domain
-                        ] = update_loss.item()
+                            self.logger.losses.generator.task_loss[update_task]["main"][
+                                batch_domain
+                            ] = update_loss.item()
 
                         # Then TV loss
                         update_loss = self.losses["G"]["tasks"][update_task]["tv"](
-                            prediction
+                            torch.sigmoid(prediction)
                         )
                         step_loss += update_loss
 
@@ -903,8 +912,10 @@ class Trainer:
                 disc_loss["p"]["local"] += local_loss
 
             else:
-                z = self.G.encode(x)[2]
-                z_all = self.G.encode(x)
+                self.z = self.G.encode(x)
+                self.z_3 = self.G.getlayer3out(x)
+                self.z_4 = self.G.getlayer4out(self.z_3)
+                self.z_all = (self.z_3, self.z_4, self.z)
                 if "m" in self.opts.tasks:
                     if self.opts.gen.m.use_advent:
                         if verbose > 0:
@@ -914,7 +925,7 @@ class Trainer:
                         # prob = torch.cat([fake_mask, fake_complementary_mask], dim=1)
                         # prob = prob.detach()
 
-                        prob_aux, prob_main = self.G.decoders["m"](z_all)
+                        prob_aux, prob_main = self.G.decoders["m"](self.z_all)
                         prob_aux.to(self.device)
                         prob_main.to(self.device)
                         if batch_domain == "r":
@@ -1012,7 +1023,7 @@ class Trainer:
             # We don't care about the flooded domain here
             if batch_domain == "rf":
                 continue
-            self.z = self.G.encode(batch["data"]["x"])[2]
+            self.z = self.G.encode(batch["data"]["x"])
             # Forward through classifier, output classifier = (batch_size, 4)
             output_classifier = self.C(self.z)
             # Cross entropy loss (with sigmoid)

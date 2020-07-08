@@ -90,6 +90,20 @@ class OmniGenerator(nn.Module):
         assert self.encoder is not None
         return self.encoder.forward(x)
 
+    def getlayer3out(self, x):
+        assert self.encoder is not None
+        if self.opts.gen.encoder.architecture == "deeplabv2":
+            return self.encoder.get_layer3_out(x)
+        else:
+            return None
+
+    def getlayer4out(self, layer3_out):
+        assert self.encoder is not None
+        if self.opts.gen.encoder.architecture == "deeplabv2":
+            return self.encoder.deeplabv2layer4(layer3_out)
+        else:
+            return None
+
     def __str__(self):
         return strings.generator(self)
 

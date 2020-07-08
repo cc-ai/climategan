@@ -154,23 +154,7 @@ class ResNetMulti(nn.Module):
 
         return nn.Sequential(*layers)
 
-    # def forward(self, x):
-    #     x = self.conv1(x)
-    #     x = self.bn1(x)
-    #     x = self.relu(x)
-    #     x = self.maxpool(x)
-    #     x = self.layer1(x)
-    #     x = self.layer2(x)
-    #     x = self.layer3(x)
-    #     if self.multi_level:
-    #         x1 = self.layer5(x)  # produce segmap 1
-    #     else:
-    #         x1 = None
-    #     x2 = self.layer4(x)
-    #     x2 = self.layer6(x2)  # produce segmap 2
-    #     return x1, x2
-
-    def forward(self, x):
+    def get_layer3_out(self, x):
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
@@ -178,6 +162,24 @@ class ResNetMulti(nn.Module):
         x = self.layer1(x)
         x = self.layer2(x)
         layer3_out = self.layer3(x)
-        layer4_out = self.layer4(layer3_out)
+        return layer3_out
+
+    def deeplabv2layer4(self, layer3_out):
+        return self.layer4(layer3_out)
+
+    def forward(self, x):
+        layer4_out = self.layer4(self.get_layer3_out(x))
         x = self.layer_res(layer4_out)
-        return layer3_out, layer4_out, x
+        return x
+
+    # def forward(self, x):
+    #     x = self.conv1(x)
+    #     x = self.bn1(x)
+    #     x = self.relu(x)
+    #     x = self.maxpool(x)
+    #     x = self.layer1(x)
+    #     x = self.layer2(x)
+    #     layer3_out = self.layer3(x)
+    #     layer4_out = self.layer4(layer3_out)
+    #     x = self.layer_res(layer4_out)
+    #     return layer3_out, layer4_out, x
