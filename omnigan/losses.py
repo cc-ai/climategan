@@ -71,6 +71,26 @@ class GANLoss(nn.Module):
         return self.loss(input, target_tensor.to(input.device))
 
 
+class FeatMatchLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.criterionFeat = torch.nn.L1Loss()
+
+    def __call__(self, pred_real, pred_fake):
+        # pred_{real, fake} are lists of features
+        num_D = len(pred_fake)
+        GAN_Feat_loss = 0.0
+        for i in range(num_D):  # for each discriminator
+            # last output is the final prediction, so we exclude it
+            num_intermediate_outputs = len(pred_fake[i]) - 1
+            for j in range(num_intermediate_outputs):  # for each layer output
+                unweighted_loss = self.criterionFeat(
+                    pred_fake[i][j], pred_real[i][j].detach()
+                )
+                GAN_Feat_loss += unweighted_loss / num_D
+        return GAN_Feat_loss
+
+
 class CrossEntropy(nn.Module):
     def __init__(self):
         super().__init__()
@@ -216,6 +236,15 @@ class L1Loss(MSELoss):
         self.loss = torch.nn.L1Loss()
 
 
+class ContextLoss(nn.Module):
+    """
+    Masked L1 loss
+    """
+
+    def __call__(self, input, target, mask):
+        return torch.mean(torch.abs(torch.mul((input - target), 1 - mask)))
+
+
 ##################################################################################
 # VGG network definition
 ##################################################################################
@@ -287,7 +316,11 @@ def get_losses(opts, verbose, device=None):
     }
     """
 
-    losses = {"G": {"a": {}, "p": {}, "tasks": {}}, "D": {}, "C": {}}
+    losses = {
+        "G": {"a": {}, "p": {}, "tasks": {}},
+        "D": {"default": {}, "advent": {}},
+        "C": {},
+    }
 
     # ------------------------------
     # -----  Generator Losses  -----
@@ -299,7 +332,8 @@ def get_losses(opts, verbose, device=None):
         losses["G"]["p"]["dm"] = MSELoss()
         losses["G"]["p"]["vgg"] = VGGLoss(device)
         losses["G"]["p"]["tv"] = TVLoss(opts.train.lambdas.G.p.tv)
-        losses["G"]["p"]["context"] = L1Loss()
+        losses["G"]["p"]["context"] = ContextLoss()
+        losses["G"]["p"]["featmatch"] = FeatMatchLoss()
 
     # task losses
     # ? * add discriminator and gan loss to these task when no ground truth
@@ -312,6 +346,7 @@ def get_losses(opts, verbose, device=None):
         losses["G"]["tasks"]["m"] = {}
         losses["G"]["tasks"]["m"]["main"] = nn.BCELoss()
         losses["G"]["tasks"]["m"]["tv"] = TVLoss(opts.train.lambdas.G.m.tv)
+        losses["G"]["tasks"]["m"]["advent"] = ADVENTAdversarialLoss(opts)
 
     # undistinguishable features loss
     # TODO setup a get_losses func to assign the right loss according to the yaml
@@ -329,7 +364,52 @@ def get_losses(opts, verbose, device=None):
     # ----------------------------------
     # -----  Discriminator Losses  -----
     # ----------------------------------
-    losses["D"] = GANLoss(
+    losses["D"]["default"] = GANLoss(
         soft_shift=opts.dis.soft_shift, flip_prob=opts.dis.flip_prob, verbose=verbose,
     )
+    losses["D"]["advent"] = ADVENTAdversarialLoss(opts)
     return losses
+
+
+def prob_2_entropy(prob):
+    """
+    convert probabilistic prediction maps to weighted self-information maps
+    """
+    n, c, h, w = prob.size()
+    return -torch.mul(prob, torch.log2(prob + 1e-30)) / np.log2(c)
+
+
+class CustomBCELoss(nn.Module):
+    """
+        The first argument is a tensor and the second arguement is an int.
+        There is no need to take simoid before calling this function.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.loss = torch.nn.BCEWithLogitsLoss()
+
+    def __call__(self, prediction, target):
+        return self.loss(
+            prediction,
+            torch.FloatTensor(prediction.size())
+            .fill_(target)
+            .to(prediction.get_device()),
+        )
+
+
+class ADVENTAdversarialLoss(nn.Module):
+    """
+        TODO
+    """
+
+    def __init__(self, opts):
+        super().__init__()
+        self.opts = opts
+        self.loss = CustomBCELoss()
+
+    def __call__(self, prediction, target, discriminator):
+        d_out = discriminator(prob_2_entropy(F.softmax(prediction, dim=1)))
+        loss_ = self.loss(d_out, target)
+
+        return loss_

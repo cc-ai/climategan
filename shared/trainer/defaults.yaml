@@ -82,6 +82,7 @@ gen:
     num_classes: 19
     output_dim: 19
   p: # specific params for the SPADE painter
+    <<: *default-gen
     latent_dim: 512
     output_dim: 3 # output dimension
     pad_type: zero # padding type [zero/reflect]
@@ -93,6 +94,8 @@ gen:
   m: # specific params for the mask-generation decoder
     <<: *default-gen
     output_dim: 1
+    use_advent: True
+
 
 # -------------------------
 # ----- Discriminator -----
@@ -116,11 +119,14 @@ dis:
     init_type: kaiming
     init_gain: 0.2
     use_sigmoid: false
+    num_D: 3 #Number of discriminators to use (>1 means multi-scale)
+    get_intermediate_features: false
 
   p:
     <<: *default-dis
   m:
     <<: *default-dis
+    multi_level: false
 
 # -------------------------------
 # -----  Domain Classifier  -----
@@ -162,9 +168,14 @@ train:
         tv: 500
         vgg: 1
         context: 12
-
+        featmatch: 10
       classifier: 1
     C: 1
+    advent:
+      seg_main: 1
+      seg_aux: 0
+      adv_main: 1
+      adv_aux: 0
   log_level: 2 # 0: no log, 1: only aggregated losses, >1 detailed losses
   save_n_epochs: 1 # Save model every n epochs
   resume: false # Load latest_ckpt.pth checkpoint from `output_path` #TODO Make this path of checkpoint to load
@@ -174,7 +185,6 @@ train:
 # -----------------------------
 val:
   store_images: false # write to disk on top of comet logging
-
 # -----------------------------
 # ----- Comet Params ----------
 # -----------------------------
