@@ -198,9 +198,9 @@ def decode_unity_depth_t(unity_depth, log=True, normalize=False, numpy=False, fa
         [torch.Tensor or numpy.array]: decoded depth
     """
     im_array = (unity_depth * 255).type(torch.IntTensor)
-    R = im_array[0, :, :]
-    G = im_array[1, :, :]
-    B = im_array[2, :, :]
+    R = im_array[:, :, 0]
+    G = im_array[:, :, 1]
+    B = im_array[:, :, 2]
 
     R = ((247 - R) / 8).type(torch.FloatTensor)
     G = ((247 - G) / 8).type(torch.FloatTensor)

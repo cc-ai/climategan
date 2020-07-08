@@ -1,6 +1,7 @@
 """Data transforms for the loaders
 """
 import torch
+import torch.nn.functional as F
 from torchvision import transforms as trsfs
 import torchvision.transforms.functional as TF
 import numpy as np
@@ -8,10 +9,10 @@ from PIL import Image
 
 
 def interpolation(task):
-    if task in ["d"]:
-        return Image.NEAREST
+    if task in ["d", "m", "s"]:
+        return "nearest"
     else:
-        return Image.BILINEAR
+        return "bilinear"  # "bilinear"
 
 
 class Resize:
@@ -27,8 +28,12 @@ class Resize:
         self.w = int(self.w)
 
     def __call__(self, data):
+        for task, im in data.items():
+            print(task, im.shape)
+            print(task, im.dtype)
+
         return {
-            task: TF.resize(im, (self.h, self.w), interpolation=interpolation(task))
+            task: F.interpolate(im, (self.h, self.w), mode=interpolation(task))
             for task, im in data.items()
         }
 
@@ -50,19 +55,21 @@ class RandomCrop:
         top = np.random.randint(0, h - self.h)
         left = np.random.randint(0, w - self.w)
         return {
-            task: TF.crop(im, top, left, self.h, self.w) for task, im in data.items()
+            task: im[:, top : top + self.h, left + self.w] for task, im in data.items()
         }
 
 
 class RandomHorizontalFlip:
     def __init__(self, p=0.5):
-        self.flip = TF.hflip
+        # self.flip = TF.hflip
         self.p = p
 
     def __call__(self, data):
         if np.random.rand() > self.p:
             return data
-        return {task: self.flip(im) for task, im in data.items()}
+        for task, im in data.items():
+            print(task, im.shape)
+        return {task: torch.flip(im, (1,)) for task, im in data.items()}
 
 
 class ToTensor:
@@ -73,14 +80,16 @@ class ToTensor:
     def __call__(self, data):
         new_data = {}
         for task, im in data.items():
-            if task in {"x", "a", "d"}:
+            if task in {"x", "a"}:
                 new_data[task] = self.ImagetoTensor(im)
-            elif task in {"h", "w", "m"}:
+            elif task in {"m"}:
                 new_data[task] = self.MaptoTensor(im)
             elif task == "s":
                 new_data[task] = torch.squeeze(torch.from_numpy(np.array(im))).to(
                     torch.int64
                 )
+            elif task == "d":
+                new_data = im
 
         return new_data
 
@@ -131,7 +140,7 @@ def get_transforms(opts):
     """Get all the transform functions listed in opts.data.transforms
     using get_transform(transform_item)
     """
-    last_transforms = [ToTensor(), Normalize()]
+    last_transforms = [Normalize()]
 
     conf_transforms = []
     for t in opts.data.transforms:

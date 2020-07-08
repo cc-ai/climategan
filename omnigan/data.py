@@ -5,6 +5,7 @@ Transforms for loaders are in transforms.py
 from pathlib import Path
 import yaml
 import json
+import torch
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms as trsfs
 from imageio import imread
@@ -96,6 +97,48 @@ def pil_image_loader(path, task):
     return Image.fromarray(arr)
 
 
+def tensor_loader(path, task, domain):
+    """load data as tensors
+
+    Args:
+        path (str): path to data
+        task (str):
+        domain 
+    Returns:
+        [Tensor]: C x H x W
+    """
+    if task == "d":
+        if Path(path).suffix == ".npy":
+            arr = np.load(path)
+        else:
+            arr = arr = imread(path).astype(np.uint8)
+        arr = torch.from_numpy(arr)
+        arr = get_normalized_depth_t(arr, domain, normalize=False)
+        arr = arr.unsqueeze(0).unsqueeze(0)
+        return arr
+    elif Path(path).suffix == ".npy":
+        arr = np.load(path).astype(np.uint8)
+    elif is_image_file(path):
+        arr = arr = imread(path).astype(np.uint8)
+    else:
+        raise ValueError("Unknown data type {}".format(path))
+
+    # Convert from RGBA to RGB for images
+    if len(arr.shape) == 3 and arr.shape[-1] == 4:
+        arr = arr[:, :, 0:3]
+    if task == "x":
+        arr = np.moveaxis(arr, 2, 0)
+
+    if task == "m":
+        arr[arr != 0] = 255
+        # Make sure mask is single-channel
+        if len(arr.shape) >= 3:
+            arr = arr[:, :, 0]
+        arr = np.expand_dims(arr, 0)
+
+    return torch.from_numpy(arr).unsqueeze(0)
+
+
 class OmniListDataset(Dataset):
     def __init__(self, mode, domain, opts, transform=None):
 
@@ -157,7 +200,7 @@ class OmniListDataset(Dataset):
         item = {
             "data": self.transform(
                 {
-                    task: pil_image_loader(path, task, self.domain)
+                    task: tensor_loader(path, task, self.domain)
                     for task, path in paths.items()
                 }
             ),
@@ -165,8 +208,8 @@ class OmniListDataset(Dataset):
             "domain": self.domain,
             "mode": self.mode,
         }
-        if "d" in item["data"]:
-            item["data"]["d"] = get_normalized_depth_t(item["data"]["d"], self.domain)
+        # if "d" in item["data"]:
+        #    item["data"]["d"] = get_normalized_depth_t(item["data"]["d"], self.domain)
 
         return item
 
