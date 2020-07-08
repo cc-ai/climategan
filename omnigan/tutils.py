@@ -160,6 +160,7 @@ def show_tanh_tensor(tensor):
 def get_normalized_depth_t(arr, domain, normalize=False):
     if domain == "r":
         # megadepth depth
+        arr = arr.unsqueeze(0)
         if normalize:
             arr = arr - torch.min(arr)
             arr /= torch.max(arr)

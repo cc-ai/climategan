@@ -111,15 +111,15 @@ def tensor_loader(path, task, domain):
         if Path(path).suffix == ".npy":
             arr = np.load(path)
         else:
-            arr = arr = imread(path).astype(np.uint8)
+            arr = imread(path)  # .astype(np.uint8)
         arr = torch.from_numpy(arr)
         arr = get_normalized_depth_t(arr, domain, normalize=False)
-        arr = arr.unsqueeze(0).unsqueeze(0)
+        arr = arr.unsqueeze(0)
         return arr
     elif Path(path).suffix == ".npy":
-        arr = np.load(path).astype(np.uint8)
+        arr = np.load(path).astype(np.float32)  # .astype(np.uint8)
     elif is_image_file(path):
-        arr = arr = imread(path).astype(np.uint8)
+        arr = arr = imread(path).astype(np.float32)  # .astype(np.uint8)
     else:
         raise ValueError("Unknown data type {}".format(path))
 

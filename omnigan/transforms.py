@@ -28,10 +28,6 @@ class Resize:
         self.w = int(self.w)
 
     def __call__(self, data):
-        for task, im in data.items():
-            print(task, im.shape)
-            print(task, im.dtype)
-
         return {
             task: F.interpolate(im, (self.h, self.w), mode=interpolation(task))
             for task, im in data.items()
@@ -110,7 +106,7 @@ class Normalize:
 
     def __call__(self, data):
         return {
-            task: self.normalize.get(task, lambda x: x)(tensor)
+            task: self.normalize.get(task, lambda x: x)(tensor.squeeze(0))
             for task, tensor in data.items()
         }
 
