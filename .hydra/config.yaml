@@ -1,0 +1,216 @@
+args:
+  config: ./config/trainer/local_tests.yaml
+  dev: true
+  no_comet: false
+  note: null
+  resume: false
+  tags: null
+classifier:
+  dropout: 0.4
+  init_gain: 0.2
+  init_type: kaiming
+  layers:
+  - 100
+  - 100
+  - 20
+  - 20
+  - 4
+  loss: l2
+  opt:
+    beta1: 0.5
+    lr: 0.0005
+    lr_gamma: 0.5
+    lr_policy: step
+    lr_step_size: 30
+    optimizer: ExtraAdam
+  proj_dim: 128
+comet:
+  display_size: 5
+  im_per_row:
+    d: 3
+    m: 4
+    p: 4
+    s: 3
+    simclr: 2
+data:
+  files:
+    base: /path/to/data
+    train:
+      r: train_r.json
+      rf: train_rf.json
+      s: train_s.json
+    val:
+      r: val_r.json
+      rf: val_rf.json
+      s: val_s.json
+  loaders:
+    batch_size: 2
+    num_workers: 8
+    shuffle: true
+  transforms:
+  - ignore: false
+    name: hflip
+    p: 0.5
+  - ignore: false
+    name: resize
+    new_size: 256
+  - height: 224
+    ignore: false
+    name: crop
+    width: 224
+  - ignore: false
+    name: resize
+    new_size: 256
+dis:
+  default:
+    init_gain: 0.2
+    init_type: kaiming
+    input_nc: 3
+    n_layers: 3
+    ndf: 64
+    norm: instance
+    use_sigmoid: false
+  flip_prob: 0.05
+  m:
+    init_gain: 0.2
+    init_type: kaiming
+    input_nc: 3
+    n_layers: 3
+    ndf: 64
+    norm: instance
+    use_sigmoid: false
+  opt:
+    beta1: 0.5
+    lr: 0.0005
+    lr_gamma: 0.5
+    lr_policy: step
+    lr_step_size: 30
+    optimizer: ExtraAdam
+  p:
+    init_gain: 0.2
+    init_type: kaiming
+    input_nc: 3
+    n_layers: 3
+    ndf: 64
+    norm: instance
+    use_sigmoid: false
+  soft_shift: 0.2
+gen:
+  d:
+    activ: lrelu
+    init_gain: 0.2
+    init_type: kaiming
+    n_downsample: 3
+    n_res: 1
+    n_upsample: 3
+    output_dim: 1
+    pad_type: reflect
+    proj_dim: 32
+    res_dim: 256
+    res_norm: spectral
+  deeplabv2:
+    nblocks:
+    - 3
+    - 4
+    - 23
+    - 3
+    pretrained_model: /network/tmp1/ccai/data/omnigan/pretrained_models/DeepLab_resnet_pretrained_imagenet.pth
+    use_pretrained: true
+  default:
+    activ: lrelu
+    init_gain: 0.2
+    init_type: kaiming
+    n_downsample: 3
+    n_res: 1
+    n_upsample: 3
+    pad_type: reflect
+    proj_dim: 32
+    res_dim: 256
+    res_norm: spectral
+  encoder:
+    activ: lrelu
+    architecture: base
+    dim: 32
+    init_gain: 0.2
+    init_type: kaiming
+    input_dim: 3
+    n_downsample: 3
+    n_res: 1
+    n_upsample: 3
+    norm: spectral
+    pad_type: reflect
+    proj_dim: 32
+    res_dim: 256
+    res_norm: spectral
+  m:
+    activ: lrelu
+    init_gain: 0.2
+    init_type: kaiming
+    n_downsample: 3
+    n_res: 1
+    n_upsample: 3
+    output_dim: 1
+    pad_type: reflect
+    proj_dim: 32
+    res_dim: 256
+    res_norm: spectral
+  opt:
+    beta1: 0.9
+    lr: 0.0005
+    lr_gamma: 0.5
+    lr_policy: step
+    lr_step_size: 30
+    optimizer: ExtraAdam
+  p:
+    latent_dim: 512
+    output_dim: 3
+    pad_type: zero
+    spade_kernel_size: 3
+    spade_n_up: 7
+    spade_param_free_norm: instance
+    spade_use_spectral_norm: true
+  s:
+    activ: lrelu
+    init_gain: 0.2
+    init_type: kaiming
+    n_downsample: 3
+    n_res: 1
+    n_upsample: 3
+    num_classes: 19
+    output_dim: 19
+    pad_type: reflect
+    proj_dim: 32
+    res_dim: 256
+    res_norm: spectral
+output_path: /network/tmp1/schmidtv/yb_runs/test_v1
+tasks:
+- d
+- s
+- m
+- p
+train:
+  epochs: 100000000
+  lambdas:
+    C: 1
+    G:
+      classifier: 1
+      d: 1
+      m:
+        main: 1
+        tv: 1
+      p:
+        context: 12
+        dm: 1
+        gan: 1
+        sm: 1
+        tv: 500
+        vgg: 1
+      s: 1
+  latent_domain_adaptation: true
+  log_level: 2
+  representation_steps: 10000
+  representational_training: true
+  resume: false
+  save_n_epochs: 1
+val:
+  store_images: false

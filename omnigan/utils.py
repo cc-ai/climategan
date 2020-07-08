@@ -27,19 +27,27 @@ def load_opts(path=None, default=None):
     """
     assert default or path
 
+    if path:
+        path = Path(path).resolve()
+
     if default is None:
-        default_opts = Dict()
+        default_opts = {}
     else:
-        with open(default, "r") as f:
-            default_opts = Dict(yaml.safe_load(f))
+        if isinstance(default, (str, Path)):
+            with open(default, "r") as f:
+                default_opts = yaml.safe_load(f)
+        else:
+            default_opts = dict(default)
 
     if path is None:
-        overriding_opts = Dict()
+        overriding_opts = {}
     else:
         with open(path, "r") as f:
-            overriding_opts = Dict(yaml.safe_load(f))
+            overriding_opts = yaml.safe_load(f)
 
     default_opts.update(overriding_opts)
+
+    default_opts = Dict(default_opts)
 
     default_opts.domains = []
     if "m" in default_opts.tasks:
