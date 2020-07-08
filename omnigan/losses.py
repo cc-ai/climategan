@@ -226,7 +226,7 @@ class SIMSELoss(nn.Module):
     def __call__(self, prediction, target):
         d = prediction - target
         diff = torch.mean(d * d)
-        relDiff = (d.sum() * d.sum()) / float(d.size * d.size)
+        relDiff = (d.sum() * d.sum()) / float(d.size()[-1] * d.size()[-2])
         return diff - relDiff
 
 
