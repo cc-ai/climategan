@@ -63,6 +63,7 @@ def main(opts):
             Path(opts.output_path).mkdir()
 
         # Save config file
+        # TODO what if resuming? re-dump?
         with Path(opts.output_path / "opts.yaml").open("w") as f:
             yaml.safe_dump(opts.to_dict())
 
