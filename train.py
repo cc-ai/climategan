@@ -1,22 +1,16 @@
-from comet_ml import Experiment
-
-from argparse import ArgumentParser
 from pathlib import Path
 from time import time
-from omegaconf import OmegaConf as OC
+
+import hydra
+import yaml
 from addict import Dict
+from comet_ml import Experiment
+from omegaconf import OmegaConf
 
 from omnigan.trainer import Trainer
-from omnigan.utils import (
-    env_to_path,
-    flatten_opts,
-    get_increased_path,
-    load_opts,
-)
-import shutil
-import hydra
+from omnigan.utils import env_to_path, flatten_opts, get_increased_path, load_opts
 
-hydra_config_path = str(Path(__file__).resolve().parent / "shared/trainer/config.yaml")
+hydra_config_path = Path(__file__).resolve().parent / "shared/trainer/config.yaml"
 
 
 def pprint(*args):
@@ -41,7 +35,7 @@ def main(opts):
     # -----  Parse arguments  -----
     # -----------------------------
 
-    opts = Dict(OC.to_container(opts))
+    opts = Dict(OmegaConf.to_container(opts))
     args = opts.args
 
     # -----------------------
@@ -62,16 +56,15 @@ def main(opts):
         # -------------------------------
         # -----  Check output_path  -----
         # -------------------------------
-        assert not Path(opts.output_path).exists()
         if opts.train.resume:
             Path(opts.output_path).mkdir(exist_ok=True)
         else:
+            assert not Path(opts.output_path).exists()
             Path(opts.output_path).mkdir()
 
         # Save config file
-        shutil.copyfile(
-            Path(args.config), Path(opts.output_path) / Path(args.config).name
-        )
+        with Path(opts.output_path / "opts.yaml").open("w") as f:
+            yaml.safe_dump(opts.to_dict())
 
         if not args.no_comet:
             # ----------------------------------
