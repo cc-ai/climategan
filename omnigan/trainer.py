@@ -378,6 +378,9 @@ class Trainer:
         for d in self.opts.domains:
             self.log_comet_images("train", d)
 
+        if "m" in self.opts.tasks and "p" in self.opts.tasks:
+            self.log_comet_combined_images("train", "r")
+
         self.update_learning_rates()
 
     def log_step_time(self, step_time):
@@ -447,6 +450,34 @@ class Trainer:
                 im_per_row=self.opts.comet.im_per_row.get("p", 4),
                 comet_exp=self.exp,
             )
+
+        return 0
+
+    def log_comet_combined_images(self, mode, domain):
+
+        image_outputs = []
+        for im_set in self.display_images[mode][domain]:
+            x = im_set["data"]["x"].unsqueeze(0).to(self.device)
+            # m = im_set["data"]["m"].unsqueeze(0).to(self.device)
+
+            z = self.sample_z(x.shape[0])
+            m = self.G.decoders["m"](self.G.encode(x))
+
+            prediction = self.G.painter(z, x * (1.0 - m))
+            image_outputs.append(x * (1.0 - m))
+            image_outputs.append(prediction)
+            image_outputs.append(x)
+            image_outputs.append(prediction * m)
+        # Write images
+        self.write_images(
+            image_outputs=image_outputs,
+            mode=mode,
+            domain=domain,
+            task="combined",
+            im_per_row=self.opts.comet.im_per_row.get("p", 4),
+            comet_exp=self.exp,
+        )
+
         return 0
 
     def write_images(
@@ -506,6 +537,10 @@ class Trainer:
             p_loss = self.get_painter_loss(multi_domain_batch)
             self.logger.losses.generator.painter = p_loss.item()
             g_loss += p_loss
+
+        if "m" in self.opts.tasks and "p" in self.opts.tasks:
+            mp_loss = self.get_combined_loss(multi_domain_batch)
+            g_loss += mp_loss
 
         assert g_loss != 0 and not isinstance(g_loss, int), "No update in get_g_loss!"
 
@@ -747,6 +782,62 @@ class Trainer:
 
         return step_loss
 
+    def get_combined_loss(self, multi_domain_batch):  # TODO update docstrings
+        """Only update the representation part of the model, meaning everything
+        but the translation part
+
+        * for each batch in available domains:
+            * compute latent classifier loss with fake labels(1)
+            * compute task-specific losses (2)
+            * compute the adaptation and translation decoders' auto-encoding losses (3)
+            * compute the adaptation decoder's translation losses (GAN and Cycle) (4)
+
+        Args:
+            multi_domain_batch (dict): dictionnary mapping domain names to batches from
+            the trainer's loaders
+
+        Returns:
+            torch.Tensor: scalar loss tensor, weighted according to opts.train.lambdas
+        """
+        step_loss = 0
+        lambdas = self.opts.train.lambdas
+        for batch_domain, batch in multi_domain_batch.items():
+            # We don't care about the flooded domain here
+            if batch_domain == "rf" or batch_domain == "s":
+                continue
+
+            x = batch["data"]["x"]
+            self.z = self.G.encode(x)
+
+            update_task = "m"
+            # Get mask from masker
+            m = self.G.decoders[update_task](self.z)
+
+            z = self.sample_z(x.shape[0])
+            masked_x = x * (1.0 - m)
+
+            fake_flooded = self.G.painter(z, masked_x)
+            # GAN Losses
+            fake_d_global = self.D["p"]["global"](fake_flooded)
+
+            # Note: discriminator returns [out_1,...,out_num_D] outputs
+            # Each out_i is a list [feat1, feat2, ..., pred_i]
+
+            self.logger.losses.generator.p.endtoend = 0
+
+            num_D = len(fake_d_global)
+            for i in range(num_D):
+                # Take last element for GAN loss on discrim prediction
+                update_loss = (
+                    (self.losses["G"]["p"]["gan"](fake_d_global[i][-1], True))
+                    * lambdas.G["p"]["gan"]
+                    / num_D
+                )
+
+                self.logger.losses.generator.p.endtoend += update_loss.item()
+
+        return step_loss
+
     def update_d(self, multi_domain_batch, verbose=0):
         # ? split representational as in update_g
         # ? repr: domain-adaptation traduction
@@ -935,6 +1026,9 @@ class Trainer:
 
         for d in self.opts.domains:
             self.log_comet_images("val", d)
+
+        if "m" in self.opts.tasks and "p" in self.opts.tasks:
+            self.log_comet_combined_images("val", "r")
 
         print("******************DONE EVALUATING*********************")
 

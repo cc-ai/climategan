@@ -93,9 +93,11 @@ if __name__ == "__main__":
         Path(opts.output_path).mkdir(exist_ok=True)
     else:
         Path(opts.output_path).mkdir()
+        # Save config file:
+        shutil.copyfile(
+            Path(args.config), Path(opts.output_path) / Path(args.config).name
+        )
 
-    # Save config file:
-    shutil.copyfile(Path(args.config), Path(opts.output_path) / Path(args.config).name)
     # ----------------------------------
     # -----  Set Comet Experiment  -----
     # ----------------------------------
