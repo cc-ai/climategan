@@ -119,7 +119,7 @@ def tensor_loader(path, task, domain):
     elif Path(path).suffix == ".npy":
         arr = np.load(path).astype(np.float32)  # .astype(np.uint8)
     elif is_image_file(path):
-        arr = arr = imread(path).astype(np.float32)  # .astype(np.uint8)
+        arr = imread(path).astype(np.float32)  # .astype(np.uint8)
     else:
         raise ValueError("Unknown data type {}".format(path))
 
@@ -130,7 +130,7 @@ def tensor_loader(path, task, domain):
         arr = np.moveaxis(arr, 2, 0)
 
     if task == "m":
-        arr[arr != 0] = 255
+        arr[arr != 0] = 1
         # Make sure mask is single-channel
         if len(arr.shape) >= 3:
             arr = arr[:, :, 0]
