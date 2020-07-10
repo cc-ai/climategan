@@ -6,7 +6,6 @@ sys.path.append(str(Path(__file__).parent.parent.resolve()))
 from omnigan.trainer import Trainer
 from omnigan.utils import load_test_opts
 
-# from omnigan.tutils import freeze
 from run import print_header
 
 parser = argparse.ArgumentParser()
