@@ -30,7 +30,7 @@ if __name__ == "__main__":
     D: OmniDiscriminator = get_dis(opts, 0).to(device)
     loss = GANLoss().to(device)
     image = torch.rand(5, 3, 128, 128).to(device)
-
+    image_adv = torch.rand(5, 2, 128, 128).to(torch.float32).to(device)
     # --------------------------------
     # -----  Test number params  -----
     # --------------------------------
@@ -44,7 +44,11 @@ if __name__ == "__main__":
     # --------------------------
     for task, disc in D.items():
         for domain in disc.keys():
-            d = disc[domain](image)
+            disc.to(device)
+            if domain == "Advent":
+                d = disc[domain](image_adv)
+            else:
+                d = disc[domain](image)
             if isinstance(d, list):
                 # For each discriminator in num_D
                 for i in range(len(d)):
@@ -61,4 +65,3 @@ if __name__ == "__main__":
 
             else:
                 print(task, domain, d.shape, loss(d, True), loss(d, False))
-
