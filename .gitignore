@@ -5,6 +5,7 @@ example_data/
 .DS_Store
 config/
 tests/not_committed/
+*.hydra
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
