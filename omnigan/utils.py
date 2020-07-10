@@ -286,23 +286,24 @@ def get_files(dirName):
 
 def make_json_file(
     keys,
-    addresses,
-    splitter="/",  # for windows user, use "\\" instead of using "/"
+    addresses,  # for windows user, use "\\" instead of using "/"
     name_of_the_json_file="jsonfile.json",
+    splitter = '/'
 ):
     """
         How to use it?
     e.g.
-    main(['x','m','d'], [
+    make_json_file(['x','m','d'], [
     '/network/tmp1/ccai/data/munit_dataset/trainA_size_1200/',
     '/network/tmp1/ccai/data/munit_dataset/seg_trainA_size_1200/',
     '/network/tmp1/ccai/data/munit_dataset/trainA_megadepth_resized/'
     ], 'train_r_resized.json')
 
     Args:
-        keys (list): [description]
-        addresses (list): [description]
-        splitter (str, optional): [description]. Defaults to "/".
+        keys (list): the list of image type like 'x', 'm', 'd', etc.
+        addresses (list): the list of the corresponding address of the image type mentioned in keys.
+        name_of_the_json_file (str, optional): The name of the output json file. Default to "jsonfile.json"
+        splitter (str, optional): The path separator for the current OS. Defaults to '/'.
     """
 
     print("Please Make sure there is a file with the same name in each folder!")
