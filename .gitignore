@@ -6,6 +6,7 @@ example_data/
 config/
 tests/not_committed/
 *.hydra
+outputs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
