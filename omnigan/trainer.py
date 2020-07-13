@@ -26,7 +26,8 @@ from omnigan.tutils import (
     shuffle_batch_tuple,
     vgg_preprocess,
 )
-from omnigan.utils import div_dict, flatten_opts, sum_dict
+from omnigan.utils import div_dict, flatten_opts, sum_dict, merge
+import sys
 
 
 class Trainer:
@@ -1058,11 +1059,34 @@ class Trainer:
 
     def resume(self):
         # load_path = self.get_latest_ckpt()
-        load_path = Path(self.opts.output_path) / Path("checkpoints/latest_ckpt.pth")
-        checkpoint = torch.load(load_path)
-        print(f"Resuming model from {load_path}")
+        if "m" in self.opts.tasks and "p" in self.opts.tasks:
+            m_path = self.opts.load_paths.m
+            p_path = self.opts.load_paths.p
+
+            if m_path == "none":
+                m_path = self.opts.output_path
+            if p_path == "none":
+                p_path = self.opts.output_path
+
+            # Merge the dicts
+            m_ckpt_path = Path(m_path) / Path("checkpoints/latest_ckpt.pth")
+            p_ckpt_path = Path(p_path) / Path("checkpoints/latest_ckpt.pth")
+
+            m_checkpoint = torch.load(m_ckpt_path)
+            p_checkpoint = torch.load(p_ckpt_path)
+
+            checkpoint = merge(m_checkpoint, p_checkpoint)
+            print(f"Resuming model from {m_ckpt_path} and {p_ckpt_path}")
+        else:
+            load_path = Path(self.opts.output_path) / Path(
+                "checkpoints/latest_ckpt.pth"
+            )
+            checkpoint = torch.load(load_path)
+            print(f"Resuming model from {load_path}")
+
         self.G.load_state_dict(checkpoint["G"])
-        self.g_opt.load_state_dict(checkpoint["g_opt"])
+        if not ("m" in self.opts.tasks and "p" in self.opts.tasks):
+            self.g_opt.load_state_dict(checkpoint["g_opt"])
         self.logger.epoch = checkpoint["epoch"]
         self.logger.global_step = checkpoint["step"]
         # Round step to even number for extraGradient
@@ -1071,11 +1095,13 @@ class Trainer:
 
         if self.C is not None and get_num_params(self.C) > 0:
             self.C.load_state_dict(checkpoint["C"])
-            self.c_opt.load_state_dict(checkpoint["c_opt"])
+            if not ("m" in self.opts.tasks and "p" in self.opts.tasks):
+                self.c_opt.load_state_dict(checkpoint["c_opt"])
 
         if self.D is not None and get_num_params(self.D) > 0:
             self.D.load_state_dict(checkpoint["D"])
-            self.d_opt.load_state_dict(checkpoint["d_opt"])
+            if not ("m" in self.opts.tasks and "p" in self.opts.tasks):
+                self.d_opt.load_state_dict(checkpoint["d_opt"])
 
     def get_latest_ckpt(self):
         load_dir = Path(self.opts.output_path) / Path("checkpoints")

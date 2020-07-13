@@ -48,7 +48,7 @@ def parsed_args():
     )
     parser.add_argument(
         "--output_dir",
-        default="./output_masks/",
+        default="./outputs/",
         type=str,
         help="Directory to write images to",
     )
@@ -68,7 +68,10 @@ def eval_folder(path_to_images, output_dir):
         img = img.unsqueeze(0).to(device)
         z = model.encode(img)
         mask = model.decoders["m"](z)
-        vutils.save_image(mask, output_dir / img_path.name)
+        z_painter = trainer.sample_z(1)
+        fake_flooded = model.painter(z_painter, img * (1.0 - mask))
+        vutils.save_image(fake_flooded, output_dir / img_path.name, normalize=True)
+        vutils.save_image(mask, output_dir / ("mask_" + img_path.name), normalize=True)
 
 
 def isimg(path_file):
@@ -122,7 +125,7 @@ if __name__ == "__main__":
 
     transforms = [
         trsfs.ToTensor(),
-        trsfs.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+        trsfs.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
     ]
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")

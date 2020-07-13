@@ -75,6 +75,7 @@ def pil_image_loader(path, task, domain):
     if Path(path).suffix == ".npy":
         arr = np.load(path).astype(np.uint8)
     elif is_image_file(path):
+        # arr = imread(path).astype(np.uint8)
         arr = np.array(Image.open(path).convert("RGB"))
     else:
         raise ValueError("Unknown data type {}".format(path))

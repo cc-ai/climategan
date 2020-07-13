@@ -14,6 +14,7 @@ from omnigan.utils import (
     load_opts,
 )
 import shutil
+import os
 
 
 def parsed_args():
@@ -94,6 +95,8 @@ if __name__ == "__main__":
     else:
         Path(opts.output_path).mkdir()
         # Save config file:
+
+    if not os.path.isfile(Path(opts.output_path) / Path(args.config).name):
         shutil.copyfile(
             Path(args.config), Path(opts.output_path) / Path(args.config).name
         )
