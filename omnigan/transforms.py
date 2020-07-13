@@ -29,8 +29,8 @@ class Resize:
 
     def __call__(self, data):
         return {
-            task: F.interpolate(im, (self.h, self.w), mode=interpolation(task))
-            for task, im in data.items()
+            task: F.interpolate(tensor, (self.h, self.w), mode=interpolation(task))
+            for task, tensor in data.items()
         }
 
 
@@ -51,7 +51,8 @@ class RandomCrop:
         top = np.random.randint(0, h - self.h)
         left = np.random.randint(0, w - self.w)
         return {
-            task: im[:, top : top + self.h, left + self.w] for task, im in data.items()
+            task: tensor[:, top : top + self.h, left + self.w]
+            for task, tensor in data.items()
         }
 
 
@@ -63,9 +64,9 @@ class RandomHorizontalFlip:
     def __call__(self, data):
         if np.random.rand() > self.p:
             return data
-        for task, im in data.items():
-            print(task, im.shape)
-        return {task: torch.flip(im, (1,)) for task, im in data.items()}
+        for task, tensor in data.items():
+            print(task, tensor.shape)
+        return {task: torch.flip(tensor, (1,)) for task, tensor in data.items()}
 
 
 class ToTensor:
@@ -92,7 +93,7 @@ class ToTensor:
 
 class Normalize:
     def __init__(self):
-        self.normImage = trsfs.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        self.normImage = trsfs.Normalize([127.5, 127.5, 127.5], [127.5, 127.5, 127.5])
         # self.normSeg = trsfs.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
         self.normDepth = lambda x: x  # trsfs.Normalize([1 / 255], [1 / 3])
         self.normMask = lambda x: x
