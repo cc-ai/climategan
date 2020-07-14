@@ -396,7 +396,6 @@ class Trainer:
         if domain != "rf":
             for im_set in self.display_images[mode][domain]:
                 x = im_set["data"]["x"].unsqueeze(0).to(self.device)
-
                 self.z = self.G.encode(x)
 
                 for update_task, update_target in im_set["data"].items():
@@ -414,8 +413,8 @@ class Trainer:
 
                         if update_task in {"d"}:
                             # prediction is a log depth tensor
-                            target = to_im_depth(target)
-                            prediction = to_im_depth(prediction)
+                            target = to_im_depth(target) * 255
+                            prediction = to_im_depth(prediction) * 255
                             prediction = prediction.repeat(1, 3, 1, 1)
                             task_saves.append(target.repeat(1, 3, 1, 1))
 
@@ -426,6 +425,7 @@ class Trainer:
                             save_images[update_task].append(im)
 
             for task in save_images.keys():
+                print(task)
                 # Write images:
                 self.write_images(
                     image_outputs=save_images[task],
