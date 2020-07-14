@@ -53,13 +53,22 @@ def parsed_args():
         help="Directory to write images to",
     )
 
+    parser.add_argument(
+        "--image_domain",
+        default="r",
+        type=str,
+        help="Domain of images in path_to_images, can be 'r' or 's'",
+        required=True,
+    )
+
     return parser.parse_args()
 
 
-def eval_folder(path_to_images, output_dir):
+def eval_folder(path_to_images, output_dir, image_domain):
     images = [path_to_images / Path(i) for i in os.listdir(path_to_images)]
+    task = "x"
     for img_path in images:
-        img = pil_image_loader(img_path, task="x").convert("RGB")
+        img = pil_image_loader(img_path, task, image_domain).convert("RGB")
         # Resize img:
         img = TF.resize(img, (new_size, new_size))
         for tf in transforms:
@@ -155,4 +164,4 @@ if __name__ == "__main__":
             rel_path = root.relative_to(rootdir)
             write_path = writedir / rel_path
             write_path.mkdir(parents=True, exist_ok=True)
-            eval_folder(root, write_path)
+            eval_folder(root, write_path, args.image_domain)
