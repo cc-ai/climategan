@@ -315,6 +315,7 @@ def get_losses(opts, verbose, device=None):
     if "m" in opts.tasks:
         losses["G"]["tasks"]["m"] = {}
         losses["G"]["tasks"]["m"]["main"] = nn.BCELoss()
+        losses["G"]["tasks"]["m"]["minent"] = entropy_loss
         losses["G"]["tasks"]["m"]["tv"] = TVLoss(opts.train.lambdas.G.m.tv)
         losses["G"]["tasks"]["m"]["advent"] = ADVENTAdversarialLoss(opts)
 
