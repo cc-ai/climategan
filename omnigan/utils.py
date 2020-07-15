@@ -366,8 +366,9 @@ def append_task_to_json(
 
     files = get_files(path_to_new_images_dir)
 
-    new_ims_list = [{}] * len(ims_list)
+    new_ims_list = [None] * len(ims_list)
     for i, im_dict in enumerate(ims_list):
+        new_ims_list[i] = {}
         for task, path in im_dict.items():
             new_ims_list[i][task] = path
 
