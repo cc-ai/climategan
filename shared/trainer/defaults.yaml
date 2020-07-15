@@ -93,7 +93,7 @@ gen:
   m: # specific params for the mask-generation decoder
     <<: *default-gen
     output_dim: 1
-    use_minent: True
+    use_minent: False
     use_advent: True
 
 # -------------------------
