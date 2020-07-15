@@ -288,7 +288,7 @@ def make_json_file(
     keys,
     addresses,  # for windows user, use "\\" instead of using "/"
     name_of_the_json_file="jsonfile.json",
-    splitter = '/'
+    splitter="/",
 ):
     """
         How to use it?
@@ -337,6 +337,58 @@ def make_json_file(
         dicts.append(tmp_dict)
     with open(name_of_the_json_file, "w", encoding="utf-8") as outfile:
         json.dump(dicts, outfile, ensure_ascii=False)
+
+
+def append_task_to_json(
+    path_to_json, path_to_new_json, path_to_new_images_dir, new_task_name,
+):
+    """Add all files for a task to an existing json file by creating a new json file in the specified path
+    Assumes that the files for the new task have exactly the same names as the ones for the other tasks
+
+    Args:
+        path_to_json: complete path to the json file to modify
+        path_to_new_json: complete path to the new json file to be created
+        path_to_new_images_dir: complete path of the directory where to find the images for the new task
+        new_task_name: name of the new task
+
+    e.g:
+        append_json(
+            "/network/tmp1/ccai/data/omnigan/seg/train_r.json",
+            "/network/tmp1/ccai/data/omnigan/seg/train_r_new.json"
+            "/network/tmp1/ccai/data/munit_dataset/trainA_seg_HRNet/unity_labels",
+            "s",
+        )
+    """
+    if path_to_json:
+        path_to_json = Path(path_to_json).resolve()
+        with open(path_to_json, "r") as f:
+            ims_list = yaml.safe_load(f)
+
+    files = get_files(path_to_new_images_dir)
+
+    new_ims_list = [{}] * len(ims_list)
+    for i, im_dict in enumerate(ims_list):
+        for task, path in im_dict.items():
+            new_ims_list[i][task] = path
+
+    for i, im_dict in enumerate(ims_list):
+        for task, path in im_dict.items():
+            file_name = os.path.splitext(path)[0]  # removes extension
+            file_name = file_name.rsplit("/", 1)[-1]  # only the file_name
+            file_found = False
+            for file_path in files:
+                if file_name in file_path:
+                    file_found = True
+                    new_ims_list[i][new_task_name] = file_path
+                    break
+            if file_found:
+                break
+            else:
+                print("Error! File ", file_name, "not found in directory!")
+                return
+
+    with open(path_to_new_json, "w", encoding="utf-8") as f:
+        json.dump(new_ims_list, f, ensure_ascii=False)
 
 
 def sum_dict(dict1, dict2):
