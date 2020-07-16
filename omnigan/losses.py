@@ -191,6 +191,20 @@ def entropy_loss(v):
     return -torch.sum(torch.mul(v, torch.log2(v + 1e-30))) / (n * h * w * np.log2(c))
 
 
+def entropy_loss_v2(v, lambda_var=0.1):
+    """
+        Entropy loss for probabilistic prediction vectors
+        input: batch_size x channels x h x w
+        output: batch_size x 1 x h x w
+    """
+    assert v.dim() == 4
+    n, c, h, w = v.size()
+    entropy_map = -torch.mul(v, torch.log2(v + 1e-30)) / np.log2(c)
+    entropy_map_demean = entropy_map - torch.sum(entropy_map) / (n * h * w)
+    entropy_map_squ = torch.mul(entropy_map_demean, entropy_map_demean)
+    return torch.sum(entropy_map + lambda_var * entropy_map_squ) / (n * h * w)
+
+
 class MSELoss(nn.Module):
     """
     Creates a criterion that measures the mean squared error
@@ -315,7 +329,12 @@ def get_losses(opts, verbose, device=None):
     if "m" in opts.tasks:
         losses["G"]["tasks"]["m"] = {}
         losses["G"]["tasks"]["m"]["main"] = nn.BCELoss()
-        losses["G"]["tasks"]["m"]["minent"] = entropy_loss
+        if opts.gen.m.use_minent_var:
+            losses["G"]["tasks"]["m"]["minent"] = lambda x: entropy_loss_v2(
+                x, lambda_var=opts.train.lambdas.advent.ent_var
+            )
+        else:
+            losses["G"]["tasks"]["m"]["minent"] = entropy_loss
         losses["G"]["tasks"]["m"]["tv"] = TVLoss(opts.train.lambdas.G.m.tv)
         losses["G"]["tasks"]["m"]["advent"] = ADVENTAdversarialLoss(opts)
 
