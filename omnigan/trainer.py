@@ -26,6 +26,7 @@ from omnigan.tutils import (
     shuffle_batch_tuple,
     vgg_preprocess,
     to_im_depth,
+    norm_tensor,
 )
 from omnigan.utils import div_dict, flatten_opts, sum_dict
 
@@ -413,8 +414,8 @@ class Trainer:
 
                         if update_task in {"d"}:
                             # prediction is a log depth tensor
-                            target = to_im_depth(target) * 255
-                            prediction = to_im_depth(prediction) * 255
+                            target = (norm_tensor(target)) * 255
+                            prediction = (norm_tensor(prediction)) * 255
                             prediction = prediction.repeat(1, 3, 1, 1)
                             task_saves.append(target.repeat(1, 3, 1, 1))
 

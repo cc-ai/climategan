@@ -85,7 +85,7 @@ def pil_image_loader(path, task):
         arr = arr[:, :, 0:3]
 
     if task == "m":
-        arr[arr != 0] = 255
+        arr[arr != 0] = 1
         # Make sure mask is single-channel
         if len(arr.shape) >= 3:
             arr = arr[:, :, 0]
@@ -113,7 +113,7 @@ def tensor_loader(path, task, domain):
         else:
             arr = imread(path)  # .astype(np.uint8)
         arr = torch.from_numpy(arr)
-        arr = get_normalized_depth_t(arr, domain, normalize=False)
+        arr = get_normalized_depth_t(arr, domain, normalize=True)
         arr = arr.unsqueeze(0)
         return arr
     elif Path(path).suffix == ".npy":
