@@ -21,6 +21,35 @@ IMG_EXTENSIONS = set(
     [".jpg", ".JPG", ".jpeg", ".JPEG", ".png", ".PNG", ".ppm", ".PPM", ".bmp", ".BMP"]
 )
 
+classes_dict = {
+    "s": {
+        (0, 0, 255, 255): 0,  # Water
+        (55, 55, 55, 255): 1,  # Ground
+        (0, 255, 255, 255): 2,  # Building
+        (255, 212, 0, 255): 3,  # Traffic items
+        (0, 255, 0, 255): 4,  # Vegetation
+        (255, 97, 0, 255): 5,  # Terrain
+        (255, 0, 0, 255): 6,  # Car
+        (0, 0, 0, 0): 7,  # Trees
+        (255, 0, 255, 255): 8,  # Person
+        (0, 0, 0, 255): 9,  # Sky
+        (255, 255, 255, 255): 10,  # Default
+    },
+    # r: {
+    #     0: [0, 0, 255, 255],  # Water NOT FOUND YET
+    #     3: [55, 55, 55, 255],  # Ground
+    #     0: [0, 255, 255, 255],  # Building
+    #     7: [255, 212, 0, 255],  # Traffic items
+    #     4: [0, 255, 0, 255],  # Vegetation NOT FOUND YET
+    #     8: [255, 97, 0, 255],  # Terrain
+    #     4: [255, 0, 0, 255],  # Car
+    #     2: [0, 255, 0, 255],  # Trees
+    #     6: [220, 20, 60, 255],  # Person
+    #     1: [8, 19, 49, 255],  # Sky
+    #     5: [0, 80, 100, 255],  # Default, object with no class?
+    # },
+}
+
 
 def decode_segmap(image, nc=19):
     """Creates a label colormap used in CITYSCAPES segmentation benchmark.
@@ -65,6 +94,43 @@ def decode_segmap(image, nc=19):
     return rgb
 
 
+def find_closest_class(pixel, domain):
+    """Takes a pixel as input and finds the closest known pixel value corresponding to a class
+    Arguments:
+        pixel -- tuple pixel (R,G,B,A)
+        domain -- domain of the image ("r" or "s")
+    Returns:
+        tuple pixel (R,G,B,A) corresponding to a key in classes_dict
+    """
+    min_dist = float("inf")
+    closest_pixel = None
+    for pixel_value in classes_dict[domain].keys():
+        dist = np.sum(np.absolute(np.subtract(pixel, pixel_value)))
+        if dist < min_dist:
+            min_dist = dist
+            closest_pixel = pixel_value
+    return closest_pixel
+
+
+def encode_segmap(arr, domain, num_classes=11):
+    """Change a segmentation RGBA array to a segmentation array with each channel being a binary array of one class
+    Arguments:
+        numpy array -- segmented image (H) x (W) x (4 RGBA values)
+    Returns:
+        numpy array of size (H) x (W) x num_classes
+    """
+    new_arr = np.zeros((arr.shape[0], arr.shape[1], num_classes))
+    for i in range(arr.shape[0]):
+        for j in range(arr.shape[1]):
+            pixel_rgba = tuple(arr[i, j, :])
+            if pixel_rgba in classes_dict[domain].keys():
+                new_arr[i, j, classes_dict[domain][pixel_rgba]] = 1
+            else:
+                pixel_rgba_closest = find_closest_class(pixel_rgba, domain)
+                new_arr[i, j, classes_dict[domain][pixel_rgba_closest]] = 1
+    return new_arr
+
+
 def is_image_file(filename):
     """Check that a file's name points to a known image format
     """
@@ -72,7 +138,11 @@ def is_image_file(filename):
 
 
 def pil_image_loader(path, task, domain):
-    if Path(path).suffix == ".npy":
+    if task == "s" and domain == "s":
+        arr = np.array(Image.open(path).convert("RGBA"))
+        arr = encode_segmap(arr, domain)
+        return arr
+    elif Path(path).suffix == ".npy":
         arr = np.load(path).astype(np.uint8)
     elif is_image_file(path):
         # arr = imread(path).astype(np.uint8)
@@ -89,8 +159,6 @@ def pil_image_loader(path, task, domain):
         # Make sure mask is single-channel
         if len(arr.shape) >= 3:
             arr = arr[:, :, 0]
-    # if task == "s":
-    #     arr = decode_segmap(arr)
 
     # assert len(arr.shape) == 3, (path, task, arr.shape)
 
