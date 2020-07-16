@@ -149,7 +149,7 @@ class FullSpadeGen(nn.Module):
     def __init__(self, opts):
         super(FullSpadeGen, self).__init__()
 
-        n_downsample = opts.gen.p.spade_n_up
+        n_upsample = opts.gen.p.spade_n_up
 
         self.latent_dim = opts.gen.p.latent_dim
         self.batch_size = opts.data.loaders.batch_size
@@ -158,8 +158,8 @@ class FullSpadeGen(nn.Module):
         self.dec = SpadeDecoder(
             latent_dim=self.latent_dim,
             cond_nc=3,
-            spade_n_up=n_downsample,
-            spade_use_spectral_norm=True,
+            spade_n_up=n_upsample,
+            spade_use_spectral_norm=opts.gen.p.spade_use_spectral_norm,
             spade_param_free_norm="instance",
             spade_kernel_size=3,
         )

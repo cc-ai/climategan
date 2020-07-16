@@ -774,6 +774,7 @@ class Trainer:
                     self.losses["G"]["p"]["featmatch"](real_d_global, fake_d_global)
                     * lambdas.G["p"]["featmatch"]
                 )
+
                 if isinstance(update_loss, float):
                     self.logger.losses.generator.p.featmatch = update_loss
                 else:
@@ -836,6 +837,7 @@ class Trainer:
                 )
 
                 self.logger.losses.generator.p.endtoend += update_loss.item()
+
 
         return step_loss
 
