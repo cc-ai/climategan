@@ -1,8 +1,12 @@
-output_path: /network/tmp1/schmidtv/yb_runs/test_v1
+output_path: ./outputs
+load_paths: # Only uses this if BOTH 'm' and 'p' are tasks
+  p: none # none if using output_path
+  m: none # none if using output_path
+
 # -------------------
 # -----  Tasks  -----
 # -------------------
-tasks: [d, s, m, p] # [p] [m, s, d] [simclr]
+tasks: [d, s, m, p] # [p] [m, s, d] [m, p] [simclr]
 # ----------------
 # ----- Data -----
 # ----------------

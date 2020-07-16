@@ -59,7 +59,7 @@ def parsed_args():
 def eval_folder(path_to_images, output_dir):
     images = [path_to_images / Path(i) for i in os.listdir(path_to_images)]
     for img_path in images:
-        img = pil_image_loader(img_path, task="x", domain="val").convert("RGB")
+        img = pil_image_loader(img_path, task="x", domain="val")
         # Resize img:
         img = TF.resize(img, (new_size, new_size))
         for tf in transforms:

@@ -27,7 +27,7 @@ def get_dis(opts, verbose):
 def define_D(
     input_nc,
     ndf,
-    n_layers_D=3,
+    n_layers=3,
     norm="batch",
     use_sigmoid=False,
     get_intermediate_features=False,
@@ -37,7 +37,7 @@ def define_D(
     net = MultiscaleDiscriminator(
         input_nc,
         ndf,
-        n_layers=3,
+        n_layers=n_layers,
         norm_layer=norm_layer,
         use_sigmoid=use_sigmoid,
         get_intermediate_features=get_intermediate_features,
@@ -242,7 +242,7 @@ class OmniDiscriminator(nn.ModuleDict):
                     "global": define_D(
                         input_nc=3,
                         ndf=opts.dis.p.ndf,
-                        n_layers_D=opts.dis.p.n_layers,
+                        n_layers=opts.dis.p.n_layers,
                         norm=opts.dis.p.norm,
                         use_sigmoid=opts.dis.p.use_sigmoid,
                         get_intermediate_features=opts.dis.p.get_intermediate_features,
@@ -251,7 +251,7 @@ class OmniDiscriminator(nn.ModuleDict):
                     "local": define_D(
                         input_nc=3,
                         ndf=opts.dis.p.ndf,
-                        n_layers_D=opts.dis.p.n_layers,
+                        n_layers=opts.dis.p.n_layers,
                         norm=opts.dis.p.norm,
                         use_sigmoid=opts.dis.p.use_sigmoid,
                         get_intermediate_features=opts.dis.p.get_intermediate_features,
