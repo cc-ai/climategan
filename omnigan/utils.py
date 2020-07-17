@@ -11,6 +11,26 @@ import yaml
 from addict import Dict
 
 
+def merge(source, destination):
+    """
+    run me with nosetests --with-doctest file.py
+
+    >>> a = { 'first' : { 'all_rows' : { 'pass' : 'dog', 'number' : '1' } } }
+    >>> b = { 'first' : { 'all_rows' : { 'fail' : 'cat', 'number' : '5' } } }
+    >>> merge(b, a) == { 'first' : { 'all_rows' : { 'pass' : 'dog', 'fail' : 'cat', 'number' : '5' } } }
+    True
+    """
+    for key, value in source.items():
+        if isinstance(value, dict):
+            # get node or create one
+            node = destination.setdefault(key, {})
+            merge(value, node)
+        else:
+            destination[key] = value
+
+    return destination
+
+
 def load_opts(path=None, default=None):
     # TODO add assert: if deeplabv2 then res_dim = 2048
     """Loads a configuration Dict from 2 files:
@@ -29,32 +49,38 @@ def load_opts(path=None, default=None):
     """
     assert default or path
 
+    if path:
+        path = Path(path).resolve()
+
     if default is None:
-        default_opts = Dict()
+        default_opts = {}
     else:
-        with open(default, "r") as f:
-            default_opts = Dict(yaml.safe_load(f))
+        if isinstance(default, (str, Path)):
+            with open(default, "r") as f:
+                default_opts = yaml.safe_load(f)
+        else:
+            default_opts = dict(default)
 
     if path is None:
-        overriding_opts = Dict()
+        overriding_opts = {}
     else:
         with open(path, "r") as f:
-            overriding_opts = Dict(yaml.safe_load(f))
+            overriding_opts = yaml.safe_load(f)
 
-    default_opts.update(overriding_opts)
+    opts = Dict(merge(overriding_opts, default_opts))
 
-    default_opts.domains = []
-    if "m" in default_opts.tasks:
-        default_opts.domains.extend(["r", "s"])
-    if "p" in default_opts.tasks:
-        default_opts.domains.append("rf")
-    if "simclr" in default_opts.tasks:
-        default_opts.domains.append("r")
-        if default_opts.gen.simclr.domain_adaptation:
-            default_opts.domains.append("s")
-    default_opts.domains = list(set(default_opts.domains))
+    opts.domains = []
+    if "m" in opts.tasks:
+        opts.domains.extend(["r", "s"])
+    if "p" in opts.tasks:
+        opts.domains.append("rf")
+    if "simclr" in opts.tasks:
+        opts.domains.append("r")
+        if opts.gen.simclr.domain_adaptation:
+            opts.domains.append("s")
+    opts.domains = list(set(opts.domains))
 
-    return set_data_paths(default_opts)
+    return set_data_paths(opts)
 
 
 def set_data_paths(opts):
@@ -260,23 +286,24 @@ def get_files(dirName):
 
 def make_json_file(
     keys,
-    addresses,
-    splitter="/",  # for windows user, use "\\" instead of using "/"
+    addresses,  # for windows user, use "\\" instead of using "/"
     name_of_the_json_file="jsonfile.json",
+    splitter = '/'
 ):
     """
         How to use it?
     e.g.
-    main(['x','m','d'], [
+    make_json_file(['x','m','d'], [
     '/network/tmp1/ccai/data/munit_dataset/trainA_size_1200/',
     '/network/tmp1/ccai/data/munit_dataset/seg_trainA_size_1200/',
     '/network/tmp1/ccai/data/munit_dataset/trainA_megadepth_resized/'
     ], 'train_r_resized.json')
 
     Args:
-        keys (list): [description]
-        addresses (list): [description]
-        splitter (str, optional): [description]. Defaults to "/".
+        keys (list): the list of image type like 'x', 'm', 'd', etc.
+        addresses (list): the list of the corresponding address of the image type mentioned in keys.
+        name_of_the_json_file (str, optional): The name of the output json file. Default to "jsonfile.json"
+        splitter (str, optional): The path separator for the current OS. Defaults to '/'.
     """
 
     print("Please Make sure there is a file with the same name in each folder!")
@@ -306,9 +333,7 @@ def make_json_file(
         filename_ = ".".join(filename.split(".")[:-1])  # the filename without extension
         tmp_dict = {}
         for i in range(len(keys)):
-            tmp_dict[keys[i]] = file_address_map[keys[i]][
-                filename_
-            ]
+            tmp_dict[keys[i]] = file_address_map[keys[i]][filename_]
         dicts.append(tmp_dict)
     with open(name_of_the_json_file, "w", encoding="utf-8") as outfile:
         json.dump(dicts, outfile, ensure_ascii=False)
