@@ -25,7 +25,6 @@ from omnigan.tutils import (
     get_num_params,
     shuffle_batch_tuple,
     vgg_preprocess,
-    to_im_depth,
     norm_tensor,
 )
 from omnigan.utils import div_dict, flatten_opts, sum_dict
@@ -402,6 +401,7 @@ class Trainer:
                 for update_task, update_target in im_set["data"].items():
                     target = im_set["data"][update_task].unsqueeze(0).to(self.device)
                     task_saves = []
+
                     if update_task != "x":
                         if update_task not in save_images:
                             save_images[update_task] = []
@@ -418,7 +418,6 @@ class Trainer:
                             prediction = (norm_tensor(prediction)) * 255
                             prediction = prediction.repeat(1, 3, 1, 1)
                             task_saves.append(target.repeat(1, 3, 1, 1))
-
                         task_saves.append(prediction)
                         # ! This assumes the output is some kind of image
                         save_images[update_task].append(x)

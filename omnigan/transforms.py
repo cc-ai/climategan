@@ -93,8 +93,8 @@ class ToTensor:
 
 class Normalize:
     def __init__(self):
-        self.normImage = trsfs.Normalize([127.5, 127.5, 127.5], [127.5, 127.5, 127.5])
-        # self.normSeg = trsfs.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+        # self.normImage = trsfs.Normalize([127.5, 127.5, 127.5], [127.5, 127.5, 127.5])
+        self.normImage = trsfs.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
         self.normDepth = lambda x: x  # trsfs.Normalize([1 / 255], [1 / 3])
         self.normMask = lambda x: x
 
