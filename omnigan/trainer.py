@@ -27,7 +27,6 @@ from omnigan.tutils import (
     vgg_preprocess,
 )
 from omnigan.utils import div_dict, flatten_opts, sum_dict, merge
-import sys
 
 
 class Trainer:
@@ -837,7 +836,6 @@ class Trainer:
                 )
 
                 self.logger.losses.generator.p.endtoend += update_loss.item()
-
 
         return step_loss
 
