@@ -9,7 +9,6 @@ from omegaconf import OmegaConf
 
 from omnigan.trainer import Trainer
 
-import shutil
 from omnigan.utils import env_to_path, flatten_opts, get_increased_path, load_opts
 
 hydra_config_path = Path(__file__).resolve().parent / "shared/trainer/config.yaml"
