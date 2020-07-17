@@ -204,7 +204,7 @@ def decode_unity_depth_t(unity_depth, log=True, normalize=False, numpy=False, fa
     Returns:
         [torch.Tensor or numpy.array]: decoded depth
     """
-    im_array = (unity_depth * 255).type(torch.IntTensor)
+    im_array = unity_depth  # * 255).type(torch.IntTensor)
     R = im_array[:, :, 0]
     G = im_array[:, :, 1]
     B = im_array[:, :, 2]
@@ -225,16 +225,16 @@ def decode_unity_depth_t(unity_depth, log=True, normalize=False, numpy=False, fa
     return depth
 
 
-def to_im_depth(log_depth, numpy=False):
+def to_inv_depth(log_depth, numpy=False):
     """Convert log depth tensor to inverse depth image for display
 
     Args:
         depth (Tensor): log depth float tensor
     """
-    # depth = torch.exp(log_depth)
+    depth = torch.exp(log_depth)
     # visualize prediction using inverse depth, so that we don't need sky segmentation (if you want to use RGB map for visualization, \
     # you have to run semantic segmentation to mask the sky first since the depth of sky is random from CNN)
-    inv_depth = 1 / (log_depth + 1e-3)
+    inv_depth = 1 / depth
     inv_depth /= torch.max(inv_depth)
     if numpy:
         inv_depth = inv_depth.data.cpu().numpy()
