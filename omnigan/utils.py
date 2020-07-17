@@ -74,10 +74,6 @@ def load_opts(path=None, default=None):
         opts.domains.extend(["r", "s"])
     if "p" in opts.tasks:
         opts.domains.append("rf")
-    if "simclr" in opts.tasks:
-        opts.domains.append("r")
-        if opts.gen.simclr.domain_adaptation:
-            opts.domains.append("s")
     opts.domains = list(set(opts.domains))
 
     return set_data_paths(opts)

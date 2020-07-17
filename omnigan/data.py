@@ -5,6 +5,7 @@ Transforms for loaders are in transforms.py
 from pathlib import Path
 import yaml
 import json
+import torch
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms as trsfs
 from imageio import imread
@@ -119,15 +120,15 @@ def encode_segmap(arr, domain, num_classes=11):
     Returns:
         numpy array of size (H) x (W) x num_classes
     """
-    new_arr = np.zeros((arr.shape[0], arr.shape[1], num_classes))
+    new_arr = np.zeros((num_classes, arr.shape[0], arr.shape[1]))
     for i in range(arr.shape[0]):
         for j in range(arr.shape[1]):
             pixel_rgba = tuple(arr[i, j, :])
             if pixel_rgba in classes_dict[domain].keys():
-                new_arr[i, j, classes_dict[domain][pixel_rgba]] = 1
+                new_arr[classes_dict[domain][pixel_rgba], i, j] = 1.0
             else:
                 pixel_rgba_closest = find_closest_class(pixel_rgba, domain)
-                new_arr[i, j, classes_dict[domain][pixel_rgba_closest]] = 1
+                new_arr[classes_dict[domain][pixel_rgba_closest], i, j] = 1.0
     return new_arr
 
 
@@ -163,6 +164,44 @@ def pil_image_loader(path, task, domain):
     # assert len(arr.shape) == 3, (path, task, arr.shape)
 
     return Image.fromarray(arr)
+
+
+def tensor_loader(path, task, domain):
+    """load data as tensors
+    Args:
+        path (str): path to data
+        task (str):
+        domain 
+    Returns:
+        [Tensor]: C x H x W
+    """
+    if task == "s" and domain == "s":
+        arr = np.array(Image.open(path).convert("RGBA"))
+        arr = encode_segmap(arr, domain)
+        arr = torch.from_numpy(arr).float()
+        arr = arr.unsqueeze(0)
+        return arr
+    elif Path(path).suffix == ".npy":
+        arr = np.load(path).astype(np.float32)  # .astype(np.uint8)
+    elif is_image_file(path):
+        arr = imread(path).astype(np.float32)  # .astype(np.uint8)
+    else:
+        raise ValueError("Unknown data type {}".format(path))
+
+    # Convert from RGBA to RGB for images
+    if len(arr.shape) == 3 and arr.shape[-1] == 4:
+        arr = arr[:, :, 0:3]
+    if task == "x":
+        arr = np.moveaxis(arr, 2, 0)
+
+    if task == "m":
+        arr[arr != 0] = 1
+        # Make sure mask is single-channel
+        if len(arr.shape) >= 3:
+            arr = arr[:, :, 0]
+        arr = np.expand_dims(arr, 0)
+
+    return torch.from_numpy(arr).unsqueeze(0)
 
 
 class OmniListDataset(Dataset):
@@ -226,7 +265,7 @@ class OmniListDataset(Dataset):
         item = {
             "data": self.transform(
                 {
-                    task: pil_image_loader(path, task, self.domain)
+                    task: tensor_loader(path, task, self.domain)
                     for task, path in paths.items()
                 }
             ),
@@ -260,9 +299,6 @@ class OmniListDataset(Dataset):
 
 
 def get_loader(mode, domain, opts):
-    if "simclr" in opts.tasks:
-        return "SIMCLR LOADER"
-
     return DataLoader(
         OmniListDataset(
             mode, domain, opts, transform=transforms.Compose(get_transforms(opts))
