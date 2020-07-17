@@ -615,7 +615,7 @@ class Trainer:
                         )
                         step_loss += update_loss
 
-                        self.logger.losses.generator.task_loss[update_task]["advent"][
+                        self.logger.losses.generator.task_loss[update_task]["target"][
                             batch_domain
                         ] = update_loss.item()
                 elif update_task == "m":
@@ -803,6 +803,7 @@ class Trainer:
 
         disc_loss = {
             "m": {"Advent": 0},
+            "s": {"Advent": 0},
             "p": {"global": 0, "local": 0},
         }
 
@@ -857,6 +858,25 @@ class Trainer:
                         disc_loss["m"]["Advent"] += (
                             self.opts.train.lambdas.advent.adv_main * loss_main
                         )
+                if "s" in self.opts.tasks:
+                    preds = self.G.decoders["s"](z)
+                    num_classes = preds.shape[1]
+                    loss = 0
+                    for class_id in range(num_classes):
+                        fake_mask = preds[:, class_id, :, :].unsqueeze(1)
+                        fake_complementary_mask = 1 - fake_mask
+                        prob = torch.cat([fake_mask, fake_complementary_mask], dim=1)
+                        prob = prob.detach()
+
+                        loss += self.losses["D"]["advent"](
+                            prob.to(self.device),
+                            self.domain_labels[batch_domain],
+                            self.D["s"]["Advent"],
+                        )
+                    loss /= num_classes
+                    disc_loss["s"]["Advent"] += (
+                        self.opts.train.lambdas.advent.adv_main * loss
+                    )
 
         self.logger.losses.discriminator.update(
             {
