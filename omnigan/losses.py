@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 import torch.nn as nn
 from random import random as rand
-
+from torchvision import models
 
 class GANLoss(nn.Module):
     def __init__(
@@ -69,6 +69,26 @@ class GANLoss(nn.Module):
                 print("GANLoss: flipping label")
         target_tensor = self.get_target_tensor(input, target_is_real)
         return self.loss(input, target_tensor.to(input.device))
+
+
+class FeatMatchLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.criterionFeat = torch.nn.L1Loss()
+
+    def __call__(self, pred_real, pred_fake):
+        # pred_{real, fake} are lists of features
+        num_D = len(pred_fake)
+        GAN_Feat_loss = 0.0
+        for i in range(num_D):  # for each discriminator
+            # last output is the final prediction, so we exclude it
+            num_intermediate_outputs = len(pred_fake[i]) - 1
+            for j in range(num_intermediate_outputs):  # for each layer output
+                unweighted_loss = self.criterionFeat(
+                    pred_fake[i][j], pred_real[i][j].detach()
+                )
+                GAN_Feat_loss += unweighted_loss / num_D
+        return GAN_Feat_loss
 
 
 class CrossEntropy(nn.Module):
@@ -215,7 +235,7 @@ class L1Loss(MSELoss):
         super().__init__()
         self.loss = torch.nn.L1Loss()
 
-
+=
 class SIMSELoss(nn.Module):
     """Scale invariant MSE Loss
     """
@@ -229,11 +249,18 @@ class SIMSELoss(nn.Module):
         relDiff = (d.sum() * d.sum()) / float(d.size()[-1] * d.size()[-2])
         return diff - relDiff
 
+class ContextLoss(nn.Module):
+    """
+    Masked L1 loss
+    """
+
+    def __call__(self, input, target, mask):
+        return torch.mean(torch.abs(torch.mul((input - target), 1 - mask)))
+
 
 ##################################################################################
 # VGG network definition
 ##################################################################################
-from torchvision import models
 
 # Source: https://github.com/NVIDIA/pix2pixHD
 class Vgg19(torch.nn.Module):
@@ -317,7 +344,8 @@ def get_losses(opts, verbose, device=None):
         losses["G"]["p"]["dm"] = MSELoss()
         losses["G"]["p"]["vgg"] = VGGLoss(device)
         losses["G"]["p"]["tv"] = TVLoss(opts.train.lambdas.G.p.tv)
-        losses["G"]["p"]["context"] = L1Loss()
+        losses["G"]["p"]["context"] = ContextLoss()
+        losses["G"]["p"]["featmatch"] = FeatMatchLoss()
 
     # task losses
     # ? * add discriminator and gan loss to these task when no ground truth

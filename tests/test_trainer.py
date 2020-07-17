@@ -44,15 +44,15 @@ if __name__ == "__main__":
         trainer.setup()
 
     # ----------------------------------------------------
-    # -----  Test trainer.get_representation_loss()  -----
+    # -----  Test trainer.get_masker_loss()  -----
     # ----------------------------------------------------
     if test_get_representation_loss:
-        print_header("test_get_representation_loss")
+        print_header("test_get_masker_loss")
         if not trainer.is_setup:
             print("Setting up")
             trainer.setup()
 
-        loss = trainer.get_representation_loss(multi_domain_batch)
+        loss = trainer.get_masker_loss(multi_domain_batch)
         print("Loss {}".format(loss))
 
     # -------------------------------------------------
@@ -157,7 +157,7 @@ if __name__ == "__main__":
             print("Setting up")
             trainer.setup()
 
-        trainer.losses["D"].verbose = 0
+        # trainer.losses["D"].verbose = 0
         print("Decoding using G.decoders[decoder][target_domain]")
         print(
             "Printing \n  {} and \n  {}\n".format(
@@ -176,7 +176,7 @@ if __name__ == "__main__":
     if test_full_step:
         trainer.logger.global_step = 0
         trainer.verbose = 0
-        trainer.losses["D"].verbose = 0
+        # trainer.losses["D"].verbose = 0
         print_header("test FULL STEP")
         if not trainer.is_setup:
             print("Setting up")
