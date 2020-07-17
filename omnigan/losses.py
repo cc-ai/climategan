@@ -200,15 +200,16 @@ def cross_entropy_2d(predict, target):
     return loss
 
 
-def entropy_loss(v):
-    """
-        Entropy loss for probabilistic prediction vectors
-        input: batch_size x channels x h x w
-        output: batch_size x 1 x h x w
-    """
-    assert v.dim() == 4
-    n, c, h, w = v.size()
-    return -torch.sum(torch.mul(v, torch.log2(v + 1e-30))) / (n * h * w * np.log2(c))
+class ADVENTEntropyLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def __call__(self, prediction):
+        assert prediction.dim() == 4
+        n, c, h, w = prediction.size()
+        return -torch.sum(torch.mul(prediction, torch.log2(prediction + 1e-30))) / (
+            n * h * w * np.log2(c)
+        )
 
 
 class MSELoss(nn.Module):
@@ -341,7 +342,9 @@ def get_losses(opts, verbose, device=None):
     if "d" in opts.tasks:
         losses["G"]["tasks"]["d"] = MSELoss()
     if "s" in opts.tasks:
-        losses["G"]["tasks"]["s"] = CrossEntropy()
+        losses["G"]["tasks"]["s"] = {}
+        losses["G"]["tasks"]["s"]["source"] = nn.BCELoss()
+        losses["G"]["tasks"]["s"]["target"] = ADVENTEntropyLoss()
     if "m" in opts.tasks:
         losses["G"]["tasks"]["m"] = {}
         losses["G"]["tasks"]["m"]["main"] = nn.BCELoss()
