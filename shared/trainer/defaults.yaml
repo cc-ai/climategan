@@ -93,8 +93,9 @@ gen:
   m: # specific params for the mask-generation decoder
     <<: *default-gen
     output_dim: 1
-    use_minent: False
-    use_advent: True
+    use_minent: True # directly minimize the entropy of the image
+    use_minent_var: True # add variance of entropy map in the measure of entropy for a certain picture
+    use_advent: True # minimize the entropy of the image by adversarial training
 
 # -------------------------
 # ----- Discriminator -----
@@ -124,6 +125,7 @@ dis:
   m:
     <<: *default-dis
     multi_level: false
+    architecture: default # can be [default | OmniDiscriminator]
 
 # -------------------------------
 # -----  Domain Classifier  -----
@@ -150,7 +152,7 @@ train:
   epochs: 100000000
   representational_training: True
   representation_steps: 10000 # for how many steps would the representation be trained before we train the translation
-  latent_domain_adaptation: True # whether or not to do domain adaptation on the latent vectors
+  latent_domain_adaptation: False # whether or not to do domain adaptation on the latent vectors # Needs to be turned off if use_advent is True
   lambdas: # scaling factors in the total loss
     G:
       d: 1
@@ -169,12 +171,13 @@ train:
       classifier: 1
     C: 1
     advent:
-      ent_main: 0.001
-      ent_aux: 0.0002
-      adv_main: 0.001
-      adv_aux: 0.0002
-      dis_main: 0.5
-      dis_aux: 0.5
+      ent_main: 0.5 # the coeffcient of the MinEnt loss that directly minimize the entropy of the image
+      ent_aux: 0.0 # the coresponding coeffcient of the MinEnt loss of second output
+      ent_var: 0.1 # the proportion of variance of entropy map in the entropy measure for a certain picture
+      adv_main: 0.5 # the coeffcient of the AdvEnt loss that minimize the entropy of the image by adversarial training
+      adv_aux: 0.0 # the coresponding coeffcient of the AdvEnt loss of second output
+      dis_main: 0.5 # the discriminator take care of the first output in the adversarial training
+      dis_aux: 0.5 # the discriminator take care of the second output in the adversarial training
   log_level: 2 # 0: no log, 1: only aggregated losses, >1 detailed losses
   save_n_epochs: 1 # Save model every n epochs
   resume: false # Load latest_ckpt.pth checkpoint from `output_path` #TODO Make this path of checkpoint to load
