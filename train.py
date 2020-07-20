@@ -8,6 +8,7 @@ from comet_ml import Experiment
 from omegaconf import OmegaConf
 
 from omnigan.trainer import Trainer
+
 from omnigan.utils import env_to_path, flatten_opts, get_increased_path, load_opts
 
 hydra_config_path = Path(__file__).resolve().parent / "shared/trainer/config.yaml"
@@ -45,10 +46,10 @@ def main(opts):
     opts = load_opts(args.config, default=opts)
     if args.resume:
         opts.train.resume = True
-    opts.output_path = env_to_path(opts.output_path)
+    opts.output_path = str(env_to_path(opts.output_path))
 
     if not opts.train.resume:
-        opts.output_path = get_increased_path(opts.output_path)
+        opts.output_path = str(get_increased_path(opts.output_path))
     pprint("Running model in", opts.output_path)
 
     exp = None
@@ -64,7 +65,7 @@ def main(opts):
 
         # Save config file
         # TODO what if resuming? re-dump?
-        with Path(opts.output_path / "opts.yaml").open("w") as f:
+        with (Path(opts.output_path) / "opts.yaml").open("w") as f:
             yaml.safe_dump(opts.to_dict())
 
         if not args.no_comet:
