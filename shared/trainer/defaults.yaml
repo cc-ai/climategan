@@ -174,7 +174,7 @@ train:
       ent_main: 0.5 # the coeffcient of the MinEnt loss that directly minimize the entropy of the image
       ent_aux: 0.0 # the coresponding coeffcient of the MinEnt loss of second output
       ent_var: 0.1 # the proportion of variance of entropy map in the entropy measure for a certain picture
-      adv_main: 0.5 # the coeffcient of the AdvEnt loss that minimize the entropy of the image by adversarial training
+      adv_main: 1.0 # the coeffcient of the AdvEnt loss that minimize the entropy of the image by adversarial training
       adv_aux: 0.0 # the coresponding coeffcient of the AdvEnt loss of second output
       dis_main: 0.5 # the discriminator take care of the first output in the adversarial training
       dis_aux: 0.5 # the discriminator take care of the second output in the adversarial training
