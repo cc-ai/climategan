@@ -1032,8 +1032,9 @@ class Trainer:
         if "m" in self.opts.tasks and "p" in self.opts.tasks:
             self.log_comet_combined_images("val", "r")
 
-        self.eval_images("val", "r")
-        self.eval_images("val", "s")
+        if "m" in self.opts.tasks:
+            self.eval_images("val", "r")
+            self.eval_images("val", "s")
 
         print("******************DONE INFERRING*********************")
 
