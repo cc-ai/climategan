@@ -125,7 +125,7 @@ dis:
   m:
     <<: *default-dis
     multi_level: false
-    architecture: default # can be [default | OmniDiscriminator]
+    architecture: OmniDiscriminator # can be [default | OmniDiscriminator]
 
 # -------------------------------
 # -----  Domain Classifier  -----
