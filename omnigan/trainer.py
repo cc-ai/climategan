@@ -407,15 +407,16 @@ class Trainer:
                         if update_task in {"s"}:
                             if domain in {"s"}:
                                 target = (
-                                    decode_segmap_unity_labels(target)
+                                    decode_segmap_unity_labels(target, domain)
                                     .float()
                                     .to(self.device)
                                 )
                             prediction = (
-                                decode_segmap_unity_labels(prediction)
+                                decode_segmap_unity_labels(prediction, domain)
                                 .float()
                                 .to(self.device)
                             )
+                            task_saves.append(target)
                         if update_task in {"m"}:
                             prediction = prediction.repeat(1, 3, 1, 1)
                             task_saves.append(x * (1.0 - prediction))

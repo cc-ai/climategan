@@ -24,66 +24,51 @@ IMG_EXTENSIONS = set(
 
 classes_dict = {
     "s": {
-        (0, 0, 255, 255): 0,  # Water
-        (55, 55, 55, 255): 1,  # Ground
-        (0, 255, 255, 255): 2,  # Building
-        (255, 212, 0, 255): 3,  # Traffic items
-        (0, 255, 0, 255): 4,  # Vegetation
-        (255, 97, 0, 255): 5,  # Terrain
-        (255, 0, 0, 255): 6,  # Car
-        (0, 0, 0, 0): 7,  # Trees
-        (255, 0, 255, 255): 8,  # Person
-        (0, 0, 0, 255): 9,  # Sky
-        (255, 255, 255, 255): 10,  # Default
+        0: [0, 0, 255, 255],  # Water
+        1: [55, 55, 55, 255],  # Ground
+        2: [0, 255, 255, 255],  # Building
+        3: [255, 212, 0, 255],  # Traffic items
+        4: [0, 255, 0, 255],  # Vegetation
+        5: [255, 97, 0, 255],  # Terrain
+        6: [255, 0, 0, 255],  # Car
+        7: [0, 0, 0, 0],  # Trees
+        8: [255, 0, 255, 255],  # Person
+        9: [0, 0, 0, 255],  # Sky
+        10: [255, 255, 255, 255],  # Default
     },
     "r": {
-        (0, 0, 255, 255): 0,  # Water NOT FOUND YET
-        (55, 55, 55, 255): 1,  # Ground
-        (0, 255, 255, 255): 2,  # Building
-        (255, 212, 0, 255): 3,  # Traffic items
+        0: [0, 0, 255, 255],  # Water NOT FOUND YET
+        1: [55, 55, 55, 255],  # Ground
+        2: [0, 255, 255, 255],  # Building
+        3: [255, 212, 0, 255],  # Traffic items
         # (0, 255, 0, 255): 4,  # Vegetation NOT FOUND YET
-        (255, 97, 0, 255): 5,  # Terrain
-        (255, 0, 0, 255): 6,  # Car
-        (0, 255, 0, 255): 7,  # Trees
-        (220, 20, 60, 255): 8,  # Person
-        (8, 19, 49, 255): 9,  # Sky
-        (0, 80, 100, 255): 10,  # Default, object with no class?
+        5: [255, 97, 0, 255],  # Terrain
+        6: [255, 0, 0, 255],  # Car
+        7: [0, 255, 0, 255],  # Trees
+        8: [220, 20, 60, 255],  # Person
+        9: [8, 19, 49, 255],  # Sky
+        10: [0, 80, 100, 255],  # Default, object with no class?
     },
 }
 
 
-def decode_segmap_unity_labels(tensor, nc=11):
-    """Creates a label colormap used in CITYSCAPES segmentation benchmark.
+def decode_segmap_unity_labels(tensor, domain, nc=11):
+    """Creates a label colormap for classes used in Unity segmentation benchmark.
     Arguments:
-        image {array} -- segmented image
-        (array of image size containing class at each pixel)
+        tensor -- segmented image 1 x nc x H x W
     Returns:
-        array of size 3*nc -- A colormap for visualizing segmentation results.
-    """
-    colormap = np.zeros((nc, 3), dtype=np.uint8)
-    colormap[0] = [128, 64, 128]
-    colormap[1] = [244, 35, 232]
-    colormap[2] = [70, 70, 70]
-    colormap[3] = [102, 102, 156]
-    colormap[4] = [190, 153, 153]
-    colormap[5] = [153, 153, 153]
-    colormap[6] = [250, 170, 30]
-    colormap[7] = [220, 220, 0]
-    colormap[8] = [107, 142, 35]
-    colormap[9] = [152, 251, 152]
-    colormap[10] = [70, 130, 180]
-    colormap = torch.tensor(colormap)
+        tensor of size 1 x 3 x H x W
+    # """
+    rgb = np.zeros((3, tensor.shape[-2], tensor.shape[-1]), dtype=float)
+    idx = torch.argmax(tensor.squeeze(0), dim=0)
 
-    r = torch.zeros((tensor.shape[-2], tensor.shape[-1]), dtype=torch.uint8)
-    g = torch.zeros((tensor.shape[-2], tensor.shape[-1]), dtype=torch.uint8)
-    b = torch.zeros((tensor.shape[-2], tensor.shape[-1]), dtype=torch.uint8)
-    for l in range(nc):
-        idx = torch.argmax(tensor.squeeze(0), dim=0)
-        r[idx] = colormap[l, 0]
-        g[idx] = colormap[l, 1]
-        b[idx] = colormap[l, 2]
-    rgb = torch.stack([r, g, b], dim=0)
-    return rgb.unsqueeze(0)
+    for i in range(idx.shape[0]):
+        for j in range(idx.shape[1]):
+            rgb[0, i, j] = classes_dict[domain][idx[i, j].item()][0]
+            rgb[1, i, j] = classes_dict[domain][idx[i, j].item()][1]
+            rgb[2, i, j] = classes_dict[domain][idx[i, j].item()][2]
+
+    return torch.tensor(rgb).unsqueeze(0)
 
 
 def decode_segmap_cityscapes_labels(image, nc=19):
@@ -129,7 +114,7 @@ def decode_segmap_cityscapes_labels(image, nc=19):
     return rgb
 
 
-def find_closest_class(pixel, domain):
+def find_closest_class(pixel, domain, dict_classes):
     """Takes a pixel as input and finds the closest known pixel value corresponding to a class
     Arguments:
         pixel -- tuple pixel (R,G,B,A)
@@ -139,7 +124,7 @@ def find_closest_class(pixel, domain):
     """
     min_dist = float("inf")
     closest_pixel = None
-    for pixel_value in classes_dict[domain].keys():
+    for pixel_value in dict_classes[domain].keys():
         dist = np.sum(np.absolute(np.subtract(pixel, pixel_value)))
         if dist < min_dist:
             min_dist = dist
@@ -155,15 +140,31 @@ def encode_segmap(arr, domain, num_classes=11):
         numpy array of size (num_classes) x (H) x (W)
     """
     new_arr = np.zeros((num_classes, arr.shape[0], arr.shape[1]))
+    dict_classes = {
+        tuple(rgba_value): class_id for (class_id, rgba_value) in classes_dict.items()
+    }
     for i in range(arr.shape[0]):
         for j in range(arr.shape[1]):
             pixel_rgba = tuple(arr[i, j, :])
-            if pixel_rgba in classes_dict[domain].keys():
-                new_arr[classes_dict[domain][pixel_rgba], i, j] = 1.0
+            if pixel_rgba in dict_classes[domain].keys():
+                new_arr[dict_classes[domain][pixel_rgba], i, j] = 1.0
             else:
-                pixel_rgba_closest = find_closest_class(pixel_rgba, domain)
-                new_arr[classes_dict[domain][pixel_rgba_closest], i, j] = 1.0
+                pixel_rgba_closest = find_closest_class(
+                    pixel_rgba, domain, dict_classes
+                )
+                new_arr[dict_classes[domain][pixel_rgba_closest], i, j] = 1.0
     return new_arr
+
+
+def transform_segmap_image_to_tensor(path, task, domain):
+    """
+        Transforms an image of segmentation to a tensor of size 1 x (num_classes) x H x W
+    """
+    arr = np.array(Image.open(path).convert("RGBA"))
+    arr = encode_segmap(arr, domain)
+    arr = torch.from_numpy(arr).float()
+    arr = arr.unsqueeze(0)
+    return arr
 
 
 def is_image_file(filename):
@@ -204,28 +205,27 @@ def tensor_loader(path, task, domain):
     """load data as tensors
     Args:
         path (str): path to data
-        task (str):
-        domain 
+        task (str)
+        domain (str)
     Returns:
-        [Tensor]: C x H x W
+        [Tensor]: 1 x C x H x W
     """
     if task == "s" and domain == "s":
-        arr = np.array(Image.open(path).convert("RGBA"))
-        arr = encode_segmap(arr, domain)
-        arr = torch.from_numpy(arr).float()
-        arr = arr.unsqueeze(0)
+        arr = torch.load(path)
+        # print("s and s type", arr.type())
+        # print("s and s shape", arr.shape)
         return arr
     elif Path(path).suffix == ".npy":
-        arr = np.load(path).astype(np.float32)  # .astype(np.uint8)
+        arr = np.load(path).astype(np.float32)
     elif is_image_file(path):
-        arr = imread(path).astype(np.float32)  # .astype(np.uint8)
+        arr = imread(path).astype(np.float32)
     else:
         raise ValueError("Unknown data type {}".format(path))
 
     # Convert from RGBA to RGB for images
     if len(arr.shape) == 3 and arr.shape[-1] == 4:
         arr = arr[:, :, 0:3]
-    if task == "x":
+    if task == "x" or task == "s":
         arr = np.moveaxis(arr, 2, 0)
 
     if task == "m":
@@ -235,7 +235,19 @@ def tensor_loader(path, task, domain):
             arr = arr[:, :, 0]
         arr = np.expand_dims(arr, 0)
 
-    return torch.from_numpy(arr).unsqueeze(0)
+    arr = torch.from_numpy(arr).unsqueeze(0)
+
+    # if task == "s":
+    #     print("s and r type", arr.type())
+    #     print("s and r shape", arr.shape)
+    # if task == "x":
+    #     print("x type", arr.type())
+    #     print("x shape", arr.shape)
+    # if task == "m":
+    #     print("m type", arr.type())
+    #     print("m shape", arr.shape)
+
+    return arr
 
 
 class OmniListDataset(Dataset):
