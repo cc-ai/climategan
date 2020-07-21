@@ -141,7 +141,7 @@ class SegmentationDecoder(BaseDecoder):
             res_norm=opts.gen.s.res_norm,
             activ=opts.gen.s.activ,
             pad_type=opts.gen.s.pad_type,
-            output_activ="softmax",
+            output_activ="sigmoid",
         )
 
 

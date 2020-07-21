@@ -389,7 +389,6 @@ class Trainer:
             self.exp.log_metric("Step-time", step_time, step=self.logger.global_step)
 
     def log_comet_images(self, mode, domain):
-
         save_images = {}
         if domain != "rf":
             for im_set in self.display_images[mode][domain]:
@@ -398,6 +397,8 @@ class Trainer:
                 self.z = self.G.encode(x)
 
                 for update_task, update_target in im_set["data"].items():
+                    if update_task in {"s"} and self.logger.epoch % 10:
+                        continue  # Only log seg images every 10 epochs
                     target = im_set["data"][update_task].unsqueeze(0).to(self.device)
                     task_saves = []
                     if update_task != "x":
@@ -622,6 +623,7 @@ class Trainer:
                         ] = update_loss.item()
                     # Entropy loss for target domain (real)
                     else:
+                        # Direct entropy minimization
                         update_loss = self.losses["G"]["tasks"][update_task]["target"](
                             prediction
                         )
@@ -631,20 +633,13 @@ class Trainer:
                             batch_domain
                         ] = update_loss.item()
 
-                        num_classes = prediction.shape[1]
-                        loss = 0
-                        for class_id in range(num_classes):
-                            pred = prediction[:, class_id, :, :].unsqueeze(1)
-                            pred_prime = 1 - pred
-                            prob = torch.cat([pred, pred_prime], dim=1)
-
-                            loss += self.losses["G"]["tasks"][update_task]["advent"](
-                                prob.to(self.device),
-                                self.domain_labels[batch_domain],
-                                self.D["s"]["Advent"],
-                            )
-                        loss /= num_classes
-                        step_loss += loss
+                        # Fool ADVENT discriminator
+                        update_loss = self.losses["G"]["tasks"][update_task]["advent"](
+                            prediction,
+                            self.domain_labels[batch_domain],
+                            self.D["s"]["Advent"],
+                        )
+                        step_loss += update_loss
                         self.logger.losses.generator.task_loss[update_task]["advent"][
                             batch_domain
                         ] = update_loss.item()
@@ -890,22 +885,16 @@ class Trainer:
                         )
                 if "s" in self.opts.tasks:
                     preds = self.G.decoders["s"](z)
-                    num_classes = preds.shape[1]
-                    loss = 0
-                    for class_id in range(num_classes):
-                        fake_mask = preds[:, class_id, :, :].unsqueeze(1)
-                        fake_complementary_mask = 1 - fake_mask
-                        prob = torch.cat([fake_mask, fake_complementary_mask], dim=1)
-                        prob = prob.detach()
+                    preds = preds.detach()
 
-                        loss += self.losses["D"]["advent"](
-                            prob.to(self.device),
-                            self.domain_labels[batch_domain],
-                            self.D["s"]["Advent"],
-                        )
-                    loss /= num_classes
+                    loss_main = self.losses["D"]["advent"](
+                        preds.to(self.device),
+                        self.domain_labels[batch_domain],
+                        self.D["s"]["Advent"],
+                    )
+
                     disc_loss["s"]["Advent"] += (
-                        self.opts.train.lambdas.advent.adv_main * loss
+                        self.opts.train.lambdas.advent.adv_main * loss_main
                     )
 
         self.logger.losses.discriminator.update(
