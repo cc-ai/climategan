@@ -14,7 +14,7 @@ from addict import Dict
 from comet_ml import Experiment
 
 from omnigan.classifier import OmniClassifier, get_classifier
-from omnigan.data import get_all_loaders
+from omnigan.data import get_all_loaders, decode_segmap_unity_labels
 from omnigan.discriminator import OmniDiscriminator, get_dis
 from omnigan.generator import OmniGenerator, get_gen
 from omnigan.losses import get_losses
@@ -240,15 +240,15 @@ class Trainer:
             display_indices = self.opts.comet.display_size
 
         self.display_images = {}
-        # for mode, mode_dict in self.loaders.items():
-        #     self.display_images[mode] = {}
-        #     for domain, domain_loader in mode_dict.items():
+        for mode, mode_dict in self.loaders.items():
+            self.display_images[mode] = {}
+            for domain, domain_loader in mode_dict.items():
 
-        #         self.display_images[mode][domain] = [
-        #             Dict(self.loaders[mode][domain].dataset[i])
-        #             for i in display_indices
-        #             if i < len(self.loaders[mode][domain].dataset)
-        #         ]
+                self.display_images[mode][domain] = [
+                    Dict(self.loaders[mode][domain].dataset[i])
+                    for i in display_indices
+                    if i < len(self.loaders[mode][domain].dataset)
+                ]
 
         self.is_setup = True
 
@@ -374,8 +374,8 @@ class Trainer:
             step_time = time() - step_start_time
             self.log_step_time(step_time)
 
-        # for d in self.opts.domains:
-        #     self.log_comet_images("train", d)
+        for d in self.opts.domains:
+            self.log_comet_images("train", d)
 
         self.update_learning_rates()
 
@@ -404,7 +404,18 @@ class Trainer:
                         if update_task not in save_images:
                             save_images[update_task] = []
                         prediction = self.G.decoders[update_task](self.z)
-
+                        if update_task in {"s"}:
+                            if domain in {"s"}:
+                                target = (
+                                    decode_segmap_unity_labels(target)
+                                    .float()
+                                    .to(self.device)
+                                )
+                            prediction = (
+                                decode_segmap_unity_labels(prediction)
+                                .float()
+                                .to(self.device)
+                            )
                         if update_task in {"m"}:
                             prediction = prediction.repeat(1, 3, 1, 1)
                             task_saves.append(x * (1.0 - prediction))
@@ -958,8 +969,8 @@ class Trainer:
         self.logger.losses.generator = val_logger
         self.log_losses(model_to_update="G", mode="val")
 
-        # for d in self.opts.domains:
-        #     self.log_comet_images("val", d)
+        for d in self.opts.domains:
+            self.log_comet_images("val", d)
 
         print("******************DONE EVALUATING*********************")
 

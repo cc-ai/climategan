@@ -36,23 +36,57 @@ classes_dict = {
         (0, 0, 0, 255): 9,  # Sky
         (255, 255, 255, 255): 10,  # Default
     },
-    # r: {
-    #     0: [0, 0, 255, 255],  # Water NOT FOUND YET
-    #     3: [55, 55, 55, 255],  # Ground
-    #     0: [0, 255, 255, 255],  # Building
-    #     7: [255, 212, 0, 255],  # Traffic items
-    #     4: [0, 255, 0, 255],  # Vegetation NOT FOUND YET
-    #     8: [255, 97, 0, 255],  # Terrain
-    #     4: [255, 0, 0, 255],  # Car
-    #     2: [0, 255, 0, 255],  # Trees
-    #     6: [220, 20, 60, 255],  # Person
-    #     1: [8, 19, 49, 255],  # Sky
-    #     5: [0, 80, 100, 255],  # Default, object with no class?
-    # },
+    "r": {
+        (0, 0, 255, 255): 0,  # Water NOT FOUND YET
+        (55, 55, 55, 255): 1,  # Ground
+        (0, 255, 255, 255): 2,  # Building
+        (255, 212, 0, 255): 3,  # Traffic items
+        # (0, 255, 0, 255): 4,  # Vegetation NOT FOUND YET
+        (255, 97, 0, 255): 5,  # Terrain
+        (255, 0, 0, 255): 6,  # Car
+        (0, 255, 0, 255): 7,  # Trees
+        (220, 20, 60, 255): 8,  # Person
+        (8, 19, 49, 255): 9,  # Sky
+        (0, 80, 100, 255): 10,  # Default, object with no class?
+    },
 }
 
 
-def decode_segmap(image, nc=19):
+def decode_segmap_unity_labels(tensor, nc=11):
+    """Creates a label colormap used in CITYSCAPES segmentation benchmark.
+    Arguments:
+        image {array} -- segmented image
+        (array of image size containing class at each pixel)
+    Returns:
+        array of size 3*nc -- A colormap for visualizing segmentation results.
+    """
+    colormap = np.zeros((nc, 3), dtype=np.uint8)
+    colormap[0] = [128, 64, 128]
+    colormap[1] = [244, 35, 232]
+    colormap[2] = [70, 70, 70]
+    colormap[3] = [102, 102, 156]
+    colormap[4] = [190, 153, 153]
+    colormap[5] = [153, 153, 153]
+    colormap[6] = [250, 170, 30]
+    colormap[7] = [220, 220, 0]
+    colormap[8] = [107, 142, 35]
+    colormap[9] = [152, 251, 152]
+    colormap[10] = [70, 130, 180]
+    colormap = torch.tensor(colormap)
+
+    r = torch.zeros((tensor.shape[-2], tensor.shape[-1]), dtype=torch.uint8)
+    g = torch.zeros((tensor.shape[-2], tensor.shape[-1]), dtype=torch.uint8)
+    b = torch.zeros((tensor.shape[-2], tensor.shape[-1]), dtype=torch.uint8)
+    for l in range(nc):
+        idx = torch.argmax(tensor.squeeze(0), dim=0)
+        r[idx] = colormap[l, 0]
+        g[idx] = colormap[l, 1]
+        b[idx] = colormap[l, 2]
+    rgb = torch.stack([r, g, b], dim=0)
+    return rgb.unsqueeze(0)
+
+
+def decode_segmap_cityscapes_labels(image, nc=19):
     """Creates a label colormap used in CITYSCAPES segmentation benchmark.
     Arguments:
         image {array} -- segmented image
@@ -118,7 +152,7 @@ def encode_segmap(arr, domain, num_classes=11):
     Arguments:
         numpy array -- segmented image (H) x (W) x (4 RGBA values)
     Returns:
-        numpy array of size (H) x (W) x num_classes
+        numpy array of size (num_classes) x (H) x (W)
     """
     new_arr = np.zeros((num_classes, arr.shape[0], arr.shape[1]))
     for i in range(arr.shape[0]):
