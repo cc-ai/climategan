@@ -48,7 +48,7 @@ def parsed_args():
     )
     parser.add_argument(
         "--output_dir",
-        default="./output_masks/",
+        default="./outputs/",
         type=str,
         help="Directory to write images to",
     )
@@ -56,10 +56,10 @@ def parsed_args():
     return parser.parse_args()
 
 
-def eval_folder(path_to_images, output_dir):
+def eval_folder(path_to_images, output_dir, paint=False):
     images = [path_to_images / Path(i) for i in os.listdir(path_to_images)]
     for img_path in images:
-        img = pil_image_loader(img_path, task="x").convert("RGB")
+        img = pil_image_loader(img_path, task="x", domain="val")
         # Resize img:
         img = TF.resize(img, (new_size, new_size))
         for tf in transforms:
@@ -68,7 +68,13 @@ def eval_folder(path_to_images, output_dir):
         img = img.unsqueeze(0).to(device)
         z = model.encode(img)
         mask = model.decoders["m"](z)
-        vutils.save_image(mask, output_dir / img_path.name)
+
+        vutils.save_image(mask, output_dir / ("mask_" + img_path.name), normalize=True)
+
+        if paint:
+            z_painter = trainer.sample_z(1)
+            fake_flooded = model.painter(z_painter, img * (1.0 - mask))
+            vutils.save_image(fake_flooded, output_dir / img_path.name, normalize=True)
 
 
 def isimg(path_file):
@@ -106,6 +112,10 @@ if __name__ == "__main__":
     else:
         new_size = args.new_size
 
+    if "m" in opts.tasks and "p" in opts.tasks:
+        paint = True
+    else:
+        paint = False
     # ------------------------
     # ----- Define model -----
     # ------------------------
@@ -122,7 +132,7 @@ if __name__ == "__main__":
 
     transforms = [
         trsfs.ToTensor(),
-        trsfs.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+        trsfs.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
     ]
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -155,4 +165,4 @@ if __name__ == "__main__":
             rel_path = root.relative_to(rootdir)
             write_path = writedir / rel_path
             write_path.mkdir(parents=True, exist_ok=True)
-            eval_folder(root, write_path)
+            eval_folder(root, write_path, paint)
