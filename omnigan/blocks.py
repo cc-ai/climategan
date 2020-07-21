@@ -68,6 +68,8 @@ class Conv2dBlock(nn.Module):
             self.activation = nn.Tanh()
         elif activation == "sigmoid":
             self.activation = nn.Sigmoid()
+        elif activation == "softmax":
+            self.activation = nn.Softmax()
         elif activation == "none":
             self.activation = None
         else:

@@ -407,12 +407,12 @@ class Trainer:
                         if update_task in {"s"}:
                             if domain in {"s"}:
                                 target = (
-                                    decode_segmap_unity_labels(target, domain)
+                                    decode_segmap_unity_labels(target, domain, True)
                                     .float()
                                     .to(self.device)
                                 )
                             prediction = (
-                                decode_segmap_unity_labels(prediction, domain)
+                                decode_segmap_unity_labels(prediction, domain, False)
                                 .float()
                                 .to(self.device)
                             )
@@ -611,7 +611,7 @@ class Trainer:
                     if batch_domain == "s":
                         update_loss = (
                             self.losses["G"]["tasks"][update_task]["source"](
-                                prediction, update_target
+                                prediction, update_target.squeeze(1)
                             )
                             * lambdas.G[update_task]
                         )
@@ -628,6 +628,24 @@ class Trainer:
                         step_loss += update_loss
 
                         self.logger.losses.generator.task_loss[update_task]["target"][
+                            batch_domain
+                        ] = update_loss.item()
+
+                        num_classes = prediction.shape[1]
+                        loss = 0
+                        for class_id in range(num_classes):
+                            pred = prediction[:, class_id, :, :].unsqueeze(1)
+                            pred_prime = 1 - pred
+                            prob = torch.cat([pred, pred_prime], dim=1)
+
+                            loss += self.losses["G"]["tasks"][update_task]["advent"](
+                                prob.to(self.device),
+                                self.domain_labels[batch_domain],
+                                self.D["s"]["Advent"],
+                            )
+                        loss /= num_classes
+                        step_loss += loss
+                        self.logger.losses.generator.task_loss[update_task]["advent"][
                             batch_domain
                         ] = update_loss.item()
                 elif update_task == "m":

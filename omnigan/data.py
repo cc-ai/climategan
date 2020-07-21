@@ -41,7 +41,7 @@ classes_dict = {
         1: [55, 55, 55, 255],  # Ground
         2: [0, 255, 255, 255],  # Building
         3: [255, 212, 0, 255],  # Traffic items
-        # (0, 255, 0, 255): 4,  # Vegetation NOT FOUND YET
+        4: [0, 255, 0, 255],  # Vegetation NOT FOUND YET
         5: [255, 97, 0, 255],  # Terrain
         6: [255, 0, 0, 255],  # Car
         7: [0, 255, 0, 255],  # Trees
@@ -52,7 +52,7 @@ classes_dict = {
 }
 
 
-def decode_segmap_unity_labels(tensor, domain, nc=11):
+def decode_segmap_unity_labels(tensor, domain, is_target, nc=11):
     """Creates a label colormap for classes used in Unity segmentation benchmark.
     Arguments:
         tensor -- segmented image 1 x nc x H x W
@@ -60,7 +60,11 @@ def decode_segmap_unity_labels(tensor, domain, nc=11):
         tensor of size 1 x 3 x H x W
     # """
     rgb = np.zeros((3, tensor.shape[-2], tensor.shape[-1]), dtype=float)
-    idx = torch.argmax(tensor.squeeze(0), dim=0)
+
+    if is_target:  # Target is size 1 x 1 x H x W
+        idx = tensor.squeeze(0).squeeze(0)
+    else:  # Prediction is size 1 x nc x H x W
+        idx = torch.argmax(tensor.squeeze(0), dim=0)
 
     for i in range(idx.shape[0]):
         for j in range(idx.shape[1]):
@@ -124,7 +128,7 @@ def find_closest_class(pixel, domain, dict_classes):
     """
     min_dist = float("inf")
     closest_pixel = None
-    for pixel_value in dict_classes[domain].keys():
+    for pixel_value in dict_classes.keys():
         dist = np.sum(np.absolute(np.subtract(pixel, pixel_value)))
         if dist < min_dist:
             min_dist = dist
@@ -132,39 +136,102 @@ def find_closest_class(pixel, domain, dict_classes):
     return closest_pixel
 
 
-def encode_segmap(arr, domain, num_classes=11):
+def encode_segmap_with_channels(arr, domain):
     """Change a segmentation RGBA array to a segmentation array with each channel being a binary array of one class
     Arguments:
         numpy array -- segmented image (H) x (W) x (4 RGBA values)
     Returns:
         numpy array of size (num_classes) x (H) x (W)
     """
+    num_classes = len(classes_dict["s"])
     new_arr = np.zeros((num_classes, arr.shape[0], arr.shape[1]))
     dict_classes = {
-        tuple(rgba_value): class_id for (class_id, rgba_value) in classes_dict.items()
+        tuple(rgba_value): class_id
+        for (class_id, rgba_value) in classes_dict[domain].items()
     }
     for i in range(arr.shape[0]):
         for j in range(arr.shape[1]):
             pixel_rgba = tuple(arr[i, j, :])
-            if pixel_rgba in dict_classes[domain].keys():
-                new_arr[dict_classes[domain][pixel_rgba], i, j] = 1.0
+            if pixel_rgba in dict_classes.keys():
+                new_arr[dict_classes[pixel_rgba], i, j] = 1.0
             else:
                 pixel_rgba_closest = find_closest_class(
                     pixel_rgba, domain, dict_classes
                 )
-                new_arr[dict_classes[domain][pixel_rgba_closest], i, j] = 1.0
+                new_arr[dict_classes[pixel_rgba_closest], i, j] = 1.0
     return new_arr
 
 
-def transform_segmap_image_to_tensor(path, task, domain):
+def encode_segmap_with_idx(arr, domain):
+    """Change a segmentation RGBA array to a segmentation array with each pixel being the index  of the class
+    Arguments:
+        numpy array -- segmented image (H) x (W) x (4 RGBA values)
+    Returns:
+        numpy array of size 1 x (H) x (W) with each pixel being the index of the class
     """
-        Transforms an image of segmentation to a tensor of size 1 x (num_classes) x H x W
+    new_arr = np.zeros((1, arr.shape[0], arr.shape[1]))
+    dict_classes = {
+        tuple(rgba_value): class_id
+        for (class_id, rgba_value) in classes_dict[domain].items()
+    }
+    for i in range(arr.shape[0]):
+        for j in range(arr.shape[1]):
+            pixel_rgba = tuple(arr[i, j, :])
+            if pixel_rgba in dict_classes.keys():
+                new_arr[0, i, j] = dict_classes[pixel_rgba]
+            else:
+                pixel_rgba_closest = find_closest_class(
+                    pixel_rgba, domain, dict_classes
+                )
+                new_arr[0, i, j] = dict_classes[pixel_rgba_closest]
+    return new_arr
+
+
+def transform_segmap_image_to_tensor(path, task, domain, with_idx=True):
+    """
+        Transforms an image of segmentation to a tensor of wanted size
     """
     arr = np.array(Image.open(path).convert("RGBA"))
-    arr = encode_segmap(arr, domain)
+    if with_idx:
+        arr = encode_segmap_with_idx(arr, domain)
+    else:
+        arr = encode_segmap_with_channels(arr, domain)
     arr = torch.from_numpy(arr).float()
     arr = arr.unsqueeze(0)
     return arr
+
+
+def save_segmap_tensors(path_to_json, path_to_dir, domain, with_idx=True):
+    """
+    Loads the segmentation images mentionned in a json file, transforms them to
+    tensors and save the tensors in the wanted directory
+
+    Args:
+        path_to_json: complete path to the json file where to find the original data
+        path_to_dir: path to the directory where to save the tensors as tensor_name.pt
+        domain: domain of the images ("r" or "s")
+        with_idx : bool to have tensors of size (1 x 1 x H x W) with each pixel equal to idx of the class 
+                    (else, tensor is size 1 x num_classes x H x W)
+
+    e.g:
+        save_tensors(
+            "/network/tmp1/ccai/data/omnigan/seg/train_s.json",
+            "/network/tmp1/ccai/data/munit_dataset/simdata/Unity11K_res640/Seg_tensors/",
+            "s",
+        )
+    """
+    if path_to_json:
+        path_to_json = Path(path_to_json).resolve()
+        with open(path_to_json, "r") as f:
+            ims_list = yaml.safe_load(f)
+
+    for i, im_dict in enumerate(ims_list):
+        for task_name, path in im_dict.items():
+            if task_name == "s":
+                file_name = os.path.splitext(path)[0]  # removes extension
+                file_name = file_name.rsplit("/", 1)[-1]  # only the file_name
+                tensor = transform_segmap_image_to_tensor(path, "s", domain, with_idx)
+                torch.save(tensor, path_to_dir + file_name + ".pt")
 
 
 def is_image_file(filename):

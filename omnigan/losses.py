@@ -97,7 +97,7 @@ class CrossEntropy(nn.Module):
         self.loss = torch.nn.CrossEntropyLoss()
 
     def __call__(self, logits, target):
-        return self.loss(logits, target.to(logits.device))
+        return self.loss(logits, target.to(logits.device).long())
 
 
 class BinaryCrossEntropy(nn.Module):
@@ -343,8 +343,9 @@ def get_losses(opts, verbose, device=None):
         losses["G"]["tasks"]["d"] = MSELoss()
     if "s" in opts.tasks:
         losses["G"]["tasks"]["s"] = {}
-        losses["G"]["tasks"]["s"]["source"] = nn.BCELoss()
+        losses["G"]["tasks"]["s"]["source"] = CrossEntropy()
         losses["G"]["tasks"]["s"]["target"] = ADVENTEntropyLoss()
+        losses["G"]["tasks"]["s"]["advent"] = ADVENTAdversarialLoss(opts)
     if "m" in opts.tasks:
         losses["G"]["tasks"]["m"] = {}
         losses["G"]["tasks"]["m"]["main"] = nn.BCELoss()
