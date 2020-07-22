@@ -409,11 +409,12 @@ class Trainer:
                             save_images[update_task] = []
                         prediction = self.G.decoders[update_task](self.z)
                         if update_task in {"s"}:
-                            target = (
-                                decode_segmap_unity_labels(target, domain, True)
-                                .float()
-                                .to(self.device)
-                            )
+                            if domain in {"s"}:
+                                target = (
+                                    decode_segmap_unity_labels(target, domain, True)
+                                    .float()
+                                    .to(self.device)
+                                )
                             prediction = (
                                 decode_segmap_unity_labels(prediction, domain, False)
                                 .float()
@@ -643,7 +644,7 @@ class Trainer:
                 elif update_task == "s":
                     prediction = self.G.decoders[update_task](self.z)
                     # Supervised segmentation loss
-                    if batch_domain == "s" or not self.opts.gen.s.use_advent:
+                    if batch_domain == "s":
                         update_loss = (
                             self.losses["G"]["tasks"][update_task]["crossent"](
                                 prediction, update_target.squeeze(1)

@@ -241,7 +241,7 @@ def tensor_loader(path, task, domain):
     Returns:
         [Tensor]: 1 x C x H x W
     """
-    if task == "s":
+    if task == "s" and domain == "s":
         arr = torch.load(path)
         return arr
     elif Path(path).suffix == ".npy":
