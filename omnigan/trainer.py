@@ -670,9 +670,7 @@ class Trainer:
 
                         # Fool ADVENT discriminator
                         update_loss = self.losses["G"]["tasks"][update_task]["advent"](
-                            prediction,
-                            self.domain_labels[batch_domain],
-                            self.D["s"]["Advent"],
+                            prediction, self.domain_labels["s"], self.D["s"]["Advent"],
                         )
                         step_loss += update_loss
                         self.logger.losses.generator.task_loss[update_task]["advent"][
@@ -714,7 +712,7 @@ class Trainer:
                                 "advent"
                             ](
                                 prob.to(self.device),
-                                self.domain_labels[batch_domain],
+                                self.domain_labels["s"],
                                 self.D["m"]["Advent"],
                             )
                             step_loss += update_loss
