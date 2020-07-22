@@ -27,7 +27,7 @@ from omnigan.tutils import (
     vgg_preprocess,
     norm_tensor,
 )
-from omnigan.utils import div_dict, flatten_opts, sum_dict
+from omnigan.utils import div_dict, flatten_opts, sum_dict, merge
 
 
 class Trainer:
@@ -379,6 +379,9 @@ class Trainer:
         for d in self.opts.domains:
             self.log_comet_images("train", d)
 
+        if "m" in self.opts.tasks and "p" in self.opts.tasks:
+            self.log_comet_combined_images("train", "r")
+
         self.update_learning_rates()
 
     def log_step_time(self, step_time):
@@ -456,6 +459,34 @@ class Trainer:
                 im_per_row=self.opts.comet.im_per_row.get("p", 4),
                 comet_exp=self.exp,
             )
+
+        return 0
+
+    def log_comet_combined_images(self, mode, domain):
+
+        image_outputs = []
+        for im_set in self.display_images[mode][domain]:
+            x = im_set["data"]["x"].unsqueeze(0).to(self.device)
+            # m = im_set["data"]["m"].unsqueeze(0).to(self.device)
+
+            z = self.sample_z(x.shape[0])
+            m = self.G.decoders["m"](self.G.encode(x))
+
+            prediction = self.G.painter(z, x * (1.0 - m))
+            image_outputs.append(x * (1.0 - m))
+            image_outputs.append(prediction)
+            image_outputs.append(x)
+            image_outputs.append(prediction * m)
+        # Write images
+        self.write_images(
+            image_outputs=image_outputs,
+            mode=mode,
+            domain=domain,
+            task="combined",
+            im_per_row=self.opts.comet.im_per_row.get("p", 4),
+            comet_exp=self.exp,
+        )
+
         return 0
 
     def write_images(
@@ -515,6 +546,10 @@ class Trainer:
             p_loss = self.get_painter_loss(multi_domain_batch)
             self.logger.losses.generator.painter = p_loss.item()
             g_loss += p_loss
+
+        if "m" in self.opts.tasks and "p" in self.opts.tasks:
+            mp_loss = self.get_combined_loss(multi_domain_batch)
+            g_loss += mp_loss
 
         assert g_loss != 0 and not isinstance(g_loss, int), "No update in get_g_loss!"
 
@@ -609,6 +644,7 @@ class Trainer:
                     # ? output features classifier
                     prediction = self.G.decoders[update_task](self.z)
                     # Main loss first:
+
                     update_loss = (
                         self.losses["G"]["tasks"][update_task]["main"](
                             prediction, update_target
@@ -747,8 +783,68 @@ class Trainer:
                     * lambdas.G["p"]["featmatch"]
                 )
 
-                self.logger.losses.generator.p.featmatch = update_loss.item()
+                if isinstance(update_loss, float):
+                    self.logger.losses.generator.p.featmatch = update_loss
+                else:
+                    self.logger.losses.generator.p.featmatch = update_loss.item()
+
                 step_loss += update_loss
+
+        return step_loss
+
+    def get_combined_loss(self, multi_domain_batch):  # TODO update docstrings
+        """Only update the representation part of the model, meaning everything
+        but the translation part
+
+        * for each batch in available domains:
+            * compute latent classifier loss with fake labels(1)
+            * compute task-specific losses (2)
+            * compute the adaptation and translation decoders' auto-encoding losses (3)
+            * compute the adaptation decoder's translation losses (GAN and Cycle) (4)
+
+        Args:
+            multi_domain_batch (dict): dictionnary mapping domain names to batches from
+            the trainer's loaders
+
+        Returns:
+            torch.Tensor: scalar loss tensor, weighted according to opts.train.lambdas
+        """
+        step_loss = 0
+        lambdas = self.opts.train.lambdas
+        for batch_domain, batch in multi_domain_batch.items():
+            # We don't care about the flooded domain here
+            if batch_domain == "rf" or batch_domain == "s":
+                continue
+
+            x = batch["data"]["x"]
+            self.z = self.G.encode(x)
+
+            update_task = "m"
+            # Get mask from masker
+            m = self.G.decoders[update_task](self.z)
+
+            z = self.sample_z(x.shape[0])
+            masked_x = x * (1.0 - m)
+
+            fake_flooded = self.G.painter(z, masked_x)
+            # GAN Losses
+            fake_d_global = self.D["p"]["global"](fake_flooded)
+
+            # Note: discriminator returns [out_1,...,out_num_D] outputs
+            # Each out_i is a list [feat1, feat2, ..., pred_i]
+
+            self.logger.losses.generator.p.endtoend = 0
+
+            num_D = len(fake_d_global)
+            for i in range(num_D):
+                # Take last element for GAN loss on discrim prediction
+                update_loss = (
+                    (self.losses["G"]["p"]["gan"](fake_d_global[i][-1], True))
+                    * lambdas.G["p"]["gan"]
+                    / num_D
+                )
+
+                self.logger.losses.generator.p.endtoend += update_loss.item()
 
         return step_loss
 
@@ -938,6 +1034,9 @@ class Trainer:
         for d in self.opts.domains:
             self.log_comet_images("val", d)
 
+        if "m" in self.opts.tasks and "p" in self.opts.tasks:
+            self.log_comet_combined_images("val", "r")
+
         print("******************DONE EVALUATING*********************")
 
     def save(self):
@@ -966,11 +1065,34 @@ class Trainer:
 
     def resume(self):
         # load_path = self.get_latest_ckpt()
-        load_path = Path(self.opts.output_path) / Path("checkpoints/latest_ckpt.pth")
-        checkpoint = torch.load(load_path)
-        print(f"Resuming model from {load_path}")
+        if "m" in self.opts.tasks and "p" in self.opts.tasks:
+            m_path = self.opts.load_paths.m
+            p_path = self.opts.load_paths.p
+
+            if m_path == "none":
+                m_path = self.opts.output_path
+            if p_path == "none":
+                p_path = self.opts.output_path
+
+            # Merge the dicts
+            m_ckpt_path = Path(m_path) / Path("checkpoints/latest_ckpt.pth")
+            p_ckpt_path = Path(p_path) / Path("checkpoints/latest_ckpt.pth")
+
+            m_checkpoint = torch.load(m_ckpt_path)
+            p_checkpoint = torch.load(p_ckpt_path)
+
+            checkpoint = merge(m_checkpoint, p_checkpoint)
+            print(f"Resuming model from {m_ckpt_path} and {p_ckpt_path}")
+        else:
+            load_path = Path(self.opts.output_path) / Path(
+                "checkpoints/latest_ckpt.pth"
+            )
+            checkpoint = torch.load(load_path)
+            print(f"Resuming model from {load_path}")
+
         self.G.load_state_dict(checkpoint["G"])
-        self.g_opt.load_state_dict(checkpoint["g_opt"])
+        if not ("m" in self.opts.tasks and "p" in self.opts.tasks):
+            self.g_opt.load_state_dict(checkpoint["g_opt"])
         self.logger.epoch = checkpoint["epoch"]
         self.logger.global_step = checkpoint["step"]
         # Round step to even number for extraGradient
@@ -979,11 +1101,13 @@ class Trainer:
 
         if self.C is not None and get_num_params(self.C) > 0:
             self.C.load_state_dict(checkpoint["C"])
-            self.c_opt.load_state_dict(checkpoint["c_opt"])
+            if not ("m" in self.opts.tasks and "p" in self.opts.tasks):
+                self.c_opt.load_state_dict(checkpoint["c_opt"])
 
         if self.D is not None and get_num_params(self.D) > 0:
             self.D.load_state_dict(checkpoint["D"])
-            self.d_opt.load_state_dict(checkpoint["d_opt"])
+            if not ("m" in self.opts.tasks and "p" in self.opts.tasks):
+                self.d_opt.load_state_dict(checkpoint["d_opt"])
 
     def get_latest_ckpt(self):
         load_dir = Path(self.opts.output_path) / Path("checkpoints")

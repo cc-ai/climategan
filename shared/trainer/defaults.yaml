@@ -94,7 +94,7 @@ gen:
   m: # specific params for the mask-generation decoder
     <<: *default-gen
     output_dim: 1
-    use_advent: True
+    use_advent: False
 
 
 # -------------------------
@@ -121,7 +121,6 @@ dis:
     use_sigmoid: false
     num_D: 3 #Number of discriminators to use (>1 means multi-scale)
     get_intermediate_features: false
-
   p:
     <<: *default-dis
   m:
