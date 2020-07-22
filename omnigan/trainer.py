@@ -624,8 +624,8 @@ class Trainer:
                     ] = update_loss.item()
 
                     if batch_domain == "r":
-                        pred_prime = 1 - prediction
-                        prob = torch.cat([prediction, pred_prime], dim=1)
+                        pred_complementary = 1 - prediction
+                        prob = torch.cat([prediction, pred_complementary], dim=1)
 
                         if self.opts.gen.m.use_minent:
                             # Then Minent loss

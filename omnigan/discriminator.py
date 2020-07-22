@@ -171,7 +171,7 @@ class OmniDiscriminator(nn.ModuleDict):
             )
         if "m" in opts.tasks:
             if opts.gen.m.use_advent:
-                if opts.dis.m.architecture == "default":
+                if opts.dis.m.architecture == "base":
                     self["m"] = nn.ModuleDict({"Advent": get_fc_discriminator()})
                 elif opts.dis.m.architecture == "OmniDiscriminator":
                     self["m"] = nn.ModuleDict(

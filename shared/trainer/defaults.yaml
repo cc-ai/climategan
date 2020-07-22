@@ -125,7 +125,7 @@ dis:
   m:
     <<: *default-dis
     multi_level: false
-    architecture: OmniDiscriminator # can be [default | OmniDiscriminator]
+    architecture: OmniDiscriminator # can be [base | OmniDiscriminator]
 
 # -------------------------------
 # -----  Domain Classifier  -----
@@ -171,11 +171,11 @@ train:
       classifier: 1
     C: 1
     advent:
-      ent_main: 0.5 # the coeffcient of the MinEnt loss that directly minimize the entropy of the image
-      ent_aux: 0.0 # the coresponding coeffcient of the MinEnt loss of second output
+      ent_main: 0.5 # the coefficient of the MinEnt loss that directly minimize the entropy of the image
+      ent_aux: 0.0 # the corresponding coefficient of the MinEnt loss of second output
       ent_var: 0.1 # the proportion of variance of entropy map in the entropy measure for a certain picture
-      adv_main: 1.0 # the coeffcient of the AdvEnt loss that minimize the entropy of the image by adversarial training
-      adv_aux: 0.0 # the coresponding coeffcient of the AdvEnt loss of second output
+      adv_main: 1.0 # the coefficient of the AdvEnt loss that minimize the entropy of the image by adversarial training
+      adv_aux: 0.0 # the corresponding coefficient of the AdvEnt loss of second output
       dis_main: 0.5 # the discriminator take care of the first output in the adversarial training
       dis_aux: 0.5 # the discriminator take care of the second output in the adversarial training
   log_level: 2 # 0: no log, 1: only aggregated losses, >1 detailed losses
