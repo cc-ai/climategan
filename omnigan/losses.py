@@ -9,6 +9,7 @@ import torch.nn as nn
 from random import random as rand
 from torchvision import models
 
+
 class GANLoss(nn.Module):
     def __init__(
         self,
@@ -235,7 +236,7 @@ class L1Loss(MSELoss):
         super().__init__()
         self.loss = torch.nn.L1Loss()
 
-=
+
 class SIMSELoss(nn.Module):
     """Scale invariant MSE Loss
     """
@@ -248,6 +249,7 @@ class SIMSELoss(nn.Module):
         diff = torch.mean(d * d)
         relDiff = torch.mean(d) * torch.mean(d)
         return diff - relDiff
+
 
 class ContextLoss(nn.Module):
     """
