@@ -81,6 +81,8 @@ gen:
     <<: *default-gen
     num_classes: 11
     output_dim: 11
+    use_advent: True
+    use_minient: False
   p: # specific params for the SPADE painter
     <<: *default-gen
     latent_dim: 512

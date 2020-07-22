@@ -400,8 +400,8 @@ class Trainer:
                 self.z = self.G.encode(x)
 
                 for update_task, update_target in im_set["data"].items():
-                    if update_task in {"s"} and self.logger.epoch % 10:
-                        continue  # Only log seg images every 10 epochs
+                    if update_task in {"s"} and self.logger.epoch % 5:
+                        continue  # Only log seg images every 5 epochs
                     target = im_set["data"][update_task].unsqueeze(0).to(self.device)
                     task_saves = []
                     if update_task != "x":
@@ -409,12 +409,11 @@ class Trainer:
                             save_images[update_task] = []
                         prediction = self.G.decoders[update_task](self.z)
                         if update_task in {"s"}:
-                            if domain in {"s"}:
-                                target = (
-                                    decode_segmap_unity_labels(target, domain, True)
-                                    .float()
-                                    .to(self.device)
-                                )
+                            target = (
+                                decode_segmap_unity_labels(target, domain, True)
+                                .float()
+                                .to(self.device)
+                            )
                             prediction = (
                                 decode_segmap_unity_labels(prediction, domain, False)
                                 .float()
@@ -643,30 +642,30 @@ class Trainer:
                     ] = update_loss.item()
                 elif update_task == "s":
                     prediction = self.G.decoders[update_task](self.z)
-                    # Supervised segmentation loss for source domain (simulated)
-                    if batch_domain == "s":
+                    # Supervised segmentation loss
+                    if batch_domain == "s" or not self.opts.gen.s.use_advent:
                         update_loss = (
-                            self.losses["G"]["tasks"][update_task]["source"](
+                            self.losses["G"]["tasks"][update_task]["crossent"](
                                 prediction, update_target.squeeze(1)
                             )
                             * lambdas.G[update_task]
                         )
                         step_loss += update_loss
 
-                        self.logger.losses.generator.task_loss[update_task]["source"][
+                        self.logger.losses.generator.task_loss[update_task]["crossent"][
                             batch_domain
                         ] = update_loss.item()
-                    # Entropy loss for target domain (real)
-                    else:
-                        # Direct entropy minimization
-                        update_loss = self.losses["G"]["tasks"][update_task]["target"](
-                            prediction
-                        )
-                        step_loss += update_loss
+                    else:  # Entropy loss for target domain (real)
+                        if self.opts.gen.s.use_minient:
+                            # Direct entropy minimisation
+                            update_loss = self.losses["G"]["tasks"][update_task][
+                                "minient"
+                            ](prediction)
+                            step_loss += update_loss
 
-                        self.logger.losses.generator.task_loss[update_task]["target"][
-                            batch_domain
-                        ] = update_loss.item()
+                            self.logger.losses.generator.task_loss[update_task][
+                                "minient"
+                            ][batch_domain] = update_loss.item()
 
                         # Fool ADVENT discriminator
                         update_loss = self.losses["G"]["tasks"][update_task]["advent"](
@@ -978,18 +977,19 @@ class Trainer:
                             self.opts.train.lambdas.advent.adv_main * loss_main
                         )
                 if "s" in self.opts.tasks:
-                    preds = self.G.decoders["s"](z)
-                    preds = preds.detach()
+                    if self.opts.gen.s.use_advent:
+                        preds = self.G.decoders["s"](z)
+                        preds = preds.detach()
 
-                    loss_main = self.losses["D"]["advent"](
-                        preds.to(self.device),
-                        self.domain_labels[batch_domain],
-                        self.D["s"]["Advent"],
-                    )
+                        loss_main = self.losses["D"]["advent"](
+                            preds.to(self.device),
+                            self.domain_labels[batch_domain],
+                            self.D["s"]["Advent"],
+                        )
 
-                    disc_loss["s"]["Advent"] += (
-                        self.opts.train.lambdas.advent.adv_main * loss_main
-                    )
+                        disc_loss["s"]["Advent"] += (
+                            self.opts.train.lambdas.advent.adv_main * loss_main
+                        )
 
         self.logger.losses.discriminator.update(
             {

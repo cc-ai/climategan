@@ -200,7 +200,7 @@ def cross_entropy_2d(predict, target):
     return loss
 
 
-class ADVENTEntropyLoss(nn.Module):
+class MiniEntLoss(nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -343,8 +343,8 @@ def get_losses(opts, verbose, device=None):
         losses["G"]["tasks"]["d"] = MSELoss()
     if "s" in opts.tasks:
         losses["G"]["tasks"]["s"] = {}
-        losses["G"]["tasks"]["s"]["source"] = CrossEntropy()
-        losses["G"]["tasks"]["s"]["target"] = ADVENTEntropyLoss()
+        losses["G"]["tasks"]["s"]["crossent"] = CrossEntropy()
+        losses["G"]["tasks"]["s"]["minient"] = MiniEntLoss()
         losses["G"]["tasks"]["s"]["advent"] = ADVENTAdversarialLoss(opts)
     if "m" in opts.tasks:
         losses["G"]["tasks"]["m"] = {}

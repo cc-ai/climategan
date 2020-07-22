@@ -37,17 +37,17 @@ classes_dict = {
         10: [255, 255, 255, 255],  # Default
     },
     "r": {
-        0: [0, 0, 255, 255],  # Water NOT FOUND YET
+        0: [0, 0, 255, 255],  # Water
         1: [55, 55, 55, 255],  # Ground
         2: [0, 255, 255, 255],  # Building
         3: [255, 212, 0, 255],  # Traffic items
-        4: [0, 255, 0, 255],  # Vegetation NOT FOUND YET
+        4: [0, 255, 0, 255],  # Vegetation
         5: [255, 97, 0, 255],  # Terrain
         6: [255, 0, 0, 255],  # Car
         7: [0, 255, 0, 255],  # Trees
         8: [220, 20, 60, 255],  # Person
         9: [8, 19, 49, 255],  # Sky
-        10: [0, 80, 100, 255],  # Default, object with no class?
+        10: [0, 80, 100, 255],  # Default
     },
 }
 
@@ -55,9 +55,9 @@ classes_dict = {
 def decode_segmap_unity_labels(tensor, domain, is_target, nc=11):
     """Creates a label colormap for classes used in Unity segmentation benchmark.
     Arguments:
-        tensor -- segmented image 1 x nc x H x W
+        tensor -- segmented image of size (1) x (nc) x (H) x (W) if prediction, or size (1) x (1) x (H) x (W) if target
     Returns:
-        tensor of size 1 x 3 x H x W
+        RGB tensor of size (1) x (3) x (H) x (W)
     # """
     rgb = np.zeros((3, tensor.shape[-2], tensor.shape[-1]), dtype=float)
 
@@ -118,13 +118,12 @@ def decode_segmap_cityscapes_labels(image, nc=19):
     return rgb
 
 
-def find_closest_class(pixel, domain, dict_classes):
-    """Takes a pixel as input and finds the closest known pixel value corresponding to a class
+def find_closest_class(pixel, dict_classes):
+    """Takes a pixel as input and finds the closest known pixel value corresponding to a class in dict_classes
     Arguments:
         pixel -- tuple pixel (R,G,B,A)
-        domain -- domain of the image ("r" or "s")
     Returns:
-        tuple pixel (R,G,B,A) corresponding to a key in classes_dict
+        tuple pixel (R,G,B,A) corresponding to a key (a class) in dict_classes
     """
     min_dist = float("inf")
     closest_pixel = None
@@ -136,38 +135,13 @@ def find_closest_class(pixel, domain, dict_classes):
     return closest_pixel
 
 
-def encode_segmap_with_channels(arr, domain):
-    """Change a segmentation RGBA array to a segmentation array with each channel being a binary array of one class
+def encode_segmap(arr, domain):
+    """Change a segmentation RGBA array to a segmentation array
+                            with each pixel being the index of the class
     Arguments:
-        numpy array -- segmented image (H) x (W) x (4 RGBA values)
+        numpy array -- segmented image of size (H) x (W) x (4 RGBA values)
     Returns:
-        numpy array of size (num_classes) x (H) x (W)
-    """
-    num_classes = len(classes_dict["s"])
-    new_arr = np.zeros((num_classes, arr.shape[0], arr.shape[1]))
-    dict_classes = {
-        tuple(rgba_value): class_id
-        for (class_id, rgba_value) in classes_dict[domain].items()
-    }
-    for i in range(arr.shape[0]):
-        for j in range(arr.shape[1]):
-            pixel_rgba = tuple(arr[i, j, :])
-            if pixel_rgba in dict_classes.keys():
-                new_arr[dict_classes[pixel_rgba], i, j] = 1.0
-            else:
-                pixel_rgba_closest = find_closest_class(
-                    pixel_rgba, domain, dict_classes
-                )
-                new_arr[dict_classes[pixel_rgba_closest], i, j] = 1.0
-    return new_arr
-
-
-def encode_segmap_with_idx(arr, domain):
-    """Change a segmentation RGBA array to a segmentation array with each pixel being the index  of the class
-    Arguments:
-        numpy array -- segmented image (H) x (W) x (4 RGBA values)
-    Returns:
-        numpy array of size 1 x (H) x (W) with each pixel being the index of the class
+        numpy array of size (1) x (H) x (W) with each pixel being the index of the class
     """
     new_arr = np.zeros((1, arr.shape[0], arr.shape[1]))
     dict_classes = {
@@ -180,28 +154,24 @@ def encode_segmap_with_idx(arr, domain):
             if pixel_rgba in dict_classes.keys():
                 new_arr[0, i, j] = dict_classes[pixel_rgba]
             else:
-                pixel_rgba_closest = find_closest_class(
-                    pixel_rgba, domain, dict_classes
-                )
+                pixel_rgba_closest = find_closest_class(pixel_rgba, dict_classes)
                 new_arr[0, i, j] = dict_classes[pixel_rgba_closest]
     return new_arr
 
 
-def transform_segmap_image_to_tensor(path, task, domain, with_idx=True):
+def transform_segmap_image_to_tensor(path, domain):
     """
-        Transforms an image of segmentation to a tensor of wanted size
+        Transforms a segmentation image to a tensor of size (1) x (1) x (H) x (W) 
+        with each pixel being the index of the class
     """
     arr = np.array(Image.open(path).convert("RGBA"))
-    if with_idx:
-        arr = encode_segmap_with_idx(arr, domain)
-    else:
-        arr = encode_segmap_with_channels(arr, domain)
+    arr = encode_segmap(arr, domain)
     arr = torch.from_numpy(arr).float()
     arr = arr.unsqueeze(0)
     return arr
 
 
-def save_segmap_tensors(path_to_json, path_to_dir, domain, with_idx=True):
+def save_segmap_tensors(path_to_json, path_to_dir, domain):
     """
     Loads the segmentation images mentionned in a json file, transforms them to
     tensors and save the tensors in the wanted directory
@@ -210,8 +180,6 @@ def save_segmap_tensors(path_to_json, path_to_dir, domain, with_idx=True):
         path_to_json: complete path to the json file where to find the original data
         path_to_dir: path to the directory where to save the tensors as tensor_name.pt
         domain: domain of the images ("r" or "s")
-        with_idx : bool to have tensors of size (1 x 1 x H x W) with each pixel equal to idx of the class 
-                    (else, tensor is size 1 x num_classes x H x W)
 
     e.g:
         save_tensors(
@@ -225,12 +193,12 @@ def save_segmap_tensors(path_to_json, path_to_dir, domain, with_idx=True):
         with open(path_to_json, "r") as f:
             ims_list = yaml.safe_load(f)
 
-    for i, im_dict in enumerate(ims_list):
+    for im_dict in ims_list:
         for task_name, path in im_dict.items():
             if task_name == "s":
-                file_name = os.path.splitext(path)[0]  # removes extension
-                file_name = file_name.rsplit("/", 1)[-1]  # only the file_name
-                tensor = transform_segmap_image_to_tensor(path, "s", domain, with_idx)
+                file_name = os.path.splitext(path)[0]  # remove extension
+                file_name = file_name.rsplit("/", 1)[-1]  # keep only the file_name
+                tensor = transform_segmap_image_to_tensor(path, domain)
                 torch.save(tensor, path_to_dir + file_name + ".pt")
 
 
@@ -241,11 +209,7 @@ def is_image_file(filename):
 
 
 def pil_image_loader(path, task, domain):
-    if task == "s" and domain == "s":
-        arr = np.array(Image.open(path).convert("RGBA"))
-        arr = encode_segmap(arr, domain)
-        return arr
-    elif Path(path).suffix == ".npy":
+    if Path(path).suffix == ".npy":
         arr = np.load(path).astype(np.uint8)
     elif is_image_file(path):
         # arr = imread(path).astype(np.uint8)
@@ -277,10 +241,8 @@ def tensor_loader(path, task, domain):
     Returns:
         [Tensor]: 1 x C x H x W
     """
-    if task == "s" and domain == "s":
+    if task == "s":
         arr = torch.load(path)
-        # print("s and s type", arr.type())
-        # print("s and s shape", arr.shape)
         return arr
     elif Path(path).suffix == ".npy":
         arr = np.load(path).astype(np.float32)
@@ -302,19 +264,7 @@ def tensor_loader(path, task, domain):
             arr = arr[:, :, 0]
         arr = np.expand_dims(arr, 0)
 
-    arr = torch.from_numpy(arr).unsqueeze(0)
-
-    # if task == "s":
-    #     print("s and r type", arr.type())
-    #     print("s and r shape", arr.shape)
-    # if task == "x":
-    #     print("x type", arr.type())
-    #     print("x shape", arr.shape)
-    # if task == "m":
-    #     print("m type", arr.type())
-    #     print("m shape", arr.shape)
-
-    return arr
+    return torch.from_numpy(arr).unsqueeze(0)
 
 
 class OmniListDataset(Dataset):

@@ -265,7 +265,10 @@ class OmniDiscriminator(nn.ModuleDict):
                     {"Advent": get_fc_discriminator(num_classes=2)}
                 )
         if "s" in opts.tasks:
-            self["s"] = nn.ModuleDict({"Advent": get_fc_discriminator(num_classes=11)})
+            if opts.gen.s.use_advent:
+                self["s"] = nn.ModuleDict(
+                    {"Advent": get_fc_discriminator(num_classes=11)}
+                )
 
 
 def get_fc_discriminator(num_classes=2, ndf=64):
