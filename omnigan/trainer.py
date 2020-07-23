@@ -400,8 +400,6 @@ class Trainer:
                 self.z = self.G.encode(x)
 
                 for update_task, update_target in im_set["data"].items():
-                    if update_task in {"s"} and self.logger.epoch % 5:
-                        continue  # Only log seg images every 5 epochs
                     target = im_set["data"][update_task].unsqueeze(0).to(self.device)
                     task_saves = []
                     if update_task != "x":
@@ -656,7 +654,8 @@ class Trainer:
                         self.logger.losses.generator.task_loss[update_task]["crossent"][
                             batch_domain
                         ] = update_loss.item()
-                    else:  # Entropy loss for target domain (real)
+                    else:
+                        # Entropy minimisation loss
                         if self.opts.gen.s.use_minient:
                             # Direct entropy minimisation
                             update_loss = self.losses["G"]["tasks"][update_task][
@@ -669,13 +668,18 @@ class Trainer:
                             ][batch_domain] = update_loss.item()
 
                         # Fool ADVENT discriminator
-                        update_loss = self.losses["G"]["tasks"][update_task]["advent"](
-                            prediction, self.domain_labels["s"], self.D["s"]["Advent"],
-                        )
-                        step_loss += update_loss
-                        self.logger.losses.generator.task_loss[update_task]["advent"][
-                            batch_domain
-                        ] = update_loss.item()
+                        if self.opts.gen.s.use_advent:
+                            update_loss = self.losses["G"]["tasks"][update_task][
+                                "advent"
+                            ](
+                                prediction,
+                                self.domain_labels["s"],
+                                self.D["s"]["Advent"],
+                            )
+                            step_loss += update_loss
+                            self.logger.losses.generator.task_loss[update_task][
+                                "advent"
+                            ][batch_domain] = update_loss.item()
                 elif update_task == "m":
                     # ? output features classifier
                     prediction = self.G.decoders[update_task](self.z)
