@@ -162,7 +162,10 @@ train:
   lambdas: # scaling factors in the total loss
     G:
       d: 1
-      s: 1
+      s:
+        crossent: 1
+        minient: 0.001
+        advent: 0.001
       m:
         main: 1 # Main prediction loss, i.e. GAN or BCE
         tv: 1 # Total variational loss (for smoothing)

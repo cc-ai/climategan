@@ -657,7 +657,7 @@ class Trainer:
                             self.losses["G"]["tasks"][update_task]["crossent"](
                                 prediction, update_target.squeeze(1)
                             )
-                            * lambdas.G[update_task]
+                            * lambdas.G[update_task]["crossent"]
                         )
                         step_loss += update_loss
 
@@ -668,9 +668,12 @@ class Trainer:
                         # Entropy minimisation loss
                         if self.opts.gen.s.use_minient:
                             # Direct entropy minimisation
-                            update_loss = self.losses["G"]["tasks"][update_task][
-                                "minient"
-                            ](prediction)
+                            update_loss = (
+                                self.losses["G"]["tasks"][update_task]["minient"](
+                                    prediction
+                                )
+                                * lambdas.G[update_task]["minient"]
+                            )
                             step_loss += update_loss
 
                             self.logger.losses.generator.task_loss[update_task][
@@ -679,12 +682,13 @@ class Trainer:
 
                         # Fool ADVENT discriminator
                         if self.opts.gen.s.use_advent:
-                            update_loss = self.losses["G"]["tasks"][update_task][
-                                "advent"
-                            ](
-                                prediction,
-                                self.domain_labels["s"],
-                                self.D["s"]["Advent"],
+                            update_loss = (
+                                self.losses["G"]["tasks"][update_task]["advent"](
+                                    prediction,
+                                    self.domain_labels["s"],
+                                    self.D["s"]["Advent"],
+                                )
+                                * lambdas.G[update_task]["advent"]
                             )
                             step_loss += update_loss
                             self.logger.losses.generator.task_loss[update_task][
