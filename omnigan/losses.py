@@ -7,6 +7,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 import torch.nn as nn
 from random import random as rand
+from torchvision import models
 
 
 class GANLoss(nn.Module):
@@ -236,6 +237,20 @@ class L1Loss(MSELoss):
         self.loss = torch.nn.L1Loss()
 
 
+class SIMSELoss(nn.Module):
+    """Scale invariant MSE Loss
+    """
+
+    def __init__(self):
+        super(SIMSELoss, self).__init__()
+
+    def __call__(self, prediction, target):
+        d = prediction - target
+        diff = torch.mean(d * d)
+        relDiff = torch.mean(d) * torch.mean(d)
+        return diff - relDiff
+
+
 class ContextLoss(nn.Module):
     """
     Masked L1 loss
@@ -248,7 +263,6 @@ class ContextLoss(nn.Module):
 ##################################################################################
 # VGG network definition
 ##################################################################################
-from torchvision import models
 
 # Source: https://github.com/NVIDIA/pix2pixHD
 class Vgg19(torch.nn.Module):
@@ -339,7 +353,7 @@ def get_losses(opts, verbose, device=None):
     # ? * add discriminator and gan loss to these task when no ground truth
     # ?   instead of noisy label
     if "d" in opts.tasks:
-        losses["G"]["tasks"]["d"] = MSELoss()
+        losses["G"]["tasks"]["d"] = SIMSELoss()
     if "s" in opts.tasks:
         losses["G"]["tasks"]["s"] = CrossEntropy()
     if "m" in opts.tasks:
@@ -365,7 +379,7 @@ def get_losses(opts, verbose, device=None):
     # -----  Discriminator Losses  -----
     # ----------------------------------
     losses["D"]["default"] = GANLoss(
-        soft_shift=opts.dis.soft_shift, flip_prob=opts.dis.flip_prob, verbose=verbose,
+        soft_shift=opts.dis.soft_shift, flip_prob=opts.dis.flip_prob, verbose=verbose
     )
     losses["D"]["advent"] = ADVENTAdversarialLoss(opts)
     return losses

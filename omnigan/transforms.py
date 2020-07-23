@@ -1,6 +1,7 @@
 """Data transforms for the loaders
 """
 import torch
+import torch.nn.functional as F
 from torchvision import transforms as trsfs
 import torchvision.transforms.functional as TF
 import numpy as np
@@ -8,10 +9,10 @@ from PIL import Image
 
 
 def interpolation(task):
-    if task in ["d"]:
-        return Image.NEAREST
+    if task in ["d", "m", "s"]:
+        return "nearest"
     else:
-        return Image.BILINEAR
+        return "bilinear"  # "bilinear"
 
 
 class Resize:
@@ -28,8 +29,8 @@ class Resize:
 
     def __call__(self, data):
         return {
-            task: TF.resize(im, (self.h, self.w), interpolation=interpolation(task))
-            for task, im in data.items()
+            task: F.interpolate(tensor, (self.h, self.w), mode=interpolation(task))
+            for task, tensor in data.items()
         }
 
 
@@ -50,19 +51,22 @@ class RandomCrop:
         top = np.random.randint(0, h - self.h)
         left = np.random.randint(0, w - self.w)
         return {
-            task: TF.crop(im, top, left, self.h, self.w) for task, im in data.items()
+            task: tensor[:, top : top + self.h, left + self.w]
+            for task, tensor in data.items()
         }
 
 
 class RandomHorizontalFlip:
     def __init__(self, p=0.5):
-        self.flip = TF.hflip
+        # self.flip = TF.hflip
         self.p = p
 
     def __call__(self, data):
         if np.random.rand() > self.p:
             return data
-        return {task: self.flip(im) for task, im in data.items()}
+        for task, tensor in data.items():
+            print(task, tensor.shape)
+        return {task: torch.flip(tensor, (1,)) for task, tensor in data.items()}
 
 
 class ToTensor:
@@ -73,24 +77,25 @@ class ToTensor:
     def __call__(self, data):
         new_data = {}
         for task, im in data.items():
-            if task in {"x", "a", "d"}:
+            if task in {"x", "a"}:
                 new_data[task] = self.ImagetoTensor(im)
-            elif task in {"h", "w", "m"}:
+            elif task in {"m"}:
                 new_data[task] = self.MaptoTensor(im)
             elif task == "s":
                 new_data[task] = torch.squeeze(torch.from_numpy(np.array(im))).to(
                     torch.int64
                 )
+            elif task == "d":
+                new_data = im
 
         return new_data
 
 
 class Normalize:
     def __init__(self):
-        # self.normImage = trsfs.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        self.normImage = trsfs.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-        # self.normSeg = trsfs.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
 
+        # self.normImage = trsfs.Normalize(([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))
+        self.normImage = trsfs.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         self.normDepth = lambda x: x  # trsfs.Normalize([1 / 255], [1 / 3])
         self.normMask = lambda x: x
 
@@ -103,7 +108,7 @@ class Normalize:
 
     def __call__(self, data):
         return {
-            task: self.normalize.get(task, lambda x: x)(tensor)
+            task: self.normalize.get(task, lambda x: x)(tensor.squeeze(0))
             for task, tensor in data.items()
         }
 
@@ -133,7 +138,7 @@ def get_transforms(opts):
     """Get all the transform functions listed in opts.data.transforms
     using get_transform(transform_item)
     """
-    last_transforms = [ToTensor(), Normalize()]
+    last_transforms = [Normalize()]
 
     conf_transforms = []
     for t in opts.data.transforms:

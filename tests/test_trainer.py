@@ -5,7 +5,6 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
 from omnigan.trainer import Trainer
 from omnigan.utils import load_test_opts
-
 from run import print_header
 
 parser = argparse.ArgumentParser()
