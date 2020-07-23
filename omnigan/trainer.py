@@ -25,8 +25,10 @@ from omnigan.tutils import (
     get_num_params,
     shuffle_batch_tuple,
     vgg_preprocess,
+    norm_tensor,
 )
 from omnigan.utils import div_dict, flatten_opts, sum_dict, merge
+from omnigan.eval_metrics import iou, accuracy
 
 
 class Trainer:
@@ -396,12 +398,12 @@ class Trainer:
         if domain != "rf":
             for im_set in self.display_images[mode][domain]:
                 x = im_set["data"]["x"].unsqueeze(0).to(self.device)
-
                 self.z = self.G.encode(x)
 
                 for update_task, update_target in im_set["data"].items():
                     target = im_set["data"][update_task].unsqueeze(0).to(self.device)
                     task_saves = []
+
                     if update_task != "x":
                         if update_task not in save_images:
                             save_images[update_task] = []
@@ -423,6 +425,13 @@ class Trainer:
                             prediction = prediction.repeat(1, 3, 1, 1)
                             task_saves.append(x * (1.0 - prediction))
                             task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
+
+                        if update_task in {"d"}:
+                            # prediction is a log depth tensor
+                            target = (norm_tensor(target)) * 255
+                            prediction = (norm_tensor(prediction)) * 255
+                            prediction = prediction.repeat(1, 3, 1, 1)
+                            task_saves.append(target.repeat(1, 3, 1, 1))
                         task_saves.append(prediction)
                         # ! This assumes the output is some kind of image
                         save_images[update_task].append(x)
@@ -430,6 +439,7 @@ class Trainer:
                             save_images[update_task].append(im)
 
             for task in save_images.keys():
+                print(task)
                 # Write images:
                 self.write_images(
                     image_outputs=save_images[task],
@@ -525,7 +535,7 @@ class Trainer:
             self.logger.epoch, self.logger.epoch + self.opts.train.epochs
         ):
             self.run_epoch()
-            self.eval(verbose=1)
+            self.infer(verbose=1)
             if (
                 self.logger.epoch != 0
                 and self.logger.epoch % self.opts.train.save_n_epochs == 0
@@ -1054,8 +1064,8 @@ class Trainer:
 
         return lambdas.C * loss
 
-    def eval(self, num_threads=5, verbose=0):
-        print("*******************EVALUATING***********************")
+    def infer(self, num_threads=5, verbose=0):
+        print("*******************INFERRING***********************")
         val_logger = None
         for i, multi_batch_tuple in enumerate(self.val_loaders):
             # create a dictionnary (domain => batch) from tuple
@@ -1082,7 +1092,11 @@ class Trainer:
         if "m" in self.opts.tasks and "p" in self.opts.tasks:
             self.log_comet_combined_images("val", "r")
 
-        print("******************DONE EVALUATING*********************")
+        if "m" in self.opts.tasks:
+            self.eval_images("val", "r")
+            self.eval_images("val", "s")
+
+        print("******************DONE INFERRING*********************")
 
     def save(self):
         save_dir = Path(self.opts.output_path) / Path("checkpoints")
@@ -1166,3 +1180,30 @@ class Trainer:
                 max_epoch = epoch
                 max_ckpt = ckpt
         return Path(self.opts.output_path) / Path("checkpoints") / max_ckpt
+
+    def eval_images(self, mode, domain):
+        metrics = {"accuracy": accuracy, "iou": iou}
+        metric_avg_scores = {}
+        for key in metrics.keys():
+            metric_avg_scores[key] = 0.0
+        if domain != "rf":
+            for im_set in self.display_images[mode][domain]:
+                x = im_set["data"]["x"].unsqueeze(0).to(self.device)
+                m = im_set["data"]["m"].unsqueeze(0).to(self.device).detach().numpy()
+                z = self.G.encode(x)
+                pred_mask = self.G.decoders["m"](z).detach().numpy()
+                # Binarize mask
+                pred_mask[pred_mask > 0.5] = 1.0
+
+                for metric_key in metrics.keys():
+                    metric_score = metrics[metric_key](pred_mask, m)
+                    metric_avg_scores[metric_key] += metric_score
+
+            if self.exp is not None:
+                self.exp.log_metrics(
+                    metric_avg_scores,
+                    prefix=f"METRICS_{mode}",
+                    step=self.logger.global_step,
+                )
+
+        return 0

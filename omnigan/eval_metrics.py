@@ -5,6 +5,8 @@ import cv2
 # ------------------------------------------------------------------------------
 # ----- Evaluation metrics for a pair of binary mask images (pred, target) -----
 # ------------------------------------------------------------------------------
+
+
 def get_accuracy(arr1, arr2):
     """pixel accuracy 
 
@@ -61,4 +63,4 @@ def f1_score(pred_im, gt_im):
 def accuracy(pred_im, gt_im):
     pred = np.array(pred_im)
     gt = np.array(gt_im)
-    return (pred == gt).sum() / gt.size
+    return float((pred == gt).sum()) / gt.size

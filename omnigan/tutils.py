@@ -157,20 +157,26 @@ def show_tanh_tensor(tensor):
     skimage.io.imshow(image)
 
 
-def get_normalized_depth_t(arr, domain):
+def norm_tensor(t):
+    t = t - torch.min(t)
+    t /= torch.max(t)
+    return t
+
+
+def get_normalized_depth_t(arr, domain, normalize=False):
     if domain == "r":
         # megadepth depth
-        arr = arr / 255
-        arr[arr != 0] = 1 / arr[arr != 0]
-        arr = arr - torch.min(arr)
-        arr /= torch.max(arr)
+        arr = arr.unsqueeze(0)
+        if normalize:
+            arr = arr - torch.min(arr)
+            arr /= torch.max(arr)
     elif domain == "s":
         # from 3-channel depth encoding from Unity simulator to 1-channel [0-1] values
-        arr = decode_unity_depth_t(arr, normalize=True)
+        arr = decode_unity_depth_t(arr, log=True, normalize=normalize)
     return arr
 
 
-def decode_unity_depth_t(unity_depth, normalize=True, numpy=False, far=1000):
+def decode_unity_depth_t(unity_depth, log=True, normalize=False, numpy=False, far=1000):
     """Transforms the 3-channel encoded depth map from our Unity simulator to 1-channel depth map
     containing metric depth values.
     The depth is encoded in the following way:
@@ -198,16 +204,17 @@ def decode_unity_depth_t(unity_depth, normalize=True, numpy=False, far=1000):
     Returns:
         [torch.Tensor or numpy.array]: decoded depth
     """
-    im_array = (unity_depth * 255).type(torch.IntTensor)
-    R = im_array[0, :, :]
-    G = im_array[1, :, :]
-    B = im_array[2, :, :]
+    R = unity_depth[:, :, 0]
+    G = unity_depth[:, :, 1]
+    B = unity_depth[:, :, 2]
 
     R = ((247 - R) / 8).type(torch.FloatTensor)
     G = ((247 - G) / 8).type(torch.FloatTensor)
     B = (255 - B).type(torch.FloatTensor)
     depth = ((R * 256 * 31 + G * 256 + B).type(torch.FloatTensor)) / (256 * 31 * 31 - 1)
     depth = (depth * far).unsqueeze(0)
+    if log:
+        depth = torch.log(depth)
     if normalize:
         depth = depth - torch.min(depth)
         depth /= torch.max(depth)
@@ -215,6 +222,24 @@ def decode_unity_depth_t(unity_depth, normalize=True, numpy=False, far=1000):
         depth = depth.data.cpu().numpy()
         return depth.astype(np.uint8).squeeze()
     return depth
+
+
+def to_inv_depth(log_depth, numpy=False):
+    """Convert log depth tensor to inverse depth image for display
+
+    Args:
+        depth (Tensor): log depth float tensor
+    """
+    depth = torch.exp(log_depth)
+    # visualize prediction using inverse depth, so that we don't need sky segmentation (if you want to use RGB map for visualization, \
+    # you have to run semantic segmentation to mask the sky first since the depth of sky is random from CNN)
+    inv_depth = 1 / depth
+    inv_depth /= torch.max(inv_depth)
+    if numpy:
+        inv_depth = inv_depth.data.cpu().numpy()
+    # you might also use percentile for better visualization
+
+    return inv_depth
 
 
 def shuffle_batch_tuple(mbt):

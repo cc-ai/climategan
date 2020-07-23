@@ -77,27 +77,27 @@ class ToTensor:
     def __call__(self, data):
         new_data = {}
         for task, im in data.items():
-            if task in {"x", "a", "d"}:
+            if task in {"x", "a"}:
                 new_data[task] = self.ImagetoTensor(im)
-            elif task in {"h", "w", "m"}:
+            elif task in {"m"}:
                 new_data[task] = self.MaptoTensor(im)
             elif task == "s":
                 new_data[task] = torch.squeeze(torch.from_numpy(np.array(im))).to(
                     torch.int64
                 )
+            elif task == "d":
+                new_data = im
 
         return new_data
 
 
 class Normalize:
     def __init__(self):
-        # self.normImage = trsfs.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        # self.normImage = trsfs.Normalize(([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))
         self.normImage = trsfs.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-        self.normSeg = lambda x: x
-        # self.normSeg = trsfs.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
-
         self.normDepth = lambda x: x  # trsfs.Normalize([1 / 255], [1 / 3])
         self.normMask = lambda x: x
+        self.normSeg = lambda x: x
 
         self.normalize = {
             "x": self.normImage,

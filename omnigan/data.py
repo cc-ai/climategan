@@ -208,7 +208,7 @@ def is_image_file(filename):
     return Path(filename).suffix in IMG_EXTENSIONS
 
 
-def pil_image_loader(path, task, domain):
+def pil_image_loader(path, task):
     if Path(path).suffix == ".npy":
         arr = np.load(path).astype(np.uint8)
     elif is_image_file(path):
@@ -222,7 +222,7 @@ def pil_image_loader(path, task, domain):
         arr = arr[:, :, 0:3]
 
     if task == "m":
-        arr[arr != 0] = 255
+        arr[arr != 0] = 1
         # Make sure mask is single-channel
         if len(arr.shape) >= 3:
             arr = arr[:, :, 0]
@@ -243,6 +243,15 @@ def tensor_loader(path, task, domain):
     """
     if task == "s" and domain == "s":
         arr = torch.load(path)
+        return arr
+    elif task == "d":
+        if Path(path).suffix == ".npy":
+            arr = np.load(path)
+        else:
+            arr = imread(path)  # .astype(np.uint8)
+        arr = torch.from_numpy(arr)
+        arr = get_normalized_depth_t(arr, domain, normalize=True)
+        arr = arr.unsqueeze(0)
         return arr
     elif Path(path).suffix == ".npy":
         arr = np.load(path).astype(np.float32)
@@ -336,8 +345,8 @@ class OmniListDataset(Dataset):
             "domain": self.domain,
             "mode": self.mode,
         }
-        if "d" in item["data"]:
-            item["data"]["d"] = get_normalized_depth_t(item["data"]["d"], self.domain)
+        # if "d" in item["data"]:
+        #    item["data"]["d"] = get_normalized_depth_t(item["data"]["d"], self.domain)
 
         return item
 
