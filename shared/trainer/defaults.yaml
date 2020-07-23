@@ -1,8 +1,4 @@
 output_path: /network/tmp1/schmidtv/yb_runs/test_v1
-load_paths: 
-  p: none # none if using output_path
-  m: none # none if using output_path
-
 # -------------------
 # -----  Tasks  -----
 # -------------------

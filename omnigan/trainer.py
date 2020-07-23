@@ -27,7 +27,6 @@ from omnigan.tutils import (
     vgg_preprocess,
 )
 from omnigan.utils import div_dict, flatten_opts, sum_dict, merge
-from omnigan.eval_metrics import iou, accuracy
 
 
 class Trainer:
@@ -516,7 +515,7 @@ class Trainer:
             self.logger.epoch, self.logger.epoch + self.opts.train.epochs
         ):
             self.run_epoch()
-            self.infer(verbose=1)
+            self.eval(verbose=1)
             if (
                 self.logger.epoch != 0
                 and self.logger.epoch % self.opts.train.save_n_epochs == 0
@@ -1004,8 +1003,8 @@ class Trainer:
 
         return lambdas.C * loss
 
-    def infer(self, num_threads=5, verbose=0):
-        print("*******************INFERRING***********************")
+    def eval(self, num_threads=5, verbose=0):
+        print("*******************EVALUATING***********************")
         val_logger = None
         for i, multi_batch_tuple in enumerate(self.val_loaders):
             # create a dictionnary (domain => batch) from tuple
@@ -1032,11 +1031,7 @@ class Trainer:
         if "m" in self.opts.tasks and "p" in self.opts.tasks:
             self.log_comet_combined_images("val", "r")
 
-        if "m" in self.opts.tasks:
-            self.eval_images("val", "r")
-            self.eval_images("val", "s")
-
-        print("******************DONE INFERRING*********************")
+        print("******************DONE EVALUATING*********************")
 
     def save(self):
         save_dir = Path(self.opts.output_path) / Path("checkpoints")
@@ -1120,30 +1115,3 @@ class Trainer:
                 max_epoch = epoch
                 max_ckpt = ckpt
         return Path(self.opts.output_path) / Path("checkpoints") / max_ckpt
-
-    def eval_images(self, mode, domain):
-        metrics = {"accuracy": accuracy, "iou": iou}
-        metric_avg_scores = {}
-        for key in metrics.keys():
-            metric_avg_scores[key] = 0.0
-        if domain != "rf":
-            for im_set in self.display_images[mode][domain]:
-                x = im_set["data"]["x"].unsqueeze(0).to(self.device)
-                m = im_set["data"]["m"].unsqueeze(0).to(self.device).detach().numpy()
-                z = self.G.encode(x)
-                pred_mask = self.G.decoders["m"](z).detach().numpy()
-                # Binarize mask
-                pred_mask[pred_mask > 0.5] = 1.0
-
-                for metric_key in metrics.keys():
-                    metric_score = metrics[metric_key](pred_mask, m)
-                    metric_avg_scores[metric_key] += metric_score
-
-            if self.exp is not None:
-                self.exp.log_metrics(
-                    metric_avg_scores,
-                    prefix=f"METRICS_{mode}",
-                    step=self.logger.global_step,
-                )
-
-        return 0
