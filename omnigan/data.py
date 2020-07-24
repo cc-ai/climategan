@@ -68,9 +68,7 @@ def decode_segmap_unity_labels(tensor, domain, is_target, nc=11):
 
     for i in range(idx.shape[0]):
         for j in range(idx.shape[1]):
-            rgb[0, i, j] = classes_dict[domain][idx[i, j].item()][0]
-            rgb[1, i, j] = classes_dict[domain][idx[i, j].item()][1]
-            rgb[2, i, j] = classes_dict[domain][idx[i, j].item()][2]
+            rgb[:, i, j] = classes_dict[domain][idx[i, j].item()][:3]
 
     return torch.tensor(rgb).unsqueeze(0)
 

@@ -6,7 +6,7 @@ load_paths:
 # -------------------
 # -----  Tasks  -----
 # -------------------
-tasks: [d, s, m, p] # [p] [m, s, d] [simclr]
+tasks: [d, s, m, p] # [p] [m, s, d]
 # ----------------
 # ----- Data -----
 # ----------------
@@ -199,7 +199,6 @@ val:
 comet:
   display_size: 5
   im_per_row:
-    simclr: 2
     p: 4
     m: 4
     s: 3

@@ -67,7 +67,7 @@ class OmniGenerator(nn.Module):
         self.opts = opts
 
         self.encoder = None
-        if "m" in opts.tasks or "simclr" in opts.tasks:
+        if "m" in opts.tasks:
             if opts.gen.encoder.architecture == "deeplabv2":
                 self.encoder = DeeplabEncoder(opts)
             else:
