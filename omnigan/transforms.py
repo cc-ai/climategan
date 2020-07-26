@@ -66,7 +66,10 @@ class RandomHorizontalFlip:
             return data
         # for task, tensor in data.items():
         #     print(task, tensor.shape)
-        return {task: torch.flip(tensor, (1,)) for task, tensor in data.items()}
+        return {
+            task: torch.flip(tensor, (1,)) if task == "d" else torch.flip(tensor, [3])
+            for task, tensor in data.items()
+        }
 
 
 class ToTensor:
