@@ -65,7 +65,14 @@ class RandomHorizontalFlip:
     def __call__(self, data):
         if np.random.rand() > self.p:
             return data
-        return {task: torch.flip(tensor, (1,)) for task, tensor in data.items()}
+        # for task, tensor in data.items():
+        #     print(task, tensor.shape)
+        return {
+            task: torch.flip(tensor, (1,))
+            if task == "d" or "s"
+            else torch.flip(tensor, [3])
+            for task, tensor in data.items()
+        }
 
 
 class ToTensor:
