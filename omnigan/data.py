@@ -136,7 +136,9 @@ def tensor_loader(path, task, domain):
         if len(arr.shape) >= 3:
             arr = arr[:, :, 0]
         arr = np.expand_dims(arr, 0)
-
+    # print(path)
+    # print(task)
+    # print(torch.from_numpy(arr).unsqueeze(0).shape)
     return torch.from_numpy(arr).unsqueeze(0)
 
 
