@@ -28,6 +28,7 @@ class Resize:
         self.w = int(self.w)
 
     def __call__(self, data):
+
         return {
             task: F.interpolate(tensor, (self.h, self.w), mode=interpolation(task))
             for task, tensor in data.items()
@@ -47,11 +48,11 @@ class RandomCrop:
         self.w = int(self.w)
 
     def __call__(self, data):
-        h, w = data["x"].size[-2:]
+        h, w = data["x"].size()[-2:]
         top = np.random.randint(0, h - self.h)
         left = np.random.randint(0, w - self.w)
         return {
-            task: tensor[:, top : top + self.h, left + self.w]
+            task: tensor[:, :, top : top + self.h, left : left + self.w]
             for task, tensor in data.items()
         }
 
