@@ -106,7 +106,7 @@ def tensor_loader(path, task, domain):
         task (str):
         domain 
     Returns:
-        [Tensor]: C x H x W
+        [Tensor]: 1 x H x W
     """
     if task == "d":
         if Path(path).suffix == ".npy":
@@ -128,6 +128,8 @@ def tensor_loader(path, task, domain):
     if len(arr.shape) == 3 and arr.shape[-1] == 4:
         arr = arr[:, :, 0:3]
     if task == "x":
+        arr -= arr.min()
+        arr /= arr.max()
         arr = np.moveaxis(arr, 2, 0)
 
     if task == "m":
