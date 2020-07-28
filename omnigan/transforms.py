@@ -47,11 +47,18 @@ class RandomCrop:
         self.w = int(self.w)
 
     def __call__(self, data):
-        h, w = data["x"].size[-2:]
+        # h, w = data["x"].size[-2:]
+        # top = np.random.randint(0, h - self.h)
+        # left = np.random.randint(0, w - self.w)
+        # return {
+        #     task: tensor[:, top : top + self.h, left + self.w]
+        #     for task, tensor in data.items()
+        # }
+        h, w = data["x"].size()[-2:]
         top = np.random.randint(0, h - self.h)
         left = np.random.randint(0, w - self.w)
         return {
-            task: tensor[:, top : top + self.h, left + self.w]
+            task: tensor[:, :, top : top + self.h, left : left + self.w]
             for task, tensor in data.items()
         }
 
@@ -66,12 +73,14 @@ class RandomHorizontalFlip:
             return data
         # for task, tensor in data.items():
         #     print(task, tensor.shape)
-        return {
-            task: torch.flip(tensor, (1,))
-            if task == "d" or "s"
-            else torch.flip(tensor, [3])
-            for task, tensor in data.items()
-        }
+        # return {
+        #     task: torch.flip(tensor, (1,))
+        #     if task == "d" or "s"
+        #     else torch.flip(tensor, [3])
+        #     for task, tensor in data.items()
+        # }
+
+        return {task: torch.flip(tensor, [3]) for task, tensor in data.items()}
 
 
 class ToTensor:
