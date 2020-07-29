@@ -444,5 +444,22 @@ class ADVENTAdversarialLoss(nn.Module):
 
     def __call__(self, prediction, target, discriminator):
         d_out = discriminator(prob_2_entropy(F.softmax(prediction, dim=1)))
+        if self.opts.dis.m.architecture == "OmniDiscriminator":
+            d_out = multiDiscriminatorAdapter(d_out, self.opts)
         loss_ = self.loss(d_out, target)
         return loss_
+
+
+def multiDiscriminatorAdapter(d_out, opts):
+    if (
+        isinstance(d_out, list) and len(d_out) == 1
+    ):  # adapt the multi-scale Omnidiscriminator
+        if not opts.dis.p.get_intermediate_features:
+            d_out = d_out[0][0]
+        else:
+            d_out = d_out[0]
+    else:
+        raise Exception(
+            "Check the setting of OmniDiscriminator! For now, we don't support multi-scale Omnidiscriminator."
+        )
+    return d_out
