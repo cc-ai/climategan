@@ -415,7 +415,7 @@ class Trainer:
                             save_images[update_task] = []
                         prediction = self.G.decoders[update_task](self.z)
 
-                        if update_task in {"m"}:
+                        if update_task == "m":
                             if (
                                 prediction.size()[1] > 1 and len(prediction.size()) == 4
                             ):  # if the prediction size is (batch_size, 2 or more, H, W)
