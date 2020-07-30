@@ -256,16 +256,23 @@ def tensor_loader(path, task, domain):
     # Convert from RGBA to RGB for images
     if len(arr.shape) == 3 and arr.shape[-1] == 4:
         arr = arr[:, :, 0:3]
-    if task == "x" or task == "s":
-        arr = np.moveaxis(arr, 2, 0)
 
-    if task == "m":
+    if task == "x":
+        arr -= arr.min()
+        arr /= arr.max()# .astype(np.uint8)
+        arr = np.moveaxis(arr, 2, 0)
+    elif task == "s":
+        arr = np.moveaxis(arr, 2, 0)
+    elif task == "m":
         arr[arr != 0] = 1
         # Make sure mask is single-channel
         if len(arr.shape) >= 3:
             arr = arr[:, :, 0]
         arr = np.expand_dims(arr, 0)
-
+    
+    # print(path)
+    # print(task)
+    # print(torch.from_numpy(arr).unsqueeze(0).shape)
     return torch.from_numpy(arr).unsqueeze(0)
 
 
@@ -338,8 +345,7 @@ class OmniListDataset(Dataset):
             "domain": self.domain,
             "mode": self.mode,
         }
-        # if "d" in item["data"]:
-        #    item["data"]["d"] = get_normalized_depth_t(item["data"]["d"], self.domain)
+
 
         return item
 

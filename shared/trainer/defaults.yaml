@@ -1,5 +1,5 @@
 output_path: /network/tmp1/schmidtv/yb_runs/test_v1
-load_paths: 
+load_paths:
   p: none # none if using output_path
   m: none # none if using output_path
 
@@ -61,15 +61,15 @@ gen:
     n_downsample: &n_downsample 3 # number of downsampling layers in encoder | dim 32 + down 3 => z = 256 x 32 x 32
     n_upsample: *n_downsample # upsampling in spade decoder ; should match encoder.n_downsample
     pad_type: reflect # padding type [zero/reflect]
-    res_dim: 256 # Resblock number of channels (=latent space's), should be 2048 if using deeplabv2, 256 otherwise
+    res_dim: 2048 # Resblock number of channels (=latent space's), should be 2048 if using deeplabv2, 256 otherwise
     res_norm: spectral # ResBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
     proj_dim: 32 # Dim of projection from latent space
   encoder: # specific params for the encoder
     <<: *default-gen
     dim: 32
-    architecture: base # [deeplabv2 (res_dim = 2048) | base (res_dim = 256)]
+    architecture: deeplabv2 # [deeplabv2 (res_dim = 2048) | base (res_dim = 256)]
     input_dim: 3 # input number of channels
-    n_res: 1 # number of residual blocks in content encoder/decoder
+    n_res: 0 # number of residual blocks in content encoder/decoder
     norm: spectral # ConvBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
 
   #! Don't change!!!
@@ -101,7 +101,6 @@ gen:
     <<: *default-gen
     output_dim: 1
     use_advent: False
-
 
 # -------------------------
 # ----- Discriminator -----
