@@ -59,18 +59,14 @@ def decode_segmap_unity_labels(tensor, domain, is_target, nc=11):
     Returns:
         RGB tensor of size (1) x (3) x (H) x (W)
     # """
-    rgb = np.zeros((3, tensor.shape[-2], tensor.shape[-1]), dtype=float)
 
     if is_target:  # Target is size 1 x 1 x H x W
         idx = tensor.squeeze(0).squeeze(0)
     else:  # Prediction is size 1 x nc x H x W
         idx = torch.argmax(tensor.squeeze(0), dim=0)
 
-    for i in range(idx.shape[0]):
-        for j in range(idx.shape[1]):
-            rgb[:, i, j] = classes_dict[domain][idx[i, j].item()][:3]
-
-    return torch.tensor(rgb).unsqueeze(0)
+    indexer = torch.tensor(list(classes_dict[domain].values()))[:, :3]
+    return indexer[idx].permute(2, 0, 1).to(torch.float32).unsqueeze(0)
 
 
 def decode_segmap_cityscapes_labels(image, nc=19):
@@ -159,7 +155,7 @@ def encode_segmap(arr, domain):
 
 def transform_segmap_image_to_tensor(path, domain):
     """
-        Transforms a segmentation image to a tensor of size (1) x (1) x (H) x (W) 
+        Transforms a segmentation image to a tensor of size (1) x (1) x (H) x (W)
         with each pixel being the index of the class
     """
     arr = np.array(Image.open(path).convert("RGBA"))
