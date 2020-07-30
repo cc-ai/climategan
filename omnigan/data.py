@@ -65,7 +65,7 @@ def decode_segmap_unity_labels(tensor, domain, is_target, nc=11):
         idx = torch.argmax(tensor.squeeze(0), dim=0)
 
     indexer = torch.tensor(list(classes_dict[domain].values()))[:, :3]
-    return indexer[idx].permute(2, 0, 1).to(torch.float32).unsqueeze(0)
+    return indexer[idx.long()].permute(2, 0, 1).to(torch.float32).unsqueeze(0)
 
 
 def decode_segmap_cityscapes_labels(image, nc=19):
@@ -269,7 +269,7 @@ def tensor_loader(path, task, domain):
         if len(arr.shape) >= 3:
             arr = arr[:, :, 0]
         arr = np.expand_dims(arr, 0)
-    
+
     # print(path)
     # print(task)
     # print(torch.from_numpy(arr).unsqueeze(0).shape)
@@ -345,7 +345,6 @@ class OmniListDataset(Dataset):
             "domain": self.domain,
             "mode": self.mode,
         }
-
 
         return item
 

@@ -126,14 +126,14 @@ dis:
     init_type: kaiming
     init_gain: 0.2
     use_sigmoid: false
-    num_D: 1 #Number of discriminators to use (>1 means multi-scale)
+    num_D: 3 #Number of discriminators to use (>1 means multi-scale)
     get_intermediate_features: false
   p:
     <<: *default-dis
   m:
     <<: *default-dis
     multi_level: false
-    architecture: OmniDiscriminator # can be [base | OmniDiscriminator]
+    architecture: base # can be [base | OmniDiscriminator]
 
 # -------------------------------
 # -----  Domain Classifier  -----
@@ -160,7 +160,7 @@ train:
   epochs: 100000000
   representational_training: True
   representation_steps: 10000 # for how many steps would the representation be trained before we train the translation
-  latent_domain_adaptation: False # whether or not to do domain adaptation on the latent vectors # Needs to be turned off if use_advent is True
+  latent_domain_adaptation: True # whether or not to do domain adaptation on the latent vectors # Needs to be turned off if use_advent is True
   lambdas: # scaling factors in the total loss
     G:
       d: 1

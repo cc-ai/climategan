@@ -538,7 +538,6 @@ class Trainer:
         for self.logger.epoch in range(
             self.logger.epoch, self.logger.epoch + self.opts.train.epochs
         ):
-            self.infer()
             self.run_epoch()
             self.infer(verbose=1)
             if (
