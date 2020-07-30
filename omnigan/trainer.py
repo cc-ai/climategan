@@ -408,8 +408,8 @@ class Trainer:
                         if update_task not in save_images:
                             save_images[update_task] = []
                         prediction = self.G.decoders[update_task](self.z)
-                        if update_task in {"s"}:
-                            if domain in {"s"}:
+                        if update_task == "s":
+                            if domain == "s":
                                 target = (
                                     decode_segmap_unity_labels(target, domain, True)
                                     .float()
@@ -421,12 +421,12 @@ class Trainer:
                                 .to(self.device)
                             )
                             task_saves.append(target)
-                        if update_task in {"m"}:
+                        if update_task == "m":
                             prediction = prediction.repeat(1, 3, 1, 1)
                             task_saves.append(x * (1.0 - prediction))
                             task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
 
-                        if update_task in {"d"}:
+                        if update_task == "d":
                             # prediction is a log depth tensor
                             target = (norm_tensor(target)) * 255
                             prediction = (norm_tensor(prediction)) * 255
