@@ -28,6 +28,7 @@ class Resize:
         self.w = int(self.w)
 
     def __call__(self, data):
+
         return {
             task: F.interpolate(tensor, (self.h, self.w), mode=interpolation(task))
             for task, tensor in data.items()

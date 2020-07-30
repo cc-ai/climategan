@@ -1185,10 +1185,8 @@ class Trainer:
         if domain != "rf":
             for im_set in self.display_images[mode][domain]:
                 x = im_set["data"]["x"].unsqueeze(0).to(self.device)
-                # m = im_set["data"]["m"].unsqueeze(0).detach().numpy()
                 m = im_set["data"]["m"].unsqueeze(0).detach().cpu().numpy()
                 z = self.G.encode(x)
-                # pred_mask = self.G.decoders["m"](z).cpu().detach().numpy()
                 pred_mask = self.G.decoders["m"](z).detach().cpu().numpy()
                 # Binarize mask
                 pred_mask[pred_mask > 0.5] = 1.0

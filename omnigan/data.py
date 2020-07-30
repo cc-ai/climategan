@@ -106,7 +106,7 @@ def tensor_loader(path, task, domain):
         task (str):
         domain 
     Returns:
-        [Tensor]: 1 x H x W
+        [Tensor]: 1 x C x H x W
     """
     if task == "d":
         if Path(path).suffix == ".npy":
@@ -120,7 +120,7 @@ def tensor_loader(path, task, domain):
     elif Path(path).suffix == ".npy":
         arr = np.load(path).astype(np.float32)  # .astype(np.uint8)
     elif is_image_file(path):
-        arr = imread(path).astype(np.float32)  # .astype(np.uint8)
+        arr = imread(path).astype(np.float32)
     else:
         raise ValueError("Unknown data type {}".format(path))
 
@@ -138,7 +138,9 @@ def tensor_loader(path, task, domain):
         if len(arr.shape) >= 3:
             arr = arr[:, :, 0]
         arr = np.expand_dims(arr, 0)
-
+    # print(path)
+    # print(task)
+    # print(torch.from_numpy(arr).unsqueeze(0).shape)
     return torch.from_numpy(arr).unsqueeze(0)
 
 
@@ -211,8 +213,7 @@ class OmniListDataset(Dataset):
             "domain": self.domain,
             "mode": self.mode,
         }
-        # if "d" in item["data"]:
-        #    item["data"]["d"] = get_normalized_depth_t(item["data"]["d"], self.domain)
+
 
         return item
 
