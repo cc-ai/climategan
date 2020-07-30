@@ -4,7 +4,6 @@ import os
 import re
 import subprocess
 import json
-from copy import deepcopy
 from pathlib import Path
 
 import yaml
@@ -287,7 +286,7 @@ def make_json_file(
     keys,
     addresses,  # for windows user, use "\\" instead of using "/"
     name_of_the_json_file="jsonfile.json",
-    splitter = '/'
+    splitter="/",
 ):
     """
         How to use it?

@@ -129,7 +129,7 @@ def tensor_loader(path, task, domain):
         arr = arr[:, :, 0:3]
     if task == "x":
         arr -= arr.min()
-        arr /= arr.max()# .astype(np.uint8)
+        arr /= arr.max()
         arr = np.moveaxis(arr, 2, 0)
 
     if task == "m":
