@@ -268,12 +268,12 @@ class OmniDiscriminator(nn.ModuleDict):
                         {
                             "Advent": define_D(
                                 input_nc=2,
-                                ndf=opts.dis.p.ndf,
-                                n_layers_D=opts.dis.p.n_layers,
-                                norm=opts.dis.p.norm,
-                                use_sigmoid=opts.dis.p.use_sigmoid,
-                                get_intermediate_features=opts.dis.p.get_intermediate_features,
-                                num_D=opts.dis.p.num_D,
+                                ndf=opts.dis.m.ndf,
+                                n_layers_D=opts.dis.m.n_layers,
+                                norm=opts.dis.m.norm,
+                                use_sigmoid=opts.dis.m.use_sigmoid,
+                                get_intermediate_features=opts.dis.m.get_intermediate_features,
+                                num_D=opts.dis.m.num_D,
                             )
                         }
                     )
