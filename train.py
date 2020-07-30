@@ -65,8 +65,11 @@ def main(opts):
 
         # Save config file
         # TODO what if resuming? re-dump?
+        # print("opts: ", opts.to_dict())
         with (Path(opts.output_path) / "opts.yaml").open("w") as f:
-            yaml.safe_dump(opts.to_dict())
+            yaml.safe_dump(
+                opts.to_dict(), f,
+            )
 
         if not args.no_comet:
             # ----------------------------------
