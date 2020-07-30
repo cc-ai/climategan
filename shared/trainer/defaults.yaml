@@ -100,7 +100,9 @@ gen:
   m: # specific params for the mask-generation decoder
     <<: *default-gen
     output_dim: 1
-    use_advent: False
+    use_minent: True # directly minimize the entropy of the image
+    use_minent_var: True # add variance of entropy map in the measure of entropy for a certain picture
+    use_advent: True # minimize the entropy of the image by adversarial training
 
 # -------------------------
 # ----- Discriminator -----
@@ -124,13 +126,14 @@ dis:
     init_type: kaiming
     init_gain: 0.2
     use_sigmoid: false
-    num_D: 3 #Number of discriminators to use (>1 means multi-scale)
+    num_D: 1 #Number of discriminators to use (>1 means multi-scale)
     get_intermediate_features: false
   p:
     <<: *default-dis
   m:
     <<: *default-dis
     multi_level: false
+    architecture: OmniDiscriminator # can be [base | OmniDiscriminator]
 
 # -------------------------------
 # -----  Domain Classifier  -----
@@ -157,7 +160,7 @@ train:
   epochs: 100000000
   representational_training: True
   representation_steps: 10000 # for how many steps would the representation be trained before we train the translation
-  latent_domain_adaptation: True # whether or not to do domain adaptation on the latent vectors
+  latent_domain_adaptation: False # whether or not to do domain adaptation on the latent vectors # Needs to be turned off if use_advent is True
   lambdas: # scaling factors in the total loss
     G:
       d: 1
@@ -179,10 +182,13 @@ train:
       classifier: 1
     C: 1
     advent:
-      seg_main: 1
-      seg_aux: 0
-      adv_main: 1
-      adv_aux: 0
+      ent_main: 0.5 # the coefficient of the MinEnt loss that directly minimize the entropy of the image
+      ent_aux: 0.0 # the corresponding coefficient of the MinEnt loss of second output
+      ent_var: 0.1 # the proportion of variance of entropy map in the entropy measure for a certain picture
+      adv_main: 1.0 # the coefficient of the AdvEnt loss that minimize the entropy of the image by adversarial training
+      adv_aux: 0.0 # the corresponding coefficient of the AdvEnt loss of second output
+      dis_main: 0.5 # the discriminator take care of the first output in the adversarial training
+      dis_aux: 0.5 # the discriminator take care of the second output in the adversarial training
   log_level: 2 # 0: no log, 1: only aggregated losses, >1 detailed losses
   save_n_epochs: 1 # Save model every n epochs
   resume: false # Load latest_ckpt.pth checkpoint from `output_path` #TODO Make this path of checkpoint to load

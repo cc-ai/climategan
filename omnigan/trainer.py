@@ -8,6 +8,10 @@ from copy import deepcopy
 from pathlib import Path
 from time import time
 
+import warnings
+
+warnings.simplefilter("ignore", UserWarning)
+
 import torch
 import torchvision.utils as vutils
 from addict import Dict
@@ -439,7 +443,7 @@ class Trainer:
                             save_images[update_task].append(im)
 
             for task in save_images.keys():
-                print(task)
+                # print(task)
                 # Write images:
                 self.write_images(
                     image_outputs=save_images[task],
@@ -534,6 +538,7 @@ class Trainer:
         for self.logger.epoch in range(
             self.logger.epoch, self.logger.epoch + self.opts.train.epochs
         ):
+            self.infer()
             self.run_epoch()
             self.infer(verbose=1)
             if (
@@ -697,19 +702,20 @@ class Trainer:
                 elif update_task == "m":
                     # ? output features classifier
                     prediction = self.G.decoders[update_task](self.z)
-                    # Main loss first:
+                    if batch_domain == "s":
 
-                    update_loss = (
-                        self.losses["G"]["tasks"][update_task]["main"](
-                            prediction, update_target
+                        # Main loss first:
+                        update_loss = (
+                            self.losses["G"]["tasks"][update_task]["main"](
+                                prediction, update_target
+                            )
+                            * lambdas.G[update_task]["main"]
                         )
-                        * lambdas.G[update_task]["main"]
-                    )
-                    step_loss += update_loss
+                        step_loss += update_loss
 
-                    self.logger.losses.generator.task_loss[update_task]["main"][
-                        batch_domain
-                    ] = update_loss.item()
+                        self.logger.losses.generator.task_loss[update_task]["main"][
+                            batch_domain
+                        ] = update_loss.item()
 
                     # Then TV loss
                     update_loss = self.losses["G"]["tasks"][update_task]["tv"](
@@ -720,21 +726,45 @@ class Trainer:
                     self.logger.losses.generator.task_loss[update_task]["tv"][
                         batch_domain
                     ] = update_loss.item()
-                    if self.opts.gen.m.use_advent:
-                        # Then Advent loss
-                        if batch_domain == "r":
-                            pred_prime = 1 - prediction
-                            prob = torch.cat([prediction, pred_prime], dim=1)
 
-                            update_loss = self.losses["G"]["tasks"][update_task][
-                                "advent"
-                            ](
-                                prob.to(self.device),
-                                self.domain_labels["s"],
-                                self.D["m"]["Advent"],
+                    if batch_domain == "r":
+                        if (
+                            prediction.size()[1] == 1 and len(prediction.size()) == 4
+                        ):  # if the prediction size is (batch_size, 1, H, W)
+                            pred_complementary = 1 - prediction
+                            prob = torch.cat([prediction, pred_complementary], dim=1)
+                        elif (
+                            prediction.size()[1] > 1 and len(prediction.size()) == 4
+                        ):  # if the prediction size is (batch_size, 2 or more, H, W)
+                            prob = prediction
+                        else:
+                            raise Exception(
+                                "Errors in size of output of the generator!"
+                            )
+                        if self.opts.gen.m.use_minent:
+                            # Then Minent loss
+                            update_loss = (
+                                self.losses["G"]["tasks"][update_task]["minent"](
+                                    prob.to(self.device)
+                                )
+                                * self.opts.train.lambdas.advent.ent_main
                             )
                             step_loss += update_loss
+                            self.logger.losses.generator.task_loss[update_task][
+                                "minent"
+                            ][batch_domain] = update_loss.item()
 
+                        if self.opts.gen.m.use_advent:
+                            # Then Advent loss
+                            update_loss = (
+                                self.losses["G"]["tasks"][update_task]["advent"](
+                                    prob.to(self.device),
+                                    self.domain_labels["s"],
+                                    self.D["m"]["Advent"],
+                                )
+                                * self.opts.train.lambdas.advent.adv_main
+                            )
+                            step_loss += update_loss
                             self.logger.losses.generator.task_loss[update_task][
                                 "advent"
                             ][batch_domain] = update_loss.item()
@@ -982,8 +1012,21 @@ class Trainer:
                         if verbose > 0:
                             print("Now training the ADVENT discriminator!")
                         fake_mask = self.G.decoders["m"](z)
-                        fake_complementary_mask = 1 - fake_mask
-                        prob = torch.cat([fake_mask, fake_complementary_mask], dim=1)
+                        if (
+                            fake_mask.size()[1] == 1 and len(fake_mask.size()) == 4
+                        ):  # if the prediction size is (batch_size, 1, H, W)
+                            fake_complementary_mask = 1 - fake_mask
+                            prob = torch.cat(
+                                [fake_mask, fake_complementary_mask], dim=1
+                            )
+                        elif (
+                            fake_mask.size()[1] > 1 and len(fake_mask.size()) == 4
+                        ):  # if the prediction size is (batch_size, 2 or more, H, W)
+                            prob = fake_mask
+                        else:
+                            raise Exception(
+                                "Errors in size of output of the generator!"
+                            )
                         prob = prob.detach()
 
                         loss_main = self.losses["D"]["advent"](
