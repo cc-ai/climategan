@@ -416,13 +416,6 @@ class Trainer:
                         prediction = self.G.decoders[update_task](self.z)
 
                         if update_task == "m":
-                            if (
-                                prediction.size()[1] > 1 and len(prediction.size()) == 4
-                            ):  # if the prediction size is (batch_size, 2 or more, H, W)
-                                prediction = prediction[:, 0, :, :].unsqueeze(
-                                    1
-                                )  # only need the prob of flood, the size should be (batch_size, 1, H, W).
-                                # 0 is the index of ground/flood class
                             prediction = prediction.repeat(1, 3, 1, 1)
                             task_saves.append(x * (1.0 - prediction))
                             task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
@@ -682,19 +675,8 @@ class Trainer:
                     ] = update_loss.item()
 
                     if batch_domain == "r":
-                        if (
-                            prediction.size()[1] == 1 and len(prediction.size()) == 4
-                        ):  # if the prediction size is (batch_size, 1, H, W)
-                            pred_complementary = 1 - prediction
-                            prob = torch.cat([prediction, pred_complementary], dim=1)
-                        elif (
-                            prediction.size()[1] > 1 and len(prediction.size()) == 4
-                        ):  # if the prediction size is (batch_size, 2 or more, H, W)
-                            prob = prediction
-                        else:
-                            raise Exception(
-                                "Errors in size of output of the generator!"
-                            )
+                        pred_complementary = 1 - prediction
+                        prob = torch.cat([prediction, pred_complementary], dim=1)
                         if self.opts.gen.m.use_minent:
                             # Then Minent loss
                             update_loss = (
@@ -962,21 +944,8 @@ class Trainer:
                         if verbose > 0:
                             print("Now training the ADVENT discriminator!")
                         fake_mask = self.G.decoders["m"](z)
-                        if (
-                            fake_mask.size()[1] == 1 and len(fake_mask.size()) == 4
-                        ):  # if the prediction size is (batch_size, 1, H, W)
-                            fake_complementary_mask = 1 - fake_mask
-                            prob = torch.cat(
-                                [fake_mask, fake_complementary_mask], dim=1
-                            )
-                        elif (
-                            fake_mask.size()[1] > 1 and len(fake_mask.size()) == 4
-                        ):  # if the prediction size is (batch_size, 2 or more, H, W)
-                            prob = fake_mask
-                        else:
-                            raise Exception(
-                                "Errors in size of output of the generator!"
-                            )
+                        fake_complementary_mask = 1 - fake_mask
+                        prob = torch.cat([fake_mask, fake_complementary_mask], dim=1)
                         prob = prob.detach()
 
                         if batch_domain == "r":

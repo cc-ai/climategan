@@ -445,16 +445,33 @@ class ADVENTAdversarialLoss(nn.Module):
     def __call__(self, prediction, target, discriminator):
         d_out = discriminator(prob_2_entropy(F.softmax(prediction, dim=1)))
         if self.opts.dis.m.architecture == "OmniDiscriminator":
+            print("len1: ", len(d_out))
+            print("len2: ", len(d_out[0]))
+            print("type in list", type(d_out[0]))
+            print("len3: ", d_out[0][0].shape)
+            print("type in list2", type(d_out[0][0]))
+            print("opts.dis.m.num_D: ", self.opts.dis.m.num_D)
+            print(
+                "opts.dis.m.get_intermediate_features: ",
+                self.opts.dis.m.get_intermediate_features,
+            )
             d_out = multiDiscriminatorAdapter(d_out, self.opts)
         loss_ = self.loss(d_out, target)
         return loss_
 
 
-def multiDiscriminatorAdapter(d_out, opts):
+def multiDiscriminatorAdapter(d_out, opts, task="m"):
+    if task == "m":
+        get_intermediate_features = opts.dis.m.get_intermediate_features
+    elif task == "p":
+        get_intermediate_features = opts.dis.p.get_intermediate_features
+    else:
+        raise Exception("Wrong task! For now, we only support m and p!")
+
     if (
         isinstance(d_out, list) and len(d_out) == 1
     ):  # adapt the multi-scale Omnidiscriminator
-        if not opts.dis.p.get_intermediate_features:
+        if not get_intermediate_features:
             d_out = d_out[0][0]
         else:
             d_out = d_out[0]
