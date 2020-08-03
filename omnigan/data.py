@@ -121,7 +121,7 @@ def find_closest_class(pixel, dict_classes):
     min_dist = float("inf")
     closest_pixel = None
     for pixel_value in dict_classes.keys():
-        dist = np.sum(np.absolute(np.subtract(pixel, pixel_value)))
+        dist = np.sqrt(np.sum(np.square(np.subtract(pixel, pixel_value))))
         if dist < min_dist:
             min_dist = dist
             closest_pixel = pixel_value
