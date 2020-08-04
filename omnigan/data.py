@@ -7,14 +7,13 @@ import yaml
 import json
 import torch
 from torch.utils.data import DataLoader, Dataset
-from torchvision import transforms as trsfs
 from imageio import imread
 from torchvision import transforms
 import numpy as np
 from .transforms import get_transforms
-from .transforms import ToTensor
 from PIL import Image
 from omnigan.tutils import get_normalized_depth_t
+import os
 
 # ? paired dataset
 
@@ -22,8 +21,54 @@ IMG_EXTENSIONS = set(
     [".jpg", ".JPG", ".jpeg", ".JPEG", ".png", ".PNG", ".ppm", ".PPM", ".bmp", ".BMP"]
 )
 
+classes_dict = {
+    "s": {
+        0: [0, 0, 255, 255],  # Water
+        1: [55, 55, 55, 255],  # Ground
+        2: [0, 255, 255, 255],  # Building
+        3: [255, 212, 0, 255],  # Traffic items
+        4: [0, 255, 0, 255],  # Vegetation
+        5: [255, 97, 0, 255],  # Terrain
+        6: [255, 0, 0, 255],  # Car
+        7: [0, 0, 0, 0],  # Trees
+        8: [255, 0, 255, 255],  # Person
+        9: [0, 0, 0, 255],  # Sky
+        10: [255, 255, 255, 255],  # Default
+    },
+    "r": {
+        0: [0, 0, 255, 255],  # Water
+        1: [55, 55, 55, 255],  # Ground
+        2: [0, 255, 255, 255],  # Building
+        3: [255, 212, 0, 255],  # Traffic items
+        4: [0, 255, 0, 255],  # Vegetation
+        5: [255, 97, 0, 255],  # Terrain
+        6: [255, 0, 0, 255],  # Car
+        7: [0, 255, 0, 255],  # Trees
+        8: [220, 20, 60, 255],  # Person
+        9: [8, 19, 49, 255],  # Sky
+        10: [0, 80, 100, 255],  # Default
+    },
+}
 
-def decode_segmap(image, nc=19):
+
+def decode_segmap_unity_labels(tensor, domain, is_target, nc=11):
+    """Creates a label colormap for classes used in Unity segmentation benchmark.
+    Arguments:
+        tensor -- segmented image of size (1) x (nc) x (H) x (W) if prediction, or size (1) x (1) x (H) x (W) if target
+    Returns:
+        RGB tensor of size (1) x (3) x (H) x (W)
+    # """
+
+    if is_target:  # Target is size 1 x 1 x H x W
+        idx = tensor.squeeze(0).squeeze(0)
+    else:  # Prediction is size 1 x nc x H x W
+        idx = torch.argmax(tensor.squeeze(0), dim=0)
+
+    indexer = torch.tensor(list(classes_dict[domain].values()))[:, :3]
+    return indexer[idx.long()].permute(2, 0, 1).to(torch.float32).unsqueeze(0)
+
+
+def decode_segmap_cityscapes_labels(image, nc=19):
     """Creates a label colormap used in CITYSCAPES segmentation benchmark.
     Arguments:
         image {array} -- segmented image
@@ -66,6 +111,90 @@ def decode_segmap(image, nc=19):
     return rgb
 
 
+def find_closest_class(pixel, dict_classes):
+    """Takes a pixel as input and finds the closest known pixel value corresponding to a class in dict_classes
+    Arguments:
+        pixel -- tuple pixel (R,G,B,A)
+    Returns:
+        tuple pixel (R,G,B,A) corresponding to a key (a class) in dict_classes
+    """
+    min_dist = float("inf")
+    closest_pixel = None
+    for pixel_value in dict_classes.keys():
+        dist = np.sqrt(np.sum(np.square(np.subtract(pixel, pixel_value))))
+        if dist < min_dist:
+            min_dist = dist
+            closest_pixel = pixel_value
+    return closest_pixel
+
+
+def encode_segmap(arr, domain):
+    """Change a segmentation RGBA array to a segmentation array
+                            with each pixel being the index of the class
+    Arguments:
+        numpy array -- segmented image of size (H) x (W) x (4 RGBA values)
+    Returns:
+        numpy array of size (1) x (H) x (W) with each pixel being the index of the class
+    """
+    new_arr = np.zeros((1, arr.shape[0], arr.shape[1]))
+    dict_classes = {
+        tuple(rgba_value): class_id
+        for (class_id, rgba_value) in classes_dict[domain].items()
+    }
+    for i in range(arr.shape[0]):
+        for j in range(arr.shape[1]):
+            pixel_rgba = tuple(arr[i, j, :])
+            if pixel_rgba in dict_classes.keys():
+                new_arr[0, i, j] = dict_classes[pixel_rgba]
+            else:
+                pixel_rgba_closest = find_closest_class(pixel_rgba, dict_classes)
+                new_arr[0, i, j] = dict_classes[pixel_rgba_closest]
+    return new_arr
+
+
+def transform_segmap_image_to_tensor(path, domain):
+    """
+        Transforms a segmentation image to a tensor of size (1) x (1) x (H) x (W)
+        with each pixel being the index of the class
+    """
+    arr = np.array(Image.open(path).convert("RGBA"))
+    arr = encode_segmap(arr, domain)
+    arr = torch.from_numpy(arr).float()
+    arr = arr.unsqueeze(0)
+    return arr
+
+
+def save_segmap_tensors(path_to_json, path_to_dir, domain):
+    """
+    Loads the segmentation images mentionned in a json file, transforms them to
+    tensors and save the tensors in the wanted directory
+
+    Args:
+        path_to_json: complete path to the json file where to find the original data
+        path_to_dir: path to the directory where to save the tensors as tensor_name.pt
+        domain: domain of the images ("r" or "s")
+
+    e.g:
+        save_tensors(
+            "/network/tmp1/ccai/data/omnigan/seg/train_s.json",
+            "/network/tmp1/ccai/data/munit_dataset/simdata/Unity11K_res640/Seg_tensors/",
+            "s",
+        )
+    """
+    if path_to_json:
+        path_to_json = Path(path_to_json).resolve()
+        with open(path_to_json, "r") as f:
+            ims_list = yaml.safe_load(f)
+
+    for im_dict in ims_list:
+        for task_name, path in im_dict.items():
+            if task_name == "s":
+                file_name = os.path.splitext(path)[0]  # remove extension
+                file_name = file_name.rsplit("/", 1)[-1]  # keep only the file_name
+                tensor = transform_segmap_image_to_tensor(path, domain)
+                torch.save(tensor, path_to_dir + file_name + ".pt")
+
+
 def is_image_file(filename):
     """Check that a file's name points to a known image format
     """
@@ -90,8 +219,6 @@ def pil_image_loader(path, task):
         # Make sure mask is single-channel
         if len(arr.shape) >= 3:
             arr = arr[:, :, 0]
-    # if task == "s":
-    #     arr = decode_segmap(arr)
 
     # assert len(arr.shape) == 3, (path, task, arr.shape)
 
@@ -100,15 +227,17 @@ def pil_image_loader(path, task):
 
 def tensor_loader(path, task, domain):
     """load data as tensors
-
     Args:
         path (str): path to data
-        task (str):
-        domain 
+        task (str)
+        domain (str)
     Returns:
         [Tensor]: 1 x C x H x W
     """
-    if task == "d":
+    if task == "s" and domain == "s":
+        arr = torch.load(path)
+        return arr
+    elif task == "d":
         if Path(path).suffix == ".npy":
             arr = np.load(path)
         else:
@@ -118,7 +247,7 @@ def tensor_loader(path, task, domain):
         arr = arr.unsqueeze(0)
         return arr
     elif Path(path).suffix == ".npy":
-        arr = np.load(path).astype(np.float32)  # .astype(np.uint8)
+        arr = np.load(path).astype(np.float32)
     elif is_image_file(path):
         arr = imread(path).astype(np.float32)
     else:
@@ -127,17 +256,20 @@ def tensor_loader(path, task, domain):
     # Convert from RGBA to RGB for images
     if len(arr.shape) == 3 and arr.shape[-1] == 4:
         arr = arr[:, :, 0:3]
+
     if task == "x":
         arr -= arr.min()
         arr /= arr.max()
         arr = np.moveaxis(arr, 2, 0)
-
-    if task == "m":
+    elif task == "s":
+        arr = np.moveaxis(arr, 2, 0)
+    elif task == "m":
         arr[arr != 0] = 1
         # Make sure mask is single-channel
         if len(arr.shape) >= 3:
             arr = arr[:, :, 0]
         arr = np.expand_dims(arr, 0)
+
     # print(path)
     # print(task)
     # print(torch.from_numpy(arr).unsqueeze(0).shape)
@@ -214,7 +346,6 @@ class OmniListDataset(Dataset):
             "mode": self.mode,
         }
 
-
         return item
 
     def __len__(self):
@@ -238,9 +369,6 @@ class OmniListDataset(Dataset):
 
 
 def get_loader(mode, domain, opts):
-    if "simclr" in opts.tasks:
-        return "SIMCLR LOADER"
-
     return DataLoader(
         OmniListDataset(
             mode, domain, opts, transform=transforms.Compose(get_transforms(opts))

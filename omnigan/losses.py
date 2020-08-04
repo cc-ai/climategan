@@ -98,7 +98,7 @@ class CrossEntropy(nn.Module):
         self.loss = torch.nn.CrossEntropyLoss()
 
     def __call__(self, logits, target):
-        return self.loss(logits, target.to(logits.device))
+        return self.loss(logits, target.to(logits.device).long())
 
 
 class BinaryCrossEntropy(nn.Module):
@@ -201,15 +201,16 @@ def cross_entropy_2d(predict, target):
     return loss
 
 
-def entropy_loss(v):
-    """
-        Entropy loss for probabilistic prediction vectors
-        input: batch_size x channels x h x w
-        output: batch_size x 1 x h x w
-    """
-    assert v.dim() == 4
-    n, c, h, w = v.size()
-    return -torch.sum(torch.mul(v, torch.log2(v + 1e-30))) / (n * h * w * np.log2(c))
+class MiniEntLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def __call__(self, prediction):
+        assert prediction.dim() == 4
+        n, c, h, w = prediction.size()
+        return -torch.sum(torch.mul(prediction, torch.log2(prediction + 1e-30))) / (
+            n * h * w * np.log2(c)
+        )
 
 
 def entropy_loss_v2(v, lambda_var=0.1):
@@ -369,7 +370,10 @@ def get_losses(opts, verbose, device=None):
     if "d" in opts.tasks:
         losses["G"]["tasks"]["d"] = SIMSELoss()
     if "s" in opts.tasks:
-        losses["G"]["tasks"]["s"] = CrossEntropy()
+        losses["G"]["tasks"]["s"] = {}
+        losses["G"]["tasks"]["s"]["crossent"] = CrossEntropy()
+        losses["G"]["tasks"]["s"]["minient"] = MiniEntLoss()
+        losses["G"]["tasks"]["s"]["advent"] = ADVENTAdversarialLoss(opts)
     if "m" in opts.tasks:
         losses["G"]["tasks"]["m"] = {}
         losses["G"]["tasks"]["m"]["main"] = nn.BCELoss()

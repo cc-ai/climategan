@@ -262,7 +262,9 @@ class OmniDiscriminator(nn.ModuleDict):
         if "m" in opts.tasks:
             if opts.gen.m.use_advent:
                 if opts.dis.m.architecture == "base":
-                    self["m"] = nn.ModuleDict({"Advent": get_fc_discriminator()})
+                    self["m"] = nn.ModuleDict(
+                        {"Advent": get_fc_discriminator(num_classes=2)}
+                    )
                 elif opts.dis.m.architecture == "OmniDiscriminator":
                     self["m"] = nn.ModuleDict(
                         {
@@ -279,6 +281,11 @@ class OmniDiscriminator(nn.ModuleDict):
                     )
                 else:
                     raise Exception("This Discriminator is currently not supported!")
+        if "s" in opts.tasks:
+            if opts.gen.s.use_advent:
+                self["s"] = nn.ModuleDict(
+                    {"Advent": get_fc_discriminator(num_classes=11)}
+                )
 
 
 def get_fc_discriminator(num_classes=2, ndf=64):

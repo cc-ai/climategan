@@ -18,7 +18,7 @@ from addict import Dict
 from comet_ml import Experiment
 
 from omnigan.classifier import OmniClassifier, get_classifier
-from omnigan.data import get_all_loaders
+from omnigan.data import get_all_loaders, decode_segmap_unity_labels
 from omnigan.discriminator import OmniDiscriminator, get_dis
 from omnigan.generator import OmniGenerator, get_gen
 from omnigan.losses import get_losses
@@ -72,8 +72,7 @@ class Trainer:
         self.exp = None
         if isinstance(comet_exp, Experiment):
             self.exp = comet_exp
-        self.source_label = 0
-        self.target_label = 1
+        self.domain_labels = {"s": 0, "r": 1}
 
     def log_losses(self, model_to_update="G", mode="train"):
         """Logs metrics on comet.ml
@@ -399,7 +398,6 @@ class Trainer:
             self.exp.log_metric("Step-time", step_time, step=self.logger.global_step)
 
     def log_comet_images(self, mode, domain):
-
         save_images = {}
         if domain != "rf":
             for im_set in self.display_images[mode][domain]:
@@ -414,20 +412,25 @@ class Trainer:
                         if update_task not in save_images:
                             save_images[update_task] = []
                         prediction = self.G.decoders[update_task](self.z)
-
+                        if update_task == "s":
+                            if domain == "s":
+                                target = (
+                                    decode_segmap_unity_labels(target, domain, True)
+                                    .float()
+                                    .to(self.device)
+                                )
+                            prediction = (
+                                decode_segmap_unity_labels(prediction, domain, False)
+                                .float()
+                                .to(self.device)
+                            )
+                            task_saves.append(target)
                         if update_task == "m":
-                            if (
-                                prediction.size()[1] > 1 and len(prediction.size()) == 4
-                            ):  # if the prediction size is (batch_size, 2 or more, H, W)
-                                prediction = prediction[:, 0, :, :].unsqueeze(
-                                    1
-                                )  # only need the prob of flood, the size should be (batch_size, 1, H, W).
-                                # 0 is the index of ground/flood class
                             prediction = prediction.repeat(1, 3, 1, 1)
                             task_saves.append(x * (1.0 - prediction))
                             task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
 
-                        if update_task in {"d"}:
+                        if update_task == "d":
                             # prediction is a log depth tensor
                             target = (norm_tensor(target)) * 255
                             prediction = (norm_tensor(prediction)) * 255
@@ -535,7 +538,6 @@ class Trainer:
         for self.logger.epoch in range(
             self.logger.epoch, self.logger.epoch + self.opts.train.epochs
         ):
-            self.infer()
             self.run_epoch()
             self.infer(verbose=1)
             if (
@@ -641,7 +643,7 @@ class Trainer:
             # -----  task-specific regression losses (2)  -----
             # -------------------------------------------------
             for update_task, update_target in batch["data"].items():
-                if update_task not in {"m", "p", "x"}:
+                if update_task not in {"m", "p", "x", "s"}:
                     prediction = self.G.decoders[update_task](self.z)
                     update_loss = self.losses["G"]["tasks"][update_task](
                         prediction, update_target
@@ -651,8 +653,51 @@ class Trainer:
                     self.logger.losses.generator.task_loss[update_task][
                         batch_domain
                     ] = update_loss.item()
+                elif update_task == "s":
+                    prediction = self.G.decoders[update_task](self.z)
+                    # Supervised segmentation loss
+                    if batch_domain == "s":
+                        update_loss = (
+                            self.losses["G"]["tasks"][update_task]["crossent"](
+                                prediction, update_target.squeeze(1)
+                            )
+                            * lambdas.G[update_task]["crossent"]
+                        )
+                        step_loss += update_loss
 
-                # REFACTOR CONTINUE HERE
+                        self.logger.losses.generator.task_loss[update_task]["crossent"][
+                            batch_domain
+                        ] = update_loss.item()
+                    else:
+                        # Entropy minimisation loss
+                        if self.opts.gen.s.use_minient:
+                            # Direct entropy minimisation
+                            update_loss = (
+                                self.losses["G"]["tasks"][update_task]["minient"](
+                                    prediction
+                                )
+                                * lambdas.G[update_task]["minient"]
+                            )
+                            step_loss += update_loss
+
+                            self.logger.losses.generator.task_loss[update_task][
+                                "minient"
+                            ][batch_domain] = update_loss.item()
+
+                        # Fool ADVENT discriminator
+                        if self.opts.gen.s.use_advent:
+                            update_loss = (
+                                self.losses["G"]["tasks"][update_task]["advent"](
+                                    prediction,
+                                    self.domain_labels["s"],
+                                    self.D["s"]["Advent"],
+                                )
+                                * lambdas.G[update_task]["advent"]
+                            )
+                            step_loss += update_loss
+                            self.logger.losses.generator.task_loss[update_task][
+                                "advent"
+                            ][batch_domain] = update_loss.item()
                 elif update_task == "m":
                     # ? output features classifier
                     prediction = self.G.decoders[update_task](self.z)
@@ -713,7 +758,7 @@ class Trainer:
                             update_loss = (
                                 self.losses["G"]["tasks"][update_task]["advent"](
                                     prob.to(self.device),
-                                    self.source_label,
+                                    self.domain_labels["s"],
                                     self.D["m"]["Advent"],
                                 )
                                 * self.opts.train.lambdas.advent.adv_main
@@ -922,7 +967,11 @@ class Trainer:
             [type]: [description]
         """
 
-        disc_loss = {"m": {"Advent": 0}, "p": {"global": 0, "local": 0}}
+        disc_loss = {
+            "m": {"Advent": 0},
+            "s": {"Advent": 0},
+            "p": {"global": 0, "local": 0},
+        }
 
         for batch_domain, batch in multi_domain_batch.items():
             x = batch["data"]["x"]
@@ -979,28 +1028,29 @@ class Trainer:
                             )
                         prob = prob.detach()
 
-                        if batch_domain == "r":
-                            loss_main = self.losses["D"]["advent"](
-                                prob.to(self.device),
-                                self.target_label,
-                                self.D["m"]["Advent"],
-                            )
+                        loss_main = self.losses["D"]["advent"](
+                            prob.to(self.device),
+                            self.domain_labels[batch_domain],
+                            self.D["m"]["Advent"],
+                        )
 
-                            disc_loss["m"]["Advent"] += (
-                                self.opts.train.lambdas.advent.dis_main * loss_main
-                            )
-                        elif batch_domain == "s":
-                            loss_main = self.losses["D"]["advent"](
-                                prob.to(self.device),
-                                self.source_label,
-                                self.D["m"]["Advent"],
-                            )
+                        disc_loss["m"]["Advent"] += (
+                            self.opts.train.lambdas.advent.adv_main * loss_main
+                        )
+                if "s" in self.opts.tasks:
+                    if self.opts.gen.s.use_advent:
+                        preds = self.G.decoders["s"](z)
+                        preds = preds.detach()
 
-                            disc_loss["m"]["Advent"] += (
-                                self.opts.train.lambdas.advent.dis_main * loss_main
-                            )
-                        else:
-                            continue
+                        loss_main = self.losses["D"]["advent"](
+                            preds.to(self.device),
+                            self.domain_labels[batch_domain],
+                            self.D["s"]["Advent"],
+                        )
+
+                        disc_loss["s"]["Advent"] += (
+                            self.opts.train.lambdas.advent.adv_main * loss_main
+                        )
 
         self.logger.losses.discriminator.update(
             {

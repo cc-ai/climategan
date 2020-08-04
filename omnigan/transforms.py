@@ -12,7 +12,7 @@ def interpolation(task):
     if task in ["d", "m", "s"]:
         return "nearest"
     else:
-        return "bilinear"  # "bilinear"
+        return "bilinear"
 
 
 class Resize:
@@ -92,15 +92,15 @@ class ToTensor:
 
 class Normalize:
     def __init__(self):
-
         # self.normImage = trsfs.Normalize(([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))
         self.normImage = trsfs.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         self.normDepth = lambda x: x  # trsfs.Normalize([1 / 255], [1 / 3])
         self.normMask = lambda x: x
+        self.normSeg = lambda x: x
 
         self.normalize = {
             "x": self.normImage,
-            # "s": self.normSeg,
+            "s": self.normSeg,
             "d": self.normDepth,
             "m": self.normMask,
         }
