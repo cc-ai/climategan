@@ -538,6 +538,7 @@ class Trainer:
         for self.logger.epoch in range(
             self.logger.epoch, self.logger.epoch + self.opts.train.epochs
         ):
+            # self.infer()
             self.run_epoch()
             self.infer(verbose=1)
             if (
@@ -727,19 +728,8 @@ class Trainer:
                     ] = update_loss.item()
 
                     if batch_domain == "r":
-                        if (
-                            prediction.size()[1] == 1 and len(prediction.size()) == 4
-                        ):  # if the prediction size is (batch_size, 1, H, W)
-                            pred_complementary = 1 - prediction
-                            prob = torch.cat([prediction, pred_complementary], dim=1)
-                        elif (
-                            prediction.size()[1] > 1 and len(prediction.size()) == 4
-                        ):  # if the prediction size is (batch_size, 2 or more, H, W)
-                            prob = prediction
-                        else:
-                            raise Exception(
-                                "Errors in size of output of the generator!"
-                            )
+                        pred_complementary = 1 - prediction
+                        prob = torch.cat([prediction, pred_complementary], dim=1)
                         if self.opts.gen.m.use_minent:
                             # Then Minent loss
                             update_loss = (
@@ -1011,21 +1001,8 @@ class Trainer:
                         if verbose > 0:
                             print("Now training the ADVENT discriminator!")
                         fake_mask = self.G.decoders["m"](z)
-                        if (
-                            fake_mask.size()[1] == 1 and len(fake_mask.size()) == 4
-                        ):  # if the prediction size is (batch_size, 1, H, W)
-                            fake_complementary_mask = 1 - fake_mask
-                            prob = torch.cat(
-                                [fake_mask, fake_complementary_mask], dim=1
-                            )
-                        elif (
-                            fake_mask.size()[1] > 1 and len(fake_mask.size()) == 4
-                        ):  # if the prediction size is (batch_size, 2 or more, H, W)
-                            prob = fake_mask
-                        else:
-                            raise Exception(
-                                "Errors in size of output of the generator!"
-                            )
+                        fake_complementary_mask = 1 - fake_mask
+                        prob = torch.cat([fake_mask, fake_complementary_mask], dim=1)
                         prob = prob.detach()
 
                         loss_main = self.losses["D"]["advent"](
