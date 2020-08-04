@@ -4,10 +4,10 @@ from omnigan.utils import load_opts
 from pathlib import Path
 from argparse import ArgumentParser
 from omnigan.trainer import Trainer
-from omnigan.data import pil_image_loader
+from omnigan.data import tensor_loader
 from torchvision import transforms as trsfs
 import torchvision.utils as vutils
-import torchvision.transforms.functional as TF
+import torch.nn.functional as F
 import os
 from tqdm import tqdm
 
@@ -59,9 +59,10 @@ def parsed_args():
 def eval_folder(path_to_images, output_dir, paint=False):
     images = [path_to_images / Path(i) for i in os.listdir(path_to_images)]
     for img_path in images:
-        img = pil_image_loader(img_path, task="x", domain="val")
+        img = tensor_loader(img_path, task="x", domain="val")
         # Resize img:
-        img = TF.resize(img, (new_size, new_size))
+        img = F.interpolate(img, (new_size, new_size), mode="nearest")
+        img = img.squeeze(0)
         for tf in transforms:
             img = tf(img)
 
@@ -130,10 +131,7 @@ if __name__ == "__main__":
     # -----  Transforms images  -----
     # -------------------------------
 
-    transforms = [
-        trsfs.ToTensor(),
-        trsfs.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-    ]
+    transforms = [trsfs.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
