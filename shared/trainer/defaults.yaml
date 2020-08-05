@@ -35,8 +35,8 @@ data:
       new_size: 640
     - name: crop
       ignore: true
-      height: 640
-      width: 640
+      height: 560
+      width: 560
     - name: resize # ? this or change generator's output? Or resize larger then crop to 256?
       ignore: false
       new_size: 640
