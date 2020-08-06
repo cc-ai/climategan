@@ -23,7 +23,7 @@ data:
       rf: val_rf.json
 
   loaders:
-    batch_size: 2
+    batch_size: 4
     shuffle: true
     num_workers: 8
   transforms:
