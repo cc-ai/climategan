@@ -18,8 +18,8 @@ data:
       s: train_s_full.json
       rf: train_rf.json
     val:
-      r: train_r_full.json
-      s: train_s_full.json
+      r: val_r_full.json
+      s: val_s_full.json
       rf: val_rf.json
 
   loaders:
