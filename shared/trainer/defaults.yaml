@@ -12,18 +12,18 @@ tasks: [d, s, m, p] # [p] [m, s, d]
 # ----------------
 data:
   files: # if one is not none it will override the dirs location
-    base: /path/to/data
+    base: /network/tmp1/ccai/data/omnigan/base/
     train:
-      r: train_r.json
-      s: train_s.json
+      r: train_r_full.json
+      s: train_s_full.json
       rf: train_rf.json
     val:
-      r: val_r.json
-      s: val_s.json
+      r: val_r_full.json
+      s: val_s_full.json
       rf: val_rf.json
 
   loaders:
-    batch_size: 2
+    batch_size: 4
     shuffle: true
     num_workers: 8
   transforms:
@@ -34,7 +34,7 @@ data:
       ignore: false
       new_size: 640
     - name: crop
-      ignore: false
+      ignore: true
       height: 560
       width: 560
     - name: resize # ? this or change generator's output? Or resize larger then crop to 256?
@@ -130,12 +130,12 @@ dis:
     get_intermediate_features: false
   p:
     <<: *default-dis
+    num_D: 3
+    get_intermediate_features: true
   m:
     <<: *default-dis
     multi_level: false
     architecture: base # can be [base | OmniDiscriminator]
-    num_D: 1 #Number of discriminators to use (>1 means multi-scale)
-    get_intermediate_features: True
 
 # -------------------------------
 # -----  Domain Classifier  -----
