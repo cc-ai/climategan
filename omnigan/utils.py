@@ -266,7 +266,7 @@ def get_comet_rest_api_key(path_to_config_file=None):
 
 def get_files(dirName):
     # create a list of file and sub directories
-    files = os.listdir(dirName)
+    files = sorted(os.listdir(dirName))
     all_files = list()
     for entry in files:
         fullPath = os.path.join(dirName, entry)
@@ -279,10 +279,11 @@ def get_files(dirName):
 
 
 def make_json_file(
-    keys,
+    tasks,
     addresses,  # for windows user, use "\\" instead of using "/"
-    name_of_the_json_file="jsonfile.json",
+    json_names=["train_jsonfile.json", "val_jsonfile.json"],
     splitter="/",
+    pourcentage_val=0.15,
 ):
     """
         How to use it?
@@ -291,29 +292,31 @@ def make_json_file(
     '/network/tmp1/ccai/data/munit_dataset/trainA_size_1200/',
     '/network/tmp1/ccai/data/munit_dataset/seg_trainA_size_1200/',
     '/network/tmp1/ccai/data/munit_dataset/trainA_megadepth_resized/'
-    ], 'train_r_resized.json')
+    ], ["train_r.json", "val_r.json"])
 
     Args:
-        keys (list): the list of image type like 'x', 'm', 'd', etc.
-        addresses (list): the list of the corresponding address of the image type mentioned in keys.
-        name_of_the_json_file (str, optional): The name of the output json file. Default to "jsonfile.json"
+        tasks (list): the list of image type like 'x', 'm', 'd', etc.
+        addresses (list): the list of the corresponding address of the image type mentioned in tasks
+        json_names (list): names for the json files, train being first (e.g. : ["train_r.json", "val_r.json"])
         splitter (str, optional): The path separator for the current OS. Defaults to '/'.
+        pourcentage_val: pourcentage of files to go in validation set
     """
+    assert len(tasks) == len(addresses), "keys and addresses must have the same length!"
 
-    print("Please Make sure there is a file with the same name in each folder!")
-    assert len(keys) == len(addresses), "keys and addresses must have the same length!"
-
-    files = [get_files(addresses[j]) for j in range(len(keys))]
+    files = [get_files(addresses[j]) for j in range(len(tasks))]
+    n_files_val = int(pourcentage_val * len(files[0]))
+    n_files_train = len(files[0]) - n_files_val
+    filenames = [files[0][:n_files_train], files[0][-n_files_val:]]
 
     file_address_map = {
-        keys[j]: {
+        tasks[j]: {
             ".".join(file.split(splitter)[-1].split(".")[:-1]): file
             for file in files[j]
         }
-        for j in range(len(keys))
+        for j in range(len(tasks))
     }
-    # The keys of the file_address_map are like 'x', 'm', 'd'...
-    # The values of the file_address_map are a dictionary whose keys are the
+    # The tasks of the file_address_map are like 'x', 'm', 'd'...
+    # The values of the file_address_map are a dictionary whose tasks are the
     # filenames without extension whose values are the path of the filename
     # e.g. file_address_map =
     # {'x': {'A': 'path/to/trainA_size_1200/A.png', ...},
@@ -321,16 +324,20 @@ def make_json_file(
     #  'd': {'A': 'path/to/trainA_megadepth_resized/A.bmp',...}
     # ...}
 
-    dicts = []
-    for file in files[0]:
-        filename = file.split(splitter)[-1]  # the filename with 'x' extension
-        filename_ = ".".join(filename.split(".")[:-1])  # the filename without extension
-        tmp_dict = {}
-        for i in range(len(keys)):
-            tmp_dict[keys[i]] = file_address_map[keys[i]][filename_]
-        dicts.append(tmp_dict)
-    with open(name_of_the_json_file, "w", encoding="utf-8") as outfile:
-        json.dump(dicts, outfile, ensure_ascii=False)
+    for i, json_name in enumerate(json_names):
+        dicts = []
+        for j in range(len(filenames[i])):
+            file = filenames[i][j]
+            filename = file.split(splitter)[-1]  # the filename with 'x' extension
+            filename_ = ".".join(
+                filename.split(".")[:-1]
+            )  # the filename without extension
+            tmp_dict = {}
+            for k in range(len(tasks)):
+                tmp_dict[tasks[k]] = file_address_map[tasks[k]][filename_]
+            dicts.append(tmp_dict)
+        with open(json_name, "w", encoding="utf-8") as outfile:
+            json.dump(dicts, outfile, ensure_ascii=False)
 
 
 def append_task_to_json(
