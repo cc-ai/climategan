@@ -199,6 +199,26 @@ class Trainer:
         self.input_shape = self.compute_input_shape()
         self.painter_z_h = self.input_shape[-2] // (2 ** self.opts.gen.p.spade_n_up)
         self.painter_z_w = self.input_shape[-1] // (2 ** self.opts.gen.p.spade_n_up)
+        if "m2" in self.opts.tasks:
+            self.label_1 = torch.zeros(
+                (
+                    self.opts.data.loaders.batch_size,
+                    1,
+                    self.latent_shape[1],
+                    self.latent_shape[2],
+                )
+            ).to(self.device)
+            self.label_2 = torch.ones(
+                (
+                    self.opts.data.loaders.batch_size,
+                    1,
+                    self.latent_shape[1],
+                    self.latent_shape[2],
+                )
+            ).to(self.device)
+            print("label sizes: ", self.label_1.shape)
+            print(self.label_2.shape)
+
         self.D: OmniDiscriminator = get_dis(self.opts, verbose=self.verbose).to(
             self.device
         )
@@ -411,7 +431,25 @@ class Trainer:
                     if update_task != "x":
                         if update_task not in save_images:
                             save_images[update_task] = []
-                        prediction = self.G.decoders[update_task](self.z)
+                        if update_task == "m2":
+                            prediction = self.G.decoders["m"](
+                                torch.cat(
+                                    (self.z, self.label_2[0, :, :, :].unsqueeze(0)),
+                                    dim=1,
+                                )
+                            )
+
+                        elif update_task == "m":
+                            if "m2" in self.opts.tasks:
+                                prediction = self.G.decoders[update_task](
+                                    torch.cat(
+                                        (self.z, self.label_1[0, :, :, :].unsqueeze(0)),
+                                        dim=1,
+                                    )
+                                )
+                            else:
+                                prediction = self.G.decoders[update_task](self.z)
+
                         if update_task == "s":
                             if domain == "s":
                                 target = (
@@ -425,7 +463,7 @@ class Trainer:
                                 .to(self.device)
                             )
                             task_saves.append(target)
-                        if update_task == "m":
+                        if update_task == "m" or update_task == "m2":
                             prediction = prediction.repeat(1, 3, 1, 1)
                             task_saves.append(x * (1.0 - prediction))
                             task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
@@ -538,7 +576,6 @@ class Trainer:
         for self.logger.epoch in range(
             self.logger.epoch, self.logger.epoch + self.opts.train.epochs
         ):
-            # self.infer()
             self.run_epoch()
             self.infer(verbose=1)
             if (
@@ -623,6 +660,7 @@ class Trainer:
 
             x = batch["data"]["x"]
             self.z = self.G.encode(x)
+
             # ---------------------------------
             # -----  classifier loss (1)  -----
             # ---------------------------------
@@ -644,7 +682,7 @@ class Trainer:
             # -----  task-specific regression losses (2)  -----
             # -------------------------------------------------
             for update_task, update_target in batch["data"].items():
-                if update_task not in {"m", "p", "x", "s"}:
+                if update_task not in {"m", "p", "x", "s", "m2"}:
                     prediction = self.G.decoders[update_task](self.z)
                     update_loss = self.losses["G"]["tasks"][update_task](
                         prediction, update_target
@@ -699,31 +737,42 @@ class Trainer:
                             self.logger.losses.generator.task_loss[update_task][
                                 "advent"
                             ][batch_domain] = update_loss.item()
-                elif update_task == "m":
+                elif update_task in {"m", "m2"}:
                     # ? output features classifier
-                    prediction = self.G.decoders[update_task](self.z)
-                    if batch_domain == "s":
 
+                    if "m2" in self.opts.tasks:
+                        # Get label
+                        if update_task == "m":
+                            prediction = self.G.decoders["m"](
+                                torch.cat((self.z, self.label_1), dim=1)
+                            )
+                        elif update_task == "m2":
+                            prediction = self.G.decoders["m"](
+                                torch.cat((self.z, self.label_2), dim=1)
+                            )
+
+                    else:
+                        prediction = self.G.decoders["m"](self.z)
+
+                    if batch_domain == "s":
                         # Main loss first:
                         update_loss = (
-                            self.losses["G"]["tasks"][update_task]["main"](
+                            self.losses["G"]["tasks"]["m"]["main"](
                                 prediction, update_target
                             )
-                            * lambdas.G[update_task]["main"]
+                            * lambdas.G["m"]["main"]
                         )
                         step_loss += update_loss
 
-                        self.logger.losses.generator.task_loss[update_task]["main"][
+                        self.logger.losses.generator.task_loss["m"]["main"][
                             batch_domain
                         ] = update_loss.item()
 
                     # Then TV loss
-                    update_loss = self.losses["G"]["tasks"][update_task]["tv"](
-                        prediction
-                    )
+                    update_loss = self.losses["G"]["tasks"]["m"]["tv"](prediction)
                     step_loss += update_loss
 
-                    self.logger.losses.generator.task_loss[update_task]["tv"][
+                    self.logger.losses.generator.task_loss["m"]["tv"][
                         batch_domain
                     ] = update_loss.item()
 
@@ -733,20 +782,20 @@ class Trainer:
                         if self.opts.gen.m.use_minent:
                             # Then Minent loss
                             update_loss = (
-                                self.losses["G"]["tasks"][update_task]["minent"](
+                                self.losses["G"]["tasks"]["m"]["minent"](
                                     prob.to(self.device)
                                 )
                                 * self.opts.train.lambdas.advent.ent_main
                             )
                             step_loss += update_loss
-                            self.logger.losses.generator.task_loss[update_task][
-                                "minent"
-                            ][batch_domain] = update_loss.item()
+                            self.logger.losses.generator.task_loss["m"]["minent"][
+                                batch_domain
+                            ] = update_loss.item()
 
                         if self.opts.gen.m.use_advent:
                             # Then Advent loss
                             update_loss = (
-                                self.losses["G"]["tasks"][update_task]["advent"](
+                                self.losses["G"]["tasks"]["m"]["advent"](
                                     prob.to(self.device),
                                     self.domain_labels["s"],
                                     self.D["m"]["Advent"],
@@ -754,9 +803,9 @@ class Trainer:
                                 * self.opts.train.lambdas.advent.adv_main
                             )
                             step_loss += update_loss
-                            self.logger.losses.generator.task_loss[update_task][
-                                "advent"
-                            ][batch_domain] = update_loss.item()
+                            self.logger.losses.generator.task_loss["m"]["advent"][
+                                batch_domain
+                            ] = update_loss.item()
         return step_loss
 
     def sample_z(self, batch_size):
@@ -1000,20 +1049,65 @@ class Trainer:
                     if self.opts.gen.m.use_advent:
                         if verbose > 0:
                             print("Now training the ADVENT discriminator!")
-                        fake_mask = self.G.decoders["m"](z)
-                        fake_complementary_mask = 1 - fake_mask
-                        prob = torch.cat([fake_mask, fake_complementary_mask], dim=1)
-                        prob = prob.detach()
 
-                        loss_main = self.losses["D"]["advent"](
-                            prob.to(self.device),
-                            self.domain_labels[batch_domain],
-                            self.D["m"]["Advent"],
-                        )
+                        if "m2" in self.opts.tasks:
+                            # Compute loss for flood level 1
+                            fake_mask = self.G.decoders["m"](
+                                torch.cat((z, self.label_1), dim=1)
+                            )
+                            fake_complementary_mask = 1 - fake_mask
+                            prob = torch.cat(
+                                [fake_mask, fake_complementary_mask], dim=1
+                            )
+                            prob = prob.detach()
 
-                        disc_loss["m"]["Advent"] += (
-                            self.opts.train.lambdas.advent.adv_main * loss_main
-                        )
+                            loss_main = self.losses["D"]["advent"](
+                                prob.to(self.device),
+                                self.domain_labels[batch_domain],
+                                self.D["m"]["Advent"],
+                            )
+
+                            disc_loss["m"]["Advent"] += (
+                                self.opts.train.lambdas.advent.adv_main * loss_main
+                            )
+
+                            # Compute again for flood level 2
+                            fake_mask = self.G.decoders["m"](
+                                torch.cat((z, self.label_2), dim=1)
+                            )
+                            fake_complementary_mask = 1 - fake_mask
+                            prob = torch.cat(
+                                [fake_mask, fake_complementary_mask], dim=1
+                            )
+                            prob = prob.detach()
+
+                            loss_main += self.losses["D"]["advent"](
+                                prob.to(self.device),
+                                self.domain_labels[batch_domain],
+                                self.D["m"]["Advent"],
+                            )
+
+                            disc_loss["m"]["Advent"] += (
+                                self.opts.train.lambdas.advent.adv_main * loss_main
+                            )
+                        else:
+                            fake_mask = self.G.decoders["m"](z)
+
+                            fake_complementary_mask = 1 - fake_mask
+                            prob = torch.cat(
+                                [fake_mask, fake_complementary_mask], dim=1
+                            )
+                            prob = prob.detach()
+
+                            loss_main = self.losses["D"]["advent"](
+                                prob.to(self.device),
+                                self.domain_labels[batch_domain],
+                                self.D["m"]["Advent"],
+                            )
+
+                            disc_loss["m"]["Advent"] += (
+                                self.opts.train.lambdas.advent.adv_main * loss_main
+                            )
                 if "s" in self.opts.tasks:
                     if self.opts.gen.s.use_advent:
                         preds = self.G.decoders["s"](z)
@@ -1214,7 +1308,18 @@ class Trainer:
                 x = im_set["data"]["x"].unsqueeze(0).to(self.device)
                 m = im_set["data"]["m"].unsqueeze(0).detach().cpu().numpy()
                 z = self.G.encode(x)
-                pred_mask = self.G.decoders["m"](z).detach().cpu().numpy()
+                if "m2" in self.opts.tasks:
+                    pred_mask = (
+                        self.G.decoders["m"](
+                            torch.cat((z, self.label_1[0, :, :, :].unsqueeze(0)), dim=1)
+                        )
+                        .detach()
+                        .cpu()
+                        .numpy()
+                    )
+
+                else:
+                    pred_mask = self.G.decoders["m"](z).detach().cpu().numpy()
                 # Binarize mask
                 pred_mask[pred_mask > 0.5] = 1.0
 

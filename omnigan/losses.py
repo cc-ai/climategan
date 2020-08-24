@@ -430,9 +430,7 @@ class CustomBCELoss(nn.Module):
     def __call__(self, prediction, target):
         return self.loss(
             prediction,
-            torch.FloatTensor(prediction.size())
-            .fill_(target)
-            .to(prediction.get_device()),
+            torch.FloatTensor(prediction.size()).fill_(target).to(prediction.device),
         )
 
 

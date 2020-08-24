@@ -83,7 +83,10 @@ class OmniGenerator(nn.Module):
             self.decoders["s"] = SegmentationDecoder(opts)
 
         if "m" in opts.tasks and not opts.gen.m.ignore:
-            self.decoders["m"] = MaskDecoder(opts)
+            if "m2" in opts.tasks:
+                self.decoders["m"] = ConditionalMasker(opts)
+            else:
+                self.decoders["m"] = MaskDecoder(opts)
 
         self.decoders = nn.ModuleDict(self.decoders)
 
@@ -106,6 +109,21 @@ class MaskDecoder(BaseDecoder):
             n_upsample=opts.gen.m.n_upsample,
             n_res=opts.gen.m.n_res,
             input_dim=opts.gen.encoder.res_dim,
+            proj_dim=opts.gen.m.proj_dim,
+            output_dim=opts.gen.m.output_dim,
+            res_norm=opts.gen.m.res_norm,
+            activ=opts.gen.m.activ,
+            pad_type=opts.gen.m.pad_type,
+            output_activ="sigmoid",
+        )
+
+
+class ConditionalMasker(BaseDecoder):
+    def __init__(self, opts):
+        super().__init__(
+            n_upsample=opts.gen.m.n_upsample,
+            n_res=opts.gen.m.n_res,
+            input_dim=opts.gen.encoder.res_dim + 1,
             proj_dim=opts.gen.m.proj_dim,
             output_dim=opts.gen.m.output_dim,
             res_norm=opts.gen.m.res_norm,

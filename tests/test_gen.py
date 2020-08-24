@@ -15,7 +15,7 @@ from run import print_header
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-c", "--config", default="config/trainer/maskgen_v0.yaml")
+parser.add_argument("-c", "--config", default="config/trainer/local_tests.yaml")
 args = parser.parse_args()
 root = Path(__file__).parent.parent
 opts = load_test_opts(args.config)
@@ -61,7 +61,6 @@ if __name__ == "__main__":
         print(sum(p.numel() for p in G.decoders.parameters()))
 
     G = get_gen(opts).to(device)
-
     # -------------------------------
     # -----  Test Architecture  -----
     # -------------------------------
