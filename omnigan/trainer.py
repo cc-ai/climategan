@@ -549,14 +549,13 @@ class Trainer:
         for self.logger.epoch in range(
             self.logger.epoch, self.logger.epoch + self.opts.train.epochs
         ):
-            # self.infer()
             self.run_epoch()
-            self.infer(verbose=1)
-            if (
-                self.logger.epoch != 0
-                and self.logger.epoch % self.opts.train.save_n_epochs == 0
-            ):
-                self.save()
+            # self.infer(verbose=1)
+            # if (
+            #     self.logger.epoch != 0
+            #     and self.logger.epoch % self.opts.train.save_n_epochs == 0
+            # ):
+            #     self.save()
         from scipy import stats
         stats.describe(list(self.path_counter.values()))
 
