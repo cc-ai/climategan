@@ -300,7 +300,8 @@ class OmniListDataset(Dataset):
             raise ValueError("Unknown file list type in {}".format(file_list_path))
 
         self.filter_samples()
-        self.check_samples()
+        if opts.data.check_samples:
+            self.check_samples()
         self.file_list_path = str(file_list_path)
         self.transform = transform
 

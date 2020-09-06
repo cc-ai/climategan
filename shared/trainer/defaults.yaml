@@ -21,7 +21,7 @@ data:
       r: val_r_full.json
       s: val_s_full.json
       rf: val_rf.json
-
+  check_samples: True
   loaders:
     batch_size: 4
     shuffle: true
