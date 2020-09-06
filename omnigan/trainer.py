@@ -334,7 +334,6 @@ class Trainer:
             self.path_counter = collections.defaultdict(int)
 
         epoch_len = min(len(loader) for loader in self.loaders["train"].values())
-        epoch_len = epoch_len // self.opts.data.loaders.batch_size + 1
         epoch_desc = "Epoch {}".format(self.logger.epoch)
         for i, multi_batch_tuple in enumerate(
             tqdm(self.train_loaders, desc=epoch_desc, total=epoch_len)
