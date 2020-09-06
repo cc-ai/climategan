@@ -14,7 +14,7 @@ from .transforms import get_transforms
 from PIL import Image
 from omnigan.tutils import get_normalized_depth_t
 import os
-
+from .utils import env_to_path
 # ? paired dataset
 
 IMG_EXTENSIONS = set(
@@ -330,7 +330,7 @@ class OmniListDataset(Dataset):
             dict: dataset item where tensors of data are in item["data"] which is a dict
                   {task: tensor}
         """
-        paths = self.samples_paths[i]
+        paths = env_to_path(self.samples_paths[i])
 
         # always apply transforms,
         # if no transform is specified, ToTensor and Normalize will be applied
