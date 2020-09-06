@@ -329,8 +329,14 @@ class Trainer:
         """
         assert self.is_setup
 
+        if not hasattr(self, "path_counter"):
+            import collections
+            self.path_counter = collections.defaultdict(int)
+
+        epoch_len = min(len(loader) for loader in self.loaders["train"].values())
+        epoch_desc = "Epoch {}".format(self.logger.epoch)
         for i, multi_batch_tuple in enumerate(
-            tqdm(self.train_loaders, desc="Epoch {}".format(self.logger.epoch))
+            tqdm(self.train_loaders, desc=epoch_desc, total=epoch_len)
         ):
             # create a dictionnay (domain => batch) from tuple
             # (batch_domain_0, ..., batch_domain_i)
@@ -345,6 +351,12 @@ class Trainer:
                 batch["domain"][0]: self.batch_to_device(batch)
                 for batch in multi_batch_tuple
             }
+            for mdb in multi_domain_batch.values():
+                path_x = mdb["paths"]["x"]
+                self.path_counter[path_x] += 1
+
+            continue
+
             if self.d_opt is not None:
                 # freeze params of the discriminator
                 for param in self.D.parameters():
@@ -544,6 +556,8 @@ class Trainer:
                 and self.logger.epoch % self.opts.train.save_n_epochs == 0
             ):
                 self.save()
+        from scipy import stats
+        stats.describe(list(self.path_counter.values()))
 
     def get_g_loss(self, multi_domain_batch, verbose=0):
         m_loss = p_loss = None
