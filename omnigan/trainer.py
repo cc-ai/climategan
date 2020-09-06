@@ -353,7 +353,8 @@ class Trainer:
             }
             for mdb in multi_domain_batch.values():
                 path_x = mdb["paths"]["x"]
-                self.path_counter[path_x] += 1
+                for p in path_x:
+                    self.path_counter[p] += 1
 
             continue
 
