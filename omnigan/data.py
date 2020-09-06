@@ -330,7 +330,7 @@ class OmniListDataset(Dataset):
             dict: dataset item where tensors of data are in item["data"] which is a dict
                   {task: tensor}
         """
-        paths = env_to_path(self.samples_paths[i])
+        paths = self.samples_paths[i]
 
         # always apply transforms,
         # if no transform is specified, ToTensor and Normalize will be applied
@@ -338,7 +338,7 @@ class OmniListDataset(Dataset):
         item = {
             "data": self.transform(
                 {
-                    task: tensor_loader(path, task, self.domain)
+                    task: tensor_loader(env_to_path(path), task, self.domain)
                     for task, path in paths.items()
                 }
             ),
