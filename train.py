@@ -36,14 +36,20 @@ def main(opts):
     # -----  Parse arguments  -----
     # -----------------------------
 
-    opts = Dict(OmegaConf.to_container(opts))
-    args = opts.args
+    hydra_opts = Dict(OmegaConf.to_container(opts))
+    default = (
+        opts.default or Path(__file__).resolve().parent / "shared/trainer/defaults.yaml"
+    )
+    args = hydra_opts.args
+    hydra_opts.pop("args", None) # delete key
 
     # -----------------------
     # -----  Load opts  -----
     # -----------------------
 
-    opts = load_opts(args.config, default=opts)
+    opts = load_opts(args.config, default=default)
+    opts.update(hydra_opts)
+
     if args.resume:
         opts.train.resume = True
     opts.output_path = str(env_to_path(opts.output_path))
