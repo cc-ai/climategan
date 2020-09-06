@@ -331,12 +331,19 @@ class Trainer:
 
         if not hasattr(self, "path_counter"):
             import collections
+
             self.path_counter = collections.defaultdict(int)
 
         epoch_len = min(len(loader) for loader in self.loaders["train"].values())
         epoch_desc = "Epoch {}".format(self.logger.epoch)
         for i, multi_batch_tuple in enumerate(
-            tqdm(self.train_loaders, desc=epoch_desc, total=epoch_len)
+            tqdm(
+                self.train_loaders,
+                desc=epoch_desc,
+                total=epoch_len,
+                mininterval=0.5,
+                unit="batch",
+            )
         ):
             # create a dictionnay (domain => batch) from tuple
             # (batch_domain_0, ..., batch_domain_i)
@@ -391,13 +398,13 @@ class Trainer:
             step_time = time() - step_start_time
             self.log_step_time(step_time)
 
-        for d in self.opts.domains:
-            self.log_comet_images("train", d)
+        # for d in self.opts.domains:
+        #     self.log_comet_images("train", d)
 
-        if "m" in self.opts.tasks and "p" in self.opts.tasks:
-            self.log_comet_combined_images("train", "r")
+        # if "m" in self.opts.tasks and "p" in self.opts.tasks:
+        #     self.log_comet_combined_images("train", "r")
 
-        self.update_learning_rates()
+        # self.update_learning_rates()
 
     def log_step_time(self, step_time):
         """Logs step-time on comet.ml
@@ -557,6 +564,7 @@ class Trainer:
             # ):
             #     self.save()
         from scipy import stats
+
         stats.describe(list(self.path_counter.values()))
 
     def get_g_loss(self, multi_domain_batch, verbose=0):
