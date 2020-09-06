@@ -1,5 +1,5 @@
 from pathlib import Path
-from time import time
+from time import time, sleep
 
 import hydra
 import yaml
@@ -30,19 +30,28 @@ def pprint(*args):
     print()
 
 
-@hydra.main(config_path=hydra_config_path)
+# requires hydra-core==0.11.3 and omegaconf==1.4.1
+@hydra.main(config_path=hydra_config_path, strict=False)
 def main(opts):
+    """
+    Opts prevalence:
+        1. Load file specified in args.default (or shared/trainer/defaults.yaml
+           if none is provided)
+        2. Update with file specified in args.config (or no update if none is provided)
+        3. Update with parsed command-line arguments
+
+        e.g.
+        `python train.py args.config=config/large-lr.yaml data.loaders.batch_size=10`
+        loads defaults, overrides with values in large-lr.yaml and sets batch_size to 10
+    """
+
     # -----------------------------
     # -----  Parse arguments  -----
     # -----------------------------
 
     hydra_opts = Dict(OmegaConf.to_container(opts))
-    default = (
-        hydra_opts.default
-        or Path(__file__).resolve().parent / "shared/trainer/defaults.yaml"
-    )
-    args = hydra_opts.args
-    hydra_opts.pop("args", None)  # delete key
+    args = hydra_opts.pop("args", None)
+    default = args.default or Path(__file__).parent / "shared/trainer/defaults.yaml"
 
     # -----------------------
     # -----  Load opts  -----
@@ -50,7 +59,6 @@ def main(opts):
 
     opts = load_opts(args.config, default=default)
     opts.update(hydra_opts)
-
     if args.resume:
         opts.train.resume = True
     opts.output_path = str(env_to_path(opts.output_path))
@@ -86,6 +94,7 @@ def main(opts):
             exp.log_parameters(flatten_opts(opts))
             if args.note:
                 exp.log_parameter("note", args.note)
+            sleep(1)
             with open(Path(opts.output_path) / "comet_url.txt", "w") as f:
                 f.write(exp.url)
     else:

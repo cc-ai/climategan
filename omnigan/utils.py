@@ -213,7 +213,7 @@ def flatten_opts(opts):
             if isinstance(v, (Dict, dict)):
                 p(v, prefix + k + ".", vals)
             elif isinstance(v, list):
-                if isinstance(v[0], (Dict, dict)):
+                if v and isinstance(v[0], (Dict, dict)):
                     for i, m in enumerate(v):
                         p(m, prefix + k + "." + str(i) + ".", vals)
                 else:
