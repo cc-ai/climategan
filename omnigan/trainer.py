@@ -33,6 +33,7 @@ from omnigan.tutils import (
 )
 from omnigan.utils import div_dict, flatten_opts, sum_dict, merge
 from omnigan.eval_metrics import iou, accuracy
+from tqdm import tqdm
 
 
 class Trainer:
@@ -328,15 +329,12 @@ class Trainer:
         """
         assert self.is_setup
 
-        for i, multi_batch_tuple in enumerate(self.train_loaders):
+        for i, multi_batch_tuple in enumerate(
+            tqdm(self.train_loaders, desc="Epoch {}".format(self.logger.epoch))
+        ):
             # create a dictionnay (domain => batch) from tuple
             # (batch_domain_0, ..., batch_domain_i)
             # and send it to self.device
-            print(
-                "\rEpoch {} batch {} step {}".format(
-                    self.logger.epoch, i, self.logger.global_step
-                )
-            )
 
             step_start_time = time()
             multi_batch_tuple = shuffle_batch_tuple(multi_batch_tuple)
