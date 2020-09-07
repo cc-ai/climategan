@@ -142,7 +142,7 @@ class Trainer:
         if b is None:
             raise ValueError("No batch found to compute_latent_shape")
         b = self.batch_to_device(b)
-        z = self.G.encode(b.data.x)
+        z = self.G.encode(b.data.x[0:1, ...])
         return z.shape[1:]
 
     def compute_input_shape(self):
@@ -195,19 +195,23 @@ class Trainer:
         self.loaders = get_all_loaders(self.opts)
 
         self.G: OmniGenerator = get_gen(self.opts, verbose=self.verbose).to(self.device)
+        print("Generator OK. Computing latent & input shapes...", end="", flush=True)
         if self.G.encoder is not None:
             self.latent_shape = self.compute_latent_shape()
         self.input_shape = self.compute_input_shape()
+        print("OK.")
         self.painter_z_h = self.input_shape[-2] // (2 ** self.opts.gen.p.spade_n_up)
         self.painter_z_w = self.input_shape[-1] // (2 ** self.opts.gen.p.spade_n_up)
         self.D: OmniDiscriminator = get_dis(self.opts, verbose=self.verbose).to(
             self.device
         )
+        print("Discriminator OK.")
         self.C: OmniClassifier = None
         if self.G.encoder is not None and self.opts.train.latent_domain_adaptation:
             self.C = get_classifier(
                 self.opts, self.latent_shape, verbose=self.verbose
             ).to(self.device)
+        print("Classifier OK.")
         self.print_num_parameters()
 
         self.g_opt, self.g_scheduler = get_optimizer(self.G, self.opts.gen.opt)
@@ -257,6 +261,7 @@ class Trainer:
                     if i < len(self.loaders[mode][domain].dataset)
                 ]
 
+        print("Setup done.")
         self.is_setup = True
 
     def g_opt_step(self):
