@@ -11,6 +11,7 @@ tasks: [d, s, m, p] # [p] [m, s, d]
 # ----- Data -----
 # ----------------
 data:
+  max_samples: -1 # -1 for all, otherwise set to an int to crop the training data size
   files: # if one is not none it will override the dirs location
     base: /network/tmp1/ccai/data/omnigan/base/
     train:

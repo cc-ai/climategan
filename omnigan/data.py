@@ -15,6 +15,7 @@ from PIL import Image
 from omnigan.tutils import get_normalized_depth_t
 import os
 from .utils import env_to_path
+
 # ? paired dataset
 
 IMG_EXTENSIONS = set(
@@ -298,6 +299,10 @@ class OmniListDataset(Dataset):
             self.samples_paths = self.yaml_load(file_list_path)
         else:
             raise ValueError("Unknown file list type in {}".format(file_list_path))
+
+        if opts.data.max_samples and opts.data.max_samples != -1:
+            assert isinstance(opts.data.max_samples, int)
+            self.samples_paths = self.samples_paths[: opts.data.max_samples]
 
         self.filter_samples()
         if opts.data.check_samples:
