@@ -368,8 +368,6 @@ class Trainer:
                 for p in path_x:
                     self.path_counter[p] += 1
 
-            continue
-
             if self.d_opt is not None:
                 # freeze params of the discriminator
                 for param in self.D.parameters():
