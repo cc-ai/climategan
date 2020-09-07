@@ -334,11 +334,6 @@ class Trainer:
         """
         assert self.is_setup
 
-        if not hasattr(self, "path_counter"):
-            import collections
-
-            self.path_counter = collections.defaultdict(int)
-
         epoch_len = min(len(loader) for loader in self.loaders["train"].values())
         epoch_desc = "Epoch {}".format(self.logger.epoch)
         for i, multi_batch_tuple in enumerate(
@@ -363,10 +358,6 @@ class Trainer:
                 batch["domain"][0]: self.batch_to_device(batch)
                 for batch in multi_batch_tuple
             }
-            for mdb in multi_domain_batch.values():
-                path_x = mdb["paths"]["x"]
-                for p in path_x:
-                    self.path_counter[p] += 1
 
             if self.d_opt is not None:
                 # freeze params of the discriminator
@@ -401,13 +392,13 @@ class Trainer:
             step_time = time() - step_start_time
             self.log_step_time(step_time)
 
-        # for d in self.opts.domains:
-        #     self.log_comet_images("train", d)
+        for d in self.opts.domains:
+            self.log_comet_images("train", d)
 
-        # if "m" in self.opts.tasks and "p" in self.opts.tasks:
-        #     self.log_comet_combined_images("train", "r")
+        if "m" in self.opts.tasks and "p" in self.opts.tasks:
+            self.log_comet_combined_images("train", "r")
 
-        # self.update_learning_rates()
+        self.update_learning_rates()
 
     def log_step_time(self, step_time):
         """Logs step-time on comet.ml
@@ -560,15 +551,12 @@ class Trainer:
             self.logger.epoch, self.logger.epoch + self.opts.train.epochs
         ):
             self.run_epoch()
-            # self.infer(verbose=1)
-            # if (
-            #     self.logger.epoch != 0
-            #     and self.logger.epoch % self.opts.train.save_n_epochs == 0
-            # ):
-            #     self.save()
-        from scipy import stats
-
-        stats.describe(list(self.path_counter.values()))
+            self.infer(verbose=1)
+            if (
+                self.logger.epoch != 0
+                and self.logger.epoch % self.opts.train.save_n_epochs == 0
+            ):
+                self.save()
 
     def get_g_loss(self, multi_domain_batch, verbose=0):
         m_loss = p_loss = None
