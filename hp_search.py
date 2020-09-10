@@ -523,7 +523,12 @@ if __name__ == "__main__":
         sbatch_path = Path(sbatch_path).resolve()
         # format train.py's args and crop floats' precision to 5 digits
         tmp_template_dict["train_args"] = " ".join(
-            ["{}={}".format(k, clean_arg(v)) for k, v in tmp_train_args_dict.items()]
+            sorted(
+                [
+                    "{}={}".format(k, clean_arg(v))
+                    for k, v in tmp_train_args_dict.items()
+                ]
+            )
         )
 
         # format template with clean dict (replace None with "")
