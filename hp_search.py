@@ -32,6 +32,18 @@ def cols():
     return col
 
 
+def print_box(txt):
+    char = "-"
+    txt = " " * 5 + txt + " " * 5
+    line = char * len(txt)
+    empty = char + " " * (len(txt) - 2) + char
+    print(line)
+    print(empty)
+    print(txt)
+    print(empty)
+    print(line)
+
+
 def print_header(idx):
     b = bcolors.BOLD
     bl = bcolors.OKBLUE
@@ -551,7 +563,8 @@ if __name__ == "__main__":
         if verbose:
             print(bcolors.BEIGE + bcolors.ITALIC, "\n" + sbatch + bcolors.ENDC)
 
-        print(command_output)
+        print_box(command_output)
+
         print(
             "{}{}Summary{} {}:".format(
                 bcolors.UNDERLINE,
