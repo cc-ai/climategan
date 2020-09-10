@@ -20,7 +20,7 @@ class bcolors:
     ENDC = "\033[0m"
     BOLD = "\033[1m"
     UNDERLINE = "\033[4m"
-    GREY = "\33[90m"
+    GREY = '\033[37m'
 
 
 def cols():
