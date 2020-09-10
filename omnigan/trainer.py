@@ -160,10 +160,12 @@ class Trainer:
             for domain in self.loaders[mode]:
                 b = Dict(next(iter(self.loaders[mode][domain])))
                 break
+            if b is not None:
+                break
+
         if b is None:
             raise ValueError("No batch found to compute_latent_shape")
-        b = self.batch_to_device(b)
-        return b.data.x.shape[1:]
+        return b["data"]["x"].shape[1:]
 
     def print_num_parameters(self):
         print("---------------------------")
@@ -196,8 +198,7 @@ class Trainer:
 
         self.G: OmniGenerator = get_gen(self.opts, verbose=self.verbose).to(self.device)
         print("Generator OK. Computing latent & input shapes...", end="", flush=True)
-        if self.G.encoder is not None:
-            self.latent_shape = self.compute_latent_shape()
+
         self.input_shape = self.compute_input_shape()
         print("OK.")
         self.painter_z_h = self.input_shape[-2] // (2 ** self.opts.gen.p.spade_n_up)
@@ -208,6 +209,7 @@ class Trainer:
         print("Discriminator OK.")
         self.C: OmniClassifier = None
         if self.G.encoder is not None and self.opts.train.latent_domain_adaptation:
+            self.latent_shape = self.compute_latent_shape()
             self.C = get_classifier(
                 self.opts, self.latent_shape, verbose=self.verbose
             ).to(self.device)
