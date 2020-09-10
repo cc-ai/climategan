@@ -29,13 +29,18 @@ class Resize:
         self.w = int(self.w)
 
     def __call__(self, data):
+        task = None
         try:
-            return {
-                task: F.interpolate(tensor, (self.h, self.w), mode=interpolation(task))
-                for task, tensor in data.items()
-            }
+            d = {}
+            for task, tensor in data.items():
+                d[task] = F.interpolate(
+                    tensor, (self.h, self.w), mode=interpolation(task)
+                )
+            return d
         except Exception as e:
             tb = traceback.format_exc()
+            print()
+            print(task)
             print(data)
             print(tb)
             raise Exception(e)
