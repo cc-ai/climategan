@@ -507,14 +507,17 @@ if __name__ == "__main__":
                 # store sampled / specified params in current tmp_train_args_dict
                 else:
                     if k in tmp_train_args_dict:
-                        # warn if key was specified from the command line
-                        print(
-                            "Warning",
-                            "overriding commandline arg {} with hp value {}".format(
-                                k, v
-                            ),
-                        )
-                    tmp_train_args_dict[k] = v
+                        if is_sampled(k, search_conf):
+                            # warn if key was specified from the command line
+                            print(
+                                "Warning",
+                                "overriding commandline arg {} with hp value {}".format(
+                                    k, v
+                                ),
+                            )
+                            tmp_train_args_dict[k] = v
+                    else:
+                        tmp_train_args_dict[k] = v
 
         # create sbatch file where required
         sbatch_path = Path(sbatch_path).resolve()
