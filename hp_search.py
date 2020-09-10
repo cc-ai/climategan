@@ -34,15 +34,16 @@ def print_header(idx):
     bl = bcolors.OKBLUE
     e = bcolors.ENDC
     char = "≡"
-
     c = cols()
-    print(char * c)
+
     txt = " " * 20
     txt += f"{b}{bl}Run {idx}{e}"
     txt += " " * 20
     ln = len(txt) - len(b) - len(bl) - len(e)
     t = int(np.floor((c - ln) / 2))
     tt = int(np.ceil((c - ln) / 2))
+
+    print(char * c)
     print(char * t + " " * ln + char * tt)
     print(char * t + txt + char * tt)
     print(char * t + " " * ln + char * tt)
@@ -56,6 +57,51 @@ def print_footer():
     print()
     print(" " * (c // 2) + "•" + " " * (c - c // 2 - 1))
     print()
+
+
+def clean_arg(v):
+    """
+    chain cleaning function
+
+    Args:
+        v (any): arg to pass to train.py
+
+    Returns:
+        str: parsed value to string
+    """
+    return stringify_list(crop_float(quote_string(v)))
+
+
+def stringify_list(v):
+    """
+    Stringify list (with double quotes) so that it can be passed a an argument
+    to train.py's hydra command-line parsing
+
+    Args:
+        v (any): value to clean
+
+    Returns:
+        any: type of v, str if v was a list
+    """
+    if isinstance(v, list):
+        return '"{}"'.format(str(v).replace('"', "'"))
+    return v
+
+
+def quote_string(v):
+    """
+    Add double quotes around string if it contains a " " or an =
+
+    Args:
+        v (any): value to clean
+
+    Returns:
+        any: type of v, quoted if v is a string with " " or =
+    """
+    if isinstance(v, str):
+        if " " in v or "=" in v:
+            return f'"{v}"'
+    return v
 
 
 def crop_float(v):
@@ -76,7 +122,7 @@ def crop_float(v):
 def compute_n_search(conf):
     """
     Compute the number of searchs to do if using -1 as n_search and using
-    cartesian search
+    cartesian or sequential search
 
     Args:
         conf (dict): experimental configuration
@@ -90,14 +136,19 @@ def compute_n_search(conf):
             continue
         samples[v["sample"]].append(v)
 
+    totals = []
+
     if "cartesian" in samples:
         total = 1
         for s in samples["cartesian"]:
             total *= len(s["from"])
-        return total
+        totals.append(total)
     if "sequential" in samples:
         total = max(map(len, [s["from"] for s in samples["sequential"]]))
-        return total
+        totals.append(total)
+
+    if totals:
+        return max(totals)
 
     raise ValueError(
         "Used n_search=-1 without any field being 'cartesian' or 'sequential'"
@@ -416,7 +467,7 @@ if __name__ == "__main__":
         sbatch_path = Path(sbatch_path).resolve()
         # format train.py's args and crop floats' precision to 5 digits
         tmp_template_dict["train_args"] = " ".join(
-            ["{}={}".format(k, crop_float(v)) for k, v in tmp_train_args_dict.items()]
+            ["{}={}".format(k, clean_arg(v)) for k, v in tmp_train_args_dict.items()]
         )
 
         # format template with clean dict (replace None with "")
