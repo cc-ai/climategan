@@ -562,7 +562,7 @@ if __name__ == "__main__":
         if verbose:
             print(bcolors.BEIGE + bcolors.ITALIC, "\n" + sbatch + bcolors.ENDC)
         if not dev:
-            print_box(command_output)
+            print_box(command_output.strip())
 
         print(
             "{}{}Summary{} {}:".format(
