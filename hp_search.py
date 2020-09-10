@@ -310,8 +310,29 @@ def read_hp(name):
     """
     if ".yaml" not in name:
         name += ".yaml"
-    path = Path(__file__).parent / "shared" / "experiment" / name
-    with path.open("r") as f:
+    paths = []
+    dirs = ["shared", "config"]
+    for d in dirs:
+        path = Path(__file__).parent / d / "experiment" / name
+        if path.exists():
+            paths.append(path)
+
+    if len(paths) == 0:
+        raise ValueError(
+            "Could not find search config in :\n{}".format(
+                "\n".join(Path(__file__).parent / d / "experiment" / name for d in dirs)
+            )
+        )
+
+    if len(paths) == 2:
+        print(
+            "Warning: found 2 relevant files for search config:\n{}".format(
+                "\n".join(paths)
+            )
+        )
+        print("Using {}".format(paths[-1]))
+
+    with paths[-1].open("r") as f:
         return yaml.safe_load(f)
 
 
