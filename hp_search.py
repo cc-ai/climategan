@@ -33,10 +33,9 @@ def cols():
 
 
 def print_box(txt):
-    char = "-"
-    txt = " " * 5 + txt + " " * 5
-    line = char * len(txt)
-    empty = char + " " * (len(txt) - 2) + char
+    txt = "|" + " " * 5 + txt + " " * 5 + "|"
+    line = "-" * len(txt)
+    empty = "|" + " " * (len(txt) - 2) + "|"
     print(line)
     print(empty)
     print(txt)
@@ -562,8 +561,8 @@ if __name__ == "__main__":
         # ---------------------------------
         if verbose:
             print(bcolors.BEIGE + bcolors.ITALIC, "\n" + sbatch + bcolors.ENDC)
-
-        print_box(command_output)
+        if not dev:
+            print_box(command_output)
 
         print(
             "{}{}Summary{} {}:".format(
