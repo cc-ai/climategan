@@ -245,7 +245,7 @@ class Trainer:
         # Create display images:
         print("Creating display images...", end="", flush=True)
 
-        if type(self.opts.comet.display_size) == int:
+        if isinstance(self.opts.comet.display_size, int):
             display_indices = range(self.opts.comet.display_size)
         else:
             display_indices = self.opts.comet.display_size
