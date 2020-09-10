@@ -94,6 +94,8 @@ def main(opts):
             exp.log_parameters(flatten_opts(opts))
             if args.note:
                 exp.log_parameter("note", args.note)
+            if args.comet_tags:
+                exp.add_tags(list(args.comet_tags))
             sleep(1)
             with open(Path(opts.output_path) / "comet_url.txt", "w") as f:
                 f.write(exp.url)
