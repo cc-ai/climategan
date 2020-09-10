@@ -6,6 +6,7 @@ from torchvision import transforms as trsfs
 import torchvision.transforms.functional as TF
 import numpy as np
 from PIL import Image
+import traceback
 
 
 def interpolation(task):
@@ -28,11 +29,16 @@ class Resize:
         self.w = int(self.w)
 
     def __call__(self, data):
-
-        return {
-            task: F.interpolate(tensor, (self.h, self.w), mode=interpolation(task))
-            for task, tensor in data.items()
-        }
+        try:
+            return {
+                task: F.interpolate(tensor, (self.h, self.w), mode=interpolation(task))
+                for task, tensor in data.items()
+            }
+        except Exception as e:
+            tb = traceback.format_exc()
+            print(data)
+            print(tb)
+            raise Exception(e)
 
 
 class RandomCrop:
