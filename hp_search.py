@@ -7,6 +7,7 @@ from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
+from pyrsistent import b
 import yaml
 
 
@@ -19,6 +20,7 @@ class bcolors:
     ENDC = "\033[0m"
     BOLD = "\033[1m"
     UNDERLINE = "\033[4m"
+    GREY = "\33[90m"
 
 
 def cols():
@@ -496,9 +498,6 @@ if __name__ == "__main__":
             **{k: v if v is not None else "" for k, v in tmp_template_dict.items()}
         )
 
-        if verbose:
-            print(sbatch)
-
         # --------------------------------------
         # -----  Execute `sbatch` Command  -----
         # --------------------------------------
@@ -530,6 +529,8 @@ if __name__ == "__main__":
         # ---------------------------------
         # -----  Summarize Execution  -----
         # ---------------------------------
+        if verbose:
+            print(bcolors.GREY, "\n" + sbatch + bcolors.ENDC)
 
         print(command_output)
         print(
