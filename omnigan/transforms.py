@@ -29,7 +29,7 @@ class Resize:
         self.w = int(self.w)
 
     def __call__(self, data):
-        task = None
+        task = tensor = None
         try:
             d = {}
             for task, tensor in data.items():
@@ -41,7 +41,9 @@ class Resize:
             tb = traceback.format_exc()
             print()
             print(task)
-            print(data)
+            print(tensor.shape)
+            print(interpolation(task))
+            print(self.h, self.w)
             print(tb)
             raise Exception(e)
 
