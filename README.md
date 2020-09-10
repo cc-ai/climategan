@@ -32,7 +32,7 @@ Configuration files use the **YAML** syntax. If you don't know what `&` and `<<`
     * https://stackoverflow.com/questions/41063361/what-is-the-double-left-arrow-syntax-in-yaml-called-and-wheres-it-specced/41065222
 
 ```
-$ pip install scipy opencv-python torch torchvision omegaconf==1.4.1 hydra-core==0.11.3 scikit-image imageio addict
+$ pip install scipy opencv-python torch torchvision omegaconf==1.4.1 hydra-core==0.11.3 scikit-image imageio addict tqdm
 ```
 
 ## Current Model
