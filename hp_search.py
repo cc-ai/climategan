@@ -490,8 +490,9 @@ if __name__ == "__main__":
                 if k in hp_search_private:
                     continue
                 # override template params depending on exp config
-                if k in tmp_template_dict and is_sampled(k, search_conf):
-                    tmp_template_dict[k] = v
+                if k in tmp_template_dict:
+                    if template_dict[k] is None or is_sampled(k, search_conf):
+                        tmp_template_dict[k] = v
                 # store sampled / specified params in current tmp_train_args_dict
                 else:
                     if k in tmp_train_args_dict:
