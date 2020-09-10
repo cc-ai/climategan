@@ -368,7 +368,9 @@ def is_sampled(key, conf):
     Returns:
         bool: key is sampled?
     """
-    return not conf or (key in conf and "sample" in conf[key])
+    return not conf or (
+        key in conf and isinstance(conf[key], dict) and "sample" in conf[key]
+    )
 
 
 if __name__ == "__main__":
