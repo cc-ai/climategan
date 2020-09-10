@@ -73,7 +73,7 @@ def main(opts):
         # -----  Check output_path  -----
         # -------------------------------
         if opts.train.resume:
-            Path(opts.output_path).mkdir(exist_ok=True)
+            Path(opts.output_path).mkdir(exist_ok=True, parents=True)
         else:
             assert not Path(opts.output_path).exists()
             Path(opts.output_path).mkdir()
