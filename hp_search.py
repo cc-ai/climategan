@@ -357,6 +357,20 @@ def read_template(name):
     return template
 
 
+def is_sampled(key, conf):
+    """
+    Is a key sampled or constant? Returns true if conf is empty
+
+    Args:
+        key (str): key to check
+        conf (dict): hyper parameter search configuration dict
+
+    Returns:
+        bool: key is sampled?
+    """
+    return not conf or (key in conf and "sample" in conf[key])
+
+
 if __name__ == "__main__":
 
     """
@@ -371,10 +385,11 @@ if __name__ == "__main__":
 
     args = sys.argv[1:]
     command_output = ""
-    dev = False
-    escape = False
     user = os.environ.get("USER")
     home = os.environ.get("HOME")
+    search_conf = {}
+    dev = False
+    escape = False
     verbose = False
     template_name = None
     hp_search_name = None
@@ -473,7 +488,7 @@ if __name__ == "__main__":
                 if k in hp_search_private:
                     continue
                 # override template params depending on exp config
-                if k in tmp_template_dict:
+                if k in tmp_template_dict and is_sampled(k, search_conf):
                     tmp_template_dict[k] = v
                 # store sampled / specified params in current tmp_train_args_dict
                 else:
