@@ -20,7 +20,8 @@ class bcolors:
     ENDC = "\033[0m"
     BOLD = "\033[1m"
     UNDERLINE = "\033[4m"
-    GREY = '\033[37m'
+    ITALIC = "\33[3m"
+    BEIGE = "\33[36m"
 
 
 def cols():
@@ -530,7 +531,7 @@ if __name__ == "__main__":
         # -----  Summarize Execution  -----
         # ---------------------------------
         if verbose:
-            print(bcolors.GREY, "\n" + sbatch + bcolors.ENDC)
+            print(bcolors.BEIGE + bcolors.ITALIC, "\n" + sbatch + bcolors.ENDC)
 
         print(command_output)
         print(
