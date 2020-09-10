@@ -423,7 +423,9 @@ class Trainer:
                     if update_task != "x":
                         if update_task not in save_images:
                             save_images[update_task] = []
+
                         prediction = self.G.decoders[update_task](self.z)
+
                         if update_task == "s":
                             if domain == "s":
                                 target = (
@@ -437,20 +439,22 @@ class Trainer:
                                 .to(self.device)
                             )
                             task_saves.append(target)
-                        if update_task == "m":
+
+                        elif update_task == "m":
                             prediction = prediction.repeat(1, 3, 1, 1)
                             task_saves.append(x * (1.0 - prediction))
                             task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
 
-                        if update_task == "d":
+                        elif update_task == "d":
                             # prediction is a log depth tensor
                             target = (norm_tensor(target)) * 255
                             prediction = (norm_tensor(prediction)) * 255
                             prediction = prediction.repeat(1, 3, 1, 1)
                             task_saves.append(target.repeat(1, 3, 1, 1))
+
                         task_saves.append(prediction)
-                        # ! This assumes the output is some kind of image
                         save_images[update_task].append(x)
+
                         for im in task_saves:
                             save_images[update_task].append(im)
 

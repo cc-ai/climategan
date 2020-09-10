@@ -1,0 +1,33 @@
+# ---------------------------
+# -----  SBATCH config  -----
+# ---------------------------
+cpus: 8
+n_search: 4
+partition: long
+mem: 32G
+gres: "gpu:rtx8000:1"
+codeloc: $HOME/ccai/omnigan
+
+# --------------------------
+# -----  Model config  -----
+# --------------------------
+"gen.opt.lr":
+  sample: list
+  from: [0.01, 0.001, 0.0001, 0.00001]
+
+"dis.opt.lr":
+  sample: uniform
+  from: [0.01, 0.001]
+
+"dis.opt.optimizer":
+  sample: cartesian
+  from:
+    - ExtraAdam
+    - Adam
+
+"gen.opt.optimizer":
+  sample: cartesian
+  from:
+    - ExtraAdam
+    - Adam
+

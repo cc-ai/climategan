@@ -1,0 +1,477 @@
+import itertools
+import os
+import re
+import subprocess
+import sys
+from collections import defaultdict
+from pathlib import Path
+
+import numpy as np
+import yaml
+
+
+class bcolors:
+    HEADER = "\033[95m"
+    OKBLUE = "\033[94m"
+    OKGREEN = "\033[92m"
+    WARNING = "\033[93m"
+    FAIL = "\033[91m"
+    ENDC = "\033[0m"
+    BOLD = "\033[1m"
+    UNDERLINE = "\033[4m"
+
+
+def cols():
+    try:
+        col = os.get_terminal_size().columns
+    except Exception:
+        col = 50
+    return col
+
+
+def print_header(idx):
+    b = bcolors.BOLD
+    bl = bcolors.OKBLUE
+    e = bcolors.ENDC
+    char = "≡"
+
+    c = cols()
+    print(char * c)
+    txt = " " * 20
+    txt += f"{b}{bl}Run {idx}{e}"
+    txt += " " * 20
+    ln = len(txt) - len(b) - len(bl) - len(e)
+    t = int(np.floor((c - ln) / 2))
+    tt = int(np.ceil((c - ln) / 2))
+    print(char * t + " " * ln + char * tt)
+    print(char * t + txt + char * tt)
+    print(char * t + " " * ln + char * tt)
+    print(char * c)
+
+
+def print_footer():
+    c = cols()
+    char = "﹎"
+    print(char * (c // len(char)))
+    print()
+    print(" " * (c // 2) + "•" + " " * (c - c // 2 - 1))
+    print()
+
+
+def crop_float(v):
+    """
+    If v is a float, crop precision to 5 digits and return v as a str
+
+    Args:
+        v (any): value to crop if float
+
+    Returns:
+        any: cropped float as str if v is a float, original v otherwise
+    """
+    if isinstance(v, float):
+        return f"{v:.5f}"
+    return v
+
+
+def compute_n_search(conf):
+    """
+    Compute the number of searchs to do if using -1 as n_search and using
+    cartesian search
+
+    Args:
+        conf (dict): experimental configuration
+
+    Returns:
+        int: size of the cartesian product or length of longest sequential field
+    """
+    samples = defaultdict(list)
+    for k, v in conf.items():
+        if not isinstance(v, dict) or "sample" not in v:
+            continue
+        samples[v["sample"]].append(v)
+
+    if "cartesian" in samples:
+        total = 1
+        for s in samples["cartesian"]:
+            total *= len(s["from"])
+        return total
+    if "sequential" in samples:
+        total = max(map(len, [s["from"] for s in samples["sequential"]]))
+        return total
+
+    raise ValueError(
+        "Used n_search=-1 without any field being 'cartesian' or 'sequential'"
+    )
+
+
+def sample_param(sample_dict):
+    """sample a value (hyperparameter) from the instruction in the
+    sample dict:
+    {
+        "sample": "range | list",
+        "from": [min, max, step] | [v0, v1, v2 etc.]
+    }
+    if range, as np.arange is used, "from" MUST be a list, but may contain
+    only 1 (=min) or 2 (min and max) values, not necessarily 3
+
+    Args:
+        sample_dict (dict): instructions to sample a value
+
+    Returns:
+        scalar: sampled value
+    """
+    if not isinstance(sample_dict, dict) or "sample" not in sample_dict:
+        return sample_dict
+
+    if sample_dict["sample"] == "cartesian":
+        assert isinstance(
+            sample_dict["from"], list
+        ), "{}'s `from` field MUST be a list, found {}".format(
+            sample_dict["sample"], sample_dict["from"]
+        )
+        return "__cartesian__"
+
+    if sample_dict["sample"] == "sequential":
+        assert isinstance(
+            sample_dict["from"], list
+        ), "{}'s `from` field MUST be a list, found {}".format(
+            sample_dict["sample"], sample_dict["from"]
+        )
+        return "__sequential__"
+
+    if sample_dict["sample"] == "range":
+        return np.random.choice(np.arange(*sample_dict["from"]))
+
+    if sample_dict["sample"] == "list":
+        return np.random.choice(sample_dict["from"])
+
+    if sample_dict["sample"] == "uniform":
+        return np.random.uniform(*sample_dict["from"])
+
+    raise ValueError("Unknown sample type in dict " + str(sample_dict))
+
+
+def sample_sequentials(sequential_keys, exp, idx):
+    """
+    Samples sequentially from the "from" values specified in each key of the
+    experimental configuration which have sample == "sequential"
+    Unlike `cartesian` sampling, `sequential` sampling iterates *independently*
+    over each keys
+
+    Args:
+        sequential_keys (list): keys to be sampled sequentially
+        exp (dict): experimental config
+        idx (int): index of the current sample
+
+    Returns:
+        conf: sampled dict
+    """
+    conf = {}
+    for k in sequential_keys:
+        v = exp[k]["from"]
+        conf[k] = v[idx % len(v)]
+    return conf
+
+
+def sample_cartesians(cartesian_keys, exp, idx):
+    """
+    Returns the `idx`th item in the cartesian product of all cartesian keys to
+    be sampled.
+
+    Args:
+        cartesian_keys (list): keys in the experimental configuration that are to
+        be used in the full cartesian product
+        exp (dict): experimental configuration
+        idx (int): index of the current sample
+
+    Returns:
+        dict: sampled point in the cartesian space (with keys = cartesian_keys)
+    """
+    conf = {}
+    cartesian_values = [exp[key]["from"] for key in cartesian_keys]
+    product = list(itertools.product(*cartesian_values))
+    for k, v in zip(cartesian_keys, product[idx % len(product)]):
+        conf[k] = v
+    return conf
+
+
+def resolve(hp_conf, nb):
+    """
+    Samples parameters parametrized in `exp`: should be a dict with
+    values which fit `sample_params(dic)`'s API
+
+    Args:
+        exp (dict): experiment's parametrization
+        nb  (int): number of experiments to sample
+
+    Returns:
+        dict: sampled configuration
+    """
+    if nb == -1:
+        nb = compute_n_search(hp_conf)
+
+    confs = []
+    for idx in range(nb):
+        conf = {}
+        cartesians = []
+        sequentials = []
+        for k, v in hp_conf.items():
+            candidate = sample_param(v)
+            if candidate == "__cartesian__":
+                cartesians.append(k)
+            elif candidate == "__sequential__":
+                sequentials.append(k)
+            else:
+                conf[k] = candidate
+        if sequentials:
+            conf.update(sample_sequentials(sequentials, hp_conf, idx))
+        if cartesians:
+            conf.update(sample_cartesians(cartesians, hp_conf, idx))
+        confs.append(conf)
+    return confs
+
+
+def get_template_params(template):
+    """
+    extract args in template str as {arg}
+
+    Args:
+        template (str): sbatch template string
+
+    Returns:
+        list(str): Args required to format the template string
+    """
+    return map(
+        lambda s: s.replace("{", "").replace("}", ""), re.findall("\{.*?\}", template)
+    )
+
+
+def read_hp(name):
+    """
+    Read hp search configuration from shared/experiment/
+    specified with or without the .yaml extension
+
+    Args:
+        name (str): name of the template to find in shared/experiment/
+
+    Returns:
+        dict: file's loaded
+    """
+    if ".yaml" not in name:
+        name += ".yaml"
+    path = Path(__file__).parent / "shared" / "experiment" / name
+    with path.open("r") as f:
+        return yaml.safe_load(f)
+
+
+def read_template(name):
+    """
+    Read template from shared/template/ specified with or without the .sh extension
+
+    Args:
+        name (str): name of the template to find in shared/template/
+
+    Returns:
+        str: file's content as 1 string
+    """
+    if not name.endswith(".sh"):
+        name += ".sh"
+    template_path = Path(__file__).parent / "shared" / "template" / name
+    with template_path.open("r") as f:
+        template = f.read()
+    return template
+
+
+if __name__ == "__main__":
+
+    """
+    Notes:
+        * Must provide template name as template=name
+        * `name`.sh should be in shared/template/
+    """
+
+    # -------------------------------
+    # -----  Default Variables  -----
+    # -------------------------------
+
+    args = sys.argv[1:]
+    command_output = ""
+    dev = False
+    escape = False
+    user = os.environ.get("USER")
+    home = os.environ.get("HOME")
+    verbose = False
+    template_name = None
+    hp_search_name = None
+    hp_search_nb = None
+
+    hp_search_private = set(["n_search"])
+
+    sbatch_path = Path(home) / "omni_sbatch_latest.sh"
+
+    # --------------------------
+    # -----  Sanity Check  -----
+    # --------------------------
+
+    for arg in args:
+        if "=" not in arg or " = " in arg:
+            raise ValueError(
+                "Args should be passed as `key=value`. Received `{}`".format(arg)
+            )
+
+    # --------------------------------
+    # -----  Parse Command Line  -----
+    # --------------------------------
+
+    args_dict = {arg.split("=")[0]: arg.split("=")[1] for arg in args}
+
+    assert "template" in args_dict, "Please specify template=xxx"
+    template = read_template(args_dict["template"])
+    template_dict = {k: None for k in get_template_params(template)}
+
+    train_args = []
+    for k, v in args_dict.items():
+
+        if k == "verbose":
+            if v != "0":
+                verbose = True
+
+        elif k == "sbatch_path":
+            sbatch_path = v
+
+        elif k == "dev":
+            if v.lower() != "false":
+                dev = True
+
+        elif k == "escape":
+            if v.lower() != "false":
+                escape = True
+
+        elif k == "template":
+            template_name = v
+
+        elif k == "search":
+            hp_search_name = v
+
+        elif k == "n_search":
+            hp_search_nb = int(v)
+
+        elif k in template_dict:
+            template_dict[k] = v
+
+        else:
+            train_args.append(f"{k}={v}")
+
+    # -----------------------------------------
+    # -----  Load Hyper-Parameter Search  -----
+    # -----------------------------------------
+
+    if hp_search_name is not None:
+        search_conf = read_hp(hp_search_name)
+        if "n_search" in search_conf and hp_search_nb is None:
+            hp_search_nb = search_conf["n_search"]
+
+        assert (
+            hp_search_nb is not None
+        ), "n_search should be specified in a yaml file or from the command line"
+
+        hps = resolve(search_conf, hp_search_nb)
+
+    else:
+        hps = [None]
+
+    # ---------------------------------
+    # -----  Run All Experiments  -----
+    # ---------------------------------
+    for hp_idx, hp in enumerate(hps):
+
+        # copy shared values
+        tmp_template_dict = template_dict.copy()
+        tmp_train_args = train_args.copy()
+        tmp_train_args_dict = {
+            arg.split("=")[0]: arg.split("=")[1] for arg in tmp_train_args
+        }
+        # override shared values with run-specific values for run hp_idx/n_search
+        if hp is not None:
+            for k, v in hp.items():
+                # hp-search params to ignore
+                if k in hp_search_private:
+                    continue
+                # override template params depending on exp config
+                if k in tmp_template_dict:
+                    tmp_template_dict[k] = v
+                # store sampled / specified params in current tmp_train_args_dict
+                else:
+                    if k in tmp_train_args_dict:
+                        # warn if key was specified from the command line
+                        print(
+                            "Warning",
+                            "overriding commandline arg {} with hp value {}".format(
+                                k, v
+                            ),
+                        )
+                    tmp_train_args_dict[k] = v
+
+        # create sbatch file where required
+        sbatch_path = Path(sbatch_path).resolve()
+        # format train.py's args and crop floats' precision to 5 digits
+        tmp_template_dict["train_args"] = " ".join(
+            ["{}={}".format(k, crop_float(v)) for k, v in tmp_train_args_dict.items()]
+        )
+
+        # format template with clean dict (replace None with "")
+        sbatch = template.format(
+            **{k: v if v is not None else "" for k, v in tmp_template_dict.items()}
+        )
+
+        if verbose:
+            print(sbatch)
+
+        # --------------------------------------
+        # -----  Execute `sbatch` Command  -----
+        # --------------------------------------
+        print_header(hp_idx)
+        if not dev:
+            if sbatch_path.exists():
+                print(f"Warning: overwriting {sbatch_path}")
+
+            # write sbatch file
+            with open(sbatch_path, "w") as f:
+                f.write(sbatch)
+
+            # escape special characters such as " " from sbatch_path's parent dir
+            parent = str(sbatch_path.parent)
+            if escape:
+                parent = re.escape(parent)
+
+            # create command to execute in a subprocess
+            command = "sbatch {}".format(sbatch_path.name)
+            # execute sbatch command & store output
+            command_output = subprocess.run(
+                command.split(), stdout=subprocess.PIPE, cwd=parent
+            )
+            command_output = "\n" + command_output.stdout.decode("utf-8") + "\n"
+
+            print(f"Running from {parent}:")
+            print(f"$ {command}")
+
+        # ---------------------------------
+        # -----  Summarize Execution  -----
+        # ---------------------------------
+
+        print(command_output)
+        print(
+            "{}{}Summary{} {}:".format(
+                bcolors.UNDERLINE,
+                bcolors.OKGREEN,
+                bcolors.ENDC,
+                f"{bcolors.WARNING}(DEV){bcolors.ENDC}" if dev else "",
+            )
+        )
+        print(
+            "    "
+            + "\n    ".join(
+                "{:10}: {}".format(k, v) for k, v in tmp_template_dict.items()
+            )
+        )
+        print_footer()
