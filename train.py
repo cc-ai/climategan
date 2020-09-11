@@ -1,5 +1,6 @@
 from pathlib import Path
 from time import time, sleep
+import os
 
 import hydra
 import yaml
@@ -91,6 +92,7 @@ def main(opts):
             # -----  Set Comet Experiment  -----
             # ----------------------------------
             exp = Experiment(project_name="omnigan", auto_metric_logging=False)
+            opts.jobID = os.environ.get("SLURM_JOBID")
             exp.log_parameters(flatten_opts(opts))
             if args.note:
                 exp.log_parameter("note", args.note)
