@@ -200,6 +200,9 @@ class Trainer:
         print("Generator OK. Computing latent & input shapes...", end="", flush=True)
 
         self.input_shape = self.compute_input_shape()
+        if "s" in self.opts.tasks:
+            self.G.decoders["s"].set_target_size(self.input_shape[-2:])
+
         print("OK.")
         self.painter_z_h = self.input_shape[-2] // (2 ** self.opts.gen.p.spade_n_up)
         self.painter_z_w = self.input_shape[-1] // (2 ** self.opts.gen.p.spade_n_up)
