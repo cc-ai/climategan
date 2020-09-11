@@ -5,7 +5,7 @@
 """
 import torch.nn as nn
 from omnigan.tutils import init_weights
-from omnigan.blocks import SpadeDecoder, BaseDecoder
+from omnigan.blocks import SpadeDecoder, BaseDecoder, ASPP
 from omnigan.encoder import DeeplabEncoder, BaseEncoder
 import omnigan.strings as strings
 
@@ -131,18 +131,31 @@ class DepthDecoder(BaseDecoder):
 
 
 class SegmentationDecoder(BaseDecoder):
+    # https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/decoder.py
+    # https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/deeplab.py
     def __init__(self, opts):
-        super().__init__(
-            n_upsample=opts.gen.s.n_upsample,
-            n_res=opts.gen.s.n_res,
-            input_dim=opts.gen.encoder.res_dim,
-            proj_dim=opts.gen.s.proj_dim,
-            output_dim=opts.gen.s.output_dim,
-            res_norm=opts.gen.s.res_norm,
-            activ=opts.gen.s.activ,
-            pad_type=opts.gen.s.pad_type,
-            output_activ="sigmoid",
+        super().__init__()
+        self.aspp = ASPP(16, nn.BatchNorm2d)
+        self.conv = nn.Sequential(
+            nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Conv2d(256, opts.gen.s.output_dim, kernel_size=1, stride=1),
         )
+
+    def forward(self, z):
+        if z.shape[1] != 2048:
+            raise Exception(
+                "Segmentation decoder will only work with 2048 channels for z"
+            )
+        y = self.aspp(z)
+        y = self.conv(y)
+        return y
 
 
 class FullSpadeGen(nn.Module):
