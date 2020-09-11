@@ -149,7 +149,7 @@ def get_increased_path(path):
     f = str(fp)
 
     vals = []
-    for n in fp.parent.glob("{}*".format(fp.name)):
+    for n in fp.parent.glob("{}*".format(fp.stem)):
         ms = list(re.finditer(r"^{} \(\d+\)$".format(f), str(n)))
         if ms:
             m = list(re.finditer(r"\(\d+\)$", str(n)))[0].group()
@@ -161,7 +161,7 @@ def get_increased_path(path):
     else:
         ext = ""
 
-    return fp.parent / (fp.name + ext + fp.suffix)
+    return fp.parent / (fp.stem + ext + fp.suffix)
 
 
 def env_to_path(path):

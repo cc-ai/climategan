@@ -79,28 +79,34 @@ def main(opts):
             assert not Path(opts.output_path).exists()
             Path(opts.output_path).mkdir()
 
-        # Save config file
-        # TODO what if resuming? re-dump?
-        # print("opts: ", opts.to_dict())
-        with (Path(opts.output_path) / "opts.yaml").open("w") as f:
-            yaml.safe_dump(
-                opts.to_dict(), f,
-            )
-
         if not args.no_comet:
             # ----------------------------------
             # -----  Set Comet Experiment  -----
             # ----------------------------------
             exp = Experiment(project_name="omnigan", auto_metric_logging=False)
             opts.jobID = os.environ.get("SLURM_JOBID")
-            exp.log_parameters(flatten_opts(opts))
             if args.note:
                 exp.log_parameter("note", args.note)
-            if args.comet_tags:
-                exp.add_tags(list(args.comet_tags))
+            if args.comet_tags or opts.comet.tags:
+                tags = set()
+                if args.comet_tags:
+                    tags.update(args.comet_tags)
+                if opts.comet.tags:
+                    tags.update(opts.comet.tags)
+                opts.comet.tags = list(tags)
+                exp.add_tags(opts.comet.tags)
+            exp.log_parameters(flatten_opts(opts))
             sleep(1)
-            with open(Path(opts.output_path) / "comet_url.txt", "w") as f:
+            # Save comet exp url
+            url_path = get_increased_path(Path(opts.output_path) / "comet_url.txt")
+            with open(url_path, "w") as f:
                 f.write(exp.url)
+            # Save config file
+            # TODO what if resuming? re-dump?
+            opts_path = get_increased_path(Path(opts.output_path) / "opts.yaml")
+            with (opts_path).open("w") as f:
+                yaml.safe_dump(opts.to_dict(), f)
+
     else:
         # ----------------------
         # -----  Dev Mode  -----
