@@ -148,7 +148,7 @@ class SegmentationDecoder(BaseDecoder):
             nn.Dropout(0.1),
             nn.Conv2d(256, opts.gen.s.output_dim, kernel_size=1, stride=1),
         )
-        self.target_size = None
+        self._target_size = None
 
     def set_target_size(self, size):
         """
@@ -163,10 +163,10 @@ class SegmentationDecoder(BaseDecoder):
             self._target_size = (size, size)
 
     def forward(self, z):
-        if self.target_size is None:
+        if self._target_size is None:
             error = "self._target_size should be set with self.set_target_size()"
             error += "to interpolate logits to the target seg map's size"
-            raise Exception("")
+            raise Exception(error)
         if z.shape[1] != 2048:
             raise Exception(
                 "Segmentation decoder will only work with 2048 channels for z"
