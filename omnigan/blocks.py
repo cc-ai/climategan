@@ -523,7 +523,7 @@ class ASPP(nn.Module):
         inplanes = 2048
 
         if output_stride == 16:
-            dilations = [1, 2, 6, 12]
+            dilations = [1, 6, 12, 18]
         elif output_stride == 8:
             dilations = [1, 12, 24, 36]
         else:
