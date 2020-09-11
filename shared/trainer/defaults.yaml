@@ -25,7 +25,6 @@ data:
   check_samples: True
   loaders:
     batch_size: 4
-    shuffle: true
     num_workers: 8
   transforms:
     - name: hflip

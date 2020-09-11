@@ -380,7 +380,6 @@ def get_loader(mode, domain, opts):
             mode, domain, opts, transform=transforms.Compose(get_transforms(opts))
         ),
         batch_size=opts.data.loaders.get("batch_size", 4),
-        # shuffle=opts.data.loaders.get("shuffle", True),
         shuffle=True,
         num_workers=opts.data.loaders.get("num_workers", 8),
     )
