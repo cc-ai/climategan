@@ -338,7 +338,8 @@ class Trainer:
         * updates sequentially G, D, C
         """
         assert self.is_setup
-
+        self.G.train()
+        self.D.train()
         epoch_len = min(len(loader) for loader in self.loaders["train"].values())
         epoch_desc = "Epoch {}".format(self.logger.epoch)
         for i, multi_batch_tuple in enumerate(
@@ -398,10 +399,14 @@ class Trainer:
             self.log_step_time(step_time)
 
         for d in self.opts.domains:
+            self.G.eval()
             self.log_comet_images("train", d)
+            self.G.train()
 
         if "m" in self.opts.tasks and "p" in self.opts.tasks:
+            self.G.eval()
             self.log_comet_combined_images("train", "r")
+            self.G.train()
 
         self.update_learning_rates()
 
@@ -560,7 +565,11 @@ class Trainer:
             self.logger.epoch, self.logger.epoch + self.opts.train.epochs
         ):
             self.run_epoch()
+            self.G.eval()
+            self.D.eval()
             self.infer(verbose=1)
+            self.G.train()
+            self.D.train()
             if (
                 self.logger.epoch != 0
                 and self.logger.epoch % self.opts.train.save_n_epochs == 0
