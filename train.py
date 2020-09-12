@@ -5,17 +5,19 @@ import os
 import hydra
 import yaml
 from addict import Dict
-from comet_ml import Experiment
+from comet_ml import Experiment, ExistingExperiment
 from omegaconf import OmegaConf
 
 from omnigan.trainer import Trainer
 
 from omnigan.utils import (
+    comet_id_from_url,
+    comet_kwargs,
     env_to_path,
     flatten_opts,
+    get_git_revision_hash,
     get_increased_path,
     load_opts,
-    get_git_revision_hash,
 )
 
 hydra_config_path = Path(__file__).resolve().parent / "shared/trainer/config.yaml"
@@ -74,16 +76,24 @@ def main(opts):
         opts.output_path = str(get_increased_path(opts.output_path))
     pprint("Running model in", opts.output_path)
 
-    exp = None
+    exp = comet_previous_id = comet_previous_path = None
     if not args.dev:
         # -------------------------------
         # -----  Check output_path  -----
         # -------------------------------
         if opts.train.resume:
-            Path(opts.output_path).mkdir(exist_ok=True, parents=True)
+            assert Path(
+                opts.output_path
+            ).exists(), "Cannot resume: output_path does not exist"
+            # load previous comet experiment id
+            comet_previous_path = Path(opts.output_path) / "comet_url.txt"
+            if comet_previous_path.exists():
+                with comet_previous_path.open("r") as f:
+                    url = f.read().strip()
+                    comet_previous_id = comet_id_from_url(url)
         else:
             assert not Path(opts.output_path).exists()
-            Path(opts.output_path).mkdir()
+            Path(opts.output_path).mkdir(parents=True)
 
         # store git hash
         opts.git_hash = get_git_revision_hash()
@@ -92,10 +102,28 @@ def main(opts):
             # ----------------------------------
             # -----  Set Comet Experiment  -----
             # ----------------------------------
-            exp = Experiment(project_name="omnigan", auto_metric_logging=False)
+
+            if opts.train.resume:
+                # Continue existing experiment
+                if comet_previous_id is None:
+                    print("WARNING could not retreive previous comet id")
+                    print(f"from {comet_previous_path}")
+                    exp = Experiment(project_name="omnigan", **comet_kwargs)
+                else:
+                    exp = ExistingExperiment(
+                        previous_experiment=comet_previous_id, **comet_kwargs
+                    )
+            else:
+                # Create new experiment
+                exp = Experiment(project_name="omnigan", **comet_kwargs)
+
             opts.jobID = os.environ.get("SLURM_JOBID")
+
+            # Log note
             if args.note:
                 exp.log_parameter("note", args.note)
+
+            # Merge and log tags
             if args.comet_tags or opts.comet.tags:
                 tags = set()
                 if args.comet_tags:
@@ -104,14 +132,19 @@ def main(opts):
                     tags.update(opts.comet.tags)
                 opts.comet.tags = list(tags)
                 exp.add_tags(opts.comet.tags)
+
+            # Log all opts
             exp.log_parameters(flatten_opts(opts))
-            sleep(1)  # allow some time for comet to get its url
+
+            # allow some time for comet to get its url
+            sleep(1)
+
             # Save comet exp url
             url_path = get_increased_path(Path(opts.output_path) / "comet_url.txt")
             with open(url_path, "w") as f:
                 f.write(exp.url)
+
             # Save config file
-            # TODO what if resuming? re-dump?
             opts_path = get_increased_path(Path(opts.output_path) / "opts.yaml")
             with (opts_path).open("w") as f:
                 yaml.safe_dump(opts.to_dict(), f)
@@ -123,7 +156,7 @@ def main(opts):
         pprint("> /!\ Development mode ON")
         print("Cropping data to 32")
         opts.data.transforms += [
-            Dict({"name": "crop", "ignore": False, "height": 32, "width": 32})
+            Dict({"name": "crop", "ignore": False, "height": 64, "width": 64})
         ]
 
     # -------------------

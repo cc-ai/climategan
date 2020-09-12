@@ -7,11 +7,17 @@ import numpy as np
 
 import yaml
 from addict import Dict
-from comet_ml import Experiment
+from comet_ml import Experiment, ExistingExperiment
 
 from omnigan.trainer import Trainer
 
-from omnigan.utils import env_to_path, flatten_opts, get_increased_path
+from omnigan.utils import (
+    env_to_path,
+    flatten_opts,
+    get_increased_path,
+    comet_id_from_url,
+    comet_kwargs,
+)
 
 
 def latest_opts(path):
@@ -94,7 +100,7 @@ def main():
     opts.output_path = str(env_to_path(opts.output_path))
     pprint("Continuing model in", opts.output_path)
 
-    exp = None
+    exp = comet_previous_id = comet_previous_path = None
     # -------------------------------
     # -----  Check output_path  -----
     # -------------------------------
@@ -103,12 +109,31 @@ def main():
         # ----------------------------------
         # -----  Set Comet Experiment  -----
         # ----------------------------------
-        exp = Experiment(project_name="omnigan", auto_metric_logging=False)
+        comet_previous_path = Path(opts.output_path) / "comet_url.txt"
+        if comet_previous_path.exists():
+            with comet_previous_path.open("r") as f:
+                url = f.read().strip()
+                comet_previous_id = comet_id_from_url(url)
+
+        # Continue existing experiment
+        if comet_previous_id is None:
+            print(
+                "WARNING could not retreive previous comet id",
+                f"from {comet_previous_path}",
+            )
+            exp = Experiment(project_name="omnigan", **comet_kwargs)
+        else:
+            exp = ExistingExperiment(
+                previous_experiment=comet_previous_id, **comet_kwargs
+            )
+
         # log job id
         opts.jobID = os.environ.get("SLURM_JOBID")
+
+        # log note
         if args.note:
-            # log note
             exp.log_parameter("note", args.note)
+
         # merge and log tags from args and opts
         if args.comet_tags or opts.comet.tags:
             tags = set()
@@ -118,13 +143,18 @@ def main():
                 tags.update(opts.comet.tags)
             opts.comet.tags = list(tags)
             exp.add_tags(opts.comet.tags)
+
         # log all opts
         exp.log_parameters(flatten_opts(opts))
+
+        # allow some time for comet to get its url
         sleep(1)
+
         # Save comet exp url
         url_path = get_increased_path(Path(opts.output_path) / "comet_url.txt")
         with open(url_path, "w") as f:
             f.write(exp.url)
+
         # Save config file
         opts_path = get_increased_path(Path(opts.output_path) / "opts.yaml")
         with (opts_path).open("w") as f:

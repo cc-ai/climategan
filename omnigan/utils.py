@@ -9,6 +9,14 @@ from pathlib import Path
 import yaml
 from addict import Dict
 
+comet_kwargs = {
+    "auto_metric_logging": False,
+    "parse_args": True,
+    "log_env_gpu": True,
+    "log_env_cpu": True,
+    "display_summary_level": 0,
+}
+
 
 def merge(source, destination):
     """
@@ -416,3 +424,23 @@ def div_dict(dict1, div_by):
         else:
             div_dict(dict1[k], div_by)
     return dict1
+
+
+def comet_id_from_url(url):
+    """
+    Get comet exp id from its url:
+    https://www.comet.ml/vict0rsch/omnigan/2a1a4a96afe848218c58ac4e47c5375f
+    -> 2a1a4a96afe848218c58ac4e47c5375f
+
+    Args:
+        url (str): comet exp url
+
+    Returns:
+        str: comet exp id
+    """
+    try:
+        ids = url.split("/")
+        ids = [i for i in ids if i]
+        return ids[-1]
+    except Exception:
+        return None
