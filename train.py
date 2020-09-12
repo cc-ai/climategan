@@ -10,7 +10,13 @@ from omegaconf import OmegaConf
 
 from omnigan.trainer import Trainer
 
-from omnigan.utils import env_to_path, flatten_opts, get_increased_path, load_opts
+from omnigan.utils import (
+    env_to_path,
+    flatten_opts,
+    get_increased_path,
+    load_opts,
+    get_git_revision_hash,
+)
 
 hydra_config_path = Path(__file__).resolve().parent / "shared/trainer/config.yaml"
 
@@ -79,6 +85,9 @@ def main(opts):
             assert not Path(opts.output_path).exists()
             Path(opts.output_path).mkdir()
 
+        # store git hash
+        opts.git_hash = get_git_revision_hash()
+
         if not args.no_comet:
             # ----------------------------------
             # -----  Set Comet Experiment  -----
@@ -96,7 +105,7 @@ def main(opts):
                 opts.comet.tags = list(tags)
                 exp.add_tags(opts.comet.tags)
             exp.log_parameters(flatten_opts(opts))
-            sleep(1)
+            sleep(1)  # allow some time for comet to get its url
             # Save comet exp url
             url_path = get_increased_path(Path(opts.output_path) / "comet_url.txt")
             with open(url_path, "w") as f:

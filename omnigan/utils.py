@@ -118,7 +118,10 @@ def get_git_revision_hash():
     Returns:
         str: git hash
     """
-    return subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
+    try:
+        return subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
+    except Exception as e:
+        return str(e)
 
 
 def write_hash(path):
