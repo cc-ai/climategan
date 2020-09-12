@@ -1,3 +1,4 @@
+from comet_ml import Experiment
 import torch
 from omnigan.utils import load_opts
 from pathlib import Path
@@ -6,6 +7,7 @@ from omnigan.trainer import Trainer
 from torchvision import transforms as trsfs
 from omnigan.losses import entropy_loss_v2
 import json
+from omnigan.utils import load_opts, flatten_opts
 
 
 def parsed_args():
@@ -34,12 +36,26 @@ def parsed_args():
         help="hyperparameter lambda to split the target domain",
     )
     parser.add_argument(
+        "--include_sim",
+        default=False,
+        type=bool,
+        help="Whether the output of the easy_split.json includes the orignal train_sim.json in the first stage or not",
+    )
+    parser.add_argument(
+        "--sim_path",
+        default="/network/tmp1/ccai/data/omnigan/base/train_s_full.json",
+        type=str,
+        help="Path to training data on sim domain in stage one",
+    )
+    parser.add_argument(
         "--checkpoint",
         type=str,
         help="Path to experiment folder containing checkpoints/latest_ckpt.pth",
         required=True,
     )
-
+    parser.add_argument(
+        "--no_comet", action="store_true", help="DON'T use comet.ml to log experiment"
+    )
     return parser.parse_args()
 
 
@@ -51,6 +67,16 @@ def tupleList2DictList(tuples, keys=["x", "m"]):
             tmpDict[keys[i]] = Tuple[i]
         DictList.append(tmpDict)
     return DictList
+
+
+def merge_JsonFiles(filename):
+    result = list()
+    for f1 in filename:
+        with open(f1, "r") as infile:
+            result.extend(json.load(infile))
+
+    with open("easy_split_with_orignal_sim.json", "w") as output_file:
+        json.dump(result, output_file)
 
 
 if __name__ == "__main__":
@@ -69,14 +95,15 @@ if __name__ == "__main__":
     opts = load_opts(Path(args.config), default="./shared/trainer/defaults.yaml")
     opts.train.resume = True
     opts.data.loaders.batch_size = 1
-    # for tf in opts.data.transforms:
-    #     if tf["name"] == "resize":
-    #         new_size = tf["new_size"]
 
-    # if "m" in opts.tasks and "p" in opts.tasks:
-    #     paint = True
-    # else:
-    #     paint = False
+    # ----------------------------------
+    # -----  Set Comet Experiment  -----
+    # ----------------------------------
+    exp = None
+    if not args.no_comet:
+        exp = Experiment(project_name="omnigan", auto_metric_logging=False)
+        exp.log_parameters(flatten_opts(opts))
+
     # ------------------------
     # ----- Define model -----
     # ------------------------
@@ -130,3 +157,5 @@ if __name__ == "__main__":
         json.dump(easy_splitDict, outfile, ensure_ascii=False)
     with open("hard_split.json", "w", encoding="utf-8") as outfile:
         json.dump(hard_splitDict, outfile, ensure_ascii=False)
+    if args.include_sim and args.sim_path is not None:
+        merge_JsonFiles([args.sim_path, easy_split.json])
