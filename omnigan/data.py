@@ -242,7 +242,10 @@ def tensor_loader(path, task, domain):
         if Path(path).suffix == ".npy":
             arr = np.load(path)
         else:
-            arr = imread(path)  # .astype(np.uint8)
+            if domain == "r":
+                arr = np.array(Image.open(path).convert("L"))
+            else:
+                arr = imread(path)  # .astype(np.uint8)
         arr = torch.from_numpy(arr)
         arr = get_normalized_depth_t(arr, domain, normalize=True)
         arr = arr.unsqueeze(0)
