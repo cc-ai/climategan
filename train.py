@@ -86,7 +86,8 @@ def main(opts):
                 _op = Path(opts.output_path)
                 _op_opts_path = get_latest_path(_op / "opts.yaml")
                 if _op_opts_path.exists():
-                    _op_opts = yaml.safe_load(str(_op_opts_path))
+                    with _op_opts_path.open("r") as f:
+                        _op_opts = yaml.safe_load(f)
                     if _op_opts.jobID == opts.jobID:
                         opts.train.resume = True
                 else:
