@@ -88,7 +88,7 @@ def main(opts):
                 if _op_opts_path.exists():
                     with _op_opts_path.open("r") as f:
                         _op_opts = yaml.safe_load(f)
-                    if _op_opts.jobID == opts.jobID:
+                    if _op_opts["jobID"] == opts.jobID:
                         opts.train.resume = True
                 else:
                     # not same slurm job so new output path
