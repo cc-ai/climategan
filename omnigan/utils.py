@@ -492,9 +492,9 @@ def get_display_indices(opts, domain, length):
     if isinstance(dsize, int):
         if domain == "s":
             with temp_np_seed(123):
-                display_indices = np.random.permutation(length)[:dsize]
+                display_indices = list(np.random.permutation(length)[:dsize])
         else:
-            display_indices = range(dsize)
+            display_indices = list(range(dsize))
     elif isinstance(dsize, list):
         display_indices = dsize
 
