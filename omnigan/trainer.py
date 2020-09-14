@@ -255,9 +255,7 @@ class Trainer:
             self.display_images[mode] = {}
             for domain, domain_loader in mode_dict.items():
                 dataset = self.loaders[mode][domain].dataset
-                display_indices = get_display_indices(
-                    self.opts, mode, domain, len(dataset)
-                )
+                display_indices = get_display_indices(self.opts, domain, len(dataset))
                 self.display_images[mode][domain] = [
                     Dict(dataset[i]) for i in display_indices if i < len(dataset)
                 ]
