@@ -502,3 +502,29 @@ def get_display_indices(opts, domain, length):
         print("Warning: no display indices (utils.get_display_indices)")
 
     return display_indices
+
+
+def get_latest_path(path):
+    """
+    Get the file/dir with largest increment i as `file (i).ext`
+
+    Args:
+        path (str or pathlib.Path): base pattern
+
+    Returns:
+        Path: path found
+    """
+    p = Path(path)
+    s = p.stem
+    e = p.suffix
+    files = list(p.parent.glob(f"{s}*(*){e}"))
+    indices = list(p.parent.glob(f"{s}*(*){e}"))
+    indices = list(map(lambda f: f.name, indices))
+    indices = list(map(lambda x: re.findall("\((.*?)\)", x)[-1], indices))
+    indices = list(map(int, indices))
+    if not indices:
+        f = p
+    else:
+        f = files[np.argmax(indices)]
+    assert f.exists()
+    return f
