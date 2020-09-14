@@ -331,11 +331,13 @@ def read_hp(name):
             paths.append(path)
 
     if len(paths) == 0:
-        raise ValueError(
-            "Could not find search config in :\n{}".format(
-                "\n".join(Path(__file__).parent / d / "experiment" / name for d in dirs)
-            )
-        )
+        failed = [Path(__file__).parent / d / "experiment" for d in dirs]
+        s = "Could not find search config {} in :\n".format(name)
+        for fd in failed:
+            s += str(fd) + "\nAvailable:\n"
+            for ym in fd.glob("*.yaml"):
+                s += "    " + ym.name + "\n"
+        raise ValueError(s)
 
     if len(paths) == 2:
         print(
@@ -359,12 +361,30 @@ def read_template(name):
     Returns:
         str: file's content as 1 string
     """
-    if not name.endswith(".sh"):
+    if ".sh" not in name:
         name += ".sh"
-    template_path = Path(__file__).parent / "shared" / "template" / name
-    with template_path.open("r") as f:
-        template = f.read()
-    return template
+    paths = []
+    dirs = ["shared", "config"]
+    for d in dirs:
+        path = Path(__file__).parent / d / "template" / name
+        if path.exists():
+            paths.append(path)
+
+    if len(paths) == 0:
+        failed = [Path(__file__).parent / d / "template" for d in dirs]
+        s = "Could not find template {} in :\n".format(name)
+        for fd in failed:
+            s += str(fd) + "\nAvailable:\n"
+            for ym in fd.glob("*.sh"):
+                s += "    " + ym.name + "\n"
+        raise ValueError(s)
+
+    if len(paths) == 2:
+        print("Warning: found 2 relevant template files:\n{}".format("\n".join(paths)))
+        print("Using {}".format(paths[-1]))
+
+    with paths[-1].open("r") as f:
+        return f.read()
 
 
 def is_sampled(key, conf):
@@ -406,8 +426,9 @@ if __name__ == "__main__":
     template_name = None
     hp_search_name = None
     hp_search_nb = None
+    resume = None
 
-    hp_search_private = set(["n_search"])
+    hp_search_private = set(["n_search", "template", "search"])
 
     sbatch_path = Path(home) / "omni_sbatch_latest.sh"
 
@@ -458,6 +479,10 @@ if __name__ == "__main__":
         elif k == "n_search":
             hp_search_nb = int(v)
 
+        elif k == "resume":
+            resume = f'"{v}"'
+            template_dict[k] = f'"{v}"'
+
         elif k in template_dict:
             template_dict[k] = v
 
@@ -496,9 +521,14 @@ if __name__ == "__main__":
         # override shared values with run-specific values for run hp_idx/n_search
         if hp is not None:
             for k, v in hp.items():
+                if k == "resume" and resume is None:
+                    resume = f'"{v}"'
                 # hp-search params to ignore
                 if k in hp_search_private:
                     continue
+
+                if k == "codeloc":
+                    v = re.escape(v)
                 # override template params depending on exp config
                 if k in tmp_template_dict:
                     if template_dict[k] is None or is_sampled(k, search_conf):
@@ -530,9 +560,16 @@ if __name__ == "__main__":
             )
         )
 
+        if "resume.py" in template and resume is None:
+            raise ValueError("No `resume` value but using a resume.py template")
+
         # format template with clean dict (replace None with "")
         sbatch = template.format(
-            **{k: v if v is not None else "" for k, v in tmp_template_dict.items()}
+            **{
+                k: v if v is not None else ""
+                for k, v in tmp_template_dict.items()
+                if k in template_dict
+            }
         )
 
         # --------------------------------------

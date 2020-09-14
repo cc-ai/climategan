@@ -554,7 +554,8 @@ class Trainer:
                 Defaults to 3.
             rows_per_log (int, optional): Number of rows (=samples) per uploaded image.
                 Defaults to 5.
-            comet_exp (comet_ml.Experiment, optional): experiment to use. Defaults to None.
+            comet_exp (comet_ml.Experiment, optional): experiment to use.
+                Defaults to None.
         """
         curr_iter = self.logger.global_step
         nb_per_log = im_per_row * rows_per_log
