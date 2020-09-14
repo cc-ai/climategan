@@ -204,7 +204,8 @@ val:
 # ----- Comet Params ----------
 # -----------------------------
 comet:
-  display_size: 5
+  display_size: 20
+  rows_per_log: 5 # number of samples (rows) in a logged grid image. Number of total logged images: display_size // rows_per_log
   im_per_row:
     p: 4
     m: 4

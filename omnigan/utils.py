@@ -8,6 +8,8 @@ from pathlib import Path
 
 import yaml
 from addict import Dict
+import contextlib
+import numpy as np
 
 comet_kwargs = {
     "auto_metric_logging": False,
@@ -39,7 +41,7 @@ def merge(source, destination):
 
 def load_opts(path=None, default=None):
     # TODO add assert: if deeplabv2 then res_dim = 2048
-    """Loads a configuration Dict from 2 files:
+    """Loadsize a configuration Dict from 2 files:
     1. default files with shared values across runs and users
     2. an overriding file with run- and user-specific values
 
@@ -444,3 +446,59 @@ def comet_id_from_url(url):
         return ids[-1]
     except Exception:
         return None
+
+
+@contextlib.contextmanager
+def temp_np_seed(seed):
+    """
+    Set temporary numpy seed:
+    with temp_np_seed(123):
+        np.random.permutation(3)
+
+    Args:
+        seed (int): temporary numpy seed
+    """
+    state = np.random.get_state()
+    np.random.seed(seed)
+    try:
+        yield
+    finally:
+        np.random.set_state(state)
+
+
+def get_display_indices(opts, domain, length):
+    """
+    Compute the index of images to use for comet logging:
+    if opts.comet.display_indices is an int, and domain is real:
+        return range(int)
+    if opts.comet.display_indices is an int, and domain is sim:
+        return permutation(length)[:int]
+    if opts.comet.display_indices is a list:
+        return list
+
+    otherwise return []
+
+
+    Args:
+        opts (addict.Dict): options
+        domain (str): domain for those indices
+        length (int): length of dataset for the permutation
+
+    Returns:
+        list(int): The indices to display
+    """
+    dsize = opts.comet.display_size
+    display_indices = []
+    if isinstance(dsize, int):
+        if domain == "s":
+            with temp_np_seed(123):
+                display_indices = np.random.permutation(length)[:dsize]
+        else:
+            display_indices = range(dsize)
+    elif isinstance(dsize, list):
+        display_indices = dsize
+
+    if not display_indices:
+        print("Warning: no display indices (utils.get_display_indices)")
+
+    return display_indices
