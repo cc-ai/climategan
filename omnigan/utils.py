@@ -490,11 +490,13 @@ def get_display_indices(opts, domain, length):
     dsize = opts.comet.display_size
     display_indices = []
     if isinstance(dsize, int):
-        if domain == "s":
-            with temp_np_seed(123):
-                display_indices = list(np.random.permutation(length)[:dsize])
-        else:
-            display_indices = list(range(dsize))
+        with temp_np_seed(123):
+            display_indices = list(np.random.permutation(length)[:dsize])
+        # if domain == "s":
+        #     with temp_np_seed(123):
+        #         display_indices = list(np.random.permutation(length)[:dsize])
+        # else:
+        #     display_indices = list(range(dsize))
     elif isinstance(dsize, list):
         display_indices = dsize
 
