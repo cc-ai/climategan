@@ -19,5 +19,6 @@ echo "Currently using:"
 echo $(which python)
 echo "in:"
 echo $(pwd)
+echo "sbatch file: $0"
 
 python resume.py --path {resume}
