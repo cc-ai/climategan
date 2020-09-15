@@ -94,7 +94,7 @@ def main(opts):
                     # not same slurm job so new output path
                     opts.output_path = str(get_increased_path(opts.output_path))
 
-            Path(opts.output_path).mkdir(parents=True)
+            Path(opts.output_path).mkdir(parents=True, exist_ok=True)
 
         pprint("Running model in", opts.output_path)
 
