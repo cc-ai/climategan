@@ -153,7 +153,7 @@ class SegmentationDecoder(BaseDecoder):
         conv_modules += [
             nn.Conv2d(256, opts.gen.s.output_dim, kernel_size=1, stride=1),
         ]
-        self.conv = nn.Sequential(**conv_modules)
+        self.conv = nn.Sequential(*conv_modules)
         self._target_size = None
 
     def set_target_size(self, size):
