@@ -26,7 +26,7 @@ class bcolors:
 
 
 def now():
-    return str(datetime.datetime.now()).replace(" ", "")
+    return str(datetime.datetime.now()).replace(" ", "_")
 
 
 def cols():

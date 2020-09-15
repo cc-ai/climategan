@@ -81,9 +81,9 @@ def main(opts):
         # -----  Check output_path  -----
         # -------------------------------
 
+        # Auto-continue if same slurm job ID (=job was requeued)
         if not opts.train.resume:
             if Path(opts.output_path).exists():
-                # Auto-continue if same slurm job ID (=job requeued)
                 _op = Path(opts.output_path)
                 _op_opts_path = get_latest_path(_op / "opts.yaml")
                 if _op_opts_path.exists():
@@ -91,15 +91,15 @@ def main(opts):
                         _op_opts = yaml.safe_load(f)
                     if _op_opts.get("jobID", 0) == opts.jobID:
                         opts.train.resume = True
-                else:
-                    # not same slurm job so new output path
-                    opts.output_path = str(get_increased_path(opts.output_path))
 
+        # Still not resuming: creating new output path
+        if not opts.train.resume:
             Path(opts.output_path).mkdir(parents=True, exist_ok=True)
 
         pprint("Running model in", opts.output_path)
         copy_sbatch(opts)
 
+        # Is resuming: get existing comet exp id
         if opts.train.resume:
             assert Path(
                 opts.output_path
