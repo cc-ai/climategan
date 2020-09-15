@@ -473,7 +473,7 @@ class Trainer:
                     domain=domain,
                     task=task,
                     im_per_row=self.opts.comet.im_per_row.get(task, 4),
-                    rows_per_log=self.opts.comet.rows_per_log,
+                    rows_per_log=self.opts.comet.get("rows_per_log", 5),
                     comet_exp=self.exp,
                 )
         else:
@@ -495,7 +495,7 @@ class Trainer:
                 domain=domain,
                 task="painter",
                 im_per_row=self.opts.comet.im_per_row.get("p", 4),
-                rows_per_log=self.opts.comet.rows_per_log,
+                rows_per_log=self.opts.comet.get("rows_per_log", 5),
                 comet_exp=self.exp,
             )
 
@@ -523,7 +523,7 @@ class Trainer:
             domain=domain,
             task="combined",
             im_per_row=self.opts.comet.im_per_row.get("p", 4),
-            rows_per_log=self.opts.comet.rows_per_log,
+            rows_per_log=self.opts.comet.get("rows_per_log", 5),
             comet_exp=self.exp,
         )
 
