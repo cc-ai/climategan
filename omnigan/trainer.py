@@ -722,23 +722,30 @@ class Trainer:
                     ] = update_loss.item()
                 elif update_task == "s":
                     prediction = self.G.decoders[update_task](self.z)
-                    # Supervised segmentation loss
-                    if batch_domain == "s":
+                    # Supervised segmentation loss: crossent for sim domain,
+                    # crossent_pseudo for real ; loss is crossent in any case
+                    if batch_domain == "s" or self.opts.gen.s.use_pseudo_labels:
+                        if batch_domain == "s":
+                            loss_name = "crossent"
+                        else:
+                            loss_name = "crossent_pseudo"
+
                         update_loss = (
-                            self.losses["G"]["tasks"][update_task]["crossent"](
+                            self.losses["G"]["tasks"]["s"]["crossent"](
                                 prediction, update_target.squeeze(1)
                             )
-                            * lambdas.G[update_task]["crossent"]
+                            * lambdas.G["s"][loss_name]
                         )
                         step_loss += update_loss
 
-                        self.logger.losses.generator.task_loss[update_task]["crossent"][
+                        self.logger.losses.generator.task_loss["s"][loss_name][
                             batch_domain
                         ] = update_loss.item()
-                    else:
-                        # Entropy minimisation loss
+
+                    if batch_domain == "r":
+                        # Entropy minimization loss
                         if self.opts.gen.s.use_minient:
-                            # Direct entropy minimisation
+                            # Direct entropy minimization
                             update_loss = (
                                 self.losses["G"]["tasks"][update_task]["minient"](
                                     prediction

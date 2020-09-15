@@ -87,6 +87,7 @@ gen:
     output_dim: 11
     use_advent: True
     use_minient: False
+    use_pseudo_labels: False
   p: # specific params for the SPADE painter
     <<: *default-gen
     latent_dim: 512
@@ -168,6 +169,7 @@ train:
       d: 1
       s:
         crossent: 1
+        crossent_pseudo: 1
         minient: 0.001
         advent: 0.001
       m:
