@@ -471,10 +471,10 @@ class Trainer:
                         task_saves.append(target.repeat(1, 3, 1, 1))
 
                     task_saves.append(prediction)
-                    save_images[update_task].append(x)
+                    save_images[update_task].append(x.cpu().detach())
 
                     for im in task_saves:
-                        save_images[update_task].append(im)
+                        save_images[update_task].append(im.cpu().detach())
 
             for task in save_images.keys():
                 # print(task)
@@ -577,7 +577,7 @@ class Trainer:
             image_grid = vutils.make_grid(
                 ims, nrow=im_per_row, normalize=True, scale_each=True
             )
-            image_grid = image_grid.permute(1, 2, 0).cpu().detach().numpy()
+            image_grid = image_grid.permute(1, 2, 0).numpy()
 
             if comet_exp is not None:
                 comet_exp.log_image(
