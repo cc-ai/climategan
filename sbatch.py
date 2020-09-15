@@ -98,6 +98,9 @@ def stringify_list(v):
     """
     if isinstance(v, list):
         return '"{}"'.format(str(v).replace('"', "'"))
+    if isinstance(v, str):
+        if v.startswith("[") and v.endswith("]"):
+            return f'"{v}"'
     return v
 
 
