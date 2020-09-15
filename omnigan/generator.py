@@ -142,6 +142,7 @@ class SegmentationDecoder(BaseDecoder):
             nn.BatchNorm2d(256),
             nn.ReLU(),
             nn.Dropout(0.5),
+            nn.Upsample(scale_factor=2),
             nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(256),
             nn.ReLU(),
