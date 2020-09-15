@@ -544,5 +544,4 @@ def get_latest_path(path):
         f = p
     else:
         f = files[np.argmax(indices)]
-    assert f.exists()
     return f
