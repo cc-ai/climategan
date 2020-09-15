@@ -477,7 +477,6 @@ class Trainer:
                         save_images[update_task].append(im.cpu().detach())
 
             for task in save_images.keys():
-                # print(task)
                 # Write images:
                 self.write_images(
                     image_outputs=save_images[task],
@@ -570,6 +569,14 @@ class Trainer:
         curr_iter = self.logger.global_step
         nb_per_log = im_per_row * rows_per_log
         for logidx in range(rows_per_log):
+            print(
+                "Uploading images for",
+                mode,
+                domain,
+                task,
+                f"{logidx + 1}/{rows_per_log}",
+                end="\r",
+            )
             ims = image_outputs[logidx * nb_per_log : (logidx + 1) * nb_per_log]
             if not ims:
                 continue
