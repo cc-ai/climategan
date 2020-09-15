@@ -427,7 +427,8 @@ class Trainer:
     def log_comet_images(self, mode, domain):
         save_images = {}
         if domain != "rf":
-            for im_set in self.display_images[mode][domain]:
+            for j, im_set in enumerate(self.display_images[mode][domain]):
+                print(j, end="\r")
                 x = im_set["data"]["x"].unsqueeze(0).to(self.device)
                 self.z = self.G.encode(x)
 
