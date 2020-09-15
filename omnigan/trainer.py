@@ -75,6 +75,28 @@ class Trainer:
             self.exp = comet_exp
         self.domain_labels = {"s": 0, "r": 1}
 
+    def eval_mode(self):
+        """
+        Set trainer's models in eval mode
+        """
+        if self.G is not None:
+            self.G.eval()
+        if self.D is not None:
+            self.D.eval()
+        if self.C is not None:
+            self.C.eval()
+
+    def train_mode(self):
+        """
+        Set trainer's models in train mode
+        """
+        if self.G is not None:
+            self.G.train()
+        if self.D is not None:
+            self.D.train()
+        if self.C is not None:
+            self.C.train()
+
     def log_losses(self, model_to_update="G", mode="train"):
         """Logs metrics on comet.ml
 
@@ -332,8 +354,7 @@ class Trainer:
         * updates sequentially G, D, C
         """
         assert self.is_setup
-        self.G.train()
-        self.D.train()
+        self.train_mode()
         epoch_len = min(len(loader) for loader in self.loaders["train"].values())
         epoch_desc = "Epoch {}".format(self.logger.epoch)
         for i, multi_batch_tuple in enumerate(
@@ -391,16 +412,6 @@ class Trainer:
             self.logger.global_step += 1
             step_time = time() - step_start_time
             self.log_step_time(step_time)
-
-        for d in self.opts.domains:
-            self.G.eval()
-            self.log_comet_images("train", d)
-            self.G.train()
-
-        if "m" in self.opts.tasks and "p" in self.opts.tasks:
-            self.G.eval()
-            self.log_comet_combined_images("train", "r")
-            self.G.train()
 
         self.update_learning_rates()
 
@@ -559,6 +570,8 @@ class Trainer:
         nb_per_log = im_per_row * rows_per_log
         for logidx in range(rows_per_log):
             ims = image_outputs[logidx * nb_per_log : (logidx + 1) * nb_per_log]
+            if not ims:
+                continue
             ims = torch.stack(ims).squeeze()
             image_grid = vutils.make_grid(
                 ims, nrow=im_per_row, normalize=True, scale_each=True
@@ -584,11 +597,8 @@ class Trainer:
             self.logger.epoch, self.logger.epoch + self.opts.train.epochs
         ):
             self.run_epoch()
-            self.G.eval()
-            self.D.eval()
-            self.infer(verbose=1)
-            self.G.train()
-            self.D.train()
+            self.run_evaluation(verbose=1)
+
             if (
                 self.logger.epoch != 0
                 and self.logger.epoch % self.opts.train.save_n_epochs == 0
@@ -1135,13 +1145,16 @@ class Trainer:
 
         return lambdas.C * loss
 
-    def infer(self, num_threads=5, verbose=0):
-        print("*******************INFERRING***********************")
+    def run_evaluation(self, verbose=0):
+        print("******************* Running Evaluation ***********************")
+        self.eval_mode()
         val_logger = None
+        nb_of_batches = None
         for i, multi_batch_tuple in enumerate(self.val_loaders):
             # create a dictionnary (domain => batch) from tuple
             # (batch_domain_0, ..., batch_domain_i)
             # and send it to self.device
+            nb_of_batches = i + 1
             multi_domain_batch = {
                 batch["domain"][0]: self.batch_to_device(batch)
                 for batch in multi_batch_tuple
@@ -1153,21 +1166,24 @@ class Trainer:
             else:
                 val_logger = sum_dict(val_logger, self.logger.losses.generator)
 
-        val_logger = div_dict(val_logger, i + 1)
+        val_logger = div_dict(val_logger, nb_of_batches)
         self.logger.losses.generator = val_logger
         self.log_losses(model_to_update="G", mode="val")
 
         for d in self.opts.domains:
+            self.log_comet_images("train", d)
             self.log_comet_images("val", d)
 
         if "m" in self.opts.tasks and "p" in self.opts.tasks:
+            self.log_comet_combined_images("train", "r")
             self.log_comet_combined_images("val", "r")
 
         if "m" in self.opts.tasks:
             self.eval_images("val", "r")
             self.eval_images("val", "s")
 
-        print("******************DONE INFERRING*********************")
+        self.train_mode()
+        print("****************** Done *********************")
 
     def save(self):
         save_dir = Path(self.opts.output_path) / Path("checkpoints")
