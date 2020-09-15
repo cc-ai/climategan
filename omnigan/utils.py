@@ -1,11 +1,12 @@
 """All non-tensor utils
 """
+from copy import copy
 import os
 import re
 import subprocess
 import json
 from pathlib import Path
-
+import shutil
 import yaml
 from addict import Dict
 import contextlib
@@ -18,6 +19,21 @@ comet_kwargs = {
     "log_env_cpu": True,
     "display_summary_level": 0,
 }
+
+
+def copy_sbatch(opts):
+    """
+    Copy the opts's sbatch_file to output_path
+
+    Args:
+        opts (addict.Dict): options
+    """
+    if opts.sbatch_file:
+        p = Path(opts.sbatch_file)
+        if p.exists():
+            o = Path(opts.output_path)
+            if o.exists():
+                shutil.copyfile(p, o / p.name)
 
 
 def merge(source, destination):

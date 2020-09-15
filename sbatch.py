@@ -1,8 +1,10 @@
+import datetime
 import itertools
 import os
 import re
 import subprocess
 import sys
+import uuid
 from collections import defaultdict
 from pathlib import Path
 
@@ -21,6 +23,10 @@ class bcolors:
     UNDERLINE = "\033[4m"
     ITALIC = "\33[3m"
     BEIGE = "\33[36m"
+
+
+def now():
+    return str(datetime.datetime.now()).replace(" ", "")
 
 
 def cols():
@@ -433,7 +439,7 @@ if __name__ == "__main__":
 
     hp_search_private = set(["n_search", "template", "search"])
 
-    sbatch_path = Path(home) / "omni_sbatch_latest.sh"
+    sbatch_path = "hash"
 
     # --------------------------
     # -----  Sanity Check  -----
@@ -552,7 +558,13 @@ if __name__ == "__main__":
                         tmp_train_args_dict[k] = v
 
         # create sbatch file where required
-        sbatch_path = Path(sbatch_path).resolve()
+        if sbatch_path == "hash":
+            sbatch_path = Path(home) / "omnigan_sbatchs" / (now() + ".sh")
+            sbatch_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp_train_args_dict["sbatch_file"] = str(sbatch_path)
+        else:
+            sbatch_path = Path(sbatch_path).resolve()
+
         # format train.py's args and crop floats' precision to 5 digits
         tmp_template_dict["train_args"] = " ".join(
             sorted(

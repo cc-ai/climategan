@@ -19,6 +19,7 @@ from omnigan.utils import (
     get_increased_path,
     load_opts,
     get_latest_path,
+    copy_sbatch,
 )
 
 hydra_config_path = Path(__file__).resolve().parent / "shared/trainer/config.yaml"
@@ -97,6 +98,7 @@ def main(opts):
             Path(opts.output_path).mkdir(parents=True, exist_ok=True)
 
         pprint("Running model in", opts.output_path)
+        copy_sbatch(opts)
 
         if opts.train.resume:
             assert Path(
