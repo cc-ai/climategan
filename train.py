@@ -119,6 +119,7 @@ def main(opts):
     if is_auto_adventv2:
         adventv2EntropySplit(trainer, verbose=0)
         trainer.opts = switch_data(opts)
+        # start from where the first stage ended
         trainer.logger.epoch = opts["train"]["lambdas"]["advent"]["stage_one_epochs"]
         trainer.train()
 
