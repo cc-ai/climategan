@@ -55,7 +55,7 @@ def parsed_args():
     )
     parser.add_argument(
         "--save_path",
-        default="",
+        default="/network/tmp1/ccai/data/omnigan/base",
         type=str,
         help="Path to save the json files",
         required=False,
