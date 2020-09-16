@@ -54,6 +54,13 @@ def parsed_args():
         required=True,
     )
     parser.add_argument(
+        "--save_path",
+        default="",
+        type=str,
+        help="Path to save the json files",
+        required=False,
+    )
+    parser.add_argument(
         "--no_comet", action="store_true", help="DON'T use comet.ml to log experiment"
     )
     return parser.parse_args()
@@ -75,7 +82,7 @@ def merge_JsonFiles(filename):
         with open(f1, "r") as infile:
             result.extend(json.load(infile))
 
-    with open("easy_split_with_orignal_sim.json", "w") as output_file:
+    with open(args.save_path + "easy_split_with_orignal_sim.json", "w") as output_file:
         json.dump(result, output_file)
 
 
@@ -85,8 +92,10 @@ if __name__ == "__main__":
     # -----------------------------
 
     args = parsed_args()
-    # output_dir = Path(args.output_dir)
-    # output_dir.mkdir(exist_ok=True, parents=True)
+    output_dir = Path(args.save_path)
+    output_dir.mkdir(exist_ok=True, parents=True)
+    if args.save_path[-1] != "/":
+        args.save_path = args.save_path + "/"
 
     # -----------------------
     # -----  Load opts  -----
@@ -153,9 +162,9 @@ if __name__ == "__main__":
     hard_split = entropy_rank[int(len(entropy_rank) * args.entropy_split) :]
     easy_splitDict = tupleList2DictList(easy_split)
     hard_splitDict = tupleList2DictList(hard_split)
-    with open("easy_split.json", "w", encoding="utf-8") as outfile:
+    with open(args.save_path + "easy_split.json", "w", encoding="utf-8") as outfile:
         json.dump(easy_splitDict, outfile, ensure_ascii=False)
-    with open("hard_split.json", "w", encoding="utf-8") as outfile:
+    with open(args.save_path + "hard_split.json", "w", encoding="utf-8") as outfile:
         json.dump(hard_splitDict, outfile, ensure_ascii=False)
     if args.include_sim and args.sim_path is not None:
-        merge_JsonFiles([args.sim_path, easy_split.json])
+        merge_JsonFiles([args.sim_path, "easy_split.json"])
