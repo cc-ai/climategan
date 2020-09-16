@@ -5,9 +5,10 @@ import re
 import subprocess
 import json
 from pathlib import Path
-
+from omnigan.losses import entropy_loss_v2
 import yaml
 from addict import Dict
+import torch
 
 
 def merge(source, destination):
@@ -413,3 +414,75 @@ def div_dict(dict1, div_by):
         else:
             div_dict(dict1[k], div_by)
     return dict1
+
+
+def tupleList2DictList(tuples, keys=["x", "m"]):
+    DictList = []
+    for Tuple in tuples:
+        tmpDict = {}
+        for i in range(len(keys)):
+            tmpDict[keys[i]] = Tuple[i]
+        DictList.append(tmpDict)
+    return DictList
+
+
+def merge_JsonFiles(filename, save_path):
+    result = list()
+    for f1 in filename:
+        with open(f1, "r") as infile:
+            result.extend(json.load(infile))
+
+    with open(save_path + "easy_split_with_orignal_sim.json", "w") as output_file:
+        json.dump(result, output_file)
+
+
+def adventv2EntropySplit(trainer, verbose=1):
+    entropy_list = []
+    entropy_split = trainer.opts["train"]["lambdas"]["advent"]["entropy_split"]
+    save_path = trainer.opts["data"]["files"]["adventv2_base"]
+    include_sim = trainer.opts["train"]["lambdas"]["advent"]["preserve_sim"]
+    sim_path = (
+        trainer.opts["data"]["files"]["base"]
+        + "/"
+        + trainer.opts["data"]["files"]["train"]["s"]
+    )
+    if save_path[-1] != "/":
+        save_path = save_path + "/"
+
+    i = 0
+    for multi_batch_tuple in trainer.train_loaders:
+        i += 1
+        if verbose > 0:
+            if i % 100 == 0:
+                print("Finished calculating " + str(i) + " th image")
+        print("Making entropy split files for ADVENT V2 stage...", end="", flush=True)
+        for batch in multi_batch_tuple:
+            batch_domain = batch["domain"][0]
+            with torch.no_grad():
+                if batch_domain == "r":
+                    batch = trainer.batch_to_device(batch)
+                    x = batch["data"]["x"]
+                    Dict = batch["paths"]  # a dict includes paths of 'x' and 'm'
+                    trainer.z = trainer.G.encode(x)
+                    prediction = trainer.G.decoders["m"](trainer.z)
+                    pred_complementary = 1 - prediction
+                    prob = torch.cat([prediction, pred_complementary], dim=1)
+                    mask_entropy = entropy_loss_v2(prob.to(trainer.device))
+                    info = []
+                    for key in Dict.keys():
+                        info.append(Dict[key][0])
+                    info.append(mask_entropy)
+                    entropy_list.append(info)
+    entropy_list_sorted = entropy_list.copy()
+    entropy_list_sorted = sorted(entropy_list_sorted, key=lambda img: img[2])
+    entropy_rank = [(item[0], item[1]) for item in entropy_list_sorted]
+    easy_split = entropy_rank[: int(len(entropy_rank) * entropy_split)]
+    hard_split = entropy_rank[int(len(entropy_rank) * entropy_split) :]
+    easy_splitDict = tupleList2DictList(easy_split)
+    hard_splitDict = tupleList2DictList(hard_split)
+    with open(save_path + "easy_split.json", "w", encoding="utf-8") as outfile:
+        json.dump(easy_splitDict, outfile, ensure_ascii=False)
+    with open(save_path + "hard_split.json", "w", encoding="utf-8") as outfile:
+        json.dump(hard_splitDict, outfile, ensure_ascii=False)
+    if include_sim and sim_path is not None:
+        merge_JsonFiles([sim_path, "easy_split.json"], save_path)

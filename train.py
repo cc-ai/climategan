@@ -9,7 +9,13 @@ from omegaconf import OmegaConf
 
 from omnigan.trainer import Trainer
 
-from omnigan.utils import env_to_path, flatten_opts, get_increased_path, load_opts
+from omnigan.utils import (
+    env_to_path,
+    flatten_opts,
+    get_increased_path,
+    load_opts,
+    adventv2EntropySplit,
+)
 
 hydra_config_path = Path(__file__).resolve().parent / "shared/trainer/config.yaml"
 
@@ -51,6 +57,28 @@ def main(opts):
     if not opts.train.resume:
         opts.output_path = str(get_increased_path(opts.output_path))
     pprint("Running model in", opts.output_path)
+    is_auto_adventv2 = opts["train"]["lambdas"]["advent"]["is_auto_adventv2"]
+    if is_auto_adventv2:
+        assert opts["tasks"] == [
+            "m"
+        ], "Auto adventv2 only works if mask is the only task to be trained!"
+        opts["train"]["epochs"] = opts["train"]["lambdas"]["advent"]["stage_one_epochs"]
+
+        def switch_data(opts):
+            opts["data"]["files"]["base"] = opts["data"]["files"]["adventv2_base"]
+            opts["train"]["epochs"] = opts["train"]["lambdas"]["advent"][
+                "stage_two_epochs"
+            ]
+            if opts["train"]["lambdas"]["advent"]["preserve_sim"]:
+                opts["data"]["files"]["train"] = opts["data"]["files"]["adventv2_train"]
+            else:
+                opts["data"]["files"]["train"]["r"] = opts["data"]["files"][
+                    "adventv2_train"
+                ]["r"]
+                opts["data"]["files"]["train"]["s"] = opts["data"]["files"][
+                    "adventv2_train"
+                ]["s0"]
+            return opts
 
     exp = None
     if not args.dev:
@@ -98,6 +126,10 @@ def main(opts):
     trainer.logger.time.start_time = time()
     trainer.setup()
     trainer.train()
+    if is_auto_adventv2:
+        adventv2EntropySplit(trainer, verbose=0)
+        trainer.opts = switch_data(opts)
+        trainer.train()
 
     # -----------------------------
     # -----  End of training  -----
