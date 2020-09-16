@@ -62,6 +62,9 @@ def main(opts):
         assert opts["tasks"] == [
             "m"
         ], "Auto adventv2 only works if mask is the only task to be trained!"
+        assert not opts["train"][
+            "resume"
+        ], "Auto adventv2 only works when training from strach!"
         opts["train"]["epochs"] = opts["train"]["lambdas"]["advent"]["stage_one_epochs"]
 
         def switch_data(opts):

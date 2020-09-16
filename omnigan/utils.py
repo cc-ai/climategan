@@ -437,25 +437,22 @@ def merge_JsonFiles(filename, save_path):
 
 
 def adventv2EntropySplit(trainer, verbose=1):
-    entropy_list = []
     entropy_split = trainer.opts["train"]["lambdas"]["advent"]["entropy_split"]
     save_path = trainer.opts["data"]["files"]["adventv2_base"]
     include_sim = trainer.opts["train"]["lambdas"]["advent"]["preserve_sim"]
-    sim_path = (
-        trainer.opts["data"]["files"]["base"]
-        + "/"
-        + trainer.opts["data"]["files"]["train"]["s"]
-    )
+    sim_path = trainer.opts["data"]["files"]["train"]["s"]
+    entropy_list = []
+
     if save_path[-1] != "/":
         save_path = save_path + "/"
 
     i = 0
+    print("Making entropy split files for ADVENT V2 stage...", end="", flush=True)
     for multi_batch_tuple in trainer.train_loaders:
         i += 1
         if verbose > 0:
             if i % 100 == 0:
                 print("Finished calculating " + str(i) + " th image")
-        print("Making entropy split files for ADVENT V2 stage...", end="", flush=True)
         for batch in multi_batch_tuple:
             batch_domain = batch["domain"][0]
             with torch.no_grad():
@@ -486,3 +483,4 @@ def adventv2EntropySplit(trainer, verbose=1):
         json.dump(hard_splitDict, outfile, ensure_ascii=False)
     if include_sim and sim_path is not None:
         merge_JsonFiles([sim_path, "easy_split.json"], save_path)
+    return
