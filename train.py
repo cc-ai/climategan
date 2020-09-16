@@ -126,14 +126,20 @@ def main(opts):
                 if comet_previous_id is None:
                     print("WARNING could not retreive previous comet id")
                     print(f"from {comet_previous_path}")
-                    exp = Experiment(project_name="omnigan", **comet_kwargs)
                 else:
                     exp = ExistingExperiment(
                         previous_experiment=comet_previous_id, **comet_kwargs
                     )
-            else:
+
+            if exp is None:
                 # Create new experiment
                 exp = Experiment(project_name="omnigan", **comet_kwargs)
+                exp.log_asset_folder(
+                    str(Path(__file__).parent / "omnigan"),
+                    recursive=True,
+                    log_file_name=True,
+                )
+                exp.log_asset(str(Path(__file__)))
 
             # Log note
             if args.note:

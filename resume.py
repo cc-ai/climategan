@@ -1,9 +1,7 @@
 from pathlib import Path
 from time import time, sleep
 import os
-import re
 from argparse import ArgumentParser
-import numpy as np
 
 import yaml
 from addict import Dict
@@ -115,6 +113,12 @@ def main():
                 f"from {comet_previous_path}",
             )
             exp = Experiment(project_name="omnigan", **comet_kwargs)
+            exp.log_asset_folder(
+                str(Path(__file__).parent / "omnigan"),
+                recursive=True,
+                log_file_name=True,
+            )
+            exp.log_asset(str(Path(__file__)))
         else:
             exp = ExistingExperiment(
                 previous_experiment=comet_previous_id, **comet_kwargs
