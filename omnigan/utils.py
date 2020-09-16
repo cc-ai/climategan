@@ -503,6 +503,7 @@ def adventv2EntropySplit(trainer, verbose=1):
     hard_split = entropy_rank[int(len(entropy_rank) * entropy_split) :]
     easy_splitDict = tupleList2DictList(easy_split)
     hard_splitDict = tupleList2DictList(hard_split)
+
     with open(save_path + "easy_split.json", "w", encoding="utf-8") as outfile:
         json.dump(easy_splitDict, outfile, ensure_ascii=False)
     with open(save_path + "hard_split.json", "w", encoding="utf-8") as outfile:
