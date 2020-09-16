@@ -21,6 +21,11 @@ data:
       r: val_r_full.json
       s: val_s_full.json
       rf: val_rf.json
+    adventv2_base: /network/tmp1/ccai/data/omnigan/base # where the entropy split saved and where the dataset is in the second stage
+    adventv2_train:
+      r: hard_split.json
+      s0: easy_split.json
+      s: easy_split_with_orignal_sim.json
   check_samples: True
   loaders:
     batch_size: 4
@@ -189,8 +194,13 @@ train:
       ent_var: 0.1 # the proportion of variance of entropy map in the entropy measure for a certain picture
       adv_main: 1.0 # the coefficient of the AdvEnt loss that minimize the entropy of the image by adversarial training
       adv_aux: 0.0 # the corresponding coefficient of the AdvEnt loss of second output
-      dis_main: 0.5 # the discriminator take care of the first output in the adversarial training
-      dis_aux: 0.5 # the discriminator take care of the second output in the adversarial training
+      dis_main: 1 # the discriminator take care of the first output in the adversarial training
+      dis_aux: 0 # the discriminator take care of the second output in the adversarial training
+      is_auto_adventv2: False # Please set it true when you want to train adventv2 automatically
+      entropy_split: 0.67 # #hard_split/(#easy_split + #hard_split) in adventv2
+      stage_one_epochs: 100 # the epoches expected to finish in the first stage of advent
+      stage_two_epochs: 100 # the epoches expected to finish in the second stage of advent
+      preserve_sim: True # True if s domain data includes both easy_split.json and train_s_full.json
   log_level: 2 # 0: no log, 1: only aggregated losses, >1 detailed losses
   save_n_epochs: 1 # Save model every n epochs
   resume: false # Load latest_ckpt.pth checkpoint from `output_path` #TODO Make this path of checkpoint to load

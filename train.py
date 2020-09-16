@@ -58,6 +58,8 @@ def main(opts):
     if not opts.train.resume:
         opts.output_path = str(get_increased_path(opts.output_path))
     pprint("Running model in", opts.output_path)
+
+    # check if auto adventv2 works
     is_auto_adventv2 = opts["train"]["lambdas"]["advent"]["is_auto_adventv2"]
     if is_auto_adventv2:
         assert opts["tasks"] == [
@@ -117,6 +119,7 @@ def main(opts):
     if is_auto_adventv2:
         adventv2EntropySplit(trainer, verbose=0)
         trainer.opts = switch_data(opts)
+        trainer.logger.epoch = opts["train"]["lambdas"]["advent"]["stage_one_epochs"]
         trainer.train()
 
     # -----------------------------
