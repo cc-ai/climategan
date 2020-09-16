@@ -435,6 +435,22 @@ def merge_JsonFiles(filename, save_path):
     with open(save_path + "easy_split_with_orignal_sim.json", "w") as output_file:
         json.dump(result, output_file)
 
+def switch_data(opts):
+    opts["data"]["files"]["base"] = opts["data"]["files"]["adventv2_base"]
+    opts["train"]["epochs"] = opts["train"]["lambdas"]["advent"][
+        "stage_two_epochs"
+    ]
+    if opts["train"]["lambdas"]["advent"]["preserve_sim"]:
+        opts["data"]["files"]["train"] = opts["data"]["files"]["adventv2_train"]
+    else:
+        opts["data"]["files"]["train"]["r"] = opts["data"]["files"][
+            "adventv2_train"
+        ]["r"]
+        opts["data"]["files"]["train"]["s"] = opts["data"]["files"][
+            "adventv2_train"
+        ]["s0"]
+    return opts
+
 
 def adventv2EntropySplit(trainer, verbose=1):
     entropy_split = trainer.opts["train"]["lambdas"]["advent"]["entropy_split"]

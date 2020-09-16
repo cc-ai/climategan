@@ -15,6 +15,7 @@ from omnigan.utils import (
     get_increased_path,
     load_opts,
     adventv2EntropySplit,
+    switch_data,
 )
 
 hydra_config_path = Path(__file__).resolve().parent / "shared/trainer/config.yaml"
@@ -66,22 +67,6 @@ def main(opts):
             "resume"
         ], "Auto adventv2 only works when training from strach!"
         opts["train"]["epochs"] = opts["train"]["lambdas"]["advent"]["stage_one_epochs"]
-
-        def switch_data(opts):
-            opts["data"]["files"]["base"] = opts["data"]["files"]["adventv2_base"]
-            opts["train"]["epochs"] = opts["train"]["lambdas"]["advent"][
-                "stage_two_epochs"
-            ]
-            if opts["train"]["lambdas"]["advent"]["preserve_sim"]:
-                opts["data"]["files"]["train"] = opts["data"]["files"]["adventv2_train"]
-            else:
-                opts["data"]["files"]["train"]["r"] = opts["data"]["files"][
-                    "adventv2_train"
-                ]["r"]
-                opts["data"]["files"]["train"]["s"] = opts["data"]["files"][
-                    "adventv2_train"
-                ]["s0"]
-            return opts
 
     exp = None
     if not args.dev:

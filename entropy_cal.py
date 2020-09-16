@@ -4,10 +4,14 @@ from omnigan.utils import load_opts
 from pathlib import Path
 from argparse import ArgumentParser
 from omnigan.trainer import Trainer
-from torchvision import transforms as trsfs
 from omnigan.losses import entropy_loss_v2
 import json
-from omnigan.utils import load_opts, flatten_opts
+from omnigan.utils import flatten_opts
+
+# This script manually processes the entropy split step.
+# Please run it when you have a masker-only checkpoint.
+# The inputs are a trained masker checkpoint, train_r_full.json, train_s_full.json (don't need if not preserve_sim)
+# The outputs are easy_split_with_orignal_sim.json, easy_split.json, hard_split.json
 
 
 def parsed_args():
@@ -36,7 +40,7 @@ def parsed_args():
         help="hyperparameter lambda to split the target domain",
     )
     parser.add_argument(
-        "--include_sim",
+        "--preserve_sim",
         default=False,
         type=bool,
         help="Whether the output of the easy_split.json includes the orignal train_sim.json in the first stage or not",
@@ -119,15 +123,6 @@ if __name__ == "__main__":
     trainer = Trainer(opts)
     trainer.setup()
     trainer.resume()
-    trainer_loader = trainer.train_loaders
-
-    # -------------------------------
-    # -----  Transforms images  -----
-    # -------------------------------
-
-    transforms = [trsfs.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
-
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     # ----------------------------
     # -----  Iterate images  -----
@@ -166,5 +161,5 @@ if __name__ == "__main__":
         json.dump(easy_splitDict, outfile, ensure_ascii=False)
     with open(args.save_path + "hard_split.json", "w", encoding="utf-8") as outfile:
         json.dump(hard_splitDict, outfile, ensure_ascii=False)
-    if args.include_sim and args.sim_path is not None:
+    if args.preserve_sim and args.sim_path is not None:
         merge_JsonFiles([args.sim_path, "easy_split.json"])
