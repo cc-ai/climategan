@@ -610,15 +610,16 @@ if __name__ == "__main__":
                         tmp_train_args_dict[k] = v
 
         # create sbatch file where required
+        tmp_sbatch_path = None
         if sbatch_path == "hash":
-            sbatch_path = Path(home) / "omnigan_sbatchs" / (now() + ".sh")
-            sbatch_path.parent.mkdir(parents=True, exist_ok=True)
-            tmp_train_args_dict["sbatch_file"] = str(sbatch_path)
+            tmp_sbatch_path = Path(home) / "omnigan_sbatchs" / (now() + ".sh")
+            tmp_sbatch_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp_train_args_dict["sbatch_file"] = str(tmp_sbatch_path)
         else:
-            sbatch_path = Path(sbatch_path).resolve()
+            tmp_sbatch_path = Path(sbatch_path).resolve()
 
         summary = extend_summary(
-            summary, tmp_train_args_dict, tmp_template_dict, exclude=[]
+            summary, tmp_train_args_dict, tmp_template_dict, exclude=["sbatch_file"]
         )
 
         # format train.py's args and crop floats' precision to 5 digits
