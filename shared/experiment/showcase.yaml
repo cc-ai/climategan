@@ -1,3 +1,4 @@
+--- # ---------------------------
 # `sample` can be
 # - `uniform` (np.random.uniform(*from))
 # - `range` (np.choice(np.arange(*from)))
@@ -11,16 +12,18 @@
 #                  => {A:1, B: y}, {A:1, B: z}, {A:2, B: y}, {A:2, B: z}, {A:1, B: y}
 # - `sequential` samples will loop through the values in `from`. `from` MUST be a list
 
-
 # ---------------------------
 # -----  SBATCH config  -----
-# ---------------------------
 cpus: 8
-n_search: 4
 partition: long
 mem: 32G
 gres: "gpu:rtx8000:1"
 codeloc: $HOME/ccai/omnigan
+
+modules: "module load anaconda/3 && module load pytorch"
+conda: "conda activate omnienv && conda deactivate && conda activate omnienv"
+
+n_search: -1
 
 # ------------------------
 # -----  Train Args  -----
@@ -53,3 +56,16 @@ codeloc: $HOME/ccai/omnigan
     - ExtraAdam
     - Adam
 
+"gen.lambdas.C":
+  sample: cartesian
+  from:
+    - 0.1
+    - 0.5
+    - 1
+
+"data.loaders.batch_size":
+  sample: sequential
+  from:
+    - 2
+    - 4
+    - 6
