@@ -97,37 +97,73 @@ def extend_summary(summary, tmp_train_args_dict, tmp_template_dict, exclude=[]):
     return summary
 
 
-def print_summary(summary, col_len=10):
-    max_idx = 0
-    idx = 0
-    m = max([len(k) for k, v in summary.items() if len(set(v)) > 1] or [-1]) + 1
-    if m == 0:
+def print_search_summary(summary):
+    # filter out constant values
+    summary = {k: v for k, v in summary.items() if len(set(v)) > 1}
+
+    # if everything is constant: no summary
+    if not summary:
         return
+
+    # find number of searches
     n_searches = len(list(summary.values())[0])
 
-    first_col_len = m + 5
-    max_grid_len = cols() - first_col_len
-
+    # print section title
     print(
         "{}{}{}Varying values across {} experiments:{}\n".format(
             C.OKBLUE, C.BOLD, C.UNDERLINE, n_searches, C.ENDC,
         )
     )
 
-    while max_idx < n_searches:
-        for i, k in enumerate(sorted(list(summary.keys()))):
-            v = summary[k]
-            if len(set(v)) < 2:
-                continue
-            # breakpoint()
-            s = ""
-            idx = max_idx
-            while len(s) + col_len + 3 < max_grid_len and idx < n_searches:
-                s += "{0:{1}} | ".format(str(crop_float(v[idx], col_len - 2)), col_len)
-                idx += 1
-            print("• {0:{1}}: {2}".format(k, m, s))
-        max_idx = idx
-        print("\n")
+    # first column holds the Exp. number
+    first_col = {
+        "len": 8,  # length of a column, to split columns according to terminal width
+        "str": ["| Exp. |", f"| {' ' * 4} |"]
+        + [
+            "| {0:^{1}} |".format(i, 4) for i in range(n_searches)
+        ],  # list of values to print
+    }
+
+    columns = [[first_col]]
+    for k in sorted(summary.keys()):
+        v = summary[k]
+        col_title = f" {k} |"
+        col_blank_line = f" {' ' * len(k)} |"
+        col_values = [
+            " {0:{1}} |".format(
+                crop_string(
+                    str(crop_float(v[idx], min([5, len(k) - 2]))), len(k)
+                ),  # crop floats and long strings
+                len(k),
+            )
+            for idx in range(len(v))
+        ]
+
+        # create column object
+        col = {"len": len(k) + 3, "str": [col_title, col_blank_line] + col_values}
+
+        # if adding a new column would overflow the terminal and mess up printing, start
+        # new set of columns
+        if sum(c["len"] for c in columns[-1]) + col["len"] >= cols():
+            columns.append([first_col])
+
+        # store current column to latest group of columns
+        columns[-1].append(col)
+
+    s = ""
+    # print each column group individually
+    for colgroup in columns:
+        # print columns line by line
+        for i in range(n_searches + 2):
+            # get value of column for current line i
+            for col in colgroup:
+                s += col["str"][i]
+            # next line for current columns
+            s += "\n"
+
+        # new lines for new column group
+        s += "\n\n"
+    print(s)
 
 
 def clean_arg(v):
@@ -189,7 +225,7 @@ def crop_float(v, k=5):
         any: cropped float as str if v is a float, original v otherwise
     """
     if isinstance(v, float):
-        return "{0:.{1}f}".format(v, k)
+        return "{0:.{1}g}".format(v, k)
     return v
 
 
@@ -227,6 +263,13 @@ def compute_n_search(conf):
     raise ValueError(
         "Used n_search=-1 without any field being 'cartesian' or 'sequential'"
     )
+
+
+def crop_string(s, k=10):
+    if len(s) <= k:
+        return s
+    else:
+        return s[: k - 2] + ".."
 
 
 def sample_param(sample_dict):
@@ -695,4 +738,6 @@ if __name__ == "__main__":
         )
         print_footer()
 
-    print_summary(summary)
+    print(f"\nRan a total of {hp_idx + 1} jobs{' in dev mode.' if dev else '.'}\n")
+
+    print_search_summary(summary)
