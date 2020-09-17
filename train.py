@@ -65,9 +65,6 @@ def main(opts):
         assert opts.tasks == [
             "m"
         ], "Auto adventv2 only works if mask is the only task to be trained!"
-        assert (
-            not opts.train.resume
-        ), "Auto adventv2 only works when training from strach!"
         opts.train.epochs = opts.train.lambdas.advent.stage_one_epochs
 
     exp = None
@@ -115,12 +112,14 @@ def main(opts):
     trainer = Trainer(opts, comet_exp=exp)
     trainer.logger.time.start_time = time()
     trainer.setup()
-    trainer.train()
+    if opts.train.epochs != 0:
+        trainer.train()
     if is_auto_adventv2:
         adventv2EntropySplit(trainer, verbose=0)
         trainer.opts = switch_data(opts)
         # start from where the first stage ended
-        trainer.logger.epoch = opts.train.lambdas.advent.stage_one_epochs
+        if not opts.train.resume:
+            trainer.logger.epoch = opts.train.lambdas.advent.stage_one_epochs
         trainer.train()
 
     # -----------------------------
