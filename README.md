@@ -20,6 +20,7 @@
 - [Running Experiments](#running-experiments)
   - [Comet-specific parameters](#comet-specific-parameters)
   - [Sampling parameters](#sampling-parameters)
+  - [Training/resumeing with/without ADVENT V2 automatically](#training/resumeing with/without ADVENT V2 automatically)
 - [Choices and Ideas](#choices-and-ideas)
 
 ## Setup
