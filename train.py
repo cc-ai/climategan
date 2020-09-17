@@ -60,15 +60,15 @@ def main(opts):
     pprint("Running model in", opts.output_path)
 
     # check if auto adventv2 works
-    is_auto_adventv2 = opts["train"]["lambdas"]["advent"]["is_auto_adventv2"]
+    is_auto_adventv2 = opts.train.lambdas.advent.is_auto_adventv2
     if is_auto_adventv2:
-        assert opts["tasks"] == [
+        assert opts.tasks == [
             "m"
         ], "Auto adventv2 only works if mask is the only task to be trained!"
-        assert not opts["train"][
-            "resume"
-        ], "Auto adventv2 only works when training from strach!"
-        opts["train"]["epochs"] = opts["train"]["lambdas"]["advent"]["stage_one_epochs"]
+        assert (
+            not opts.train.resume
+        ), "Auto adventv2 only works when training from strach!"
+        opts.train.epochs = opts.train.lambdas.advent.stage_one_epochs
 
     exp = None
     if not args.dev:
@@ -120,7 +120,7 @@ def main(opts):
         adventv2EntropySplit(trainer, verbose=0)
         trainer.opts = switch_data(opts)
         # start from where the first stage ended
-        trainer.logger.epoch = opts["train"]["lambdas"]["advent"]["stage_one_epochs"]
+        trainer.logger.epoch = opts.train.lambdas.advent.stage_one_epochs
         trainer.train()
 
     # -----------------------------

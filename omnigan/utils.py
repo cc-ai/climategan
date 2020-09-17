@@ -441,17 +441,13 @@ def switch_data(opts):
     This function works for adventv2 especially
     It helps change the training datasets after first stage training in the self.opts
     """
-    opts["data"]["files"]["base"] = opts["data"]["files"]["adventv2_base"]
-    opts["train"]["epochs"] = opts["train"]["lambdas"]["advent"]["stage_two_epochs"]
-    if opts["train"]["lambdas"]["advent"]["preserve_sim"]:
-        opts["data"]["files"]["train"] = opts["data"]["files"]["adventv2_train"]
+    opts.data.files.base = opts.data.files.adventv2_base
+    opts.train.epochs = opts.train.lambdas.advent.stage_two_epochs
+    if opts.train.lambdas.advent.preserve_sim:
+        opts.data.files.train = opts.data.files.adventv2_train
     else:
-        opts["data"]["files"]["train"]["r"] = opts["data"]["files"]["adventv2_train"][
-            "r"
-        ]
-        opts["data"]["files"]["train"]["s"] = opts["data"]["files"]["adventv2_train"][
-            "s0"
-        ]
+        opts.data.files.train.r = opts.data.files.adventv2_train.r
+        opts.data.files.train.s = opts.data.files.adventv2_train.s0
     return opts
 
 
@@ -461,10 +457,10 @@ def adventv2EntropySplit(trainer, verbose=1):
     It makes the easy_split.json and hard_split.json files mentioned in adventv2
     in self.opts.data.files.adventv2_base
     """
-    entropy_split = trainer.opts["train"]["lambdas"]["advent"]["entropy_split"]
-    save_path = trainer.opts["data"]["files"]["adventv2_base"]
-    include_sim = trainer.opts["train"]["lambdas"]["advent"]["preserve_sim"]
-    sim_path = trainer.opts["data"]["files"]["train"]["s"]
+    entropy_split = trainer.opts.train.lambdas.advent.entropy_split
+    save_path = trainer.opts.data.files.adventv2_base
+    include_sim = trainer.opts.train.lambdas.advent.preserve_sim
+    sim_path = trainer.opts.data.files.train.s
     entropy_list = []
 
     if save_path[-1] != "/":
