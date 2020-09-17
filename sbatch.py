@@ -98,40 +98,35 @@ def extend_summary(summary, tmp_train_args_dict, tmp_template_dict, exclude=[]):
 
 
 def print_summary(summary, col_len=10):
-    try:
-        max_idx = 0
-        idx = 0
+    max_idx = 0
+    idx = 0
 
-        m = max([len(k) for k, v in summary.items() if len(set(v)) > 1]) + 1
-        n_searches = len(list(summary.values())[0])
+    m = max([len(k) for k, v in summary.items() if len(set(v)) > 1]) + 1
+    n_searches = len(list(summary.values())[0])
 
-        first_col_len = m + 5
-        max_grid_len = cols() - first_col_len
+    first_col_len = m + 5
+    max_grid_len = cols() - first_col_len
 
-        print(
-            "{}{}{}Varying values across {} experiments:{}\n".format(
-                C.OKBLUE, C.BOLD, C.UNDERLINE, n_searches, C.ENDC,
-            )
+    print(
+        "{}{}{}Varying values across {} experiments:{}\n".format(
+            C.OKBLUE, C.BOLD, C.UNDERLINE, n_searches, C.ENDC,
         )
+    )
 
-        while max_idx < n_searches:
-            for i, k in enumerate(sorted(list(summary.keys()))):
-                v = summary[k]
-                if len(set(v)) < 2:
-                    continue
-                # breakpoint()
-                s = ""
-                idx = max_idx
-                while len(s) + col_len + 3 < max_grid_len and idx < n_searches:
-                    s += "{0:{1}} | ".format(
-                        str(crop_float(v[idx], col_len - 2)), col_len
-                    )
-                    idx += 1
-                print("• {0:{1}}: {2}".format(k, m, s))
-            max_idx = idx
-            print("\n")
-    except:
-        breakpoint()
+    while max_idx < n_searches:
+        for i, k in enumerate(sorted(list(summary.keys()))):
+            v = summary[k]
+            if len(set(v)) < 2:
+                continue
+            # breakpoint()
+            s = ""
+            idx = max_idx
+            while len(s) + col_len + 3 < max_grid_len and idx < n_searches:
+                s += "{0:{1}} | ".format(str(crop_float(v[idx], col_len - 2)), col_len)
+                idx += 1
+            print("• {0:{1}}: {2}".format(k, m, s))
+        max_idx = idx
+        print("\n")
 
 
 def clean_arg(v):
