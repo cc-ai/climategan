@@ -37,7 +37,7 @@ def parsed_args():
         "--entropy_split",
         default=0.67,
         type=float,
-        help="hyperparameter lambda to split the target domain",
+        help="hyperparameter lambda to split the target domain (indicating how much data will be in easy_split.json)",
     )
     parser.add_argument(
         "--preserve_sim",
