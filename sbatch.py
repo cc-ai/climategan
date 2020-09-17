@@ -4,7 +4,6 @@ import os
 import re
 import subprocess
 import sys
-import uuid
 from collections import defaultdict
 from pathlib import Path
 
@@ -12,7 +11,7 @@ import numpy as np
 import yaml
 
 
-class bcolors:
+class C:
     HEADER = "\033[95m"
     OKBLUE = "\033[94m"
     OKGREEN = "\033[92m"
@@ -23,6 +22,10 @@ class bcolors:
     UNDERLINE = "\033[4m"
     ITALIC = "\33[3m"
     BEIGE = "\33[36m"
+
+
+def warn(*args, **kwargs):
+    print("{}{}{}".format(C.WARNING, " ".join(args), C.ENDC), **kwargs)
 
 
 def now():
@@ -49,9 +52,9 @@ def print_box(txt):
 
 
 def print_header(idx):
-    b = bcolors.BOLD
-    bl = bcolors.OKBLUE
-    e = bcolors.ENDC
+    b = C.BOLD
+    bl = C.OKBLUE
+    e = C.ENDC
     char = "≡"
     c = cols()
 
@@ -72,10 +75,63 @@ def print_header(idx):
 def print_footer():
     c = cols()
     char = "﹎"
+    print()
     print(char * (c // len(char)))
     print()
     print(" " * (c // 2) + "•" + " " * (c - c // 2 - 1))
     print()
+
+
+def extend_summary(summary, tmp_train_args_dict, tmp_template_dict, exclude=[]):
+    exclude = set(exclude)
+    if summary is None:
+        summary = defaultdict(list)
+    for k, v in tmp_template_dict.items():
+        if k not in exclude:
+            summary[k].append(v)
+    for k, v in tmp_train_args_dict.items():
+        if k not in exclude:
+            if isinstance(v, list):
+                v = str(v)
+            summary[k].append(v)
+    return summary
+
+
+def print_summary(summary, col_len=10):
+    try:
+        max_idx = 0
+        idx = 0
+
+        m = max([len(k) for k, v in summary.items() if len(set(v)) > 1]) + 1
+        n_searches = len(list(summary.values())[0])
+
+        first_col_len = m + 5
+        max_grid_len = cols() - first_col_len
+
+        print(
+            "{}{}{}Varying values across {} experiments:{}\n".format(
+                C.OKBLUE, C.BOLD, C.UNDERLINE, n_searches, C.ENDC,
+            )
+        )
+
+        while max_idx < n_searches:
+            for i, k in enumerate(sorted(list(summary.keys()))):
+                v = summary[k]
+                if len(set(v)) < 2:
+                    continue
+                # breakpoint()
+                s = ""
+                idx = max_idx
+                while len(s) + col_len + 3 < max_grid_len and idx < n_searches:
+                    s += "{0:{1}} | ".format(
+                        str(crop_float(v[idx], col_len - 2)), col_len
+                    )
+                    idx += 1
+                print("• {0:{1}}: {2}".format(k, m, s))
+            max_idx = idx
+            print("\n")
+    except:
+        breakpoint()
 
 
 def clean_arg(v):
@@ -126,7 +182,7 @@ def quote_string(v):
     return v
 
 
-def crop_float(v):
+def crop_float(v, k=5):
     """
     If v is a float, crop precision to 5 digits and return v as a str
 
@@ -137,7 +193,7 @@ def crop_float(v):
         any: cropped float as str if v is a float, original v otherwise
     """
     if isinstance(v, float):
-        return f"{v:.5f}"
+        return "{0:.{1}f}".format(v, k)
     return v
 
 
@@ -519,6 +575,7 @@ if __name__ == "__main__":
     # ---------------------------------
     # -----  Run All Experiments  -----
     # ---------------------------------
+    summary = None
     for hp_idx, hp in enumerate(hps):
 
         # copy shared values
@@ -527,6 +584,7 @@ if __name__ == "__main__":
         tmp_train_args_dict = {
             arg.split("=")[0]: arg.split("=")[1] for arg in tmp_train_args
         }
+        print_header(hp_idx)
         # override shared values with run-specific values for run hp_idx/n_search
         if hp is not None:
             for k, v in hp.items():
@@ -547,13 +605,11 @@ if __name__ == "__main__":
                     if k in tmp_train_args_dict:
                         if is_sampled(k, search_conf):
                             # warn if key was specified from the command line
-                            print(
-                                "Warning",
-                                "overriding commandline arg {} with hp value {}".format(
-                                    k, v
-                                ),
+                            tv = tmp_train_args_dict[k]
+                            warn(
+                                "\nWarning: overriding sampled config-file arg",
+                                "{} to command-line value {}\n".format(k, tv),
                             )
-                            tmp_train_args_dict[k] = v
                     else:
                         tmp_train_args_dict[k] = v
 
@@ -564,6 +620,10 @@ if __name__ == "__main__":
             tmp_train_args_dict["sbatch_file"] = str(sbatch_path)
         else:
             sbatch_path = Path(sbatch_path).resolve()
+
+        summary = extend_summary(
+            summary, tmp_train_args_dict, tmp_template_dict, exclude=[]
+        )
 
         # format train.py's args and crop floats' precision to 5 digits
         tmp_template_dict["train_args"] = " ".join(
@@ -590,7 +650,6 @@ if __name__ == "__main__":
         # --------------------------------------
         # -----  Execute `sbatch` Command  -----
         # --------------------------------------
-        print_header(hp_idx)
         if not dev:
             if sbatch_path.exists():
                 print(f"Warning: overwriting {sbatch_path}")
@@ -619,16 +678,16 @@ if __name__ == "__main__":
         # -----  Summarize Execution  -----
         # ---------------------------------
         if verbose:
-            print(bcolors.BEIGE + bcolors.ITALIC, "\n" + sbatch + bcolors.ENDC)
+            print(C.BEIGE + C.ITALIC, "\n" + sbatch + C.ENDC)
         if not dev:
             print_box(command_output.strip())
 
         print(
             "{}{}Summary{} {}:".format(
-                bcolors.UNDERLINE,
-                bcolors.OKGREEN,
-                bcolors.ENDC,
-                f"{bcolors.WARNING}(DEV){bcolors.ENDC}" if dev else "",
+                C.UNDERLINE,
+                C.OKGREEN,
+                C.ENDC,
+                f"{C.WARNING}(DEV){C.ENDC}" if dev else "",
             )
         )
         print(
@@ -638,3 +697,5 @@ if __name__ == "__main__":
             )
         )
         print_footer()
+
+    print_summary(summary)
