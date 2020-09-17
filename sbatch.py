@@ -100,8 +100,9 @@ def extend_summary(summary, tmp_train_args_dict, tmp_template_dict, exclude=[]):
 def print_summary(summary, col_len=10):
     max_idx = 0
     idx = 0
-
-    m = max([len(k) for k, v in summary.items() if len(set(v)) > 1]) + 1
+    m = max([len(k) for k, v in summary.items() if len(set(v)) > 1] or [-1]) + 1
+    if m == 0:
+        return
     n_searches = len(list(summary.values())[0])
 
     first_col_len = m + 5
