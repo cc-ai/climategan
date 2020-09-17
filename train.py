@@ -59,14 +59,6 @@ def main(opts):
         opts.output_path = str(get_increased_path(opts.output_path))
     pprint("Running model in", opts.output_path)
 
-    # check if auto adventv2 works
-    is_auto_adventv2 = opts.train.lambdas.advent.is_auto_adventv2
-    if is_auto_adventv2:
-        assert opts.tasks == [
-            "m"
-        ], "Auto adventv2 only works if mask is the only task to be trained!"
-        opts.train.epochs = opts.train.lambdas.advent.stage_one_epochs
-
     exp = None
     if not args.dev:
         # -------------------------------
@@ -106,12 +98,30 @@ def main(opts):
             Dict({"name": "crop", "ignore": False, "height": 32, "width": 32})
         ]
 
+    # ------------------------------------------
+    # -----  Check if auto adventv2 works  -----
+    # ------------------------------------------
+    is_auto_adventv2 = opts.train.lambdas.advent.is_auto_adventv2
+    if is_auto_adventv2:
+        assert opts.tasks == [
+            "m"
+        ], "Auto adventv2 only works if mask is the only task to be trained!"
+        if opts.train.resume:
+            opts.train.epochs += opts.train.lambdas.advent.stage_one_epochs
+            if opts.train.lambdas.advent.stage_one_epochs == 0:
+                print("Ready to continue on stage two training")
+            else:
+                print("Ready to continue on stage one training")
+        else:
+            opts.train.epochs = opts.train.lambdas.advent.stage_one_epochs
+
     # -------------------
     # -----  Train  -----
     # -------------------
     trainer = Trainer(opts, comet_exp=exp)
     trainer.logger.time.start_time = time()
     trainer.setup()
+    # start training if the expected training epochs is not 0
     if opts.train.epochs != 0:
         trainer.train()
     if is_auto_adventv2:
