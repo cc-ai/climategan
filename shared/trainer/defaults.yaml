@@ -48,7 +48,11 @@ gen:
   opt:
     optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam #TODO Test speed/performance difference w/ Adam
     beta1: 0.9
-    lr: 0.00001
+    lr: 
+      m: 0.00001
+      p: 0.00001
+      s: 0.00001
+      d: 0.00001
     lr_policy: step # constant or step ; if step, specify step_size and gamma
     lr_step_size: 30 # for linear decay : period of learning rate decay (epochs)
     lr_gamma: 0.5 # Multiplicative factor of learning rate decay

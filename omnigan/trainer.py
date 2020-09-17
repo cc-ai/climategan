@@ -65,6 +65,8 @@ class Trainer:
         self.logger.epoch = 0
         self.loaders = None
         self.losses = None
+        self.g_opt = {}
+        self.g_scheduler = {}
 
         self.is_setup = False
 
@@ -210,7 +212,22 @@ class Trainer:
             ).to(self.device)
         self.print_num_parameters()
 
-        self.g_opt, self.g_scheduler = get_optimizer(self.G, self.opts.gen.opt)
+        # Get different optimizers for each task (different learning rates)
+        for task in self.opts.tasks:
+            # Get optimizer for the encoder
+            if task == "m":
+                self.g_opt[task], self.g_scheduler[task] = get_optimizer(
+                    self.G.encoder, self.opts.gen.opt, task=task
+                )
+            # Get optimizer for decoders
+            if task == "p":
+                self.g_opt[task], self.g_scheduler[task] = get_optimizer(
+                    self.G.painter, self.opts.gen.opt, task=task
+                )
+            else:
+                self.g_opt[task], self.g_scheduler[task] = get_optimizer(
+                    self.G.decoders[task], self.opts.gen.opt, task=task
+                )
 
         if get_num_params(self.D) > 0:
             self.d_opt, self.d_scheduler = get_optimizer(self.D, self.opts.dis.opt)
@@ -266,9 +283,11 @@ class Trainer:
         if "extra" in self.opts.gen.opt.optimizer.lower() and (
             self.logger.global_step % 2 == 0
         ):
-            self.g_opt.extrapolation()
+            for model in self.g_opt.keys():
+                self.g_opt[model].extrapolation()
         else:
-            self.g_opt.step()
+            for model in self.g_opt.keys():
+                self.g_opt[model].step()
 
     def d_opt_step(self):
         """Run an optimizing step ; if using ExtraAdam, there needs to be an extrapolation
@@ -304,7 +323,8 @@ class Trainer:
 
     def update_learning_rates(self):
         if self.g_scheduler is not None:
-            self.g_scheduler.step()
+            for model in self.g_scheduler.keys():
+                self.g_scheduler[model].step()
         if self.d_scheduler is not None:
             self.d_scheduler.step()
         if self.c_scheduler is not None:
@@ -585,7 +605,8 @@ class Trainer:
         Args:
             multi_domain_batch (dict): dictionnary of domain batches
         """
-        self.g_opt.zero_grad()
+        for model in self.g_opt.keys():
+            self.g_opt[model].zero_grad()
         g_loss = self.get_g_loss(multi_domain_batch, verbose)
         g_loss.backward()
         self.g_opt_step()
@@ -777,7 +798,8 @@ class Trainer:
             torch.Tensor: scalar loss tensor, weighted according to opts.train.lambdas
         """
         step_loss = 0
-        self.g_opt.zero_grad()
+        for model in self.g_opt.keys():
+            self.g_opt[model].zero_grad()
         lambdas = self.opts.train.lambdas
 
         for batch_domain, batch in multi_domain_batch.items():
@@ -1127,9 +1149,12 @@ class Trainer:
         save_dict = {
             "epoch": self.logger.epoch,
             "G": self.G.state_dict(),
-            "g_opt": self.g_opt.state_dict(),
+            "g_opt": {},
             "step": self.logger.global_step,
         }
+
+        for model in self.g_opt.keys():
+            save_dict["g_opt"][model] = self.g_opt[model].state_dict()
 
         if self.C is not None and get_num_params(self.C) > 0:
             save_dict["C"] = self.C.state_dict()
@@ -1169,7 +1194,8 @@ class Trainer:
 
         self.G.load_state_dict(checkpoint["G"])
         if not ("m" in self.opts.tasks and "p" in self.opts.tasks):
-            self.g_opt.load_state_dict(checkpoint["g_opt"])
+            for task in self.opts.tasks:
+                self.g_opt[task].load_state_dict(checkpoint["g_opt"][task])
         self.logger.epoch = checkpoint["epoch"]
         self.logger.global_step = checkpoint["step"]
         # Round step to even number for extraGradient

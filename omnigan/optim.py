@@ -33,13 +33,14 @@ def get_scheduler(optimizer, hyperparameters, iterations=-1):
     return scheduler
 
 
-def get_optimizer(net, opt_conf, iterations=-1):
+def get_optimizer(net, opt_conf, task=None, iterations=-1):
     """Returns a tuple (optimizer, scheduler) according to opt_conf which
     should come from the trainer's opts as: trainer.opts.<model>.opt
 
     Args:
         net (nn.Module): Network to update
         opt_conf (addict.Dict): optimizer and scheduler options
+        task: task for which to get the optimizer ('m','p','s','d',...)
         iterations (int, optional): Last epoch number. Defaults to -1, meaning
             start with base lr.
 
@@ -47,10 +48,14 @@ def get_optimizer(net, opt_conf, iterations=-1):
         Tuple: (torch.Optimizer, torch._LRScheduler)
     """
     opt = scheduler = None
-    if opt_conf.optimizer == "ExtraAdam":
-        opt = ExtraAdam(net.parameters(), lr=opt_conf.lr, betas=(opt_conf.beta1, 0.999))
+    if task is None:
+        lr = opt_conf.lr
     else:
-        opt = Adam(net.parameters(), lr=opt_conf.lr, betas=(opt_conf.beta1, 0.999))
+        lr = opt_conf.lr[task]
+    if opt_conf.optimizer == "ExtraAdam":
+        opt = ExtraAdam(net.parameters(), lr=lr, betas=(opt_conf.beta1, 0.999))
+    else:
+        opt = Adam(net.parameters(), lr=lr, betas=(opt_conf.beta1, 0.999))
     scheduler = get_scheduler(opt, opt_conf, iterations)
     return opt, scheduler
 
