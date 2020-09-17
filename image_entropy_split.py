@@ -41,7 +41,7 @@ def parsed_args():
     )
     parser.add_argument(
         "--preserve_sim",
-        default=False,
+        default=True,
         type=bool,
         help="Whether the output of the easy_split.json includes the orignal train_sim.json in the first stage or not",
     )
