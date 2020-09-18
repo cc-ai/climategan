@@ -24,6 +24,11 @@ class C:
     BEIGE = "\33[36m"
 
 
+def escape(path):
+    p = str(path)
+    return p.replace(" ", "\ ").replace("(", "\(").replace(")", "\)")
+
+
 def warn(*args, **kwargs):
     print("{}{}{}".format(C.WARNING, " ".join(args), C.ENDC), **kwargs)
 
@@ -653,7 +658,7 @@ if __name__ == "__main__":
                     continue
 
                 if k == "codeloc":
-                    v = re.escape(v)
+                    v = escape(v)
                 # override template params depending on exp config
                 if k in tmp_template_dict:
                     if template_dict[k] is None or is_sampled(k, search_conf):
@@ -720,7 +725,7 @@ if __name__ == "__main__":
             # escape special characters such as " " from sbatch_path's parent dir
             parent = str(tmp_sbatch_path.parent)
             if escape:
-                parent = re.escape(parent)
+                parent = escape(parent)
 
             # create command to execute in a subprocess
             command = "sbatch {}".format(tmp_sbatch_path.name)
@@ -741,7 +746,7 @@ if __name__ == "__main__":
         if not dev:
             print_box(command_output.strip())
             jobID = parse_jobID(command_output.strip())
-            summary["jobID"].append(jobID)
+            summary["Slurm JOBID"].append(jobID)
 
         print(
             "{}{}Summary{} {}:".format(
