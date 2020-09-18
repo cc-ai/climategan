@@ -691,20 +691,20 @@ if __name__ == "__main__":
         # -----  Execute `sbatch` Command  -----
         # --------------------------------------
         if not dev:
-            if sbatch_path.exists():
+            if tmp_sbatch_path.exists():
                 print(f"Warning: overwriting {sbatch_path}")
 
             # write sbatch file
-            with open(sbatch_path, "w") as f:
+            with open(tmp_sbatch_path, "w") as f:
                 f.write(sbatch)
 
             # escape special characters such as " " from sbatch_path's parent dir
-            parent = str(sbatch_path.parent)
+            parent = str(tmp_sbatch_path.parent)
             if escape:
                 parent = re.escape(parent)
 
             # create command to execute in a subprocess
-            command = "sbatch {}".format(sbatch_path.name)
+            command = "sbatch {}".format(tmp_sbatch_path.name)
             # execute sbatch command & store output
             command_output = subprocess.run(
                 command.split(), stdout=subprocess.PIPE, cwd=parent
