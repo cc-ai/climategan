@@ -20,6 +20,8 @@ from omnigan.utils import (
     load_opts,
     get_latest_path,
     copy_sbatch,
+    merge,
+    get_existing_jobID,
 )
 
 hydra_config_path = Path(__file__).resolve().parent / "shared/trainer/config.yaml"
@@ -69,7 +71,7 @@ def main(opts):
     # -----------------------
 
     opts = load_opts(args.config, default=default)
-    opts.update(hydra_opts)
+    opts = merge(hydra_opts, opts)
     if args.resume:
         opts.train.resume = True
     opts.jobID = os.environ.get("SLURM_JOBID")
@@ -83,17 +85,13 @@ def main(opts):
 
         # Auto-continue if same slurm job ID (=job was requeued)
         if not opts.train.resume:
-            if Path(opts.output_path).exists():
-                _op = Path(opts.output_path)
-                _op_opts_path = get_latest_path(_op / "opts.yaml")
-                if _op_opts_path.exists():
-                    with _op_opts_path.open("r") as f:
-                        _op_opts = yaml.safe_load(f)
-                    if _op_opts.get("jobID", 0) == opts.jobID:
-                        opts.train.resume = True
+            existing_jobID = get_existing_jobID(opts.output_path)
+            if int(existing_jobID) == int(opts.jobID):
+                opts.train.resume = True
 
         # Still not resuming: creating new output path
         if not opts.train.resume:
+            opts.output_path = str(get_increased_path(opts.output_path))
             Path(opts.output_path).mkdir(parents=True, exist_ok=True)
 
         pprint("Running model in", opts.output_path)

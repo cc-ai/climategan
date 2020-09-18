@@ -532,7 +532,7 @@ def get_latest_path(path):
     Returns:
         Path: path found
     """
-    p = Path(path)
+    p = Path(path).resolve()
     s = p.stem
     e = p.suffix
     files = list(p.parent.glob(f"{s}*(*){e}"))
@@ -545,3 +545,29 @@ def get_latest_path(path):
     else:
         f = files[np.argmax(indices)]
     return f
+
+
+def get_existing_jobID(output_path):
+    """
+    If the opts in output_path have a jobID, return it. Else, return None
+
+    Args:
+        output_path (pathlib.Path | str): where to  look
+
+    Returns:
+        str | None: jobid
+    """
+    op = Path(output_path)
+    if not op.exists():
+        return
+
+    opts_path = get_latest_path(op / "opts.yaml")
+
+    if not opts_path.exists():
+        return
+
+    with opts_path.open("r") as f:
+        opts = yaml.safe_load(f)
+
+    return opts.get("jobID", None)
+
