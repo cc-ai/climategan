@@ -200,6 +200,7 @@ train:
       entropy_split: 0.67 # #hard_split/(#easy_split + #hard_split) in adventv2
       stage_one_epochs: 100 # the epoches expected to finish in the first stage of advent
       stage_two_epochs: 100 # the epoches expected to finish in the second stage of advent
+      split_prepared: False # True if entropy_split is already generated
       preserve_sim: True # True if s domain data includes both easy_split.json and train_s_full.json
   log_level: 2 # 0: no log, 1: only aggregated losses, >1 detailed losses
   save_n_epochs: 1 # Save model every n epochs

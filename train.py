@@ -106,14 +106,12 @@ def main(opts):
         assert opts.tasks == [
             "m"
         ], "Auto adventv2 only works if mask is the only task to be trained!"
+        opts.train.epochs = opts.train.lambdas.advent.stage_one_epochs
         if opts.train.resume:
-            opts.train.epochs += opts.train.lambdas.advent.stage_one_epochs
             if opts.train.lambdas.advent.stage_one_epochs == 0:
-                print("Ready to continue on stage two training")
+                print("Continue on stage two training")
             else:
-                print("Ready to continue on stage one training")
-        else:
-            opts.train.epochs = opts.train.lambdas.advent.stage_one_epochs
+                print("Continue on stage one training")
 
     # -------------------
     # -----  Train  -----
@@ -125,11 +123,13 @@ def main(opts):
     if opts.train.epochs != 0:
         trainer.train()
     if is_auto_adventv2:
-        adventv2EntropySplit(trainer, verbose=0)
+        if not opts.train.lambdas.advent.split_prepared:
+            adventv2EntropySplit(trainer, verbose=0)
+        else:
+            print("Skip generating entropy split.")
+        print("Start stage two training!")
+        trainer.logger.epoch += 1
         trainer.opts = switch_data(opts)
-        # start from where the first stage ended
-        if not opts.train.resume:
-            trainer.logger.epoch = opts.train.lambdas.advent.stage_one_epochs
         trainer.train()
 
     # -----------------------------

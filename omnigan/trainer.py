@@ -1170,7 +1170,8 @@ class Trainer:
         self.G.load_state_dict(checkpoint["G"])
         if not ("m" in self.opts.tasks and "p" in self.opts.tasks):
             self.g_opt.load_state_dict(checkpoint["g_opt"])
-        self.logger.epoch = checkpoint["epoch"]
+        # the starting epoch should be the last finished epoch + 1
+        self.logger.epoch = checkpoint["epoch"] + 1
         self.logger.global_step = checkpoint["step"]
         # Round step to even number for extraGradient
         if self.logger.global_step % 2 != 0:
