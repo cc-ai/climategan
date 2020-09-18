@@ -24,7 +24,7 @@ class C:
     BEIGE = "\33[36m"
 
 
-def escape(path):
+def escape_path(path):
     p = str(path)
     return p.replace(" ", "\ ").replace("(", "\(").replace(")", "\)")
 
@@ -658,7 +658,7 @@ if __name__ == "__main__":
                     continue
 
                 if k == "codeloc":
-                    v = escape(v)
+                    v = escape_path(v)
                 # override template params depending on exp config
                 if k in tmp_template_dict:
                     if template_dict[k] is None or is_sampled(k, search_conf):
@@ -725,7 +725,7 @@ if __name__ == "__main__":
             # escape special characters such as " " from sbatch_path's parent dir
             parent = str(tmp_sbatch_path.parent)
             if escape:
-                parent = escape(parent)
+                parent = escape_path(parent)
 
             # create command to execute in a subprocess
             command = "sbatch {}".format(tmp_sbatch_path.name)
