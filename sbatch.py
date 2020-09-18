@@ -142,7 +142,7 @@ def print_search_summary(summary):
     # first column holds the Exp. number
     first_col = {
         "len": 8,  # length of a column, to split columns according to terminal width
-        "str": ["| Exp. |", f"| {' ' * 4} |"]
+        "str": ["| Exp. |", f"|:----:|"]
         + [
             "| {0:^{1}} |".format(i, 4) for i in range(n_searches)
         ],  # list of values to print
@@ -152,7 +152,7 @@ def print_search_summary(summary):
     for k in sorted(summary.keys()):
         v = summary[k]
         col_title = f" {k} |"
-        col_blank_line = f" {' ' * len(k)} |"
+        col_blank_line = f":{'-' * len(k)}-|"
         col_values = [
             " {0:{1}} |".format(
                 crop_string(
