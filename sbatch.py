@@ -121,7 +121,7 @@ def extend_summary(summary, tmp_train_args_dict, tmp_template_dict, exclude=[]):
     return summary
 
 
-def print_search_summary(summary):
+def search_summary_table(summary, summary_dir=None):
     # filter out constant values
     summary = {k: v for k, v in summary.items() if len(set(v)) > 1}
 
@@ -187,7 +187,13 @@ def print_search_summary(summary):
 
         # new lines for new column group
         s += "\n\n"
-    print(s)
+
+    if summary_dir is not None:
+        summary_path = summary_dir / (now() + ".md")
+        with summary_path.open("w") as f:
+            f.write(s.strip())
+
+    return s
 
 
 def clean_arg(v):
@@ -555,8 +561,9 @@ if __name__ == "__main__":
     hp_search_name = None
     hp_search_nb = None
     resume = None
+    summary_dir = Path(home) / "omnigan_exp_summaries"
 
-    hp_search_private = set(["n_search", "template", "search"])
+    hp_search_private = set(["n_search", "template", "search", "summary_dir"])
 
     sbatch_path = "hash"
 
@@ -611,6 +618,12 @@ if __name__ == "__main__":
             resume = f'"{v}"'
             template_dict[k] = f'"{v}"'
 
+        elif k == "summary_dir":
+            if v.lower() == "none":
+                summary_dir = None
+            else:
+                summary_dir = Path(v)
+
         elif k in template_dict:
             template_dict[k] = v
 
@@ -638,7 +651,10 @@ if __name__ == "__main__":
     # ---------------------------------
     # -----  Run All Experiments  -----
     # ---------------------------------
+    if summary_dir is not None:
+        summary_dir.mkdir(exist_ok=True, parents=True)
     summary = None
+
     for hp_idx, hp in enumerate(hps):
 
         # copy shared values
@@ -766,4 +782,5 @@ if __name__ == "__main__":
 
     print(f"\nRan a total of {hp_idx + 1} jobs{' in dev mode.' if dev else '.'}\n")
 
-    print_search_summary(summary)
+    table = search_summary_table(summary, summary_dir)
+    print(table)
