@@ -28,6 +28,25 @@ def warn(*args, **kwargs):
     print("{}{}{}".format(C.WARNING, " ".join(args), C.ENDC), **kwargs)
 
 
+def parse_jobID(command_output):
+    """
+    get job id from successful sbatch command output like
+    `Submitted batch job 599583`
+
+    Args:
+        command_output (str): sbatch command's output
+
+    Returns:
+        int: the slurm job's ID
+    """
+    command_output = command_output.strip()
+    if isinstance(command_output, str):
+        if "Submitted batch job" in command_output:
+            return int(command_output.split()[-1])
+
+    return -1
+
+
 def now():
     return str(datetime.datetime.now()).replace(" ", "_")
 
@@ -721,6 +740,8 @@ if __name__ == "__main__":
             print(C.BEIGE + C.ITALIC, "\n" + sbatch + C.ENDC)
         if not dev:
             print_box(command_output.strip())
+            jobID = parse_jobID(command_output.strip())
+            summary["jobID"].append(jobID)
 
         print(
             "{}{}Summary{} {}:".format(
