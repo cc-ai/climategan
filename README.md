@@ -338,9 +338,8 @@ runs:
 1. If you want to train without advent v2, please set `train.lambdas.advent.is_auto_adventv2 = False` (also by default).
 2. If you want to train with advent v2 automatically, please make sure tasks is masker only and set `train.lambdas.advent.is_auto_adventv2 = True`
    1. If you want to train from sratch, please indicate how many epoches you want to train in the first/second stage at `train.lambdas.advent.stage_{}_epochs`
-   2. If you want to resume from a stage one checkpoint and continue on stage one training, please set `train.resume = True` and indicate how many epoches you want to continue training at `train.lambdas.advent.stage_{}_epochs`
-   3. If you want to resume from a stage one checkpoint and continue on stage two training, please set `train.resume = True`, `train.lambdas.advent.stage_one_epochs = 0` and indicate how many epoches you want to continue training at `train.lambdas.advent.stage_two_epochs`
-   4. We currently don't offer an option to resume from a stage two checkpoint and continue on stage two training.
+   2. If you want to resume and continue on stage **one** training, please set `train.resume = True` and indicate how many epoches you want to continue training at `train.lambdas.advent.stage_{}_epochs`
+   3. If you want to resume and continue on stage **two** training, please set `train.resume = True`, `train.lambdas.advent.stage_one_epochs = 0` and indicate how many epoches you want to continue training at `train.lambdas.advent.stage_two_epochs`. If you don't need to generate entropy split again, please set `train.lambdas.advent.split_prepared = True` (`False` by default)
   
 
 # Choices and Ideas
