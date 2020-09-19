@@ -11,6 +11,7 @@ tasks: [d, s, m, p] # [p] [m, s, d]
 # ----- Data -----
 # ----------------
 data:
+  max_samples: -1 # -1 for all, otherwise set to an int to crop the training data size
   files: # if one is not none it will override the dirs location
     base: /network/tmp1/ccai/data/omnigan/base/
     train:
@@ -24,7 +25,6 @@ data:
   check_samples: True
   loaders:
     batch_size: 4
-    shuffle: true
     num_workers: 8
   transforms:
     - name: hflip
@@ -91,6 +91,8 @@ gen:
     output_dim: 11
     use_advent: True
     use_minient: False
+    use_pseudo_labels: False
+    upsample_featuremaps: False # upsamples from 80 to 160 intermediate feature maps
   p: # specific params for the SPADE painter
     <<: *default-gen
     latent_dim: 512
@@ -172,6 +174,7 @@ train:
       d: 1
       s:
         crossent: 1
+        crossent_pseudo: 0.001
         minient: 0.001
         advent: 0.001
       m:
@@ -208,7 +211,8 @@ val:
 # ----- Comet Params ----------
 # -----------------------------
 comet:
-  display_size: 5
+  display_size: 20
+  rows_per_log: 5 # number of samples (rows) in a logged grid image. Number of total logged images: display_size // rows_per_log
   im_per_row:
     p: 4
     m: 4

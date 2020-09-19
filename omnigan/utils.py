@@ -1,13 +1,39 @@
 """All non-tensor utils
 """
+from copy import copy
 import os
 import re
 import subprocess
 import json
 from pathlib import Path
-
+import shutil
 import yaml
 from addict import Dict
+import contextlib
+import numpy as np
+
+comet_kwargs = {
+    "auto_metric_logging": False,
+    "parse_args": True,
+    "log_env_gpu": True,
+    "log_env_cpu": True,
+    "display_summary_level": 0,
+}
+
+
+def copy_sbatch(opts):
+    """
+    Copy the opts's sbatch_file to output_path
+
+    Args:
+        opts (addict.Dict): options
+    """
+    if opts.sbatch_file:
+        p = Path(opts.sbatch_file)
+        if p.exists():
+            o = Path(opts.output_path)
+            if o.exists():
+                shutil.copyfile(p, o / p.name)
 
 
 def merge(source, destination):
@@ -31,7 +57,7 @@ def merge(source, destination):
 
 def load_opts(path=None, default=None):
     # TODO add assert: if deeplabv2 then res_dim = 2048
-    """Loads a configuration Dict from 2 files:
+    """Loadsize a configuration Dict from 2 files:
     1. default files with shared values across runs and users
     2. an overriding file with run- and user-specific values
 
@@ -118,7 +144,10 @@ def get_git_revision_hash():
     Returns:
         str: git hash
     """
-    return subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
+    try:
+        return subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
+    except Exception as e:
+        return str(e)
 
 
 def write_hash(path):
@@ -149,7 +178,7 @@ def get_increased_path(path):
     f = str(fp)
 
     vals = []
-    for n in fp.parent.glob("{}*".format(fp.name)):
+    for n in fp.parent.glob("{}*".format(fp.stem)):
         ms = list(re.finditer(r"^{} \(\d+\)$".format(f), str(n)))
         if ms:
             m = list(re.finditer(r"\(\d+\)$", str(n)))[0].group()
@@ -161,7 +190,7 @@ def get_increased_path(path):
     else:
         ext = ""
 
-    return fp.parent / (fp.name + ext + fp.suffix)
+    return fp.parent / (fp.stem + ext + fp.suffix)
 
 
 def env_to_path(path):
@@ -213,7 +242,7 @@ def flatten_opts(opts):
             if isinstance(v, (Dict, dict)):
                 p(v, prefix + k + ".", vals)
             elif isinstance(v, list):
-                if isinstance(v[0], (Dict, dict)):
+                if v and isinstance(v[0], (Dict, dict)):
                     for i, m in enumerate(v):
                         p(m, prefix + k + "." + str(i) + ".", vals)
                 else:
@@ -413,3 +442,132 @@ def div_dict(dict1, div_by):
         else:
             div_dict(dict1[k], div_by)
     return dict1
+
+
+def comet_id_from_url(url):
+    """
+    Get comet exp id from its url:
+    https://www.comet.ml/vict0rsch/omnigan/2a1a4a96afe848218c58ac4e47c5375f
+    -> 2a1a4a96afe848218c58ac4e47c5375f
+
+    Args:
+        url (str): comet exp url
+
+    Returns:
+        str: comet exp id
+    """
+    try:
+        ids = url.split("/")
+        ids = [i for i in ids if i]
+        return ids[-1]
+    except Exception:
+        return None
+
+
+@contextlib.contextmanager
+def temp_np_seed(seed):
+    """
+    Set temporary numpy seed:
+    with temp_np_seed(123):
+        np.random.permutation(3)
+
+    Args:
+        seed (int): temporary numpy seed
+    """
+    state = np.random.get_state()
+    np.random.seed(seed)
+    try:
+        yield
+    finally:
+        np.random.set_state(state)
+
+
+def get_display_indices(opts, domain, length):
+    """
+    Compute the index of images to use for comet logging:
+    if opts.comet.display_indices is an int, and domain is real:
+        return range(int)
+    if opts.comet.display_indices is an int, and domain is sim:
+        return permutation(length)[:int]
+    if opts.comet.display_indices is a list:
+        return list
+
+    otherwise return []
+
+
+    Args:
+        opts (addict.Dict): options
+        domain (str): domain for those indices
+        length (int): length of dataset for the permutation
+
+    Returns:
+        list(int): The indices to display
+    """
+    dsize = opts.comet.display_size
+    display_indices = []
+    if isinstance(dsize, int):
+        with temp_np_seed(123):
+            display_indices = list(np.random.permutation(length)[:dsize])
+        # if domain == "s":
+        #     with temp_np_seed(123):
+        #         display_indices = list(np.random.permutation(length)[:dsize])
+        # else:
+        #     display_indices = list(range(dsize))
+    elif isinstance(dsize, list):
+        display_indices = dsize
+
+    if not display_indices:
+        print("Warning: no display indices (utils.get_display_indices)")
+
+    return display_indices
+
+
+def get_latest_path(path):
+    """
+    Get the file/dir with largest increment i as `file (i).ext`
+
+    Args:
+        path (str or pathlib.Path): base pattern
+
+    Returns:
+        Path: path found
+    """
+    p = Path(path).resolve()
+    s = p.stem
+    e = p.suffix
+    files = list(p.parent.glob(f"{s}*(*){e}"))
+    indices = list(p.parent.glob(f"{s}*(*){e}"))
+    indices = list(map(lambda f: f.name, indices))
+    indices = list(map(lambda x: re.findall("\((.*?)\)", x)[-1], indices))
+    indices = list(map(int, indices))
+    if not indices:
+        f = p
+    else:
+        f = files[np.argmax(indices)]
+    return f
+
+
+def get_existing_jobID(output_path):
+    """
+    If the opts in output_path have a jobID, return it. Else, return None
+
+    Args:
+        output_path (pathlib.Path | str): where to  look
+
+    Returns:
+        str | None: jobid
+    """
+    op = Path(output_path)
+    if not op.exists():
+        return
+
+    opts_path = get_latest_path(op / "opts.yaml")
+
+    if not opts_path.exists():
+        return
+
+    with opts_path.open("r") as f:
+        opts = yaml.safe_load(f)
+
+    return opts.get("jobID", None)
+

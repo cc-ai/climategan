@@ -1,5 +1,5 @@
-defaults:
-  - defaults
+# defaults:
+#   - defaults
 
 args:
   config: null # "What configuration file to use to overwrite shared/defaults.yaml"
