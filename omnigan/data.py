@@ -235,7 +235,7 @@ def tensor_loader(path, task, domain):
     Returns:
         [Tensor]: 1 x C x H x W
     """
-    if task == "s" and domain == "s":
+    if task == "s":
         arr = torch.load(path)
         return arr
     elif task == "d":

@@ -445,12 +445,11 @@ class Trainer:
                     prediction = self.G.decoders[update_task](self.z)
 
                     if update_task == "s":
-                        if domain == "s":
-                            target = (
-                                decode_segmap_unity_labels(target, domain, True)
-                                .float()
-                                .to(self.device)
-                            )
+                        target = (
+                            decode_segmap_unity_labels(target, domain, True)
+                            .float()
+                            .to(self.device)
+                        )
                         prediction = (
                             decode_segmap_unity_labels(prediction, domain, False)
                             .float()
