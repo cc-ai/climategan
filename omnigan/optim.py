@@ -40,7 +40,7 @@ def get_optimizer(net, opt_conf, tasks=None, iterations=-1):
     Args:
         net (nn.Module): Network to update
         opt_conf (addict.Dict): optimizer and scheduler options
-        task: task for which to get the optimizer ('m','p','s','d',...)
+        tasks: task for which to get the optimizer ('m','p','s','d',...)
         iterations (int, optional): Last epoch number. Defaults to -1, meaning
             start with base lr.
 
