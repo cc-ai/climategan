@@ -24,7 +24,7 @@ data:
       rf: val_rf.json
   check_samples: True
   loaders:
-    batch_size: 4
+    batch_size: 6
     num_workers: 8
   transforms:
     - name: hflip
@@ -34,9 +34,9 @@ data:
       ignore: false
       new_size: 640
     - name: crop
-      ignore: true
-      height: 560
-      width: 560
+      ignore: false
+      height: 600
+      width: 600
     - name: resize # ? this or change generator's output? Or resize larger then crop to 256?
       ignore: false
       new_size: 640
@@ -46,7 +46,7 @@ data:
 # ---------------------
 gen:
   opt:
-    optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam #TODO Test speed/performance difference w/ Adam
+    optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
     beta1: 0.9
     lr: 0.00001
     lr_policy: step # constant or step ; if step, specify step_size and gamma
@@ -88,7 +88,7 @@ gen:
     use_advent: True
     use_minient: False
     use_pseudo_labels: False
-    upsample_featuremaps: False # upsamples from 80 to 160 intermediate feature maps
+    upsample_featuremaps: False # upsamples from 80x80 to 160x160 intermediate feature maps
   p: # specific params for the SPADE painter
     <<: *default-gen
     latent_dim: 512
@@ -162,8 +162,6 @@ classifier:
 # ------------------------
 train:
   epochs: 100000000
-  representational_training: True
-  representation_steps: 10000 # for how many steps would the representation be trained before we train the translation
   latent_domain_adaptation: True # whether or not to do domain adaptation on the latent vectors # Needs to be turned off if use_advent is True
   lambdas: # scaling factors in the total loss
     G:
@@ -209,7 +207,7 @@ val:
 comet:
   display_size: 20
   rows_per_log: 5 # number of samples (rows) in a logged grid image. Number of total logged images: display_size // rows_per_log
-  im_per_row:
+  im_per_row: # how many columns (3 = x, target, pred)
     p: 4
     m: 4
     s: 3
