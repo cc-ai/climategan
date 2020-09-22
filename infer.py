@@ -31,7 +31,7 @@ class Timer:
         t = time.perf_counter()
         if self.name:
             s += f"[{self.name}]"
-        print(s + f"Elapsed time: {t - self._start_time:3.f}")
+        print(s + f"Elapsed time: {t - self._start_time:.3f}")
 
 
 TRANSFORMS = [trsfs.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]

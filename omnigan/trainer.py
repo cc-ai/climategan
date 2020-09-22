@@ -235,13 +235,16 @@ class Trainer:
         self.painter_z_h = self.input_shape[-2] // (2 ** self.opts.gen.p.spade_n_up)
         self.painter_z_w = self.input_shape[-1] // (2 ** self.opts.gen.p.spade_n_up)
 
+        if inference:
+            return
+
         # ---------------------------
         # -----  Discriminator  -----
         # ---------------------------
 
-        self.D: OmniDiscriminator = get_dis(
-            self.opts, verbose=self.verbose, no_init=inference
-        ).to(self.device)
+        self.D: OmniDiscriminator = get_dis(self.opts, verbose=self.verbose).to(
+            self.device
+        )
         print("Discriminator OK.")
 
         # ------------------------
@@ -252,7 +255,7 @@ class Trainer:
         if self.G.encoder is not None and self.opts.train.latent_domain_adaptation:
             self.latent_shape = self.compute_latent_shape()
             self.C = get_classifier(
-                self.opts, self.latent_shape, verbose=self.verbose, no_init=inference
+                self.opts, self.latent_shape, verbose=self.verbose
             ).to(self.device)
         print("Classifier OK.")
 
@@ -261,15 +264,14 @@ class Trainer:
         # --------------------------
         # -----  Optimization  -----
         # --------------------------
-        if not inference:
-            self.g_opt, self.g_scheduler = get_optimizer(self.G, self.opts.gen.opt)
+        self.g_opt, self.g_scheduler = get_optimizer(self.G, self.opts.gen.opt)
 
-        if get_num_params(self.D) > 0 and not inference:
+        if get_num_params(self.D) > 0:
             self.d_opt, self.d_scheduler = get_optimizer(self.D, self.opts.dis.opt)
         else:
             self.d_opt, self.d_scheduler = None, None
 
-        if self.C is not None and not inference:
+        if self.C is not None:
             self.c_opt, self.c_scheduler = get_optimizer(
                 self.C, self.opts.classifier.opt
             )
@@ -281,7 +283,7 @@ class Trainer:
 
         self.losses = get_losses(self.opts, self.verbose, device=self.device)
 
-        if self.verbose > 0 and not inference:
+        if self.verbose > 0:
             for mode, mode_dict in self.loaders.items():
                 for domain, domain_loader in mode_dict.items():
                     print(
@@ -294,18 +296,17 @@ class Trainer:
         # -----  Display images  -----
         # ----------------------------
         print("Creating display images...", end="", flush=True)
-        if not inference:
-            self.display_images = {}
-            for mode, mode_dict in self.loaders.items():
-                self.display_images[mode] = {}
-                for domain, domain_loader in mode_dict.items():
-                    dataset = self.loaders[mode][domain].dataset
-                    display_indices = get_display_indices(
-                        self.opts, domain, len(dataset)
-                    )
-                    self.display_images[mode][domain] = [
-                        Dict(dataset[i]) for i in display_indices if i < len(dataset)
-                    ]
+        self.display_images = {}
+        for mode, mode_dict in self.loaders.items():
+            self.display_images[mode] = {}
+            for domain, domain_loader in mode_dict.items():
+                dataset = self.loaders[mode][domain].dataset
+                display_indices = get_display_indices(
+                    self.opts, domain, len(dataset)
+                )
+                self.display_images[mode][domain] = [
+                    Dict(dataset[i]) for i in display_indices if i < len(dataset)
+                ]
 
         print("Setup done.")
         self.is_setup = True
