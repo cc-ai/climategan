@@ -283,7 +283,7 @@ if __name__ == "__main__":
     rootdir = args.path_to_images
     writedir = args.output_dir
 
-    for root, subdirs, files in tqdm(os.walk(rootdir)):
+    for root, subdirs, files in os.walk(rootdir):
         root = Path(root)
         subdirs = [Path(subdir) for subdir in subdirs]
         files = [Path(f) for f in files]
@@ -309,7 +309,7 @@ if __name__ == "__main__":
                 with Timer("eval_folder"):
                     eval_folder(root, write_path, paint, trainer.device)
             else:
-                with Timer("batch_eval_folder"):
+                with Timer("batch_eval_folder " + root):
                     batch_eval_folder(
                         root,
                         write_path,
