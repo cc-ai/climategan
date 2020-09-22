@@ -236,6 +236,7 @@ class Trainer:
         self.painter_z_w = self.input_shape[-1] // (2 ** self.opts.gen.p.spade_n_up)
 
         if inference:
+            print("Inference mode: no Discriminator, no Classifier, no optimizers")
             return
 
         # ---------------------------
@@ -301,9 +302,7 @@ class Trainer:
             self.display_images[mode] = {}
             for domain, domain_loader in mode_dict.items():
                 dataset = self.loaders[mode][domain].dataset
-                display_indices = get_display_indices(
-                    self.opts, domain, len(dataset)
-                )
+                display_indices = get_display_indices(self.opts, domain, len(dataset))
                 self.display_images[mode][domain] = [
                     Dict(dataset[i]) for i in display_indices if i < len(dataset)
                 ]
