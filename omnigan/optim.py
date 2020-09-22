@@ -55,17 +55,17 @@ def get_optimizer(net, opt_conf, tasks=None, iterations=-1):
         lr = opt_conf.lr.default
         params = list()
         for task in tasks:
+            l_r = opt_conf.lr.get(task, opt_conf.lr.default)
             # Parameters for encoder
             if task == "m":
                 parameters = net.encoder.parameters()
+                params.append({"params": parameters, "lr": l_r})
             # Parameters for decoders
             if task == "p":
                 parameters = net.painter.parameters()
             else:
                 parameters = net.decoders[task].parameters()
-            params.append(
-                {"params": parameters, "lr": opt_conf.lr.get(task, opt_conf.lr.default)}
-            )
+            params.append({"params": parameters, "lr": l_r})
     if opt_conf.optimizer == "ExtraAdam":
         opt = ExtraAdam(params, lr=lr, betas=(opt_conf.beta1, 0.999))
     else:
