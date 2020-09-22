@@ -1,5 +1,6 @@
 from PIL.Image import new
 import torch
+from torch.cuda import init
 from torch.utils.data import Dataset, DataLoader
 import numpy
 from omnigan.utils import load_opts
@@ -12,6 +13,25 @@ import torchvision.utils as vutils
 import torch.nn.functional as F
 import os
 from tqdm import tqdm
+import time
+
+
+class Timer:
+    def __init__(self, name=""):
+        self.name = name
+
+    def __enter__(self):
+        """Start a new timer as a context manager"""
+        self._start_time = time.perf_counter()
+        return self
+
+    def __exit__(self, *exc_info):
+        """Stop the context manager timer"""
+        s = ""
+        t = time.perf_counter()
+        if self.name:
+            s += f"[{self.name}]"
+        print(s + f"Elapsed time: {t - self._start_time:3.f}")
 
 
 TRANSFORMS = [trsfs.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
@@ -101,6 +121,12 @@ def parsed_args():
         help="Without this flag, images are written after each batch. "
         + "With the flag they are kept in memory and written after all inferences "
         + "are performed (only relevant if batch_size > 0)",
+    )
+    parser.add_argument(
+        "--no_inference_mode",
+        default=False,
+        action="store_true",
+        help="Initialize the trainer without the inference mode",
     )
 
     return parser.parse_args()
@@ -233,10 +259,12 @@ if __name__ == "__main__":
     # ------------------------
     # ----- Define model -----
     # ------------------------
-
+    inference = not args.no_inference_mode
     trainer = Trainer(opts)
-    trainer.setup()
-    trainer.resume()
+    with Timer("trainer.setup"):
+        trainer.setup(inference=inference)
+    with Timer("trainer.resume"):
+        trainer.resume(inference=inference)
     model = trainer.G
     model.eval()
 
@@ -248,9 +276,9 @@ if __name__ == "__main__":
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    # ----------------------------
-    # -----  Iterate images  -----
-    # ----------------------------
+    # -----------------------------------------------
+    # -----  Iterate Subdirs in Base Directory  -----
+    # -----------------------------------------------
 
     # eval_folder(args.path_to_images, output_dir)
 
@@ -276,17 +304,22 @@ if __name__ == "__main__":
             rel_path = root.relative_to(rootdir)
             write_path = writedir / rel_path
             write_path.mkdir(parents=True, exist_ok=True)
+            # -------------------------
+            # -----  Eval Folder  -----
+            # -------------------------
             if args.batch_size <= 0:
-                eval_folder(root, write_path, paint)
+                with Timer("eval_folder"):
+                    eval_folder(root, write_path, paint)
             else:
-                batch_eval_folder(
-                    root,
-                    write_path,
-                    model,
-                    new_size,
-                    args.batch_size,
-                    args.num_workers,
-                    paint,
-                    args.keep_in_memory,
-                )
+                with Timer("batch_eval_folder"):
+                    batch_eval_folder(
+                        root,
+                        write_path,
+                        model,
+                        new_size,
+                        args.batch_size,
+                        args.num_workers,
+                        paint,
+                        args.keep_in_memory,
+                    )
 

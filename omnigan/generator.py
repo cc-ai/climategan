@@ -18,7 +18,7 @@ import torch.nn.functional as F
 # TODO think about how to use the classifier probs at inference
 
 
-def get_gen(opts, latent_shape=None, verbose=0):
+def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
     G = OmniGenerator(opts, latent_shape, verbose)
     for model in G.decoders:
         net = G.decoders[model]
@@ -45,12 +45,13 @@ def get_gen(opts, latent_shape=None, verbose=0):
             verbose=verbose,
         )
     # Init painter weights
-    init_weights(
-        G.painter,
-        init_type=opts.gen.p.init_type,
-        init_gain=opts.gen.p.init_gain,
-        verbose=verbose,
-    )
+    if not no_init:
+        init_weights(
+            G.painter,
+            init_type=opts.gen.p.init_type,
+            init_gain=opts.gen.p.init_gain,
+            verbose=verbose,
+        )
     return G
 
 

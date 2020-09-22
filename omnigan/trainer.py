@@ -206,7 +206,7 @@ class Trainer:
             print("num params classif: ", get_num_params(self.C))
         print("---------------------------")
 
-    def setup(self):
+    def setup(self, inference=False):
         """Prepare the trainer before it can be used to train the models:
             * initialize G and D
             * compute latent space dims and create classifier accordingly
@@ -218,7 +218,13 @@ class Trainer:
 
         self.loaders = get_all_loaders(self.opts)
 
-        self.G: OmniGenerator = get_gen(self.opts, verbose=self.verbose).to(self.device)
+        # -----------------------
+        # -----  Generator  -----
+        # -----------------------
+
+        self.G: OmniGenerator = get_gen(
+            self.opts, verbose=self.verbose, no_init=inference
+        ).to(self.device)
         print("Generator OK. Computing latent & input shapes...", end="", flush=True)
 
         self.input_shape = self.compute_input_shape()
@@ -228,27 +234,42 @@ class Trainer:
         print("OK.")
         self.painter_z_h = self.input_shape[-2] // (2 ** self.opts.gen.p.spade_n_up)
         self.painter_z_w = self.input_shape[-1] // (2 ** self.opts.gen.p.spade_n_up)
-        self.D: OmniDiscriminator = get_dis(self.opts, verbose=self.verbose).to(
-            self.device
-        )
+
+        # ---------------------------
+        # -----  Discriminator  -----
+        # ---------------------------
+
+        self.D: OmniDiscriminator = get_dis(
+            self.opts, verbose=self.verbose, no_init=inference
+        ).to(self.device)
         print("Discriminator OK.")
+
+        # ------------------------
+        # -----  Classifier  -----
+        # ------------------------
+
         self.C: OmniClassifier = None
         if self.G.encoder is not None and self.opts.train.latent_domain_adaptation:
             self.latent_shape = self.compute_latent_shape()
             self.C = get_classifier(
-                self.opts, self.latent_shape, verbose=self.verbose
+                self.opts, self.latent_shape, verbose=self.verbose, no_init=inference
             ).to(self.device)
         print("Classifier OK.")
+
         self.print_num_parameters()
 
-        self.g_opt, self.g_scheduler = get_optimizer(self.G, self.opts.gen.opt)
+        # --------------------------
+        # -----  Optimization  -----
+        # --------------------------
+        if not inference:
+            self.g_opt, self.g_scheduler = get_optimizer(self.G, self.opts.gen.opt)
 
-        if get_num_params(self.D) > 0:
+        if get_num_params(self.D) > 0 and not inference:
             self.d_opt, self.d_scheduler = get_optimizer(self.D, self.opts.dis.opt)
         else:
             self.d_opt, self.d_scheduler = None, None
 
-        if self.C is not None:
+        if self.C is not None and not inference:
             self.c_opt, self.c_scheduler = get_optimizer(
                 self.C, self.opts.classifier.opt
             )
@@ -260,7 +281,7 @@ class Trainer:
 
         self.losses = get_losses(self.opts, self.verbose, device=self.device)
 
-        if self.verbose > 0:
+        if self.verbose > 0 and not inference:
             for mode, mode_dict in self.loaders.items():
                 for domain, domain_loader in mode_dict.items():
                     print(
@@ -269,18 +290,22 @@ class Trainer:
                         )
                     )
 
-        # Create display images:
+        # ----------------------------
+        # -----  Display images  -----
+        # ----------------------------
         print("Creating display images...", end="", flush=True)
-
-        self.display_images = {}
-        for mode, mode_dict in self.loaders.items():
-            self.display_images[mode] = {}
-            for domain, domain_loader in mode_dict.items():
-                dataset = self.loaders[mode][domain].dataset
-                display_indices = get_display_indices(self.opts, domain, len(dataset))
-                self.display_images[mode][domain] = [
-                    Dict(dataset[i]) for i in display_indices if i < len(dataset)
-                ]
+        if not inference:
+            self.display_images = {}
+            for mode, mode_dict in self.loaders.items():
+                self.display_images[mode] = {}
+                for domain, domain_loader in mode_dict.items():
+                    dataset = self.loaders[mode][domain].dataset
+                    display_indices = get_display_indices(
+                        self.opts, domain, len(dataset)
+                    )
+                    self.display_images[mode][domain] = [
+                        Dict(dataset[i]) for i in display_indices if i < len(dataset)
+                    ]
 
         print("Setup done.")
         self.is_setup = True
@@ -1224,8 +1249,12 @@ class Trainer:
 
         torch.save(save_dict, save_path)
 
-    def resume(self):
+    def resume(self, inference=False):
         # load_path = self.get_latest_ckpt()
+
+        # ----------------------------------------
+        # -----  Masker and Painter Loading  -----
+        # ----------------------------------------
         if "m" in self.opts.tasks and "p" in self.opts.tasks:
             m_path = self.opts.load_paths.m
             p_path = self.opts.load_paths.p
@@ -1244,6 +1273,9 @@ class Trainer:
 
             checkpoint = merge(m_checkpoint, p_checkpoint)
             print(f"Resuming model from {m_ckpt_path} and {p_ckpt_path}")
+        # ----------------------------------
+        # -----  Single Model Loading  -----
+        # ----------------------------------
         else:
             load_path = Path(self.opts.output_path) / Path(
                 "checkpoints/latest_ckpt.pth"
@@ -1251,24 +1283,42 @@ class Trainer:
             checkpoint = torch.load(load_path)
             print(f"Resuming model from {load_path}")
 
+        # -----------------------
+        # -----  Restore G  -----
+        # -----------------------
         self.G.load_state_dict(checkpoint["G"])
+
+        if inference:
+            # only G is needed to infer
+            return
+
         if not ("m" in self.opts.tasks and "p" in self.opts.tasks):
             self.g_opt.load_state_dict(checkpoint["g_opt"])
-        self.logger.epoch = checkpoint["epoch"]
-        self.logger.global_step = checkpoint["step"]
-        # Round step to even number for extraGradient
-        if self.logger.global_step % 2 != 0:
-            self.logger.global_step += 1
 
+        # -----------------------
+        # -----  Restore D  -----
+        # -----------------------
+        if self.D is not None and get_num_params(self.D) > 0:
+            self.D.load_state_dict(checkpoint["D"])
+            if not ("m" in self.opts.tasks and "p" in self.opts.tasks):
+                self.d_opt.load_state_dict(checkpoint["d_opt"])
+
+        # -----------------------
+        # -----  Restore C  -----
+        # -----------------------
         if self.C is not None and get_num_params(self.C) > 0:
             self.C.load_state_dict(checkpoint["C"])
             if not ("m" in self.opts.tasks and "p" in self.opts.tasks):
                 self.c_opt.load_state_dict(checkpoint["c_opt"])
 
-        if self.D is not None and get_num_params(self.D) > 0:
-            self.D.load_state_dict(checkpoint["D"])
-            if not ("m" in self.opts.tasks and "p" in self.opts.tasks):
-                self.d_opt.load_state_dict(checkpoint["d_opt"])
+        # ---------------------------
+        # -----  Resore logger  -----
+        # ---------------------------
+        self.logger.epoch = checkpoint["epoch"]
+        self.logger.global_step = checkpoint["step"]
+        # Round step to even number for extraGradient
+        if self.logger.global_step % 2 != 0:
+            self.logger.global_step += 1
 
     def get_latest_ckpt(self):
         load_dir = Path(self.opts.output_path) / Path("checkpoints")

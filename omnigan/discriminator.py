@@ -11,8 +11,11 @@ from omnigan.blocks import SpectralNorm
 # mainly from https://github.com/sangwoomo/instagan/blob/master/models/networks.py
 
 
-def get_dis(opts, verbose):
+def get_dis(opts, verbose, no_init=False):
     disc = OmniDiscriminator(opts)
+    if no_init:
+        return disc
+
     for task, model in disc.items():
         for domain_model in model.values():
             init_weights(
