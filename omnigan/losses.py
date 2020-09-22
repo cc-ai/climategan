@@ -394,8 +394,8 @@ def get_losses(opts, verbose, device=None):
     # ? * add discriminator and gan loss to these task when no ground truth
     # ?   instead of noisy label
     if "d" in opts.tasks:
-        losses["G"]["tasks"]["d"] = SIMSELoss()
-    if "s" in opts.tasks:
+        losses["G"]["tasks"]["d"] = SIMSELoss() + opts.train.lambdas.G.d.depth_grad * GradientMatchingLoss()
+    if "s" in opts.tasks
         losses["G"]["tasks"]["s"] = {}
         losses["G"]["tasks"]["s"]["crossent"] = CrossEntropy()
         losses["G"]["tasks"]["s"]["minient"] = MiniEntLoss()

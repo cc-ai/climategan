@@ -168,6 +168,7 @@ train:
   lambdas: # scaling factors in the total loss
     G:
       d: 1
+        depth_grad: 1
       s:
         crossent: 1
         crossent_pseudo: 0.001
