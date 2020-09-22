@@ -190,7 +190,7 @@ def batch_eval_folder(
             x = img["x"].to(device)
             z = model.encode(x)
             mask = model.decoders["m"](z)
-            times.append(time.perf_counter() - inference_time)
+            times.append((time.perf_counter() - inference_time) / x.shape[0])
             if keep_in_memory:
                 masks.extend(list(mask.detach().cpu().numpy()))
                 paths.extend(img["path"])
@@ -206,7 +206,7 @@ def batch_eval_folder(
                 painter_time = time.perf_counter()
                 z_painter = trainer.sample_z(x.shape[0])
                 fake_flooded = model.painter(z_painter, x * (1.0 - mask))
-                times[-1] += time.perf_counter() - painter_time
+                times[-1] += (time.perf_counter() - painter_time) / x.shape[0]
                 if keep_in_memory:
                     painted.extend(list(fake_flooded.detach().cpu().numpy()))
                 else:
@@ -225,7 +225,7 @@ def batch_eval_folder(
             )
 
     print(
-        ">> Average pure batch inference duration: {} +/- {}".format(
+        ">> Average pure inference time per sample: {} +/- {}".format(
             np.mean(times), np.std(times)
         )
     )
