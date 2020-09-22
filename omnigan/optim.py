@@ -51,6 +51,9 @@ def get_optimizer(net, opt_conf, tasks=None, iterations=-1):
     if tasks is None:
         lr = opt_conf.lr
         params = net.parameters()
+    elif len(opt_conf.lr) == 1:  # Use default for all tasks
+        lr = opt_conf.lr.default
+        params = net.parameters()
     else:
         lr = opt_conf.lr.default
         params = list()
