@@ -276,6 +276,21 @@ class SIMSELoss(nn.Module):
         relDiff = torch.mean(d) * torch.mean(d)
         return diff - relDiff
 
+class GradientMatchingLoss(nn.Module):
+    """Gradient matching Loss for depth head
+    """
+
+    def __init__(self):
+        super(GradientMatchingLoss, self).__init__()
+
+    def __call__(self, prediction, target):
+        # get gradient map with sobel filters
+        sobelx = torch.Tensor([[1,0,-1],[2,0,-2],[1,0,-1]])
+        sobely = torch.Tensor([[1,2,1],[0,0,0],[-1,-2,-1]])
+        grad_pred = F.conv2D(prediction, 0.5 * (sobelx + sobely), stride=1)
+        grad_target = F.conv2D(target, 0.5 * (sobelx + sobely), stride=1)
+        diff = torch.norm(grad_pred - grad_target)
+        return diff 
 
 class ContextLoss(nn.Module):
     """
