@@ -1,3 +1,4 @@
+import datetime
 import itertools
 import os
 import re
@@ -10,7 +11,7 @@ import numpy as np
 import yaml
 
 
-class bcolors:
+class C:
     HEADER = "\033[95m"
     OKBLUE = "\033[94m"
     OKGREEN = "\033[92m"
@@ -21,6 +22,14 @@ class bcolors:
     UNDERLINE = "\033[4m"
     ITALIC = "\33[3m"
     BEIGE = "\33[36m"
+
+
+def warn(*args, **kwargs):
+    print("{}{}{}".format(C.WARNING, " ".join(args), C.ENDC), **kwargs)
+
+
+def now():
+    return str(datetime.datetime.now()).replace(" ", "_")
 
 
 def cols():
@@ -43,9 +52,9 @@ def print_box(txt):
 
 
 def print_header(idx):
-    b = bcolors.BOLD
-    bl = bcolors.OKBLUE
-    e = bcolors.ENDC
+    b = C.BOLD
+    bl = C.OKBLUE
+    e = C.ENDC
     char = "≡"
     c = cols()
 
@@ -66,10 +75,95 @@ def print_header(idx):
 def print_footer():
     c = cols()
     char = "﹎"
+    print()
     print(char * (c // len(char)))
     print()
     print(" " * (c // 2) + "•" + " " * (c - c // 2 - 1))
     print()
+
+
+def extend_summary(summary, tmp_train_args_dict, tmp_template_dict, exclude=[]):
+    exclude = set(exclude)
+    if summary is None:
+        summary = defaultdict(list)
+    for k, v in tmp_template_dict.items():
+        if k not in exclude:
+            summary[k].append(v)
+    for k, v in tmp_train_args_dict.items():
+        if k not in exclude:
+            if isinstance(v, list):
+                v = str(v)
+            summary[k].append(v)
+    return summary
+
+
+def print_search_summary(summary):
+    # filter out constant values
+    summary = {k: v for k, v in summary.items() if len(set(v)) > 1}
+
+    # if everything is constant: no summary
+    if not summary:
+        return
+
+    # find number of searches
+    n_searches = len(list(summary.values())[0])
+
+    # print section title
+    print(
+        "{}{}{}Varying values across {} experiments:{}\n".format(
+            C.OKBLUE, C.BOLD, C.UNDERLINE, n_searches, C.ENDC,
+        )
+    )
+
+    # first column holds the Exp. number
+    first_col = {
+        "len": 8,  # length of a column, to split columns according to terminal width
+        "str": ["| Exp. |", f"| {' ' * 4} |"]
+        + [
+            "| {0:^{1}} |".format(i, 4) for i in range(n_searches)
+        ],  # list of values to print
+    }
+
+    columns = [[first_col]]
+    for k in sorted(summary.keys()):
+        v = summary[k]
+        col_title = f" {k} |"
+        col_blank_line = f" {' ' * len(k)} |"
+        col_values = [
+            " {0:{1}} |".format(
+                crop_string(
+                    str(crop_float(v[idx], min([5, len(k) - 2]))), len(k)
+                ),  # crop floats and long strings
+                len(k),
+            )
+            for idx in range(len(v))
+        ]
+
+        # create column object
+        col = {"len": len(k) + 3, "str": [col_title, col_blank_line] + col_values}
+
+        # if adding a new column would overflow the terminal and mess up printing, start
+        # new set of columns
+        if sum(c["len"] for c in columns[-1]) + col["len"] >= cols():
+            columns.append([first_col])
+
+        # store current column to latest group of columns
+        columns[-1].append(col)
+
+    s = ""
+    # print each column group individually
+    for colgroup in columns:
+        # print columns line by line
+        for i in range(n_searches + 2):
+            # get value of column for current line i
+            for col in colgroup:
+                s += col["str"][i]
+            # next line for current columns
+            s += "\n"
+
+        # new lines for new column group
+        s += "\n\n"
+    print(s)
 
 
 def clean_arg(v):
@@ -98,6 +192,9 @@ def stringify_list(v):
     """
     if isinstance(v, list):
         return '"{}"'.format(str(v).replace('"', "'"))
+    if isinstance(v, str):
+        if v.startswith("[") and v.endswith("]"):
+            return f'"{v}"'
     return v
 
 
@@ -117,7 +214,7 @@ def quote_string(v):
     return v
 
 
-def crop_float(v):
+def crop_float(v, k=5):
     """
     If v is a float, crop precision to 5 digits and return v as a str
 
@@ -128,7 +225,7 @@ def crop_float(v):
         any: cropped float as str if v is a float, original v otherwise
     """
     if isinstance(v, float):
-        return f"{v:.5f}"
+        return "{0:.{1}g}".format(v, k)
     return v
 
 
@@ -166,6 +263,13 @@ def compute_n_search(conf):
     raise ValueError(
         "Used n_search=-1 without any field being 'cartesian' or 'sequential'"
     )
+
+
+def crop_string(s, k=10):
+    if len(s) <= k:
+        return s
+    else:
+        return s[: k - 2] + ".."
 
 
 def sample_param(sample_dict):
@@ -331,11 +435,13 @@ def read_hp(name):
             paths.append(path)
 
     if len(paths) == 0:
-        raise ValueError(
-            "Could not find search config in :\n{}".format(
-                "\n".join(Path(__file__).parent / d / "experiment" / name for d in dirs)
-            )
-        )
+        failed = [Path(__file__).parent / d / "experiment" for d in dirs]
+        s = "Could not find search config {} in :\n".format(name)
+        for fd in failed:
+            s += str(fd) + "\nAvailable:\n"
+            for ym in fd.glob("*.yaml"):
+                s += "    " + ym.name + "\n"
+        raise ValueError(s)
 
     if len(paths) == 2:
         print(
@@ -359,12 +465,30 @@ def read_template(name):
     Returns:
         str: file's content as 1 string
     """
-    if not name.endswith(".sh"):
+    if ".sh" not in name:
         name += ".sh"
-    template_path = Path(__file__).parent / "shared" / "template" / name
-    with template_path.open("r") as f:
-        template = f.read()
-    return template
+    paths = []
+    dirs = ["shared", "config"]
+    for d in dirs:
+        path = Path(__file__).parent / d / "template" / name
+        if path.exists():
+            paths.append(path)
+
+    if len(paths) == 0:
+        failed = [Path(__file__).parent / d / "template" for d in dirs]
+        s = "Could not find template {} in :\n".format(name)
+        for fd in failed:
+            s += str(fd) + "\nAvailable:\n"
+            for ym in fd.glob("*.sh"):
+                s += "    " + ym.name + "\n"
+        raise ValueError(s)
+
+    if len(paths) == 2:
+        print("Warning: found 2 relevant template files:\n{}".format("\n".join(paths)))
+        print("Using {}".format(paths[-1]))
+
+    with paths[-1].open("r") as f:
+        return f.read()
 
 
 def is_sampled(key, conf):
@@ -406,10 +530,11 @@ if __name__ == "__main__":
     template_name = None
     hp_search_name = None
     hp_search_nb = None
+    resume = None
 
-    hp_search_private = set(["n_search"])
+    hp_search_private = set(["n_search", "template", "search"])
 
-    sbatch_path = Path(home) / "omni_sbatch_latest.sh"
+    sbatch_path = "hash"
 
     # --------------------------
     # -----  Sanity Check  -----
@@ -458,6 +583,10 @@ if __name__ == "__main__":
         elif k == "n_search":
             hp_search_nb = int(v)
 
+        elif k == "resume":
+            resume = f'"{v}"'
+            template_dict[k] = f'"{v}"'
+
         elif k in template_dict:
             template_dict[k] = v
 
@@ -485,6 +614,7 @@ if __name__ == "__main__":
     # ---------------------------------
     # -----  Run All Experiments  -----
     # ---------------------------------
+    summary = None
     for hp_idx, hp in enumerate(hps):
 
         # copy shared values
@@ -493,12 +623,18 @@ if __name__ == "__main__":
         tmp_train_args_dict = {
             arg.split("=")[0]: arg.split("=")[1] for arg in tmp_train_args
         }
+        print_header(hp_idx)
         # override shared values with run-specific values for run hp_idx/n_search
         if hp is not None:
             for k, v in hp.items():
+                if k == "resume" and resume is None:
+                    resume = f'"{v}"'
                 # hp-search params to ignore
                 if k in hp_search_private:
                     continue
+
+                if k == "codeloc":
+                    v = re.escape(v)
                 # override template params depending on exp config
                 if k in tmp_template_dict:
                     if template_dict[k] is None or is_sampled(k, search_conf):
@@ -508,18 +644,27 @@ if __name__ == "__main__":
                     if k in tmp_train_args_dict:
                         if is_sampled(k, search_conf):
                             # warn if key was specified from the command line
-                            print(
-                                "Warning",
-                                "overriding commandline arg {} with hp value {}".format(
-                                    k, v
-                                ),
+                            tv = tmp_train_args_dict[k]
+                            warn(
+                                "\nWarning: overriding sampled config-file arg",
+                                "{} to command-line value {}\n".format(k, tv),
                             )
-                            tmp_train_args_dict[k] = v
                     else:
                         tmp_train_args_dict[k] = v
 
         # create sbatch file where required
-        sbatch_path = Path(sbatch_path).resolve()
+        tmp_sbatch_path = None
+        if sbatch_path == "hash":
+            tmp_sbatch_path = Path(home) / "omnigan_sbatchs" / (now() + ".sh")
+            tmp_sbatch_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp_train_args_dict["sbatch_file"] = str(tmp_sbatch_path)
+        else:
+            tmp_sbatch_path = Path(sbatch_path).resolve()
+
+        summary = extend_summary(
+            summary, tmp_train_args_dict, tmp_template_dict, exclude=["sbatch_file"]
+        )
+
         # format train.py's args and crop floats' precision to 5 digits
         tmp_template_dict["train_args"] = " ".join(
             sorted(
@@ -530,15 +675,21 @@ if __name__ == "__main__":
             )
         )
 
+        if "resume.py" in template and resume is None:
+            raise ValueError("No `resume` value but using a resume.py template")
+
         # format template with clean dict (replace None with "")
         sbatch = template.format(
-            **{k: v if v is not None else "" for k, v in tmp_template_dict.items()}
+            **{
+                k: v if v is not None else ""
+                for k, v in tmp_template_dict.items()
+                if k in template_dict
+            }
         )
 
         # --------------------------------------
         # -----  Execute `sbatch` Command  -----
         # --------------------------------------
-        print_header(hp_idx)
         if not dev:
             if sbatch_path.exists():
                 print(f"Warning: overwriting {sbatch_path}")
@@ -567,16 +718,16 @@ if __name__ == "__main__":
         # -----  Summarize Execution  -----
         # ---------------------------------
         if verbose:
-            print(bcolors.BEIGE + bcolors.ITALIC, "\n" + sbatch + bcolors.ENDC)
+            print(C.BEIGE + C.ITALIC, "\n" + sbatch + C.ENDC)
         if not dev:
             print_box(command_output.strip())
 
         print(
             "{}{}Summary{} {}:".format(
-                bcolors.UNDERLINE,
-                bcolors.OKGREEN,
-                bcolors.ENDC,
-                f"{bcolors.WARNING}(DEV){bcolors.ENDC}" if dev else "",
+                C.UNDERLINE,
+                C.OKGREEN,
+                C.ENDC,
+                f"{C.WARNING}(DEV){C.ENDC}" if dev else "",
             )
         )
         print(
@@ -586,3 +737,7 @@ if __name__ == "__main__":
             )
         )
         print_footer()
+
+    print(f"\nRan a total of {hp_idx + 1} jobs{' in dev mode.' if dev else '.'}\n")
+
+    print_search_summary(summary)

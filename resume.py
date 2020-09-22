@@ -1,9 +1,7 @@
 from pathlib import Path
 from time import time, sleep
 import os
-import re
 from argparse import ArgumentParser
-import numpy as np
 
 import yaml
 from addict import Dict
@@ -17,6 +15,7 @@ from omnigan.utils import (
     get_increased_path,
     comet_id_from_url,
     comet_kwargs,
+    get_latest_path,
 )
 
 
@@ -35,18 +34,10 @@ def latest_opts(path):
     Returns:
         addict.Dict: loaded opts
     """
-    all_opts = list(Path(path).resolve().glob("*opts*.yaml"))
-    if len(all_opts) == 0:
-        raise ValueError(
-            "Could not find any opts file as *opts*.yaml in {}".format(str(path))
-        )
-    if len(all_opts) == 1:
-        with all_opts[0].open("r") as f:
-            return Dict(yaml.safe_load(f))
-
-    ints = [int(re.findall("\((.*?)\)", fn)[0]) if "(" in fn else 0 for fn in all_opts]
-    amax = np.argmax(ints)
-    with all_opts[amax].open("r") as f:
+    path = Path(path)
+    opts = get_latest_path(path / "opts.yaml")
+    assert opts.exists()
+    with opts.open("r") as f:
         return Dict(yaml.safe_load(f))
 
 
@@ -122,6 +113,12 @@ def main():
                 f"from {comet_previous_path}",
             )
             exp = Experiment(project_name="omnigan", **comet_kwargs)
+            exp.log_asset_folder(
+                str(Path(__file__).parent / "omnigan"),
+                recursive=True,
+                log_file_name=True,
+            )
+            exp.log_asset(str(Path(__file__)))
         else:
             exp = ExistingExperiment(
                 previous_experiment=comet_previous_id, **comet_kwargs

@@ -18,6 +18,10 @@ from omnigan.utils import (
     get_git_revision_hash,
     get_increased_path,
     load_opts,
+    get_latest_path,
+    copy_sbatch,
+    merge,
+    get_existing_jobID,
 )
 
 hydra_config_path = Path(__file__).resolve().parent / "shared/trainer/config.yaml"
@@ -67,33 +71,45 @@ def main(opts):
     # -----------------------
 
     opts = load_opts(args.config, default=default)
-    opts.update(hydra_opts)
+    opts = merge(hydra_opts, opts)
     if args.resume:
         opts.train.resume = True
+    opts.jobID = os.environ.get("SLURM_JOBID")
     opts.output_path = str(env_to_path(opts.output_path))
-
-    if not opts.train.resume:
-        opts.output_path = str(get_increased_path(opts.output_path))
-    pprint("Running model in", opts.output_path)
 
     exp = comet_previous_id = comet_previous_path = None
     if not args.dev:
         # -------------------------------
         # -----  Check output_path  -----
         # -------------------------------
+
+        # Auto-continue if same slurm job ID (=job was requeued)
+        if not opts.train.resume:
+            existing_jobID = get_existing_jobID(opts.output_path)
+            if int(existing_jobID) == int(opts.jobID):
+                opts.train.resume = True
+
+        # Still not resuming: creating new output path
+        if not opts.train.resume:
+            opts.output_path = str(get_increased_path(opts.output_path))
+            Path(opts.output_path).mkdir(parents=True, exist_ok=True)
+
+        pprint("Running model in", opts.output_path)
+        copy_sbatch(opts)
+
+        # Is resuming: get existing comet exp id
         if opts.train.resume:
             assert Path(
                 opts.output_path
             ).exists(), "Cannot resume: output_path does not exist"
             # load previous comet experiment id
-            comet_previous_path = Path(opts.output_path) / "comet_url.txt"
+            comet_previous_path = get_latest_path(
+                Path(opts.output_path) / "comet_url.txt"
+            )
             if comet_previous_path.exists():
                 with comet_previous_path.open("r") as f:
                     url = f.read().strip()
                     comet_previous_id = comet_id_from_url(url)
-        else:
-            assert not Path(opts.output_path).exists()
-            Path(opts.output_path).mkdir(parents=True)
 
         # store git hash
         opts.git_hash = get_git_revision_hash()
@@ -108,16 +124,20 @@ def main(opts):
                 if comet_previous_id is None:
                     print("WARNING could not retreive previous comet id")
                     print(f"from {comet_previous_path}")
-                    exp = Experiment(project_name="omnigan", **comet_kwargs)
                 else:
                     exp = ExistingExperiment(
                         previous_experiment=comet_previous_id, **comet_kwargs
                     )
-            else:
+
+            if exp is None:
                 # Create new experiment
                 exp = Experiment(project_name="omnigan", **comet_kwargs)
-
-            opts.jobID = os.environ.get("SLURM_JOBID")
+                exp.log_asset_folder(
+                    str(Path(__file__).parent / "omnigan"),
+                    recursive=True,
+                    log_file_name=True,
+                )
+                exp.log_asset(str(Path(__file__)))
 
             # Log note
             if args.note:

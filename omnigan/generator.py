@@ -137,7 +137,7 @@ class SegmentationDecoder(BaseDecoder):
     def __init__(self, opts):
         super().__init__()
         self.aspp = ASPP(16, nn.BatchNorm2d)
-        self.conv = nn.Sequential(
+        conv_modules = [
             nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(256),
             nn.ReLU(),
@@ -146,8 +146,14 @@ class SegmentationDecoder(BaseDecoder):
             nn.BatchNorm2d(256),
             nn.ReLU(),
             nn.Dropout(0.1),
+        ]
+        if opts.gen.s.upsample_featuremaps:
+            conv_modules += [nn.Upsample(scale_factor=2)]
+
+        conv_modules += [
             nn.Conv2d(256, opts.gen.s.output_dim, kernel_size=1, stride=1),
-        )
+        ]
+        self.conv = nn.Sequential(*conv_modules)
         self._target_size = None
 
     def set_target_size(self, size):

@@ -19,6 +19,6 @@ echo "Currently using:"
 echo $(which python)
 echo "in:"
 echo $(pwd)
-echo "sbatch file name: $0"
+echo "sbatch file: $0"
 
-python train.py {train_args}
+python resume.py --path {resume}

@@ -48,7 +48,7 @@ gen:
   opt:
     optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam #TODO Test speed/performance difference w/ Adam
     beta1: 0.9
-    lr: 0.0005
+    lr: 0.00001
     lr_policy: step # constant or step ; if step, specify step_size and gamma
     lr_step_size: 30 # for linear decay : period of learning rate decay (epochs)
     lr_gamma: 0.5 # Multiplicative factor of learning rate decay
@@ -87,6 +87,8 @@ gen:
     output_dim: 11
     use_advent: True
     use_minient: False
+    use_pseudo_labels: False
+    upsample_featuremaps: False # upsamples from 80 to 160 intermediate feature maps
   p: # specific params for the SPADE painter
     <<: *default-gen
     latent_dim: 512
@@ -113,7 +115,7 @@ dis:
   opt:
     optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
     beta1: 0.5
-    lr: 0.0005
+    lr: 0.0001
     lr_policy: step # constant or step ; if step, specify step_size and gamma
     lr_step_size: 30 # for linear decay
     lr_gamma: 0.5
@@ -168,6 +170,7 @@ train:
       d: 1
       s:
         crossent: 1
+        crossent_pseudo: 0.001
         minient: 0.001
         advent: 0.001
       m:
@@ -204,7 +207,8 @@ val:
 # ----- Comet Params ----------
 # -----------------------------
 comet:
-  display_size: 5
+  display_size: 20
+  rows_per_log: 5 # number of samples (rows) in a logged grid image. Number of total logged images: display_size // rows_per_log
   im_per_row:
     p: 4
     m: 4
