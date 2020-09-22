@@ -47,6 +47,7 @@ class InferDataset(Dataset):
         if len(img.shape) == 3:
             img = img.unsqueeze(0)
         img = F.interpolate(img, (self.output_size, self.output_size), mode="nearest")
+        img = img.squeeze(0)
         for tf in TRANSFORMS:
             img = tf(img)
         return img
