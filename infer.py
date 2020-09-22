@@ -44,7 +44,9 @@ def parsed_args():
         required=True,
     )
     parser.add_argument(
-        "--new_size", type=int, help="Size of generated masks",
+        "--new_size",
+        type=int,
+        help="Size of generated masks",
     )
     parser.add_argument(
         "--output_dir",
@@ -58,12 +60,22 @@ def parsed_args():
         help="Path of masks to be used for painting",
         required=False,
     )
+    parser.add_argument(
+        "--apply_mask",
+        action="store_true",
+        help="Apply mask to image to save",
+    )
 
     return parser.parse_args()
 
 
 def eval_folder(
-    output_dir, path_to_images, path_to_masks=None, paint=False, masker=False
+    output_dir,
+    path_to_images,
+    path_to_masks=None,
+    paint=False,
+    masker=False,
+    apply_mask=False,
 ):
 
     image_list = os.listdir(path_to_images)
@@ -92,11 +104,43 @@ def eval_folder(
             mask = mask.unsqueeze(0).to(device)
 
         if masker:
-            z = model.encode(img)
-            mask = model.decoders["m"](z)
-            vutils.save_image(
-                mask, output_dir / ("mask_" + img_path.name), normalize=True
-            )
+            if "m2" in opts.tasks:
+                z = model.encode(img)
+                z_aug_1 = torch.cat(
+                    (z, trainer.label_1[0, :, :, :].unsqueeze(0)),
+                    dim=1,
+                )
+                z_aug_2 = torch.cat(
+                    (z, trainer.label_2[0, :, :, :].unsqueeze(0)),
+                    dim=1,
+                )
+                mask_1 = model.decoders["m"](z_aug_1)
+                mask_2 = model.decoders["m"](z_aug_2)
+                vutils.save_image(
+                    mask_1, output_dir / ("mask1_" + img_path.name), normalize=True
+                )
+                vutils.save_image(
+                    mask_2, output_dir / ("mask2_" + img_path.name), normalize=True
+                )
+
+                if apply_mask:
+                    vutils.save_image(
+                        img * (1.0 - mask_1) + mask_1,
+                        output_dir / (img_path.stem + "img_masked_1" + ".jpg"),
+                        normalize=True,
+                    )
+                    vutils.save_image(
+                        img * (1.0 - mask_2) + mask_2,
+                        output_dir / (img_path.stem + "img_masked_2" + ".jpg"),
+                        normalize=True,
+                    )
+
+            else:
+                z = model.encode(img)
+                mask = model.decoders["m"](z)
+                vutils.save_image(
+                    mask, output_dir / ("mask_" + img_path.name), normalize=True
+                )
 
         if paint:
             z_painter = trainer.sample_z(1)
@@ -186,10 +230,14 @@ if __name__ == "__main__":
         if has_imgs:
             print(f"Eval on {root}")
             rel_path = root.relative_to(rootdir)
-            mask_path = maskdir / rel_path
             write_path = writedir / rel_path
             write_path.mkdir(parents=True, exist_ok=True)
             print("root: ", root)
             eval_folder(
-                write_path, root, path_to_masks=maskdir, paint=paint, masker=masker
+                write_path,
+                root,
+                path_to_masks=maskdir,
+                paint=paint,
+                masker=masker,
+                apply_mask=args.apply_mask,
             )

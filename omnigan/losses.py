@@ -347,7 +347,7 @@ def get_losses(opts, verbose, device=None):
 
     losses = {
         "G": {"a": {}, "p": {}, "tasks": {}},
-        "D": {"default": {}, "advent": {}},
+        "D": {"default": {}, "advent": {}, "multilevel": {}},
         "C": {},
     }
 
@@ -406,6 +406,7 @@ def get_losses(opts, verbose, device=None):
         soft_shift=opts.dis.soft_shift, flip_prob=opts.dis.flip_prob, verbose=verbose
     )
     losses["D"]["advent"] = ADVENTAdversarialLoss(opts)
+    losses["D"]["multilevel"] = CrossEntropy()
     return losses
 
 

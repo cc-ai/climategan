@@ -32,14 +32,14 @@ data:
       p: 0.5
     - name: resize
       ignore: false
-      new_size: 256
+      new_size: 640
     - name: crop
-      ignore: false
-      height: 224
-      width: 224
+      ignore: true
+      height: 560
+      width: 560
     - name: resize # ? this or change generator's output? Or resize larger then crop to 256?
       ignore: false
-      new_size: 256
+      new_size: 640
 
 # ---------------------
 # ----- Generator -----
@@ -130,12 +130,15 @@ dis:
     get_intermediate_features: false
   p:
     <<: *default-dis
+    num_D: 3
+    get_intermediate_features: true
   m:
     <<: *default-dis
     multi_level: false
     architecture: base # can be [base | OmniDiscriminator]
-    num_D: 1 #Number of discriminators to use (>1 means multi-scale)
-    get_intermediate_features: True
+  m2:
+    <<: *default-dis
+    input_nc: 1
 
 # -------------------------------
 # -----  Domain Classifier  -----
@@ -173,6 +176,9 @@ train:
       m:
         main: 1 # Main prediction loss, i.e. GAN or BCE
         tv: 1 # Total variational loss (for smoothing)
+      m2:
+        gan: 0.01
+        aux: 0.01
       p:
         gan: 1 # gan loss
         sm: 1 # semantic matching

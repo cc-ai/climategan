@@ -196,6 +196,7 @@ class Trainer:
         self.G: OmniGenerator = get_gen(self.opts, verbose=self.verbose).to(self.device)
         if self.G.encoder is not None:
             self.latent_shape = self.compute_latent_shape()
+
         self.input_shape = self.compute_input_shape()
         self.painter_z_h = self.input_shape[-2] // (2 ** self.opts.gen.p.spade_n_up)
         self.painter_z_w = self.input_shape[-1] // (2 ** self.opts.gen.p.spade_n_up)
@@ -740,17 +741,80 @@ class Trainer:
                 elif update_task in {"m", "m2"}:
                     # ? output features classifier
 
+                    # If multi-level flooding
                     if "m2" in self.opts.tasks:
                         # Get label
                         if update_task == "m":
                             prediction = self.G.decoders["m"](
                                 torch.cat((self.z, self.label_1), dim=1)
                             )
+
+                            # AC-GAN loss
+                            validity, auxiliary = self.D["m2"]["FloodLevel"](
+                                prediction, self.z
+                            )
+
+                            # GAN loss
+                            update_loss = (
+                                self.losses["D"]["default"](validity, True)
+                                * self.opts.train.lambdas.G.m2.gan
+                            )
+                            self.logger.losses.generator.task_loss["m"]["gan"][
+                                batch_domain
+                            ] = update_loss.item()
+
+                            step_loss += update_loss
+
+                            # Auxiliary loss
+                            update_loss = (
+                                self.losses["D"]["multilevel"](
+                                    auxiliary, self.label_1[:, 0, 0, 0].squeeze()
+                                )
+                                * self.opts.train.lambdas.G.m2.aux
+                            )
+
+                            self.logger.losses.generator.task_loss["m"]["aux"][
+                                batch_domain
+                            ] = update_loss.item()
+
+                            step_loss += update_loss
+
                         elif update_task == "m2":
                             prediction = self.G.decoders["m"](
                                 torch.cat((self.z, self.label_2), dim=1)
                             )
 
+                            # AC GAN loss
+                            validity, auxiliary = self.D["m2"]["FloodLevel"](
+                                prediction, self.z
+                            )
+
+                            # GAN loss
+                            update_loss = (
+                                self.losses["D"]["default"](validity, True)
+                                * self.opts.train.lambdas.G.m2.gan
+                            )
+                            self.logger.losses.generator.task_loss["m2"]["gan"][
+                                batch_domain
+                            ] = update_loss.item()
+
+                            step_loss += update_loss
+
+                            # Auxiliary loss
+                            update_loss = (
+                                self.losses["D"]["multilevel"](
+                                    auxiliary, self.label_2[:, 0, 0, 0].squeeze()
+                                )
+                                * self.opts.train.lambdas.G.m2.aux
+                            )
+
+                            self.logger.losses.generator.task_loss["m2"]["aux"][
+                                batch_domain
+                            ] = update_loss.item()
+
+                            step_loss += update_loss
+
+                    # No multi-level flooding
                     else:
                         prediction = self.G.decoders["m"](self.z)
 
@@ -777,6 +841,7 @@ class Trainer:
                     ] = update_loss.item()
 
                     if batch_domain == "r":
+                        # -----------ADVENT losses--------------
                         pred_complementary = 1 - prediction
                         prob = torch.cat([prediction, pred_complementary], dim=1)
                         if self.opts.gen.m.use_minent:
@@ -806,6 +871,8 @@ class Trainer:
                             self.logger.losses.generator.task_loss["m"]["advent"][
                                 batch_domain
                             ] = update_loss.item()
+                        # -------------------------------------
+
         return step_loss
 
     def sample_z(self, batch_size):
@@ -1010,11 +1077,14 @@ class Trainer:
             "m": {"Advent": 0},
             "s": {"Advent": 0},
             "p": {"global": 0, "local": 0},
+            "m2": {"gan": 0, "aux": 0},
         }
 
         for batch_domain, batch in multi_domain_batch.items():
             x = batch["data"]["x"]
             m = batch["data"]["m"]
+            if "m2" in self.opts.tasks:
+                m2 = batch["data"]["m2"]
 
             if batch_domain == "rf":
                 # sample vector
@@ -1051,6 +1121,7 @@ class Trainer:
                             print("Now training the ADVENT discriminator!")
 
                         if "m2" in self.opts.tasks:
+                            # --------ADVENT LOSS---------------
                             # Compute loss for flood level 1
                             fake_mask = self.G.decoders["m"](
                                 torch.cat((z, self.label_1), dim=1)
@@ -1071,6 +1142,28 @@ class Trainer:
                                 self.opts.train.lambdas.advent.adv_main * loss_main
                             )
 
+                            # ----------------------------------
+                            # ------------AC GAN LOSS-------------
+                            fake_validity, fake_auxiliary = self.D["m2"]["FloodLevel"](
+                                fake_mask.detach(), self.z.detach()
+                            )
+
+                            gan_loss = self.losses["D"]["default"](fake_validity, False)
+
+                            disc_loss["m2"]["gan"] += (
+                                self.opts.train.lambdas.G.m2.gan * gan_loss
+                            )
+
+                            # AC auxiliary loss
+                            aux_loss = self.losses["D"]["multilevel"](
+                                fake_auxiliary, self.label_1[:, 0, 0, 0].squeeze()
+                            )
+
+                            disc_loss["m2"]["aux"] += (
+                                self.opts.train.lambdas.G.m2.aux * aux_loss
+                            )
+                            # ----------------------------------
+
                             # Compute again for flood level 2
                             fake_mask = self.G.decoders["m"](
                                 torch.cat((z, self.label_2), dim=1)
@@ -1090,6 +1183,66 @@ class Trainer:
                             disc_loss["m"]["Advent"] += (
                                 self.opts.train.lambdas.advent.adv_main * loss_main
                             )
+
+                            # Fake AC GAN loss
+                            fake_validity, fake_auxiliary = self.D["m2"]["FloodLevel"](
+                                fake_mask.detach(), self.z.detach()
+                            )
+
+                            gan_loss = self.losses["D"]["default"](fake_validity, False)
+
+                            disc_loss["m2"]["gan"] += (
+                                self.opts.train.lambdas.G.m2.gan * gan_loss
+                            )
+
+                            # AC auxiliary loss
+                            aux_loss = self.losses["D"]["multilevel"](
+                                fake_auxiliary, self.label_1[:, 0, 0, 0].squeeze()
+                            )
+
+                            disc_loss["m2"]["aux"] += (
+                                self.opts.train.lambdas.G.m2.aux * aux_loss
+                            )
+
+                            # AC-GAN loss for groundtruth (if in simulated domain)
+                            if batch_domain == "s":
+                                # For flood level 1:
+                                validity, auxiliary = self.D["m2"]["FloodLevel"](
+                                    m, self.z.detach()
+                                )
+                                gan_loss = self.losses["D"]["default"](validity, True)
+
+                                disc_loss["m2"]["gan"] += (
+                                    self.opts.train.lambdas.G.m2.gan * gan_loss
+                                )
+
+                                # AC auxiliary loss
+                                aux_loss = self.losses["D"]["multilevel"](
+                                    auxiliary, self.label_1[:, 0, 0, 0].squeeze()
+                                )
+
+                                disc_loss["m2"]["aux"] += (
+                                    self.opts.train.lambdas.G.m2.aux * aux_loss
+                                )
+
+                                # For flood level 2
+                                validity, auxiliary = self.D["m2"]["FloodLevel"](
+                                    m2, self.z.detach()
+                                )
+                                gan_loss = self.losses["D"]["default"](validity, True)
+
+                                disc_loss["m2"]["gan"] += (
+                                    self.opts.train.lambdas.G.m2.gan * gan_loss
+                                )
+
+                                # AC auxiliary loss
+                                aux_loss = self.losses["D"]["multilevel"](
+                                    auxiliary, self.label_2[:, 0, 0, 0].squeeze()
+                                )
+
+                                disc_loss["m2"]["aux"] += (
+                                    self.opts.train.lambdas.G.m2.aux * aux_loss
+                                )
                         else:
                             fake_mask = self.G.decoders["m"](z)
 
