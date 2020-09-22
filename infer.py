@@ -259,6 +259,7 @@ if __name__ == "__main__":
     # ------------------------
     inference = not args.no_inference_mode
     trainer = Trainer(opts)
+    trainer.input_shape = (3, 640, 640)
     with Timer("trainer.setup"):
         trainer.setup(inference=inference)
     with Timer("trainer.resume"):

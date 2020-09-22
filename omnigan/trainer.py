@@ -65,6 +65,9 @@ class Trainer:
         self.logger.epoch = 0
         self.loaders = None
         self.losses = None
+        self.input_shape = None
+
+        self.G = self.D = self.C = None
 
         self.is_setup = False
 
@@ -227,7 +230,9 @@ class Trainer:
         ).to(self.device)
         print("Generator OK. Computing latent & input shapes...", end="", flush=True)
 
-        self.input_shape = self.compute_input_shape()
+        if self.input_shape is None:
+            self.input_shape = self.compute_input_shape()
+
         if "s" in self.opts.tasks:
             self.G.decoders["s"].set_target_size(self.input_shape[-2:])
 
