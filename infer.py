@@ -31,6 +31,7 @@ with Timer("Imports"):
     import torch.nn.functional as F
     import os
     from tqdm import tqdm
+    import torch
 
 
 TRANSFORMS = [Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
@@ -176,31 +177,32 @@ def batch_eval_folder(
     paths = []
 
     for img in tqdm(dataloader, desc="Inferring"):
-        x = img["x"].to(device)
-        z = model.encode(x)
-        mask = model.decoders["m"](z)
+        with torch.no_grad():
+            x = img["x"].to(device)
+            z = model.encode(x)
+            mask = model.decoders["m"](z)
 
-        if keep_in_memory:
-            masks.extend(list(mask.detach().cpu().numpy()))
-            paths.extend(img["path"])
-        else:
-            for k, m in enumerate(mask):
-                vutils.save_image(
-                    m,
-                    output_dir / ("mask_" + Path(img["path"][k]).name),
-                    normalize=True,
-                )
-
-        if paint:
-            z_painter = trainer.sample_z(x.shape[0])
-            fake_flooded = model.painter(z_painter, x * (1.0 - mask))
             if keep_in_memory:
-                painted.extend(list(fake_flooded.detach().cpu().numpy()))
+                masks.extend(list(mask.detach().cpu().numpy()))
+                paths.extend(img["path"])
             else:
-                for k, fake in enumerate(fake_flooded):
+                for k, m in enumerate(mask):
                     vutils.save_image(
-                        fake, output_dir / Path(img["path"][k]).name, normalize=True
+                        m,
+                        output_dir / ("mask_" + Path(img["path"][k]).name),
+                        normalize=True,
                     )
+
+            if paint:
+                z_painter = trainer.sample_z(x.shape[0])
+                fake_flooded = model.painter(z_painter, x * (1.0 - mask))
+                if keep_in_memory:
+                    painted.extend(list(fake_flooded.detach().cpu().numpy()))
+                else:
+                    for k, fake in enumerate(fake_flooded):
+                        vutils.save_image(
+                            fake, output_dir / Path(img["path"][k]).name, normalize=True
+                        )
 
     if keep_in_memory:
         for mask, fake, path in tqdm(
@@ -269,6 +271,8 @@ if __name__ == "__main__":
         trainer.resume(inference=inference)
     model = trainer.G
     model.eval()
+    for p in model.parameters():
+        p.requires_grad = False
 
     # -----------------------------------------------
     # -----  Iterate Subdirs in Base Directory  -----
