@@ -176,7 +176,8 @@ def batch_eval_folder(
     paths = []
 
     for img in tqdm(dataloader, desc="Inferring"):
-        z = model.encode(img["x"].to(device))
+        x = img["x"].to(device)
+        z = model.encode(x)
         mask = model.decoders["m"](z)
 
         if keep_in_memory:
@@ -191,8 +192,8 @@ def batch_eval_folder(
                 )
 
         if paint:
-            z_painter = trainer.sample_z(img["x"].shape[0])
-            fake_flooded = model.painter(z_painter, img["x"] * (1.0 - mask))
+            z_painter = trainer.sample_z(x.shape[0])
+            fake_flooded = model.painter(z_painter, x * (1.0 - mask))
             if keep_in_memory:
                 painted.extend(list(fake_flooded.detach().cpu().numpy()))
             else:
