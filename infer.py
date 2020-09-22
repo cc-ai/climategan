@@ -15,7 +15,7 @@ class Timer:
         s = "\n"
         t = time.perf_counter()
         if self.name:
-            s += f"[>{self.name}<] "
+            s += f"[{self.name}] "
         print(s + f"Elapsed time: {t - self._start_time:.3f}\n")
 
 
@@ -191,7 +191,7 @@ def batch_eval_folder(
                 )
 
         if paint:
-            z_painter = trainer.sample_z(img.shape[0])
+            z_painter = trainer.sample_z(img["x"].shape[0])
             fake_flooded = model.painter(z_painter, img * (1.0 - mask))
             if keep_in_memory:
                 painted.extend(list(fake_flooded.detach().cpu().numpy()))

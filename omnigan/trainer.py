@@ -219,7 +219,8 @@ class Trainer:
         start_time = time()
         self.logger.time.start_time = start_time
 
-        self.loaders = get_all_loaders(self.opts)
+        if not inference:
+            self.loaders = get_all_loaders(self.opts)
 
         # -----------------------
         # -----  Generator  -----
