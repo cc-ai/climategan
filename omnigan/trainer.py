@@ -226,17 +226,16 @@ class Trainer:
         # -----  Generator  -----
         # -----------------------
         __t = time()
-        print("Creating generator...", end="", flush=True)
+        print("Creating generator:")
         self.G: OmniGenerator = get_gen(
             self.opts, verbose=self.verbose, no_init=inference
         ).to(self.device)
         print(
-            f"Generator OK in {time() - __t:.1f}s. Computing latent & input shapes...",
-            end="",
-            flush=True,
+            f"Generator OK in {time() - __t:.1f}s.", end="", flush=True,
         )
 
         if self.input_shape is None:
+            print("Computing latent & input shapes...", end="", flush=True)
             self.input_shape = self.compute_input_shape()
 
         if "s" in self.opts.tasks:
