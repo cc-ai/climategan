@@ -309,7 +309,7 @@ if __name__ == "__main__":
                 with Timer("eval_folder"):
                     eval_folder(root, write_path, paint, trainer.device)
             else:
-                with Timer("batch_eval_folder " + root):
+                with Timer("batch_eval_folder " + root.name):
                     batch_eval_folder(
                         root,
                         write_path,
