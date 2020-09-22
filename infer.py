@@ -44,7 +44,7 @@ class InferDataset(Dataset):
         self.output_size = output_size
 
     def load(self, path):
-        img = tensor_loader(path, task="x", domain="val")
+        img = tensor_loader(path, task="x", domain="val").squeeze(0)
         img = F.interpolate(img, (self.output_size, self.output_size), mode="nearest")
         for tf in TRANSFORMS:
             img = tf(img)
