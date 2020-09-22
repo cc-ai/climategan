@@ -1,18 +1,3 @@
-from PIL.Image import new
-import torch
-from torch.cuda import init
-from torch.utils.data import Dataset, DataLoader
-import numpy
-from omnigan.utils import load_opts
-from pathlib import Path
-from argparse import ArgumentParser
-from omnigan.trainer import Trainer
-from omnigan.data import tensor_loader
-from torchvision import transforms as trsfs
-import torchvision.utils as vutils
-import torch.nn.functional as F
-import os
-from tqdm import tqdm
 import time
 
 
@@ -27,14 +12,28 @@ class Timer:
 
     def __exit__(self, *exc_info):
         """Stop the context manager timer"""
-        s = ""
+        s = "\n"
         t = time.perf_counter()
         if self.name:
             s += f"[>{self.name}<] "
-        print(s + f"Elapsed time: {t - self._start_time:.3f}")
+        print(s + f"Elapsed time: {t - self._start_time:.3f}\n")
 
 
-TRANSFORMS = [trsfs.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+with Timer("Imports"):
+    from torch.utils.data import Dataset, DataLoader
+    from omnigan.utils import load_opts
+    from pathlib import Path
+    from argparse import ArgumentParser
+    from omnigan.trainer import Trainer
+    from omnigan.data import tensor_loader
+    from torchvision.transforms import Normalize
+    import torchvision.utils as vutils
+    import torch.nn.functional as F
+    import os
+    from tqdm import tqdm
+
+
+TRANSFORMS = [Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
 
 
 class InferDataset(Dataset):
