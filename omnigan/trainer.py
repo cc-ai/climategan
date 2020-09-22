@@ -36,8 +36,7 @@ from omnigan.eval_metrics import iou, accuracy
 
 
 class Trainer:
-    """Main trainer class
-    """
+    """Main trainer class"""
 
     def __init__(self, opts, comet_exp=None, verbose=0):
         """Trainer class to gather various model training procedures
@@ -183,9 +182,9 @@ class Trainer:
 
     def setup(self):
         """Prepare the trainer before it can be used to train the models:
-            * initialize G and D
-            * compute latent space dims and create classifier accordingly
-            * creates 3 optimizers
+        * initialize G and D
+        * compute latent space dims and create classifier accordingly
+        * creates 3 optimizers
         """
         self.logger.global_step = 0
         start_time = time()
@@ -217,8 +216,6 @@ class Trainer:
                     self.latent_shape[2],
                 )
             ).to(self.device)
-            print("label sizes: ", self.label_1.shape)
-            print(self.label_2.shape)
 
         self.D: OmniDiscriminator = get_dis(self.opts, verbose=self.verbose).to(
             self.device
