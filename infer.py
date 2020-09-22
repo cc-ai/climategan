@@ -32,7 +32,7 @@ with Timer("Imports"):
     import os
     from tqdm import tqdm
     import torch
-
+    import numpy as np
 
 TRANSFORMS = [Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
 
@@ -43,12 +43,18 @@ class InferDataset(Dataset):
         self.paths = [str(p.resolve()) for p in self.path.glob("*") if isimg(p)]
         self.output_size = output_size
 
-    def load(self, path):
-        img = tensor_loader(path, task="x", domain="val")
+    def transform(self, img):
+        if len(img.shape) == 3:
+            img = img.unsqueeze(0)
         img = F.interpolate(img, (self.output_size, self.output_size), mode="nearest")
-        img = img.squeeze(0)
         for tf in TRANSFORMS:
             img = tf(img)
+        return img
+
+    def load(self, path):
+        img = tensor_loader(path, task="x", domain="val")
+        img = self.transform(img)
+        img = img.squeeze(0)
         return img
 
     def __len__(self) -> int:
@@ -154,7 +160,7 @@ def eval_folder(path_to_images, output_dir, paint=False, device="cpu"):
 
 def batch_eval_folder(
     path_to_images,
-    outputdir,
+    output_dir,
     model,
     output_size=640,
     batch_size=8,
@@ -175,13 +181,15 @@ def batch_eval_folder(
     masks = []
     painted = []
     paths = []
+    times = []
 
     for img in tqdm(dataloader, desc="Inferring"):
         with torch.no_grad():
+            inference_time = time.perf_counter()
             x = img["x"].to(device)
             z = model.encode(x)
             mask = model.decoders["m"](z)
-
+            times.append(time.perf_counter() - inference_time)
             if keep_in_memory:
                 masks.extend(list(mask.detach().cpu().numpy()))
                 paths.extend(img["path"])
@@ -194,8 +202,10 @@ def batch_eval_folder(
                     )
 
             if paint:
+                painter_time = time.perf_counter()
                 z_painter = trainer.sample_z(x.shape[0])
                 fake_flooded = model.painter(z_painter, x * (1.0 - mask))
+                times[-1] += time.perf_counter() - painter_time
                 if keep_in_memory:
                     painted.extend(list(fake_flooded.detach().cpu().numpy()))
                 else:
@@ -212,6 +222,12 @@ def batch_eval_folder(
             vutils.save_image(
                 mask, output_dir / ("mask_" + Path(path).name), normalize=True,
             )
+
+    print(
+        ">> Average pure batch inference duration: {} +/- {}".format(
+            np.mean(times), np.std(times)
+        )
+    )
 
 
 def isimg(path_file):
