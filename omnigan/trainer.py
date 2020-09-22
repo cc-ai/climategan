@@ -218,6 +218,7 @@ class Trainer:
         self.logger.global_step = 0
         start_time = time()
         self.logger.time.start_time = start_time
+        verbose = self.verbose
 
         if not inference:
             self.loaders = get_all_loaders(self.opts)
@@ -227,9 +228,9 @@ class Trainer:
         # -----------------------
         __t = time()
         print("Creating generator:")
-        self.G: OmniGenerator = get_gen(
-            self.opts, verbose=self.verbose, no_init=inference
-        ).to(self.device)
+        self.G: OmniGenerator = get_gen(self.opts, verbose=verbose, no_init=inference)
+        print("Sending to", self.device)
+        self.G = self.G.to(self.device)
         print(
             f"Generator OK in {time() - __t:.1f}s.", end="", flush=True,
         )
@@ -253,9 +254,7 @@ class Trainer:
         # -----  Discriminator  -----
         # ---------------------------
 
-        self.D: OmniDiscriminator = get_dis(self.opts, verbose=self.verbose).to(
-            self.device
-        )
+        self.D: OmniDiscriminator = get_dis(self.opts, verbose=verbose).to(self.device)
         print("Discriminator OK.")
 
         # ------------------------
@@ -265,9 +264,9 @@ class Trainer:
         self.C: OmniClassifier = None
         if self.G.encoder is not None and self.opts.train.latent_domain_adaptation:
             self.latent_shape = self.compute_latent_shape()
-            self.C = get_classifier(
-                self.opts, self.latent_shape, verbose=self.verbose
-            ).to(self.device)
+            self.C = get_classifier(self.opts, self.latent_shape, verbose=verbose).to(
+                self.device
+            )
         print("Classifier OK.")
 
         self.print_num_parameters()
@@ -292,9 +291,9 @@ class Trainer:
         if self.opts.train.resume:
             self.resume()
 
-        self.losses = get_losses(self.opts, self.verbose, device=self.device)
+        self.losses = get_losses(self.opts, verbose, device=self.device)
 
-        if self.verbose > 0:
+        if verbose > 0:
             for mode, mode_dict in self.loaders.items():
                 for domain, domain_loader in mode_dict.items():
                     print(
