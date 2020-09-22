@@ -395,7 +395,7 @@ def get_losses(opts, verbose, device=None):
     # ?   instead of noisy label
     if "d" in opts.tasks:
         losses["G"]["tasks"]["d"] = SIMSELoss() + opts.train.lambdas.G.d.depth_grad * GradientMatchingLoss()
-    if "s" in opts.tasks
+    if "s" in opts.tasks:
         losses["G"]["tasks"]["s"] = {}
         losses["G"]["tasks"]["s"]["crossent"] = CrossEntropy()
         losses["G"]["tasks"]["s"]["minient"] = MiniEntLoss()
