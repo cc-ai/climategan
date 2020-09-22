@@ -39,7 +39,7 @@ TRANSFORMS = [Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
 class InferDataset(Dataset):
     def __init__(self, path, output_size=640):
         self.path = Path(path)
-        self.paths = [p.resolve() for p in self.path.glob("*") if isimg(p)]
+        self.paths = [str(p.resolve()) for p in self.path.glob("*") if isimg(p)]
         self.output_size = output_size
 
     def load(self, path):
@@ -185,7 +185,9 @@ def batch_eval_folder(
         else:
             for k, m in enumerate(mask):
                 vutils.save_image(
-                    m, output_dir / ("mask_" + img["path"][k].name), normalize=True
+                    m,
+                    output_dir / ("mask_" + Path(img["path"][k]).name),
+                    normalize=True,
                 )
 
         if paint:
@@ -196,16 +198,16 @@ def batch_eval_folder(
             else:
                 for k, fake in enumerate(fake_flooded):
                     vutils.save_image(
-                        fake, output_dir / img["path"][k].name, normalize=True
+                        fake, output_dir / Path(img["path"][k]).name, normalize=True
                     )
 
     if keep_in_memory:
         for mask, fake, path in tqdm(
             zip(masks, painted, paths), total=len(masks), desc="Saving Images"
         ):
-            vutils.save_image(fake, output_dir / path.name, normalize=True)
+            vutils.save_image(fake, output_dir / Path(path).name, normalize=True)
             vutils.save_image(
-                mask, output_dir / ("mask_" + path.name), normalize=True,
+                mask, output_dir / ("mask_" + Path(path).name), normalize=True,
             )
 
 
