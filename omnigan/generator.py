@@ -5,9 +5,10 @@
 """
 import torch.nn as nn
 from omnigan.tutils import init_weights
-from omnigan.blocks import SpadeDecoder, BaseDecoder
+from omnigan.blocks import SpadeDecoder, BaseDecoder, ASPP
 from omnigan.encoder import DeeplabEncoder, BaseEncoder
 import omnigan.strings as strings
+import torch.nn.functional as F
 
 # --------------------------------------------------------------------------
 # -----  For now no network structure, just project in a 64 x 32 x 32  -----
@@ -149,18 +150,54 @@ class DepthDecoder(BaseDecoder):
 
 
 class SegmentationDecoder(BaseDecoder):
+    # https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/decoder.py
+    # https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/deeplab.py
     def __init__(self, opts):
-        super().__init__(
-            n_upsample=opts.gen.s.n_upsample,
-            n_res=opts.gen.s.n_res,
-            input_dim=opts.gen.encoder.res_dim,
-            proj_dim=opts.gen.s.proj_dim,
-            output_dim=opts.gen.s.output_dim,
-            res_norm=opts.gen.s.res_norm,
-            activ=opts.gen.s.activ,
-            pad_type=opts.gen.s.pad_type,
-            output_activ="sigmoid",
-        )
+        super().__init__()
+        self.aspp = ASPP(16, nn.BatchNorm2d)
+        conv_modules = [
+            nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+        ]
+        if opts.gen.s.upsample_featuremaps:
+            conv_modules = [nn.Upsample(scale_factor=2)] + conv_modules
+
+        conv_modules += [
+            nn.Conv2d(256, opts.gen.s.output_dim, kernel_size=1, stride=1),
+        ]
+        self.conv = nn.Sequential(*conv_modules)
+        self._target_size = None
+
+    def set_target_size(self, size):
+        """
+        Set final interpolation's target size
+
+        Args:
+            size (int, list, tuple): target size (h, w). If int, target will be (i, i)
+        """
+        if isinstance(size, (list, tuple)):
+            self._target_size = size[:2]
+        else:
+            self._target_size = (size, size)
+
+    def forward(self, z):
+        if self._target_size is None:
+            error = "self._target_size should be set with self.set_target_size()"
+            error += "to interpolate logits to the target seg map's size"
+            raise Exception(error)
+        if z.shape[1] != 2048:
+            raise Exception(
+                "Segmentation decoder will only work with 2048 channels for z"
+            )
+        y = self.aspp(z)
+        y = self.conv(y)
+        return F.interpolate(y, self._target_size, mode="bilinear", align_corners=True)
 
 
 class FullSpadeGen(nn.Module):

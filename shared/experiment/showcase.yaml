@@ -1,0 +1,71 @@
+--- # ---------------------------
+# `sample` can be
+# - `uniform` (np.random.uniform(*from))
+# - `range` (np.choice(np.arange(*from)))
+# - `list` (np.choice(from))
+# - `cartesian` special case where a cartesian product of all keys with the `cartesian` sampling scheme
+#               is created and iterated over in order. `from` MUST be a list
+#               As we iterate over the cartesian product of all
+#               such keys, others are sampled as usual. If n_search is larger than the size of the cartesian
+#               product, it will cycle again through the product in the same order
+#               example with A being `cartesian` from [1, 2] and B from [y, z] and 5 searches:
+#                  => {A:1, B: y}, {A:1, B: z}, {A:2, B: y}, {A:2, B: z}, {A:1, B: y}
+# - `sequential` samples will loop through the values in `from`. `from` MUST be a list
+
+# ---------------------------
+# -----  SBATCH config  -----
+cpus: 8
+partition: long
+mem: 32G
+gres: "gpu:rtx8000:1"
+codeloc: $HOME/ccai/omnigan
+
+modules: "module load anaconda/3 && module load pytorch"
+conda: "conda activate omnienv && conda deactivate && conda activate omnienv"
+
+n_search: -1
+
+# ------------------------
+# -----  Train Args  -----
+# ------------------------
+
+"args.note": "Hyper Parameter search #1"
+"args.comet_tags": ["masker_search", "v1"]
+"args.config": "config/trainer/my_config.yaml"
+
+# --------------------------
+# -----  Model config  -----
+# --------------------------
+"gen.opt.lr":
+  sample: list
+  from: [0.01, 0.001, 0.0001, 0.00001]
+
+"dis.opt.lr":
+  sample: uniform
+  from: [0.01, 0.001]
+
+"dis.opt.optimizer":
+  sample: cartesian
+  from:
+    - ExtraAdam
+    - Adam
+
+"gen.opt.optimizer":
+  sample: cartesian
+  from:
+    - ExtraAdam
+    - Adam
+
+"gen.lambdas.C":
+  sample: cartesian
+  from:
+    - 0.1
+    - 0.5
+    - 1
+
+"data.loaders.batch_size":
+  sample: sequential
+  from:
+    - 2
+    - 4
+    - 6
