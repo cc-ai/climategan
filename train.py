@@ -86,8 +86,12 @@ def main(opts):
         # Auto-continue if same slurm job ID (=job was requeued)
         if not opts.train.resume:
             existing_jobID = get_existing_jobID(opts.output_path)
-            if int(existing_jobID) == int(opts.jobID):
-                opts.train.resume = True
+            try:
+                if opts.jobID is not None and int(existing_jobID) == int(opts.jobID):
+                    opts.train.resume = True
+            except Exception as e:
+                print("Could not resume", e)
+                print("Continuing with opts.train.resume =", opts.train.resume)
 
         # Still not resuming: creating new output path
         if not opts.train.resume:
