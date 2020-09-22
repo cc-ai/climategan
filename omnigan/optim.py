@@ -55,7 +55,7 @@ def get_optimizer(net, opt_conf, tasks=None, iterations=-1):
         lr = opt_conf.lr.default
         params = list()
         for task in tasks:
-            l_r = opt_conf.lr.get(task, opt_conf.lr.default)
+            l_r = opt_conf.lr.get(task, lr)
             # Parameters for encoder
             if task == "m":
                 parameters = net.encoder.parameters()
