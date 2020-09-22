@@ -280,17 +280,26 @@ class GradientMatchingLoss(nn.Module):
     """Gradient matching Loss for depth head
     """
 
-    def __init__(self):
+    def __init__(self, gmweight):
         super(GradientMatchingLoss, self).__init__()
-
+        self.gmweight = gmweight
     def __call__(self, prediction, target):
         # get gradient map with sobel filters
         sobelx = torch.Tensor([[1,0,-1],[2,0,-2],[1,0,-1]])
         sobely = torch.Tensor([[1,2,1],[0,0,0],[-1,-2,-1]])
         grad_pred = F.conv2D(prediction, 0.5 * (sobelx + sobely), stride=1)
         grad_target = F.conv2D(target, 0.5 * (sobelx + sobely), stride=1)
-        diff = torch.norm(grad_pred - grad_target)
+        diff = gmweight * torch.norm(grad_pred - grad_target)
         return diff 
+
+class SIGMLoss(nn.Module):
+    def __init__(self, gmweight):
+        super(SIGMLoss, self).__init__()
+        self.gmweight = gmweight
+    def __call__(self, prediction, target):
+        # get gradient map with sobel filters
+        diff = SIMSELoss(prediction, target) + GradientMatchingLoss(gmweight, prediction, target)
+        return diff
 
 class ContextLoss(nn.Module):
     """
@@ -394,7 +403,7 @@ def get_losses(opts, verbose, device=None):
     # ? * add discriminator and gan loss to these task when no ground truth
     # ?   instead of noisy label
     if "d" in opts.tasks:
-        losses["G"]["tasks"]["d"] = SIMSELoss() + opts.train.lambdas.G.d * GradientMatchingLoss()
+        losses["G"]["tasks"]["d"] = SIGMLoss(opts.train.lambdas.G.d)
     if "s" in opts.tasks:
         losses["G"]["tasks"]["s"] = {}
         losses["G"]["tasks"]["s"]["crossent"] = CrossEntropy()
