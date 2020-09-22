@@ -186,7 +186,7 @@ def search_summary_table(summary, summary_dir=None):
             s += "\n"
 
         # new lines for new column group
-        s += "\n\n"
+        s += "\n"
 
     if summary_dir is not None:
         summary_path = summary_dir / (now() + ".md")
@@ -764,6 +764,8 @@ if __name__ == "__main__":
             jobID = parse_jobID(command_output.strip())
             summary["Slurm JOBID"].append(jobID)
 
+        summary["Comet Link"].append(f"[{hp_idx}][{hp_idx}]")
+
         print(
             "{}{}Summary{} {}:".format(
                 C.UNDERLINE,
@@ -782,5 +784,10 @@ if __name__ == "__main__":
 
     print(f"\nRan a total of {hp_idx + 1} jobs{' in dev mode.' if dev else '.'}\n")
 
-    table = search_summary_table(summary, summary_dir)
+    table = search_summary_table(summary, summary_dir if not dev else None)
     print(table)
+    print(
+        "Add `[i]: https://...` at the end of a markdown document",
+        "to fill in the comet links",
+    )
+
