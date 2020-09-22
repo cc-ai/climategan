@@ -37,9 +37,6 @@ class Timer:
 TRANSFORMS = [trsfs.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
 
 
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-
 class InferDataset(Dataset):
     def __init__(self, path, output_size=640):
         self.path = Path(path)
@@ -132,7 +129,7 @@ def parsed_args():
     return parser.parse_args()
 
 
-def eval_folder(path_to_images, output_dir, paint=False):
+def eval_folder(path_to_images, output_dir, paint=False, device="cpu"):
     images = [path_to_images / Path(i) for i in os.listdir(path_to_images)]
     for img_path in images:
         img = tensor_loader(img_path, task="x", domain="val")
@@ -163,6 +160,7 @@ def batch_eval_folder(
     num_workers=8,
     paint=False,
     keep_in_memory=True,
+    device="cpu",
 ):
     dataset = InferDataset(path_to_images, output_size)
     dataloader = DataLoader(
@@ -178,7 +176,7 @@ def batch_eval_folder(
     paths = []
 
     for img in tqdm(dataloader, desc="Inferring"):
-        z = model.encode(img["x"])
+        z = model.encode(img["x"].to(device))
         mask = model.decoders["m"](z)
 
         if keep_in_memory:
@@ -268,14 +266,6 @@ if __name__ == "__main__":
     model = trainer.G
     model.eval()
 
-    # -------------------------------
-    # -----  Transforms images  -----
-    # -------------------------------
-
-    transforms = [trsfs.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
-
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
     # -----------------------------------------------
     # -----  Iterate Subdirs in Base Directory  -----
     # -----------------------------------------------
@@ -309,7 +299,7 @@ if __name__ == "__main__":
             # -------------------------
             if args.batch_size <= 0:
                 with Timer("eval_folder"):
-                    eval_folder(root, write_path, paint)
+                    eval_folder(root, write_path, paint, trainer.device)
             else:
                 with Timer("batch_eval_folder"):
                     batch_eval_folder(
@@ -321,5 +311,6 @@ if __name__ == "__main__":
                         args.num_workers,
                         paint,
                         args.keep_in_memory,
+                        trainer.device,
                     )
 
