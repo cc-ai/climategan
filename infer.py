@@ -30,7 +30,7 @@ class Timer:
         s = ""
         t = time.perf_counter()
         if self.name:
-            s += f"[{self.name}]"
+            s += f"[>{self.name}<] "
         print(s + f"Elapsed time: {t - self._start_time:.3f}")
 
 
@@ -44,8 +44,9 @@ class InferDataset(Dataset):
         self.output_size = output_size
 
     def load(self, path):
-        img = tensor_loader(path, task="x", domain="val").squeeze(0)
+        img = tensor_loader(path, task="x", domain="val")
         img = F.interpolate(img, (self.output_size, self.output_size), mode="nearest")
+        img = img.squeeze(0)
         for tf in TRANSFORMS:
             img = tf(img)
         return img
