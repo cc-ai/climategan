@@ -276,30 +276,23 @@ class SIMSELoss(nn.Module):
         relDiff = torch.mean(d) * torch.mean(d)
         return diff - relDiff
 
-class GradientMatchingLoss(nn.Module):
-    """Gradient matching Loss for depth head
-    """
-
-    def __init__(self, gmweight):
-        super(GradientMatchingLoss, self).__init__()
-        self.gmweight = gmweight
-    def __call__(self, prediction, target):
-        # get gradient map with sobel filters
-        sobelx = torch.Tensor([[1,0,-1],[2,0,-2],[1,0,-1]])
-        sobely = torch.Tensor([[1,2,1],[0,0,0],[-1,-2,-1]])
-        grad_pred = F.conv2D(prediction, 0.5 * (sobelx + sobely), stride=1)
-        grad_target = F.conv2D(target, 0.5 * (sobelx + sobely), stride=1)
-        diff = gmweight * torch.norm(grad_pred - grad_target)
-        return diff 
-
 class SIGMLoss(nn.Module):
     def __init__(self, gmweight):
         super(SIGMLoss, self).__init__()
         self.gmweight = gmweight
+        sobelx = torch.Tensor([[1,0,-1],[2,0,-2],[1,0,-1]])
+        sobely = torch.Tensor([[1,2,1],[0,0,0],[-1,-2,-1]])
+        self.filter = (0.5 * (sobelx + sobely))
+        
     def __call__(self, prediction, target):
         # get gradient map with sobel filters
-        diff = SIMSELoss(prediction, target) + GradientMatchingLoss(gmweight, prediction, target)
-        return diff
+        batch_size = prediction.size()[0]
+        self.filter = (self.filter).expand((batch_size, 1, -1, -1)).to(device='cuda')      
+        grad_pred = F.conv2d(prediction, self.filter, stride=1)
+        grad_target = F.conv2d(target, self.filter, stride=1)
+        GMLoss = self.gmweight * torch.norm(grad_pred - grad_target)
+        diff = SIMSELoss()(prediction, target) + GMLoss
+        return diff 
 
 class ContextLoss(nn.Module):
     """
