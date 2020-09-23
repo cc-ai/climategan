@@ -31,7 +31,7 @@ from omnigan.tutils import (
     vgg_preprocess,
     norm_tensor,
 )
-from omnigan.utils import div_dict, flatten_opts, sum_dict, merge
+from omnigan.utils import div_dict, flatten_opts, sum_dict, merge, get_display_indices
 from omnigan.eval_metrics import iou, accuracy
 from tqdm import tqdm
 
@@ -74,6 +74,28 @@ class Trainer:
         if isinstance(comet_exp, Experiment):
             self.exp = comet_exp
         self.domain_labels = {"s": 0, "r": 1}
+
+    def eval_mode(self):
+        """
+        Set trainer's models in eval mode
+        """
+        if self.G is not None:
+            self.G.eval()
+        if self.D is not None:
+            self.D.eval()
+        if self.C is not None:
+            self.C.eval()
+
+    def train_mode(self):
+        """
+        Set trainer's models in train mode
+        """
+        if self.G is not None:
+            self.G.train()
+        if self.D is not None:
+            self.D.train()
+        if self.C is not None:
+            self.C.train()
 
     def log_losses(self, model_to_update="G", mode="train"):
         """Logs metrics on comet.ml
@@ -142,7 +164,7 @@ class Trainer:
         if b is None:
             raise ValueError("No batch found to compute_latent_shape")
         b = self.batch_to_device(b)
-        z = self.G.encode(b.data.x)
+        z = self.G.encode(b.data.x[0:1, ...])
         return z.shape[1:]
 
     def compute_input_shape(self):
@@ -160,10 +182,12 @@ class Trainer:
             for domain in self.loaders[mode]:
                 b = Dict(next(iter(self.loaders[mode][domain])))
                 break
+            if b is not None:
+                break
+
         if b is None:
             raise ValueError("No batch found to compute_latent_shape")
-        b = self.batch_to_device(b)
-        return b.data.x.shape[1:]
+        return b["data"]["x"].shape[1:]
 
     def print_num_parameters(self):
         print("---------------------------")
@@ -195,19 +219,26 @@ class Trainer:
         self.loaders = get_all_loaders(self.opts)
 
         self.G: OmniGenerator = get_gen(self.opts, verbose=self.verbose).to(self.device)
-        if self.G.encoder is not None:
-            self.latent_shape = self.compute_latent_shape()
+        print("Generator OK. Computing latent & input shapes...", end="", flush=True)
+
         self.input_shape = self.compute_input_shape()
+        if "s" in self.opts.tasks:
+            self.G.decoders["s"].set_target_size(self.input_shape[-2:])
+
+        print("OK.")
         self.painter_z_h = self.input_shape[-2] // (2 ** self.opts.gen.p.spade_n_up)
         self.painter_z_w = self.input_shape[-1] // (2 ** self.opts.gen.p.spade_n_up)
         self.D: OmniDiscriminator = get_dis(self.opts, verbose=self.verbose).to(
             self.device
         )
+        print("Discriminator OK.")
         self.C: OmniClassifier = None
         if self.G.encoder is not None and self.opts.train.latent_domain_adaptation:
+            self.latent_shape = self.compute_latent_shape()
             self.C = get_classifier(
                 self.opts, self.latent_shape, verbose=self.verbose
             ).to(self.device)
+        print("Classifier OK.")
         self.print_num_parameters()
 
         self.g_opt, self.g_scheduler = get_optimizer(self.G, self.opts.gen.opt)
@@ -241,22 +272,17 @@ class Trainer:
         # Create display images:
         print("Creating display images...", end="", flush=True)
 
-        if type(self.opts.comet.display_size) == int:
-            display_indices = range(self.opts.comet.display_size)
-        else:
-            display_indices = self.opts.comet.display_size
-
         self.display_images = {}
         for mode, mode_dict in self.loaders.items():
             self.display_images[mode] = {}
             for domain, domain_loader in mode_dict.items():
-
+                dataset = self.loaders[mode][domain].dataset
+                display_indices = get_display_indices(self.opts, domain, len(dataset))
                 self.display_images[mode][domain] = [
-                    Dict(self.loaders[mode][domain].dataset[i])
-                    for i in display_indices
-                    if i < len(self.loaders[mode][domain].dataset)
+                    Dict(dataset[i]) for i in display_indices if i < len(dataset)
                 ]
 
+        print("Setup done.")
         self.is_setup = True
 
     def g_opt_step(self):
@@ -328,9 +354,17 @@ class Trainer:
         * updates sequentially G, D, C
         """
         assert self.is_setup
-
+        self.train_mode()
+        epoch_len = min(len(loader) for loader in self.loaders["train"].values())
+        epoch_desc = "Epoch {}".format(self.logger.epoch)
         for i, multi_batch_tuple in enumerate(
-            tqdm(self.train_loaders, desc="Epoch {}".format(self.logger.epoch))
+            tqdm(
+                self.train_loaders,
+                desc=epoch_desc,
+                total=epoch_len,
+                mininterval=0.5,
+                unit="batch",
+            )
         ):
             # create a dictionnay (domain => batch) from tuple
             # (batch_domain_0, ..., batch_domain_i)
@@ -345,6 +379,7 @@ class Trainer:
                 batch["domain"][0]: self.batch_to_device(batch)
                 for batch in multi_batch_tuple
             }
+
             if self.d_opt is not None:
                 # freeze params of the discriminator
                 for param in self.D.parameters():
@@ -378,12 +413,6 @@ class Trainer:
             step_time = time() - step_start_time
             self.log_step_time(step_time)
 
-        for d in self.opts.domains:
-            self.log_comet_images("train", d)
-
-        if "m" in self.opts.tasks and "p" in self.opts.tasks:
-            self.log_comet_combined_images("train", "r")
-
         self.update_learning_rates()
 
     def log_step_time(self, step_time):
@@ -398,7 +427,8 @@ class Trainer:
     def log_comet_images(self, mode, domain):
         save_images = {}
         if domain != "rf":
-            for im_set in self.display_images[mode][domain]:
+            for j, im_set in enumerate(self.display_images[mode][domain]):
+                print(j, end="\r")
                 x = im_set["data"]["x"].unsqueeze(0).to(self.device)
                 self.z = self.G.encode(x)
 
@@ -406,42 +436,47 @@ class Trainer:
                     target = im_set["data"][update_task].unsqueeze(0).to(self.device)
                     task_saves = []
 
-                    if update_task != "x":
-                        if update_task not in save_images:
-                            save_images[update_task] = []
-                        prediction = self.G.decoders[update_task](self.z)
-                        if update_task == "s":
-                            if domain == "s":
-                                target = (
-                                    decode_segmap_unity_labels(target, domain, True)
-                                    .float()
-                                    .to(self.device)
-                                )
-                            prediction = (
-                                decode_segmap_unity_labels(prediction, domain, False)
+                    if update_task == "x":
+                        continue
+
+                    if update_task not in save_images:
+                        save_images[update_task] = []
+
+                    prediction = self.G.decoders[update_task](self.z)
+
+                    if update_task == "s":
+                        if domain == "s":
+                            target = (
+                                decode_segmap_unity_labels(target, domain, True)
                                 .float()
                                 .to(self.device)
                             )
-                            task_saves.append(target)
-                        if update_task == "m":
-                            prediction = prediction.repeat(1, 3, 1, 1)
-                            task_saves.append(x * (1.0 - prediction))
-                            task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
+                        prediction = (
+                            decode_segmap_unity_labels(prediction, domain, False)
+                            .float()
+                            .to(self.device)
+                        )
+                        task_saves.append(target)
 
-                        if update_task == "d":
-                            # prediction is a log depth tensor
-                            target = (norm_tensor(target)) * 255
-                            prediction = (norm_tensor(prediction)) * 255
-                            prediction = prediction.repeat(1, 3, 1, 1)
-                            task_saves.append(target.repeat(1, 3, 1, 1))
-                        task_saves.append(prediction)
-                        # ! This assumes the output is some kind of image
-                        save_images[update_task].append(x)
-                        for im in task_saves:
-                            save_images[update_task].append(im)
+                    elif update_task == "m":
+                        prediction = prediction.repeat(1, 3, 1, 1)
+                        task_saves.append(x * (1.0 - prediction))
+                        task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
+
+                    elif update_task == "d":
+                        # prediction is a log depth tensor
+                        target = (norm_tensor(target)) * 255
+                        prediction = (norm_tensor(prediction)) * 255
+                        prediction = prediction.repeat(1, 3, 1, 1)
+                        task_saves.append(target.repeat(1, 3, 1, 1))
+
+                    task_saves.append(prediction)
+                    save_images[update_task].append(x.cpu().detach())
+
+                    for im in task_saves:
+                        save_images[update_task].append(im.cpu().detach())
 
             for task in save_images.keys():
-                # print(task)
                 # Write images:
                 self.write_images(
                     image_outputs=save_images[task],
@@ -449,6 +484,7 @@ class Trainer:
                     domain=domain,
                     task=task,
                     im_per_row=self.opts.comet.im_per_row.get(task, 4),
+                    rows_per_log=self.opts.comet.get("rows_per_log", 5),
                     comet_exp=self.exp,
                 )
         else:
@@ -470,6 +506,7 @@ class Trainer:
                 domain=domain,
                 task="painter",
                 im_per_row=self.opts.comet.im_per_row.get("p", 4),
+                rows_per_log=self.opts.comet.get("rows_per_log", 5),
                 comet_exp=self.exp,
             )
 
@@ -497,33 +534,64 @@ class Trainer:
             domain=domain,
             task="combined",
             im_per_row=self.opts.comet.im_per_row.get("p", 4),
+            rows_per_log=self.opts.comet.get("rows_per_log", 5),
             comet_exp=self.exp,
         )
 
         return 0
 
     def write_images(
-        self, image_outputs, mode, domain, task, im_per_row=3, comet_exp=None
+        self,
+        image_outputs,
+        mode,
+        domain,
+        task,
+        im_per_row=3,
+        rows_per_log=5,
+        comet_exp=None,
     ):
-        """Save output image
-        Arguments:
-            image_outputs {Tensor list} -- list of output images
-            im_per_row {int} -- number of images to be displayed (per row)
-            file_name {str} -- name of the file where to save the images
+        """
+        Save output image
+
+        Args:
+            image_outputs (list(torch.Tensor)): all the images to log
+            mode (str): train or val
+            domain (str): current domain
+            task (str): current task
+            im_per_row (int, optional): umber of images to be displayed per row.
+                Typically, for a given task: 3 because [input prediction, target].
+                Defaults to 3.
+            rows_per_log (int, optional): Number of rows (=samples) per uploaded image.
+                Defaults to 5.
+            comet_exp (comet_ml.Experiment, optional): experiment to use.
+                Defaults to None.
         """
         curr_iter = self.logger.global_step
-        image_outputs = torch.stack(image_outputs).squeeze()
-        image_grid = vutils.make_grid(
-            image_outputs, nrow=im_per_row, normalize=True, scale_each=True
-        )
-        image_grid = image_grid.permute(1, 2, 0).cpu().detach().numpy()
-
-        if comet_exp is not None:
-            comet_exp.log_image(
-                image_grid,
-                name=f"{mode}_{domain}_{task}_{str(curr_iter)}",
-                step=curr_iter,
+        nb_per_log = im_per_row * rows_per_log
+        for logidx in range(rows_per_log):
+            print(
+                "Uploading images for",
+                mode,
+                domain,
+                task,
+                f"{logidx + 1}/{rows_per_log}",
+                end="\r",
             )
+            ims = image_outputs[logidx * nb_per_log : (logidx + 1) * nb_per_log]
+            if not ims:
+                continue
+            ims = torch.stack(ims).squeeze()
+            image_grid = vutils.make_grid(
+                ims, nrow=im_per_row, normalize=True, scale_each=True
+            )
+            image_grid = image_grid.permute(1, 2, 0).numpy()
+
+            if comet_exp is not None:
+                comet_exp.log_image(
+                    image_grid,
+                    name=f"{mode}_{domain}_{task}_{str(curr_iter)}_#{logidx}",
+                    step=curr_iter,
+                )
 
     def train(self):
         """For each epoch:
@@ -536,10 +604,13 @@ class Trainer:
         for self.logger.epoch in range(
             self.logger.epoch, self.logger.epoch + self.opts.train.epochs
         ):
-            # self.infer()
             self.run_epoch()
-            self.infer(verbose=1)
-            if self.logger.epoch % self.opts.train.save_n_epochs == 0:
+            self.run_evaluation(verbose=1)
+
+            if (
+                self.logger.epoch != 0
+                and self.logger.epoch % self.opts.train.save_n_epochs == 0
+            ):
                 self.save()
 
     def get_g_loss(self, multi_domain_batch, verbose=0):
@@ -651,23 +722,30 @@ class Trainer:
                     ] = update_loss.item()
                 elif update_task == "s":
                     prediction = self.G.decoders[update_task](self.z)
-                    # Supervised segmentation loss
-                    if batch_domain == "s":
+                    # Supervised segmentation loss: crossent for sim domain,
+                    # crossent_pseudo for real ; loss is crossent in any case
+                    if batch_domain == "s" or self.opts.gen.s.use_pseudo_labels:
+                        if batch_domain == "s":
+                            loss_name = "crossent"
+                        else:
+                            loss_name = "crossent_pseudo"
+
                         update_loss = (
-                            self.losses["G"]["tasks"][update_task]["crossent"](
+                            self.losses["G"]["tasks"]["s"]["crossent"](
                                 prediction, update_target.squeeze(1)
                             )
-                            * lambdas.G[update_task]["crossent"]
+                            * lambdas.G["s"][loss_name]
                         )
                         step_loss += update_loss
 
-                        self.logger.losses.generator.task_loss[update_task]["crossent"][
+                        self.logger.losses.generator.task_loss["s"][loss_name][
                             batch_domain
                         ] = update_loss.item()
-                    else:
-                        # Entropy minimisation loss
+
+                    if batch_domain == "r":
+                        # Entropy minimization loss
                         if self.opts.gen.s.use_minient:
-                            # Direct entropy minimisation
+                            # Direct entropy minimization
                             update_loss = (
                                 self.losses["G"]["tasks"][update_task]["minient"](
                                     prediction
@@ -1082,13 +1160,16 @@ class Trainer:
 
         return lambdas.C * loss
 
-    def infer(self, num_threads=5, verbose=0):
-        print("*******************INFERRING***********************")
+    def run_evaluation(self, verbose=0):
+        print("******************* Running Evaluation ***********************")
+        self.eval_mode()
         val_logger = None
+        nb_of_batches = None
         for i, multi_batch_tuple in enumerate(self.val_loaders):
             # create a dictionnary (domain => batch) from tuple
             # (batch_domain_0, ..., batch_domain_i)
             # and send it to self.device
+            nb_of_batches = i + 1
             multi_domain_batch = {
                 batch["domain"][0]: self.batch_to_device(batch)
                 for batch in multi_batch_tuple
@@ -1100,21 +1181,24 @@ class Trainer:
             else:
                 val_logger = sum_dict(val_logger, self.logger.losses.generator)
 
-        val_logger = div_dict(val_logger, i + 1)
+        val_logger = div_dict(val_logger, nb_of_batches)
         self.logger.losses.generator = val_logger
         self.log_losses(model_to_update="G", mode="val")
 
         for d in self.opts.domains:
+            self.log_comet_images("train", d)
             self.log_comet_images("val", d)
 
         if "m" in self.opts.tasks and "p" in self.opts.tasks:
+            self.log_comet_combined_images("train", "r")
             self.log_comet_combined_images("val", "r")
 
         if "m" in self.opts.tasks:
             self.eval_images("val", "r")
             self.eval_images("val", "s")
 
-        print("******************DONE INFERRING*********************")
+        self.train_mode()
+        print("****************** Done *********************")
 
     def save(self):
         save_dir = Path(self.opts.output_path) / Path("checkpoints")

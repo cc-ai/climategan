@@ -32,6 +32,10 @@ Configuration files use the **YAML** syntax. If you don't know what `&` and `<<`
     * https://dev.to/paulasantamaria/introduction-to-yaml-125f
     * https://stackoverflow.com/questions/41063361/what-is-the-double-left-arrow-syntax-in-yaml-called-and-wheres-it-specced/41065222
 
+```
+$ pip install scipy opencv-python torch torchvision omegaconf==1.4.1 hydra-core==0.11.3 scikit-image imageio addict tqdm
+```
+
 ## Current Model
 
 ### Summary
@@ -74,7 +78,7 @@ sum(np.prod(p.shape) for p in trainer.C.parameters())
 
 High-level model in `generator.py`, building-blocks in `blocks.py`
 
-* **Encoder**: 
+* **Encoder**:
 
     Resnet-based Content Encoder from MUNIT
   * image => 64 (=`encoder.dim`) channels with 1 conv layer, same size
@@ -84,8 +88,8 @@ High-level model in `generator.py`, building-blocks in `blocks.py`
   Deeplabv2-based encoder
   * Code borrowed from https://github.com/valeoai/ADVENT/blob/master/advent/model/deeplabv2.py
   * We only keep the feature extractor part (not the ASPP classification module) for which we can load pretrained weights.
-  Pretrained model weights on ImageNet can be downloaded [here](https://github.com/valeoai/ADVENT/releases). 
-  * We also add resblocks 
+  Pretrained model weights on ImageNet can be downloaded [here](https://github.com/valeoai/ADVENT/releases).
+  * We also add resblocks
 
 * **Decoders**: Resnet-based Decoders from MUNIT for all tasks but the translation
   * resblocks projections (`decoder.n_res` blocks)
@@ -159,7 +163,7 @@ We provide the script `process_data.py` for the preprocessing task. Given a sour
 The data folder must be structured as follows : A specific folder for each category (Semantic, Depth, Height, Flood, etc..), for the same data sample, the name must be the same through all the directories (The ground truth depth of Flood/image_1.jpg is Depth/image_1.jpg), but the extension can change.
 
 The default mapping between a folder and the json key is `"Segmentation": "s", "Depth": "d", "Data": "x", "Height": "h", "Mask": "m"` change it according to your needs in `process_data.py`.
-Note that `"m"` corresponds to the mask task, which is not exactly the water mask since for real images we do not have access to that information. 
+Note that `"m"` corresponds to the mask task, which is not exactly the water mask since for real images we do not have access to that information.
 
 ```yaml
 # data file ; one for each r|s
@@ -167,7 +171,7 @@ Note that `"m"` corresponds to the mask task, which is not exactly the water mas
   h: /path/to/height map
   d: /path/to/depth map
   w: /path/to/water map
-  m: /path/to/mask 
+  m: /path/to/mask
   s: /path/to/segmentation map
 - x: /path/to/another image
   d: /path/to/depth map
@@ -192,9 +196,9 @@ or
     }
 ]
 ```
-The json files used are located at `/network/tmp1/ccai/data/omnigan/`. In the basenames,  `_s` denotes simulated domain data and `_r` real domain data.   
-The `base` folder contains json files with paths to images (`"x"`key) and masks (taken as ground truth for the area that should be flooded, `"m"` key).   
-The `seg` folder contains json files and keys `"x"`, `"m"` and `"s"` (segmentation) for each image. 
+The json files used are located at `/network/tmp1/ccai/data/omnigan/`. In the basenames,  `_s` denotes simulated domain data and `_r` real domain data.
+The `base` folder contains json files with paths to images (`"x"`key) and masks (taken as ground truth for the area that should be flooded, `"m"` key).
+The `seg` folder contains json files and keys `"x"`, `"m"` and `"s"` (segmentation) for each image.
 
 
 loaders
@@ -352,4 +356,3 @@ runs:
   * trainable
     * use Continual Learning ideas to prevent forgetting
     * greatly lower learning rate
-
