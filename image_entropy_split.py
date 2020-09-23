@@ -86,7 +86,9 @@ def merge_JsonFiles(filename):
         with open(f1, "r") as infile:
             result.extend(json.load(infile))
 
-    with open(args.save_path + "easy_split_with_orignal_sim.json", "w") as output_file:
+    with open(
+        Path(args.save_path) / "easy_split_with_orignal_sim.json", "w"
+    ) as output_file:
         json.dump(result, output_file)
 
 
@@ -98,8 +100,6 @@ if __name__ == "__main__":
     args = parsed_args()
     output_dir = Path(args.save_path)
     output_dir.mkdir(exist_ok=True, parents=True)
-    if args.save_path[-1] != "/":
-        args.save_path = args.save_path + "/"
 
     # -----------------------
     # -----  Load opts  -----

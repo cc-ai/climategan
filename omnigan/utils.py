@@ -416,14 +416,14 @@ def div_dict(dict1, div_by):
     return dict1
 
 
-def tupleList2DictList(tuples, keys=["x", "m"]):
-    DictList = []
+def tuple_list2dict_list(tuples, keys=["x", "m"]):
+    dict_list = []
     for Tuple in tuples:
         tmpDict = {}
         for i in range(len(keys)):
             tmpDict[keys[i]] = Tuple[i]
-        DictList.append(tmpDict)
-    return DictList
+        dict_list.append(tmpDict)
+    return dict_list
 
 
 def merge_JsonFiles(filename, save_path):
@@ -432,7 +432,7 @@ def merge_JsonFiles(filename, save_path):
         with open(f1, "r") as infile:
             result.extend(json.load(infile))
 
-    with open(save_path + "easy_split_with_orignal_sim.json", "w") as output_file:
+    with open(Path(save_path) / "easy_split_with_orignal_sim.json", "w") as output_file:
         json.dump(result, output_file)
 
 
@@ -497,8 +497,8 @@ def adventv2EntropySplit(trainer, verbose=1):
     entropy_rank = [(item[0], item[1]) for item in entropy_list_sorted]
     easy_split = entropy_rank[: int(len(entropy_rank) * entropy_split)]
     hard_split = entropy_rank[int(len(entropy_rank) * entropy_split) :]
-    easy_splitDict = tupleList2DictList(easy_split)
-    hard_splitDict = tupleList2DictList(hard_split)
+    easy_splitDict = tuple_list2dict_list(easy_split)
+    hard_splitDict = tuple_list2dict_list(hard_split)
 
     with open(save_path + "easy_split.json", "w", encoding="utf-8") as outfile:
         json.dump(easy_splitDict, outfile, ensure_ascii=False)
