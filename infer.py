@@ -192,7 +192,7 @@ def batch_eval_folder(
             mask = model.decoders["m"](z)
             times.append((time.perf_counter() - inference_time) / x.shape[0])
             if keep_in_memory:
-                masks.extend(list(mask.detach().cpu().numpy()))
+                masks.extend(list(mask.detach().cpu()))
                 paths.extend(img["path"])
             else:
                 for k, m in enumerate(mask):
@@ -208,7 +208,7 @@ def batch_eval_folder(
                 fake_flooded = model.painter(z_painter, x * (1.0 - mask))
                 times[-1] += (time.perf_counter() - painter_time) / x.shape[0]
                 if keep_in_memory:
-                    painted.extend(list(fake_flooded.detach().cpu().numpy()))
+                    painted.extend(list(fake_flooded.detach().cpu()))
                 else:
                     for k, fake in enumerate(fake_flooded):
                         vutils.save_image(
