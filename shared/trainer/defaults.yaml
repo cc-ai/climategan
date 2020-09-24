@@ -48,7 +48,8 @@ gen:
   opt:
     optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
     beta1: 0.9
-    lr: 0.00001
+    lr: 
+      default: 0.00001
     lr_policy: step # constant or step ; if step, specify step_size and gamma
     lr_step_size: 30 # for linear decay : period of learning rate decay (epochs)
     lr_gamma: 0.5 # Multiplicative factor of learning rate decay

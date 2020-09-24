@@ -246,7 +246,10 @@ class Trainer:
         print("Classifier OK.")
         self.print_num_parameters()
 
-        self.g_opt, self.g_scheduler = get_optimizer(self.G, self.opts.gen.opt)
+        # Get different optimizers for each task (different learning rates)
+        self.g_opt, self.g_scheduler = get_optimizer(
+            self.G, self.opts.gen.opt, tasks=self.opts.tasks
+        )
 
         if get_num_params(self.D) > 0:
             self.d_opt, self.d_scheduler = get_optimizer(self.D, self.opts.dis.opt)
