@@ -172,7 +172,7 @@ def get_normalized_depth_t(arr, domain, normalize=False):
             arr = torch.true_divide(arr, torch.max(arr))
     elif domain == "s":
         # from 3-channel depth encoding from Unity simulator to 1-channel [0-1] values
-        arr = decode_unity_depth_t(arr, log=True, normalize=normalize)
+        arr = decode_unity_depth_t(arr, log=False, normalize=normalize)
     return arr
 
 
