@@ -51,13 +51,14 @@ def get_scheduler(optimizer, hyperparameters, iterations=-1):
     return scheduler
 
 
-def get_optimizer(net, opt_conf, iterations=-1):
+def get_optimizer(net, opt_conf, tasks=None, iterations=-1):
     """Returns a tuple (optimizer, scheduler) according to opt_conf which
     should come from the trainer's opts as: trainer.opts.<model>.opt
 
     Args:
         net (nn.Module): Network to update
         opt_conf (addict.Dict): optimizer and scheduler options
+        tasks: list of tasks
         iterations (int, optional): Last epoch number. Defaults to -1, meaning
             start with base lr.
 
@@ -65,10 +66,31 @@ def get_optimizer(net, opt_conf, iterations=-1):
         Tuple: (torch.Optimizer, torch._LRScheduler)
     """
     opt = scheduler = None
-    if opt_conf.optimizer == "ExtraAdam":
-        opt = ExtraAdam(net.parameters(), lr=opt_conf.lr, betas=(opt_conf.beta1, 0.999))
+    if tasks is None:
+        lr = opt_conf.lr
+        params = net.parameters()
+    elif len(opt_conf.lr) == 1:  # Use default for all tasks
+        lr = opt_conf.lr.default
+        params = net.parameters()
     else:
-        opt = Adam(net.parameters(), lr=opt_conf.lr, betas=(opt_conf.beta1, 0.999))
+        lr = opt_conf.lr.default
+        params = list()
+        for task in tasks:
+            l_r = opt_conf.lr.get(task, lr)
+            # Parameters for encoder
+            if task == "m":
+                parameters = net.encoder.parameters()
+                params.append({"params": parameters, "lr": l_r})
+            # Parameters for decoders
+            if task == "p":
+                parameters = net.painter.parameters()
+            else:
+                parameters = net.decoders[task].parameters()
+            params.append({"params": parameters, "lr": l_r})
+    if opt_conf.optimizer == "ExtraAdam":
+        opt = ExtraAdam(params, lr=lr, betas=(opt_conf.beta1, 0.999))
+    else:
+        opt = Adam(params, lr=lr, betas=(opt_conf.beta1, 0.999))
     scheduler = get_scheduler(opt, opt_conf, iterations)
     return opt, scheduler
 

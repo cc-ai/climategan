@@ -48,7 +48,8 @@ gen:
   opt:
     optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
     beta1: 0.9
-    lr: 0.00001
+    lr:
+      default: 0.00001
     lr_policy: multi_step
     # lr_policy can be constant, step or multi_step; if step, specify lr_step_size and lr_gamma
     # if multi_step specify lr_step_size lr_gamma and lr_milestones:

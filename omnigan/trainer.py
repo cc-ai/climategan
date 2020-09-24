@@ -18,7 +18,7 @@ from addict import Dict
 from comet_ml import Experiment
 
 from omnigan.classifier import OmniClassifier, get_classifier
-from omnigan.data import get_all_loaders, decode_segmap_unity_labels
+from omnigan.data import get_all_loaders, decode_segmap_merged_labels
 from omnigan.discriminator import OmniDiscriminator, get_dis
 from omnigan.generator import OmniGenerator, get_gen
 from omnigan.losses import get_losses
@@ -246,8 +246,9 @@ class Trainer:
         print("Classifier OK.")
         self.print_num_parameters()
 
+        # Get different optimizers for each task (different learning rates)
         self.g_opt, self.g_scheduler = get_optimizer(
-            self.G, self.opts.gen.opt, self.opts.train.epochs
+            self.G, self.opts.gen.opt, self.opts.tasks, self.opts.train.epochs
         )
 
         if get_num_params(self.D) > 0:
@@ -454,14 +455,13 @@ class Trainer:
                     prediction = self.G.decoders[update_task](self.z)
 
                     if update_task == "s":
-                        if domain == "s":
-                            target = (
-                                decode_segmap_unity_labels(target, domain, True)
-                                .float()
-                                .to(self.device)
-                            )
+                        target = (
+                            decode_segmap_merged_labels(target, domain, True)
+                            .float()
+                            .to(self.device)
+                        )
                         prediction = (
-                            decode_segmap_unity_labels(prediction, domain, False)
+                            decode_segmap_merged_labels(prediction, domain, False)
                             .float()
                             .to(self.device)
                         )
