@@ -162,7 +162,7 @@ batch = Dict({
 
 | name                                     | domain | description                             | author |
 | :--------------------------------------- | :----: | :-------------------------------------- | :----: |
-| train_r_full_pl.json, val_r_full_pl.json |   r    | mega depth + segmentation pseudo labels | Alexia |
+| train_r_full_pl.json, val_r_full_pl.json |   r    | MegaDepth + Segmentation pseudo-labels (HRNet + Cityscapes) | Alexia |
 
 We provide the script `process_data.py` for the preprocessing task. Given a source folder the script will create the appropriate JSON. In the default mode, only one JSON for the whole data folder will be created. If you want to split the dataset into train and validation you can use the `--train_size` argument and specify the percentage, therefore two JSONs (train and val) will be created.
 
