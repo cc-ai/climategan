@@ -156,15 +156,19 @@ class Trainer:
         Returns:
             tuple: (c, h, w)
         """
-        b = None
+        x = None
         for mode in self.loaders:
             for domain in self.loaders[mode]:
-                b = Dict(next(iter(self.loaders[mode][domain])))
+                x = self.loaders[mode][domain].dataset[0]["data"]["x"].to(self.device)
                 break
-        if b is None:
+            if x is not None:
+                break
+
+        if x is None:
             raise ValueError("No batch found to compute_latent_shape")
-        b = self.batch_to_device(b)
-        z = self.G.encode(b.data.x[0:1, ...])
+
+        x = x.unsqueeze(0)
+        z = self.G.encode(x)
         return z.shape[1:]
 
     def compute_input_shape(self):
@@ -177,17 +181,18 @@ class Trainer:
         Returns:
             tuple: (c, h, w)
         """
-        b = None
+        shape = None
         for mode in self.loaders:
             for domain in self.loaders[mode]:
-                b = Dict(next(iter(self.loaders[mode][domain])))
+                shape = self.loaders[mode][domain].dataset[0]["data"]["x"].shape
                 break
-            if b is not None:
+            if shape is not None:
                 break
 
-        if b is None:
+        if shape is None:
             raise ValueError("No batch found to compute_latent_shape")
-        return b["data"]["x"].shape[1:]
+
+        return shape
 
     def print_num_parameters(self):
         print("---------------------------")
