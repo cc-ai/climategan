@@ -569,5 +569,9 @@ def get_existing_jobID(output_path):
     with opts_path.open("r") as f:
         opts = yaml.safe_load(f)
 
-    return opts.get("jobID", None)
+    jobID = opts.get("jobID", None)
+
+    print("Found existing jobID", jobID)
+
+    return jobID
 

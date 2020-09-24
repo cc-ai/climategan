@@ -76,6 +76,7 @@ def main(opts):
         opts.train.resume = True
     opts.jobID = os.environ.get("SLURM_JOBID")
     opts.output_path = str(env_to_path(opts.output_path))
+    print("Config output_path:", opts.output_path)
 
     exp = comet_previous_id = comet_previous_path = None
     if not args.dev:
@@ -86,9 +87,11 @@ def main(opts):
         # Auto-continue if same slurm job ID (=job was requeued)
         if not opts.train.resume:
             existing_jobID = get_existing_jobID(opts.output_path)
+            print("Current jobID:", opts.jobID)
             try:
-                if opts.jobID is not None and int(existing_jobID) == int(opts.jobID):
+                if opts.jobID is not None and existing_jobID == opts.jobID:
                     opts.train.resume = True
+                    print("Resuming based on jobID")
             except Exception as e:
                 print("Could not resume", e)
                 print("Continuing with opts.train.resume =", opts.train.resume)
@@ -129,12 +132,14 @@ def main(opts):
                     print("WARNING could not retreive previous comet id")
                     print(f"from {comet_previous_path}")
                 else:
+                    print("Continuing previous experiment", comet_previous_id)
                     exp = ExistingExperiment(
                         previous_experiment=comet_previous_id, **comet_kwargs
                     )
 
             if exp is None:
                 # Create new experiment
+                print("Starting new experiment")
                 exp = Experiment(project_name="omnigan", **comet_kwargs)
                 exp.log_asset_folder(
                     str(Path(__file__).parent / "omnigan"),
