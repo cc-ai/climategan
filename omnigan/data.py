@@ -23,7 +23,7 @@ IMG_EXTENSIONS = set(
 )
 
 classes_dict = {
-    "s": {
+    "s": {  # unity
         0: [0, 0, 255, 255],  # Water
         1: [55, 55, 55, 255],  # Ground
         2: [0, 255, 255, 255],  # Building
@@ -36,7 +36,7 @@ classes_dict = {
         9: [0, 0, 0, 255],  # Sky
         10: [255, 255, 255, 255],  # Default
     },
-    "r": {
+    "r": {  # deeplab v2
         0: [0, 0, 255, 255],  # Water
         1: [55, 55, 55, 255],  # Ground
         2: [0, 255, 255, 255],  # Building
@@ -52,7 +52,7 @@ classes_dict = {
 }
 
 
-def decode_segmap_unity_labels(tensor, domain, is_target, nc=11):
+def decode_segmap_merged_labels(tensor, domain, is_target, nc=11):
     """Creates a label colormap for classes used in Unity segmentation benchmark.
     Arguments:
         tensor -- segmented image of size (1) x (nc) x (H) x (W) if prediction, or size (1) x (1) x (H) x (W) if target
