@@ -277,21 +277,21 @@ class SIMSELoss(nn.Module):
         return diff - relDiff
 
 class SIGMLoss(nn.Module):
-    def __init__(self, gmweight):
+    def __init__(self, gmweight, device='cuda'):
         super(SIGMLoss, self).__init__()
         self.gmweight = gmweight
         sobelx = torch.Tensor([[1,0,-1],[2,0,-2],[1,0,-1]])
         sobely = torch.Tensor([[1,2,1],[0,0,0],[-1,-2,-1]])
-        self.filter = (0.5 * (sobelx + sobely))
-        
+        self.filter = (0.5 * (sobelx + sobely)).to(device)
+        self.simse = SIMSELoss()
     def __call__(self, prediction, target):
         # get gradient map with sobel filters
         batch_size = prediction.size()[0]
-        self.filter = (self.filter).expand((batch_size, 1, -1, -1)).to(device='cuda')      
+        self.filter = (self.filter).expand((batch_size, 1, -1, -1))
         grad_pred = F.conv2d(prediction, self.filter, stride=1)
         grad_target = F.conv2d(target, self.filter, stride=1)
-        GMLoss = self.gmweight * torch.norm(grad_pred - grad_target)
-        diff = SIMSELoss()(prediction, target) + GMLoss
+        gmLoss = self.gmweight * torch.norm(grad_pred - grad_target)
+        diff = self.simse(prediction, target) + gmLoss
         return diff 
 
 class ContextLoss(nn.Module):
@@ -396,7 +396,7 @@ def get_losses(opts, verbose, device=None):
     # ? * add discriminator and gan loss to these task when no ground truth
     # ?   instead of noisy label
     if "d" in opts.tasks:
-        losses["G"]["tasks"]["d"] = SIGMLoss(opts.train.lambdas.G.d)
+        losses["G"]["tasks"]["d"] = SIGMLoss(opts.train.lambdas.G.d.gml)
     if "s" in opts.tasks:
         losses["G"]["tasks"]["s"] = {}
         losses["G"]["tasks"]["s"]["crossent"] = CrossEntropy()
