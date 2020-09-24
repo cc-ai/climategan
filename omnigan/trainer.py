@@ -65,6 +65,7 @@ class Trainer:
         self.logger.epoch = 0
         self.loaders = None
         self.losses = None
+        self.lr_names = {}
 
         self.is_setup = False
 
@@ -247,19 +248,19 @@ class Trainer:
         self.print_num_parameters()
 
         # Get different optimizers for each task (different learning rates)
-        self.g_opt, self.g_scheduler = get_optimizer(
+        self.g_opt, self.g_scheduler, self.lr_names["G"] = get_optimizer(
             self.G, self.opts.gen.opt, self.opts.tasks
         )
 
         if get_num_params(self.D) > 0:
-            self.d_opt, self.d_scheduler = get_optimizer(
+            self.d_opt, self.d_scheduler, self.lr_names["D"] = get_optimizer(
                 self.D, self.opts.dis.opt, self.opts.tasks
             )
         else:
             self.d_opt, self.d_scheduler = None, None
 
         if self.C is not None:
-            self.c_opt, self.c_scheduler = get_optimizer(
+            self.c_opt, self.c_scheduler, self.lr_names["C"] = get_optimizer(
                 self.C, self.opts.classifier.opt, self.opts.tasks
             )
         else:
@@ -347,13 +348,17 @@ class Trainer:
             self.c_scheduler.step()
 
     def log_learning_rates(self):
-        return  #  WIP
+        lrs = {}
         if self.g_scheduler is not None:
-            self.g_scheduler.step()
+            for name, lr in zip(self.lr_names["G"], self.g_scheduler.get_last_lr()):
+                lrs[f"lr_G_{name}"] = lr
         if self.d_scheduler is not None:
-            self.d_scheduler.step()
+            for name, lr in zip(self.lr_names["D"], self.d_scheduler.get_last_lr()):
+                lrs[f"lr_D_{name}"] = lr
         if self.c_scheduler is not None:
-            self.c_scheduler.step()
+            for name, lr in zip(self.lr_names["C"], self.c_scheduler.get_last_lr()):
+                lrs[f"lr_C_{name}"] = lr
+        self.exp.log_metrics(lrs, step=self.logger.global_step)
 
     @property
     def val_loaders(self):

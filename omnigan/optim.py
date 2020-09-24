@@ -66,12 +66,15 @@ def get_optimizer(net, opt_conf, tasks=None, iterations=-1):
         Tuple: (torch.Optimizer, torch._LRScheduler)
     """
     opt = scheduler = None
+    lr_names = []
     if tasks is None:
         lr = opt_conf.lr
         params = net.parameters()
+        lr_names.append("full")
     elif len(opt_conf.lr) == 1:  # Use default for all tasks
         lr = opt_conf.lr.default
         params = net.parameters()
+        lr_names.append("full")
     else:
         lr = opt_conf.lr.default
         params = list()
@@ -81,18 +84,21 @@ def get_optimizer(net, opt_conf, tasks=None, iterations=-1):
             if task == "m":
                 parameters = net.encoder.parameters()
                 params.append({"params": parameters, "lr": l_r})
+                lr_names.append("encoder")
             # Parameters for decoders
             if task == "p":
                 parameters = net.painter.parameters()
+                lr_names.append("painter")
             else:
                 parameters = net.decoders[task].parameters()
+                lr_names.append(f"decoder_{task}")
             params.append({"params": parameters, "lr": l_r})
     if opt_conf.optimizer == "ExtraAdam":
         opt = ExtraAdam(params, lr=lr, betas=(opt_conf.beta1, 0.999))
     else:
         opt = Adam(params, lr=lr, betas=(opt_conf.beta1, 0.999))
     scheduler = get_scheduler(opt, opt_conf, iterations)
-    return opt, scheduler
+    return opt, scheduler, lr_names
 
 
 """
