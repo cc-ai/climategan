@@ -22,6 +22,7 @@ from omnigan.utils import (
     copy_sbatch,
     merge,
     get_existing_jobID,
+    kill_job,
 )
 
 hydra_config_path = Path(__file__).resolve().parent / "shared/trainer/config.yaml"
@@ -201,6 +202,7 @@ def main(opts):
     # -----------------------------
 
     pprint("Done training")
+    kill_job(opts.jobID)
 
 
 if __name__ == "__main__":
