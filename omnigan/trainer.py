@@ -246,16 +246,20 @@ class Trainer:
         print("Classifier OK.")
         self.print_num_parameters()
 
-        self.g_opt, self.g_scheduler = get_optimizer(self.G, self.opts.gen.opt)
+        self.g_opt, self.g_scheduler = get_optimizer(
+            self.G, self.opts.gen.opt, self.opts.train.epochs
+        )
 
         if get_num_params(self.D) > 0:
-            self.d_opt, self.d_scheduler = get_optimizer(self.D, self.opts.dis.opt)
+            self.d_opt, self.d_scheduler = get_optimizer(
+                self.D, self.opts.dis.opt, self.opts.train.epochs
+            )
         else:
             self.d_opt, self.d_scheduler = None, None
 
         if self.C is not None:
             self.c_opt, self.c_scheduler = get_optimizer(
-                self.C, self.opts.classifier.opt
+                self.C, self.opts.classifier.opt, self.opts.train.epochs
             )
         else:
             self.c_opt, self.c_scheduler = None, None

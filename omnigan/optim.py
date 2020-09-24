@@ -17,14 +17,32 @@ def get_scheduler(optimizer, hyperparameters, iterations=-1):
     Returns:
         [type]: [description]
     """
-    if "lr_policy" not in hyperparameters or hyperparameters["lr_policy"] == "constant":
+
+    policy = hyperparameters.get("lr_policy")
+    lr_step_size = hyperparameters.get("lr_step_size")
+    lr_gamma = hyperparameters.get("lr_gamma")
+    milestones = hyperparameters.get("lr_milestones")
+
+    if policy is None or policy == "constant":
         scheduler = None  # constant scheduler
-    elif hyperparameters["lr_policy"] == "step":
+    elif policy == "step":
         scheduler = lr_scheduler.StepLR(
-            optimizer,
-            step_size=hyperparameters["lr_step_size"],
-            gamma=hyperparameters["lr_gamma"],
-            last_epoch=iterations,
+            optimizer, step_size=lr_step_size, gamma=lr_gamma, last_epoch=iterations,
+        )
+    elif policy == "multi_step":
+        if isinstance(milestones, (list, tuple)):
+            milestones = milestones
+        elif isinstance(milestones, int):
+            assert "lr_step_size" in hyperparameters
+            if iterations == -1:
+                last_milestone = 1000
+            else:
+                last_milestone = iterations
+            milestones = [milestones] + list(
+                range(milestones, last_milestone, lr_step_size)
+            )
+        scheduler = lr_scheduler.MultiStepLR(
+            optimizer, milestones=milestones, gamma=lr_gamma, last_epoch=iterations,
         )
     else:
         return NotImplementedError(
