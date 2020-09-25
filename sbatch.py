@@ -66,13 +66,14 @@ def cols():
 
 def print_box(txt):
     if not txt:
-        txt = "{}{}ERROR ↑{}".format(C.BOLD, C.FAIL, C.ENDC)
+        txt = "{}{}ERROR ⇪{}".format(C.BOLD, C.FAIL, C.ENDC)
         lt = 7
     else:
         lt = len(txt)
+    nlt = lt + 12
     txt = "|" + " " * 5 + txt + " " * 5 + "|"
-    line = "-" * lt
-    empty = "|" + " " * (lt - 2) + "|"
+    line = "-" * nlt
+    empty = "|" + " " * (nlt - 2) + "|"
     print(line)
     print(empty)
     print(txt)
