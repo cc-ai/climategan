@@ -38,9 +38,7 @@ def get_scheduler(optimizer, hyperparameters, iterations=-1):
                 last_milestone = 1000
             else:
                 last_milestone = iterations
-            milestones = [milestones] + list(
-                range(milestones, last_milestone, lr_step_size)
-            )
+            milestones = list(range(milestones, last_milestone, lr_step_size))
         scheduler = lr_scheduler.MultiStepLR(
             optimizer, milestones=milestones, gamma=lr_gamma, last_epoch=iterations,
         )
