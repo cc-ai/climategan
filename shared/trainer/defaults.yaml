@@ -15,11 +15,11 @@ data:
   files: # if one is not none it will override the dirs location
     base: /network/tmp1/ccai/data/omnigan/base/
     train:
-      r: train_r_full.json
+      r: train_r_full_midas.json
       s: train_s_full.json
       rf: train_rf.json
     val:
-      r: val_r_full.json
+      r: val_r_full_midas.json
       s: val_s_full.json
       rf: val_rf.json
   check_samples: True
@@ -166,7 +166,9 @@ train:
   latent_domain_adaptation: True # whether or not to do domain adaptation on the latent vectors # Needs to be turned off if use_advent is True
   lambdas: # scaling factors in the total loss
     G:
-      d: 1
+      d: 
+        main: 1
+        gml: 1
       s:
         crossent: 1
         crossent_pseudo: 0.001
