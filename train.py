@@ -161,6 +161,7 @@ def main(opts):
                 if opts.comet.tags:
                     tags.update(opts.comet.tags)
                 opts.comet.tags = list(tags)
+                print("Logging to comet.ml with tags", opts.comet.tags)
                 exp.add_tags(opts.comet.tags)
 
             # Log all opts
