@@ -7,8 +7,7 @@ load_paths:
 # -----  Tasks  -----
 # -------------------
 tasks: [d, s, m, p] # [p] [m, s, d]
-# Notes:
-# if using `s` be sure to use `train_r_full_pl.json` and `val_r_full_pl.json`
+
 # ----------------
 # ----- Data -----
 # ----------------
