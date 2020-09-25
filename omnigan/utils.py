@@ -150,6 +150,10 @@ def get_git_revision_hash():
         return str(e)
 
 
+def kill_job(id):
+    subprocess.check_output(["scancel", str(id)])
+
+
 def write_hash(path):
     hash_code = get_git_revision_hash()
     with open(path, "w") as f:

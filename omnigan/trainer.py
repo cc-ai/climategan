@@ -65,6 +65,7 @@ class Trainer:
         self.logger.epoch = 0
         self.loaders = None
         self.losses = None
+        self.lr_names = {}
 
         self.is_setup = False
 
@@ -247,18 +248,20 @@ class Trainer:
         self.print_num_parameters()
 
         # Get different optimizers for each task (different learning rates)
-        self.g_opt, self.g_scheduler = get_optimizer(
-            self.G, self.opts.gen.opt, tasks=self.opts.tasks
+        self.g_opt, self.g_scheduler, self.lr_names["G"] = get_optimizer(
+            self.G, self.opts.gen.opt, self.opts.tasks
         )
 
         if get_num_params(self.D) > 0:
-            self.d_opt, self.d_scheduler = get_optimizer(self.D, self.opts.dis.opt)
+            self.d_opt, self.d_scheduler, self.lr_names["D"] = get_optimizer(
+                self.D, self.opts.dis.opt, self.opts.tasks
+            )
         else:
             self.d_opt, self.d_scheduler = None, None
 
         if self.C is not None:
-            self.c_opt, self.c_scheduler = get_optimizer(
-                self.C, self.opts.classifier.opt
+            self.c_opt, self.c_scheduler, self.lr_names["C"] = get_optimizer(
+                self.C, self.opts.classifier.opt, None
             )
         else:
             self.c_opt, self.c_scheduler = None, None
@@ -344,6 +347,19 @@ class Trainer:
         if self.c_scheduler is not None:
             self.c_scheduler.step()
 
+    def log_learning_rates(self):
+        lrs = {}
+        if self.g_scheduler is not None:
+            for name, lr in zip(self.lr_names["G"], self.g_scheduler.get_last_lr()):
+                lrs[f"lr_G_{name}"] = lr
+        if self.d_scheduler is not None:
+            for name, lr in zip(self.lr_names["D"], self.d_scheduler.get_last_lr()):
+                lrs[f"lr_D_{name}"] = lr
+        if self.c_scheduler is not None:
+            for name, lr in zip(self.lr_names["C"], self.c_scheduler.get_last_lr()):
+                lrs[f"lr_C_{name}"] = lr
+        self.exp.log_metrics(lrs, step=self.logger.global_step)
+
     @property
     def val_loaders(self):
         """Get a zip of all validation loaders
@@ -363,6 +379,7 @@ class Trainer:
         """
         assert self.is_setup
         self.train_mode()
+        self.exp.log_metric("current_epoch", self.logger.epoch)
         epoch_len = min(len(loader) for loader in self.loaders["train"].values())
         epoch_desc = "Epoch {}".format(self.logger.epoch)
         for i, multi_batch_tuple in enumerate(
@@ -422,6 +439,7 @@ class Trainer:
             self.log_step_time(step_time)
 
         self.update_learning_rates()
+        self.log_learning_rates()
 
     def log_step_time(self, step_time):
         """Logs step-time on comet.ml
@@ -1263,6 +1281,12 @@ class Trainer:
             self.g_opt.load_state_dict(checkpoint["g_opt"])
         self.logger.epoch = checkpoint["epoch"]
         self.logger.global_step = checkpoint["step"]
+
+        # resume scheduler:
+        # https://discuss.pytorch.org/t/a-problem-occured-when-resuming-an-optimizer/28822
+        for _ in range(self.logger.epoch + 1):
+            self.update_learning_rates()
+
         # Round step to even number for extraGradient
         if self.logger.global_step % 2 != 0:
             self.logger.global_step += 1

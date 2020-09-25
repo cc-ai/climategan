@@ -7,6 +7,7 @@ load_paths:
 # -----  Tasks  -----
 # -------------------
 tasks: [d, s, m, p] # [p] [m, s, d]
+
 # ----------------
 # ----- Data -----
 # ----------------
@@ -48,10 +49,18 @@ gen:
   opt:
     optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
     beta1: 0.9
-    lr: 
+    lr:
       default: 0.00001
-    lr_policy: step # constant or step ; if step, specify step_size and gamma
-    lr_step_size: 30 # for linear decay : period of learning rate decay (epochs)
+    lr_policy: multi_step
+    # lr_policy can be constant, step or multi_step; if step, specify lr_step_size and lr_gamma
+    # if multi_step specify lr_step_size lr_gamma and lr_milestones:
+    #   if lr_milestones is a list:
+    #     the learning rate will be multiplied by gamma each time the epoch reaches an
+    #     item in the list (no need for lr_step_size).
+    #   if lr_milestones is an int:
+    #      a list of milestones is created from `range(lr_milestones, train.epochs, lr_step_size)`
+    lr_step_size: 10 # for linear decay : period of learning rate decay (epochs)
+    lr_milestones: 15
     lr_gamma: 0.5 # Multiplicative factor of learning rate decay
   default:
     &default-gen # default parameters for the generator (encoder and decoders)
@@ -115,11 +124,19 @@ dis:
   flip_prob: 0.05 # label flipping
   opt:
     optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
-    beta1: 0.5
-    lr: 0.0001
-    lr_policy: step # constant or step ; if step, specify step_size and gamma
-    lr_step_size: 30 # for linear decay
-    lr_gamma: 0.5
+    lr:
+      default: 0.0001
+    lr_policy: multi_step
+    # lr_policy can be constant, step or multi_step; if step, specify lr_step_size and lr_gamma
+    # if multi_step specify lr_step_size lr_gamma and lr_milestones:
+    #   if lr_milestones is a list:
+    #     the learning rate will be multiplied by gamma each time the epoch reaches an
+    #     item in the list (no need for lr_step_size).
+    #   if lr_milestones is an int:
+    #      a list of milestones is created from `range(lr_milestones, train.epochs, lr_step_size)`
+    lr_step_size: 10 # for linear decay : period of learning rate decay (epochs)
+    lr_milestones: 15
+    lr_gamma: 0.5 # Multiplicative factor of learning rate decay
   default:
     &default-dis # default setting for discriminators (there are 4 of them for rn rf sn sf)
     input_nc: 3
@@ -162,7 +179,7 @@ classifier:
 # ----- Train Params -----
 # ------------------------
 train:
-  epochs: 100000000
+  epochs: 300
   latent_domain_adaptation: True # whether or not to do domain adaptation on the latent vectors # Needs to be turned off if use_advent is True
   lambdas: # scaling factors in the total loss
     G:
