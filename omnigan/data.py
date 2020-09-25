@@ -243,7 +243,7 @@ def tensor_loader(path, task, domain):
             arr = np.load(path)
         else:
             arr = imread(path)  # .astype(np.uint8)
-        arr = torch.from_numpy(arr)
+        arr = torch.from_numpy(arr.astype(np.float32))
         arr = get_normalized_depth_t(arr, domain, normalize=True)
         arr = arr.unsqueeze(0)
         return arr
