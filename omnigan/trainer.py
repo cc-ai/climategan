@@ -261,7 +261,7 @@ class Trainer:
 
         if self.C is not None:
             self.c_opt, self.c_scheduler, self.lr_names["C"] = get_optimizer(
-                self.C, self.opts.classifier.opt, self.opts.tasks
+                self.C, self.opts.classifier.opt, None
             )
         else:
             self.c_opt, self.c_scheduler = None, None
