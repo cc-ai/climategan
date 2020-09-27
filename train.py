@@ -21,7 +21,7 @@ from omnigan.utils import (
     get_latest_path,
     copy_sbatch,
     merge,
-    get_existing_jobID,
+    find_existing_training,
     kill_job,
 )
 
@@ -87,15 +87,10 @@ def main(opts):
 
         # Auto-continue if same slurm job ID (=job was requeued)
         if not opts.train.resume:
-            existing_jobID = get_existing_jobID(opts.output_path)
-            print("Current jobID:", opts.jobID)
-            try:
-                if opts.jobID is not None and existing_jobID == opts.jobID:
-                    opts.train.resume = True
-                    print("Resuming based on jobID")
-            except Exception as e:
-                print("Could not resume", e)
-                print("Continuing with opts.train.resume =", opts.train.resume)
+            existing_path = find_existing_training(opts)
+            if existing_path is not None and existing_path.exists():
+                opts.train.resume = True
+                opts.output_path = existing_path
 
         # Still not resuming: creating new output path
         if not opts.train.resume:

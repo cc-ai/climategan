@@ -11,6 +11,8 @@ import yaml
 from addict import Dict
 import contextlib
 import numpy as np
+from typing import Union, Optional, List
+
 
 comet_kwargs = {
     "auto_metric_logging": False,
@@ -21,7 +23,7 @@ comet_kwargs = {
 }
 
 
-def copy_sbatch(opts):
+def copy_sbatch(opts: Dict) -> None:
     """
     Copy the opts's sbatch_file to output_path
 
@@ -36,12 +38,22 @@ def copy_sbatch(opts):
                 shutil.copyfile(p, o / p.name)
 
 
-def merge(source, destination):
+def merge(
+    source: Union[dict, Dict], destination: Union[dict, Dict]
+) -> Union[dict, Dict]:
     """
     run me with nosetests --with-doctest file.py
     >>> a = { 'first' : { 'all_rows' : { 'pass' : 'dog', 'number' : '1' } } }
     >>> b = { 'first' : { 'all_rows' : { 'fail' : 'cat', 'number' : '5' } } }
-    >>> merge(b, a) == { 'first' : { 'all_rows' : { 'pass' : 'dog', 'fail' : 'cat', 'number' : '5' } } }
+    >>> merge(b, a) == {
+        'first' : {
+            'all_rows' : { '
+                pass' : 'dog',
+                'fail' : 'cat',
+                'number' : '5'
+            }
+        }
+    }
     True
     """
     for key, value in source.items():
@@ -55,7 +67,10 @@ def merge(source, destination):
     return destination
 
 
-def load_opts(path=None, default=None):
+def load_opts(
+    path: Optional[Union[str, Path]] = None,
+    default: Optional[Union[str, Path, dict, Dict]] = None,
+) -> Dict:
     # TODO add assert: if deeplabv2 then res_dim = 2048
     """Loadsize a configuration Dict from 2 files:
     1. default files with shared values across runs and users
@@ -103,7 +118,7 @@ def load_opts(path=None, default=None):
     return set_data_paths(opts)
 
 
-def set_data_paths(opts):
+def set_data_paths(opts: Dict) -> Dict:
     """Update the data files paths in data.files.train and data.files.val
     from data.files.base
 
@@ -123,7 +138,7 @@ def set_data_paths(opts):
     return opts
 
 
-def load_test_opts(test_file_path="config/trainer/local_tests.yaml"):
+def load_test_opts(test_file_path: str = "config/trainer/local_tests.yaml") -> Dict:
     """Returns the special opts set up for local tests
     Args:
         test_file_path (str, optional): Name of the file located in config/
@@ -138,7 +153,7 @@ def load_test_opts(test_file_path="config/trainer/local_tests.yaml"):
     )
 
 
-def get_git_revision_hash():
+def get_git_revision_hash() -> str:
     """Get current git hash the code is run from
 
     Returns:
@@ -150,17 +165,17 @@ def get_git_revision_hash():
         return str(e)
 
 
-def kill_job(id):
+def kill_job(id: Union(int, str)) -> None:
     subprocess.check_output(["scancel", str(id)])
 
 
-def write_hash(path):
+def write_hash(path: Union[str, Path]) -> None:
     hash_code = get_git_revision_hash()
     with open(path, "w") as f:
         f.write(hash_code)
 
 
-def get_increased_path(path):
+def get_increased_path(path: Union[str, Path]) -> Path:
     """Returns an increased path: if dir exists, returns `dir (1)`.
     If `dir (i)` exists, returns `dir (max(i) + 1)`
 
@@ -197,7 +212,7 @@ def get_increased_path(path):
     return fp.parent / (fp.stem + ext + fp.suffix)
 
 
-def env_to_path(path):
+def env_to_path(path: str) -> str:
     """Transorms an environment variable mention in a json
     into its actual value. E.g. $HOME/clouds -> /home/vsch/clouds
 
@@ -215,7 +230,7 @@ def env_to_path(path):
     return "/".join(new_path)
 
 
-def flatten_opts(opts):
+def flatten_opts(opts: Dict) -> dict:
     """Flattens a multi-level addict.Dict or native dictionnary into a single
     level native dict with string keys representing the keys sequence to reach
     a value in the original argument.
@@ -260,7 +275,9 @@ def flatten_opts(opts):
     return dict(values_list)
 
 
-def get_comet_rest_api_key(path_to_config_file=None):
+def get_comet_rest_api_key(
+    path_to_config_file: Optional[Union[str, Path]] = None
+) -> str:
     """Gets a comet.ml rest_api_key in the following order:
     * config file specified as argument
     * environment variable
@@ -297,7 +314,7 @@ def get_comet_rest_api_key(path_to_config_file=None):
     raise ValueError("Unable to find your COMET_REST_API_KEY in {}".format(str(p)))
 
 
-def get_files(dirName):
+def get_files(dirName: str) -> list:
     # create a list of file and sub directories
     files = sorted(os.listdir(dirName))
     all_files = list()
@@ -312,12 +329,12 @@ def get_files(dirName):
 
 
 def make_json_file(
-    tasks,
-    addresses,  # for windows user, use "\\" instead of using "/"
-    json_names=["train_jsonfile.json", "val_jsonfile.json"],
-    splitter="/",
-    pourcentage_val=0.15,
-):
+    tasks: List[str],
+    addresses: List[str],  # for windows user, use "\\" instead of using "/"
+    json_names: List[str] = ["train_jsonfile.json", "val_jsonfile.json"],
+    splitter: str = "/",
+    pourcentage_val: float = 0.15,
+) -> None:
     """
         How to use it?
     e.g.
@@ -329,9 +346,12 @@ def make_json_file(
 
     Args:
         tasks (list): the list of image type like 'x', 'm', 'd', etc.
-        addresses (list): the list of the corresponding address of the image type mentioned in tasks
-        json_names (list): names for the json files, train being first (e.g. : ["train_r.json", "val_r.json"])
-        splitter (str, optional): The path separator for the current OS. Defaults to '/'.
+        addresses (list): the list of the corresponding address of the
+            image type mentioned in tasks
+        json_names (list): names for the json files, train being first
+            (e.g. : ["train_r.json", "val_r.json"])
+        splitter (str, optional): The path separator for the current OS.
+            Defaults to '/'.
         pourcentage_val: pourcentage of files to go in validation set
     """
     assert len(tasks) == len(addresses), "keys and addresses must have the same length!"
@@ -374,15 +394,21 @@ def make_json_file(
 
 
 def append_task_to_json(
-    path_to_json, path_to_new_json, path_to_new_images_dir, new_task_name,
+    path_to_json: Union[str, Path],
+    path_to_new_json: Union[str, Path],
+    path_to_new_images_dir: Union[str, Path],
+    new_task_name: str,
 ):
-    """Add all files for a task to an existing json file by creating a new json file in the specified path
-    Assumes that the files for the new task have exactly the same names as the ones for the other tasks
+    """Add all files for a task to an existing json file by creating a new json file
+    in the specified path.
+    Assumes that the files for the new task have exactly the same names as the ones
+    for the other tasks
 
     Args:
         path_to_json: complete path to the json file to modify
         path_to_new_json: complete path to the new json file to be created
-        path_to_new_images_dir: complete path of the directory where to find the images for the new task
+        path_to_new_images_dir: complete path of the directory where to find the
+            images for the new task
         new_task_name: name of the new task
 
     e.g:
@@ -393,12 +419,16 @@ def append_task_to_json(
             "s",
         )
     """
+    ims_list = None
     if path_to_json:
         path_to_json = Path(path_to_json).resolve()
         with open(path_to_json, "r") as f:
-            ims_list = yaml.safe_load(f)
+            ims_list = json.load(f)
 
     files = get_files(path_to_new_images_dir)
+
+    if ims_list is None:
+        raise ValueError(f"Could not find the list in {path_to_json}")
 
     new_ims_list = [None] * len(ims_list)
     for i, im_dict in enumerate(ims_list):
@@ -426,7 +456,7 @@ def append_task_to_json(
         json.dump(new_ims_list, f, ensure_ascii=False)
 
 
-def sum_dict(dict1, dict2):
+def sum_dict(dict1: Union[dict, Dict], dict2: Union[Dict, dict]) -> Union[dict, Dict]:
     """Add dict2 into dict1
     """
     for k, v in dict2.items():
@@ -437,7 +467,7 @@ def sum_dict(dict1, dict2):
     return dict1
 
 
-def div_dict(dict1, div_by):
+def div_dict(dict1: Union[dict, Dict], div_by: float) -> dict:
     """Divide elements of dict1 by div_by
     """
     for k, v in dict1.items():
@@ -448,7 +478,7 @@ def div_dict(dict1, div_by):
     return dict1
 
 
-def comet_id_from_url(url):
+def comet_id_from_url(url: str) -> str:
     """
     Get comet exp id from its url:
     https://www.comet.ml/vict0rsch/omnigan/2a1a4a96afe848218c58ac4e47c5375f
@@ -469,7 +499,7 @@ def comet_id_from_url(url):
 
 
 @contextlib.contextmanager
-def temp_np_seed(seed):
+def temp_np_seed(seed: Optional[int]) -> None:
     """
     Set temporary numpy seed:
     with temp_np_seed(123):
@@ -486,7 +516,7 @@ def temp_np_seed(seed):
         np.random.set_state(state)
 
 
-def get_display_indices(opts, domain, length):
+def get_display_indices(opts: Dict, domain: str, length: int) -> list:
     """
     Compute the index of images to use for comet logging:
     if opts.comet.display_indices is an int, and domain is real:
@@ -526,7 +556,7 @@ def get_display_indices(opts, domain, length):
     return display_indices
 
 
-def get_latest_path(path):
+def get_latest_path(path: Union[str, Path]) -> Path:
     """
     Get the file/dir with largest increment i as `file (i).ext`
 
@@ -551,7 +581,7 @@ def get_latest_path(path):
     return f
 
 
-def get_existing_jobID(output_path):
+def get_existing_jobID(output_path: Path) -> str:
     """
     If the opts in output_path have a jobID, return it. Else, return None
 
@@ -575,7 +605,44 @@ def get_existing_jobID(output_path):
 
     jobID = opts.get("jobID", None)
 
-    print("Found existing jobID", jobID)
-
     return jobID
 
+
+def find_existing_training(opts: Dict) -> Optional[Path]:
+    """
+    Looks in all directories like output_path.parent.glob(output_path.name*)
+    and compares the logged slurm job id with the current opts.jobID
+
+    If a match is found, the training should automatically continue in the
+    matching output directory
+
+    If no match is found, this is a new job and it should have a new output path
+
+    Args:
+        opts (Dict): trainer's options
+
+    Returns:
+        Optional[Path]: a path if a matchin jobID is found, None otherwise
+    """
+    if opts.jobID is None:
+        print("WARNING: current JOBID is None")
+        return
+
+    print("Current job id:", opts.jobID)
+
+    path = Path(opts.output_path).resolve()
+    parent = path.parent
+    name = path.name
+
+    try:
+        similar_dirs = [p.resolve() for p in parent.glob(f"{name}*") if p.is_dir()]
+
+        for sd in similar_dirs:
+            candidate_jobID = get_existing_jobID(sd)
+            if candidate_jobID is not None and opts.jobID == candidate_jobID:
+                print(f"Found matching job id in {sd}")
+                return sd
+        print("Did not find a matching job id")
+    except Exception as e:
+        print("Could not resume", e)
+        print("Continuing with opts.train.resume =", opts.train.resume)

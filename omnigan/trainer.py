@@ -382,14 +382,12 @@ class Trainer:
         self.exp.log_metric("current_epoch", self.logger.epoch)
         epoch_len = min(len(loader) for loader in self.loaders["train"].values())
         epoch_desc = "Epoch {}".format(self.logger.epoch)
-        for i, multi_batch_tuple in enumerate(
-            tqdm(
-                self.train_loaders,
-                desc=epoch_desc,
-                total=epoch_len,
-                mininterval=0.5,
-                unit="batch",
-            )
+        for multi_batch_tuple in tqdm(
+            self.train_loaders,
+            desc=epoch_desc,
+            total=epoch_len,
+            mininterval=0.5,
+            unit="batch",
         ):
             # create a dictionnay (domain => batch) from tuple
             # (batch_domain_0, ..., batch_domain_i)
