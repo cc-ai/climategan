@@ -11,37 +11,21 @@ from omegaconf import OmegaConf
 from omnigan.trainer import Trainer
 
 from omnigan.utils import (
-    comet_id_from_url,
     comet_kwargs,
     env_to_path,
     flatten_opts,
     get_git_revision_hash,
     get_increased_path,
     load_opts,
-    get_latest_path,
     copy_sbatch,
     merge,
     find_existing_training,
     kill_job,
+    pprint,
+    get_existing_comet_id,
 )
 
 hydra_config_path = Path(__file__).resolve().parent / "shared/trainer/config.yaml"
-
-
-def pprint(*args):
-    txt = " ".join(map(str, args))
-    col = "====="
-    space = "   "
-    head_size = 2
-    header = "\n".join(["=" * (len(txt) + 2 * (len(col) + len(space)))] * head_size)
-    empty = "{}{}{}{}{}".format(col, space, " " * (len(txt)), space, col)
-    print()
-    print(header)
-    print(empty)
-    print("{}{}{}{}{}".format(col, space, txt, space, col))
-    print(empty)
-    print(header)
-    print()
 
 
 # requires hydra-core==0.11.3 and omegaconf==1.4.1
@@ -79,7 +63,7 @@ def main(opts):
     opts.output_path = str(env_to_path(opts.output_path))
     print("Config output_path:", opts.output_path)
 
-    exp = comet_previous_id = comet_previous_path = None
+    exp = comet_previous_id = None
     if not args.dev:
         # -------------------------------
         # -----  Check output_path  -----
@@ -97,23 +81,8 @@ def main(opts):
             opts.output_path = str(get_increased_path(opts.output_path))
             Path(opts.output_path).mkdir(parents=True, exist_ok=True)
 
-        pprint("Running model in", opts.output_path)
+        # Copy the opts's sbatch_file to output_path
         copy_sbatch(opts)
-
-        # Is resuming: get existing comet exp id
-        if opts.train.resume:
-            assert Path(
-                opts.output_path
-            ).exists(), "Cannot resume: output_path does not exist"
-            # load previous comet experiment id
-            comet_previous_path = get_latest_path(
-                Path(opts.output_path) / "comet_url.txt"
-            )
-            if comet_previous_path.exists():
-                with comet_previous_path.open("r") as f:
-                    url = f.read().strip()
-                    comet_previous_id = comet_id_from_url(url)
-
         # store git hash
         opts.git_hash = get_git_revision_hash()
 
@@ -123,10 +92,14 @@ def main(opts):
             # ----------------------------------
 
             if opts.train.resume:
+                # Is resuming: get existing comet exp id
+                assert Path(opts.output_path).exists(), "Output_path does not exist"
+
+                comet_previous_id = get_existing_comet_id(opts.output_path)
                 # Continue existing experiment
                 if comet_previous_id is None:
                     print("WARNING could not retreive previous comet id")
-                    print(f"from {comet_previous_path}")
+                    print(f"from {opts.output_path}")
                 else:
                     print("Continuing previous experiment", comet_previous_id)
                     exp = ExistingExperiment(
@@ -184,6 +157,8 @@ def main(opts):
         opts.data.transforms += [
             Dict({"name": "crop", "ignore": False, "height": 64, "width": 64})
         ]
+
+    pprint("Running model in", opts.output_path)
 
     # -------------------
     # -----  Train  -----

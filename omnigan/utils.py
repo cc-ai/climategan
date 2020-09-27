@@ -1,6 +1,5 @@
 """All non-tensor utils
 """
-from copy import copy
 import os
 import re
 import subprocess
@@ -11,7 +10,7 @@ import yaml
 from addict import Dict
 import contextlib
 import numpy as np
-from typing import Union, Optional, List
+from typing import Union, Optional, List, Any
 
 
 comet_kwargs = {
@@ -478,7 +477,7 @@ def div_dict(dict1: Union[dict, Dict], div_by: float) -> dict:
     return dict1
 
 
-def comet_id_from_url(url: str) -> str:
+def comet_id_from_url(url: str) -> Optional[str]:
     """
     Get comet exp id from its url:
     https://www.comet.ml/vict0rsch/omnigan/2a1a4a96afe848218c58ac4e47c5375f
@@ -645,3 +644,39 @@ def find_existing_training(opts: Dict) -> Optional[str]:
         print("Did not find a matching job id")
     except Exception as e:
         print("Could not resume (find_existing_training)", e)
+
+
+def pprint(*args: List[Any]):
+    """
+    Prints *args within a box of "=" characters
+    """
+    txt = " ".join(map(str, args))
+    col = "====="
+    space = "   "
+    head_size = 2
+    header = "\n".join(["=" * (len(txt) + 2 * (len(col) + len(space)))] * head_size)
+    empty = "{}{}{}{}{}".format(col, space, " " * (len(txt)), space, col)
+    print()
+    print(header)
+    print(empty)
+    print("{}{}{}{}{}".format(col, space, txt, space, col))
+    print(empty)
+    print(header)
+    print()
+
+
+def get_existing_comet_id(path: str) -> Optional[str]:
+    """
+    Returns the id of the existing comet experiment stored in path
+
+    Args:
+        path (str): Output pat where to look for the comet exp
+
+    Returns:
+        Optional[str]: comet exp's ID if any was found
+    """
+    comet_previous_path = get_latest_path(Path(path) / "comet_url.txt")
+    if comet_previous_path.exists():
+        with comet_previous_path.open("r") as f:
+            url = f.read().strip()
+            return comet_id_from_url(url)
