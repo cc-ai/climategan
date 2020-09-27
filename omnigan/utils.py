@@ -164,7 +164,7 @@ def get_git_revision_hash() -> str:
         return str(e)
 
 
-def kill_job(id: Union(int, str)) -> None:
+def kill_job(id: Union[int, str]) -> None:
     subprocess.check_output(["scancel", str(id)])
 
 
