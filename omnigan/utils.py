@@ -608,7 +608,7 @@ def get_existing_jobID(output_path: Path) -> str:
     return jobID
 
 
-def find_existing_training(opts: Dict) -> Optional[Path]:
+def find_existing_training(opts: Dict) -> Optional[str]:
     """
     Looks in all directories like output_path.parent.glob(output_path.name*)
     and compares the logged slurm job id with the current opts.jobID
@@ -641,8 +641,7 @@ def find_existing_training(opts: Dict) -> Optional[Path]:
             candidate_jobID = get_existing_jobID(sd)
             if candidate_jobID is not None and opts.jobID == candidate_jobID:
                 print(f"Found matching job id in {sd}")
-                return sd
+                return str(sd)
         print("Did not find a matching job id")
     except Exception as e:
-        print("Could not resume", e)
-        print("Continuing with opts.train.resume =", opts.train.resume)
+        print("Could not resume (find_existing_training)", e)
