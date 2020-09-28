@@ -55,8 +55,7 @@ def main(opts):
     # -----  Load opts  -----
     # -----------------------
 
-    opts = load_opts(args.config, default=default)
-    opts = merge(hydra_opts, opts)
+    opts = load_opts(args.config, default=default, commandline_opts=hydra_opts)
     if args.resume:
         opts.train.resume = True
     opts.jobID = os.environ.get("SLURM_JOBID")
