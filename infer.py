@@ -1,5 +1,5 @@
 import torch
-import numpy
+import numpy as np
 from omnigan.utils import load_opts
 from pathlib import Path
 from argparse import ArgumentParser
@@ -98,14 +98,34 @@ def eval_folder(
         img = img.unsqueeze(0).to(device)
 
         if not masker:
-            mask = tensor_loader(masks[i], task="m", domain="val")
-            mask = F.interpolate(mask, (new_size, new_size), mode="nearest")
+            mask = tensor_loader(masks[i], task="m", domain="val", binarize=False)
+            # mask = F.interpolate(mask, (new_size, new_size), mode="nearest")
             mask = mask.squeeze()
             mask = mask.unsqueeze(0).to(device)
 
         if masker:
             if "m2" in opts.tasks:
                 z = model.encode(img)
+                num_masks = 10
+                label_vals = np.linspace(start=0, stop=1, num=num_masks)
+                for label_val in label_vals:
+                    z_aug = torch.cat(
+                        (z, label_val * trainer.label_2[0, :, :, :].unsqueeze(0)),
+                        dim=1,
+                    )
+                    mask = model.decoders["m"](z_aug)
+
+                    vutils.save_image(
+                        mask, output_dir / (f"mask_{label_val}_" + img_path.name), normalize=True
+                    )
+                    if apply_mask:
+                        vutils.save_image(
+                            img * (1.0 - mask) + mask,
+                            output_dir / (img_path.stem + f"img_masked_{label_val}" + ".jpg"),
+                            normalize=True,
+                        )
+
+                """
                 z_aug_1 = torch.cat(
                     (z, trainer.label_1[0, :, :, :].unsqueeze(0)),
                     dim=1,
@@ -134,6 +154,7 @@ def eval_folder(
                         output_dir / (img_path.stem + "img_masked_2" + ".jpg"),
                         normalize=True,
                     )
+                """
 
             else:
                 z = model.encode(img)
@@ -146,6 +167,12 @@ def eval_folder(
             z_painter = trainer.sample_z(1)
             fake_flooded = model.painter(z_painter, img * (1.0 - mask))
             vutils.save_image(fake_flooded, output_dir / img_path.name, normalize=True)
+            if apply_mask:
+                vutils.save_image(
+                    img * (1.0 - mask) + mask,
+                    output_dir / (img_path.stem + "_masked" + ".jpg"),
+                    normalize=True,
+                )
 
 
 def isimg(path_file):
