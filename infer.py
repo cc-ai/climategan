@@ -125,37 +125,6 @@ def eval_folder(
                             normalize=True,
                         )
 
-                """
-                z_aug_1 = torch.cat(
-                    (z, trainer.label_1[0, :, :, :].unsqueeze(0)),
-                    dim=1,
-                )
-                z_aug_2 = torch.cat(
-                    (z, trainer.label_2[0, :, :, :].unsqueeze(0)),
-                    dim=1,
-                )
-                mask_1 = model.decoders["m"](z_aug_1)
-                mask_2 = model.decoders["m"](z_aug_2)
-                vutils.save_image(
-                    mask_1, output_dir / ("mask1_" + img_path.name), normalize=True
-                )
-                vutils.save_image(
-                    mask_2, output_dir / ("mask2_" + img_path.name), normalize=True
-                )
-
-                if apply_mask:
-                    vutils.save_image(
-                        img * (1.0 - mask_1) + mask_1,
-                        output_dir / (img_path.stem + "img_masked_1" + ".jpg"),
-                        normalize=True,
-                    )
-                    vutils.save_image(
-                        img * (1.0 - mask_2) + mask_2,
-                        output_dir / (img_path.stem + "img_masked_2" + ".jpg"),
-                        normalize=True,
-                    )
-                """
-
             else:
                 z = model.encode(img)
                 mask = model.decoders["m"](z)
