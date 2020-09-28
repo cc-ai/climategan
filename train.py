@@ -64,105 +64,96 @@ def main(opts):
     print("Config output_path:", opts.output_path)
 
     exp = comet_previous_id = None
-    if not args.dev:
-        # -------------------------------
-        # -----  Check output_path  -----
-        # -------------------------------
 
-        # Auto-continue if same slurm job ID (=job was requeued)
-        if not opts.train.resume:
-            existing_path = find_existing_training(opts)
-            if existing_path is not None and existing_path.exists():
-                opts.train.resume = True
-                opts.output_path = str(existing_path)
+    # -------------------------------
+    # -----  Check output_path  -----
+    # -------------------------------
 
-        # Still not resuming: creating new output path
-        if not opts.train.resume:
-            opts.output_path = str(get_increased_path(opts.output_path))
-            Path(opts.output_path).mkdir(parents=True, exist_ok=True)
+    # Auto-continue if same slurm job ID (=job was requeued)
+    if not opts.train.resume:
+        existing_path = find_existing_training(opts)
+        if existing_path is not None and existing_path.exists():
+            opts.train.resume = True
+            opts.output_path = str(existing_path)
 
-        # Copy the opts's sbatch_file to output_path
-        copy_sbatch(opts)
-        # store git hash
-        opts.git_hash = get_git_revision_hash()
+    # Still not resuming: creating new output path
+    if not opts.train.resume:
+        opts.output_path = str(get_increased_path(opts.output_path))
+        Path(opts.output_path).mkdir(parents=True, exist_ok=True)
 
-        if not args.no_comet:
-            # ----------------------------------
-            # -----  Set Comet Experiment  -----
-            # ----------------------------------
+    # Copy the opts's sbatch_file to output_path
+    copy_sbatch(opts)
+    # store git hash
+    opts.git_hash = get_git_revision_hash()
 
-            if opts.train.resume:
-                # Is resuming: get existing comet exp id
-                assert Path(opts.output_path).exists(), "Output_path does not exist"
+    if not args.no_comet:
+        # ----------------------------------
+        # -----  Set Comet Experiment  -----
+        # ----------------------------------
 
-                comet_previous_id = get_existing_comet_id(opts.output_path)
-                # Continue existing experiment
-                if comet_previous_id is None:
-                    print("WARNING could not retreive previous comet id")
-                    print(f"from {opts.output_path}")
-                else:
-                    print("Continuing previous experiment", comet_previous_id)
-                    exp = ExistingExperiment(
-                        previous_experiment=comet_previous_id, **comet_kwargs
-                    )
+        if opts.train.resume:
+            # Is resuming: get existing comet exp id
+            assert Path(opts.output_path).exists(), "Output_path does not exist"
 
-            if exp is None:
-                # Create new experiment
-                print("Starting new experiment")
-                exp = Experiment(project_name="omnigan", **comet_kwargs)
-                exp.log_asset_folder(
-                    str(Path(__file__).parent / "omnigan"),
-                    recursive=True,
-                    log_file_name=True,
+            comet_previous_id = get_existing_comet_id(opts.output_path)
+            # Continue existing experiment
+            if comet_previous_id is None:
+                print("WARNING could not retreive previous comet id")
+                print(f"from {opts.output_path}")
+            else:
+                print("Continuing previous experiment", comet_previous_id)
+                exp = ExistingExperiment(
+                    previous_experiment=comet_previous_id, **comet_kwargs
                 )
-                exp.log_asset(str(Path(__file__)))
 
-            # Log note
-            if args.note:
-                exp.log_parameter("note", args.note)
+        if exp is None:
+            # Create new experiment
+            print("Starting new experiment")
+            exp = Experiment(project_name="omnigan", **comet_kwargs)
+            exp.log_asset_folder(
+                str(Path(__file__).parent / "omnigan"),
+                recursive=True,
+                log_file_name=True,
+            )
+            exp.log_asset(str(Path(__file__)))
 
-            # Merge and log tags
-            if args.comet_tags or opts.comet.tags:
-                tags = set()
-                if args.comet_tags:
-                    tags.update(args.comet_tags)
-                if opts.comet.tags:
-                    tags.update(opts.comet.tags)
-                opts.comet.tags = list(tags)
-                print("Logging to comet.ml with tags", opts.comet.tags)
-                exp.add_tags(opts.comet.tags)
+        # Log note
+        if args.note:
+            exp.log_parameter("note", args.note)
 
-            # Log all opts
-            exp.log_parameters(flatten_opts(opts))
+        # Merge and log tags
+        if args.comet_tags or opts.comet.tags:
+            tags = set()
+            if args.comet_tags:
+                tags.update(args.comet_tags)
+            if opts.comet.tags:
+                tags.update(opts.comet.tags)
+            opts.comet.tags = list(tags)
+            print("Logging to comet.ml with tags", opts.comet.tags)
+            exp.add_tags(opts.comet.tags)
 
-            # allow some time for comet to get its url
-            sleep(1)
+        # Log all opts
+        exp.log_parameters(flatten_opts(opts))
 
-            # Save comet exp url
-            url_path = get_increased_path(Path(opts.output_path) / "comet_url.txt")
-            with open(url_path, "w") as f:
-                f.write(exp.url)
+        # allow some time for comet to get its url
+        sleep(1)
 
-            # Save config file
-            opts_path = get_increased_path(Path(opts.output_path) / "opts.yaml")
-            with (opts_path).open("w") as f:
-                yaml.safe_dump(opts.to_dict(), f)
+        # Save comet exp url
+        url_path = get_increased_path(Path(opts.output_path) / "comet_url.txt")
+        with open(url_path, "w") as f:
+            f.write(exp.url)
 
-    else:
-        # ----------------------
-        # -----  Dev Mode  -----
-        # ----------------------
-        pprint("> /!\ Development mode ON")
-        print("Cropping data to 32")
-        opts.data.transforms += [
-            Dict({"name": "crop", "ignore": False, "height": 64, "width": 64})
-        ]
+        # Save config file
+        opts_path = get_increased_path(Path(opts.output_path) / "opts.yaml")
+        with (opts_path).open("w") as f:
+            yaml.safe_dump(opts.to_dict(), f)
 
     pprint("Running model in", opts.output_path)
 
     # -------------------
     # -----  Train  -----
     # -------------------
+
     trainer = Trainer(opts, comet_exp=exp)
     trainer.logger.time.start_time = time()
     trainer.setup()
