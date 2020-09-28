@@ -264,7 +264,7 @@ def tensor_loader(path, task, domain):
         arr = np.moveaxis(arr, 2, 0)
     elif task == "s":
         arr = np.moveaxis(arr, 2, 0)
-    elif task == "m":
+    elif task == "m" or task == "m2":
         arr[arr != 0] = 1
         # Make sure mask is single-channel
         if len(arr.shape) >= 3:

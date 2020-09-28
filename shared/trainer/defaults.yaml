@@ -157,6 +157,10 @@ dis:
     <<: *default-dis
     multi_level: false
     architecture: base # can be [base | OmniDiscriminator]
+  m2:
+    <<: *default-dis
+    input_nc: 1
+
 
 # -------------------------------
 # -----  Domain Classifier  -----
@@ -195,6 +199,9 @@ train:
       m:
         main: 1 # Main prediction loss, i.e. GAN or BCE
         tv: 1 # Total variational loss (for smoothing)
+      m2:
+        gan: 0.01
+        aux: 0.01
       p:
         gan: 1 # gan loss
         sm: 1 # semantic matching

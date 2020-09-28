@@ -91,7 +91,7 @@ class ToTensor:
         for task, im in data.items():
             if task in {"x", "a"}:
                 new_data[task] = self.ImagetoTensor(im)
-            elif task in {"m"}:
+            elif task in {"m", "m2"}:
                 new_data[task] = self.MaptoTensor(im)
             elif task == "s":
                 new_data[task] = torch.squeeze(torch.from_numpy(np.array(im))).to(
@@ -116,6 +116,7 @@ class Normalize:
             "s": self.normSeg,
             "d": self.normDepth,
             "m": self.normMask,
+            "m2": self.normMask,
         }
 
     def __call__(self, data):

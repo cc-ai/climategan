@@ -233,6 +233,116 @@ class MultiscaleDiscriminator(nn.Module):
         return result
 
 
+class AuxiliaryClassifier(nn.Module):
+    def __init__(
+        self,
+        input_size=640,
+        input_nc=1,
+        ndf=64,
+        n_layers=3,
+        norm_layer=nn.BatchNorm2d,
+        use_sigmoid=False,
+    ):
+        super(AuxiliaryClassifier, self).__init__()
+        self.input_nc = input_nc
+        self.ndf = ndf
+        self.n_layers = n_layers
+        self.norm_layer = norm_layer
+        self.use_sigmoid = use_sigmoid
+
+        if type(norm_layer) == functools.partial:
+            use_bias = norm_layer.func == nn.InstanceNorm2d
+        else:
+            use_bias = norm_layer == nn.InstanceNorm2d
+
+        kw = 3
+        padw = 1
+        sequence = [
+            # Use spectral normalization
+            SpectralNorm(
+                nn.Conv2d(input_nc, ndf, kernel_size=kw, stride=2, padding=padw)
+            ),
+            nn.LeakyReLU(0.2, True),
+        ]
+
+        nf_mult = 1
+        nf_mult_prev = 1
+        for n in range(1, n_layers):
+            nf_mult_prev = nf_mult
+            nf_mult = min(2 ** n, 8)
+            sequence += [
+                # Use spectral normalization
+                SpectralNorm(  # TODO replace with Conv2dBlock
+                    nn.Conv2d(
+                        ndf * nf_mult_prev,
+                        ndf * nf_mult,
+                        kernel_size=kw,
+                        stride=2,
+                        padding=padw,
+                        bias=use_bias,
+                    )
+                ),
+                norm_layer(ndf * nf_mult),
+                nn.LeakyReLU(0.2, True),
+            ]
+
+        nf_mult_prev = nf_mult
+        nf_mult = min(2 ** n_layers, 8)
+        sequence += [
+            # Use spectral normalization
+            SpectralNorm(
+                nn.Conv2d(
+                    ndf * nf_mult_prev,
+                    ndf * nf_mult,
+                    kernel_size=kw,
+                    stride=1,
+                    padding=padw,
+                    bias=use_bias,
+                )
+            ),
+            norm_layer(ndf * nf_mult),
+            nn.LeakyReLU(0.2, True),
+        ]
+
+        self.shared_layers = nn.Sequential(*sequence)
+
+        proj_dim = ndf
+
+        self.projection = SpectralNorm(
+            nn.Conv2d(
+                ndf * nf_mult + 2048, proj_dim, kernel_size=1, stride=1, padding=0
+            )
+        )
+
+        latent_size = int(input_size / (2 ** n_layers))
+        self.linear_size = int(proj_dim * latent_size * latent_size)
+        self.gan_layer = nn.Linear(self.linear_size, 1)
+        self.ac_layer = nn.Linear(self.linear_size, 2)
+
+    def forward(self, mask, z):
+        x = self.shared_layers(mask)
+        x = torch.cat((x, z), dim=1)
+        x = self.projection(x)
+        x = x.view(-1, self.linear_size)
+
+        return [self.gan_layer(x), self.ac_layer(x)]
+
+
+def get_AC(
+    input_size, input_nc, ndf, n_layers=3, norm="batch", use_sigmoid=False,
+):
+    norm_layer = get_norm_layer(norm_type=norm)
+    net = AuxiliaryClassifier(
+        input_size=input_size,
+        input_nc=input_nc,
+        ndf=ndf,
+        n_layers=n_layers,
+        norm_layer=norm_layer,
+        use_sigmoid=use_sigmoid,
+    )
+    return net
+
+
 class OmniDiscriminator(nn.ModuleDict):
     def __init__(self, opts):
         super().__init__()
@@ -281,6 +391,21 @@ class OmniDiscriminator(nn.ModuleDict):
                     )
                 else:
                     raise Exception("This Discriminator is currently not supported!")
+        if "m2" in opts.tasks:
+            # Create a flood-level discriminator / classifier
+            self["m2"] = nn.ModuleDict(
+                {
+                    "FloodLevel": get_AC(
+                        input_size=640,
+                        input_nc=1,
+                        ndf=opts.dis.m2.ndf,
+                        n_layers=opts.dis.m2.n_layers,
+                        norm=opts.dis.m2.norm,
+                        use_sigmoid=opts.dis.m2.use_sigmoid,
+                    )
+                }
+            )
+
         if "s" in opts.tasks:
             if opts.gen.s.use_advent:
                 self["s"] = nn.ModuleDict(

@@ -375,7 +375,7 @@ def get_losses(opts, verbose, device=None):
 
     losses = {
         "G": {"a": {}, "p": {}, "tasks": {}},
-        "D": {"default": {}, "advent": {}},
+        "D": {"default": {}, "advent": {}, "multilevel": {}},
         "C": {},
     }
 
@@ -434,6 +434,7 @@ def get_losses(opts, verbose, device=None):
         soft_shift=opts.dis.soft_shift, flip_prob=opts.dis.flip_prob, verbose=verbose
     )
     losses["D"]["advent"] = ADVENTAdversarialLoss(opts)
+    losses["D"]["multilevel"] = CrossEntropy()
     return losses
 
 
@@ -458,9 +459,7 @@ class CustomBCELoss(nn.Module):
     def __call__(self, prediction, target):
         return self.loss(
             prediction,
-            torch.FloatTensor(prediction.size())
-            .fill_(target)
-            .to(prediction.get_device()),
+            torch.FloatTensor(prediction.size()).fill_(target).to(prediction.device),
         )
 
 
