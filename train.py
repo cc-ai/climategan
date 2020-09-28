@@ -74,7 +74,7 @@ def main(opts):
             existing_path = find_existing_training(opts)
             if existing_path is not None and existing_path.exists():
                 opts.train.resume = True
-                opts.output_path = existing_path
+                opts.output_path = str(existing_path)
 
         # Still not resuming: creating new output path
         if not opts.train.resume:
