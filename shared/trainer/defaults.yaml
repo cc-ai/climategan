@@ -124,6 +124,7 @@ dis:
   flip_prob: 0.05 # label flipping
   opt:
     optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
+    beta1: 0.5
     lr:
       default: 0.0001
     lr_policy: multi_step
