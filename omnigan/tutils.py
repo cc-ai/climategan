@@ -169,7 +169,7 @@ def get_normalized_depth_t(arr, domain, normalize=False):
         arr = arr.unsqueeze(0)
         if normalize:
             arr = arr - torch.min(arr)
-            arr /= torch.max(arr)
+            arr = torch.true_divide(arr, torch.max(arr))
     elif domain == "s":
         # from 3-channel depth encoding from Unity simulator to 1-channel [0-1] values
         arr = decode_unity_depth_t(arr, log=True, normalize=normalize)
@@ -208,10 +208,12 @@ def decode_unity_depth_t(unity_depth, log=True, normalize=False, numpy=False, fa
     G = unity_depth[:, :, 1]
     B = unity_depth[:, :, 2]
 
-    R = ((247 - R) / 8).type(torch.FloatTensor)
-    G = ((247 - G) / 8).type(torch.FloatTensor)
-    B = (255 - B).type(torch.FloatTensor)
-    depth = ((R * 256 * 31 + G * 256 + B).type(torch.FloatTensor)) / (256 * 31 * 31 - 1)
+    R = ((256.0 - R) / 8.0).type(torch.FloatTensor)
+    G = ((256.0 - G) / 8.0).type(torch.FloatTensor)
+    B = (256.0 - B).type(torch.FloatTensor)
+    depth = ((R * 256.0 * 31.0 + G * 256.0 + B).type(torch.FloatTensor)) / (
+        256.0 * 31.0 * 31.0 - 1.0
+    )
     depth = (depth * far).unsqueeze(0)
     if log:
         depth = torch.log(depth)

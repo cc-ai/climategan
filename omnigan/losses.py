@@ -213,6 +213,17 @@ class MiniEntLoss(nn.Module):
         )
 
 
+def entropy_loss(v):
+    """
+        Entropy loss for probabilistic prediction vectors
+        input: batch_size x channels x h x w
+        output: batch_size x 1 x h x w
+    """
+    assert v.dim() == 4
+    n, c, h, w = v.size()
+    return -torch.sum(torch.mul(v, torch.log2(v + 1e-30))) / (n * h * w * np.log2(c))
+
+
 def entropy_loss_v2(v, lambda_var=0.1):
     """
         Entropy loss for probabilistic prediction vectors

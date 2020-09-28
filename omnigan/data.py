@@ -14,6 +14,7 @@ from .transforms import get_transforms
 from PIL import Image
 from omnigan.tutils import get_normalized_depth_t
 import os
+from .utils import env_to_path
 
 # ? paired dataset
 
@@ -299,8 +300,13 @@ class OmniListDataset(Dataset):
         else:
             raise ValueError("Unknown file list type in {}".format(file_list_path))
 
+        if opts.data.max_samples and opts.data.max_samples != -1:
+            assert isinstance(opts.data.max_samples, int)
+            self.samples_paths = self.samples_paths[: opts.data.max_samples]
+
         self.filter_samples()
-        self.check_samples()
+        if opts.data.check_samples:
+            self.check_samples()
         self.file_list_path = str(file_list_path)
         self.transform = transform
 
@@ -337,7 +343,7 @@ class OmniListDataset(Dataset):
         item = {
             "data": self.transform(
                 {
-                    task: tensor_loader(path, task, self.domain)
+                    task: tensor_loader(env_to_path(path), task, self.domain)
                     for task, path in paths.items()
                 }
             ),
@@ -374,9 +380,10 @@ def get_loader(mode, domain, opts):
             mode, domain, opts, transform=transforms.Compose(get_transforms(opts))
         ),
         batch_size=opts.data.loaders.get("batch_size", 4),
-        # shuffle=opts.data.loaders.get("shuffle", True),
         shuffle=True,
         num_workers=opts.data.loaders.get("num_workers", 8),
+        pin_memory=True,  # faster transfer to gpu
+        drop_last=True,  # avoids batchnorm pbs if last batch has size 1
     )
 
 
