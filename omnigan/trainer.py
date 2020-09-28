@@ -734,12 +734,18 @@ class Trainer:
             # -------------------------------------------------
             for update_task, update_target in batch["data"].items():
                 if update_task not in {"m", "p", "x", "s"}:
+
+                    if update_task == "d":
+                        scaler = lambdas.G.d.main
+                    else:
+                        scaler = lambdas.G[update_task]
+
                     prediction = self.G.decoders[update_task](self.z)
                     update_loss = self.losses["G"]["tasks"][update_task](
                         prediction, update_target
                     )
 
-                    step_loss += lambdas.G[update_task] * update_loss
+                    step_loss += scaler * update_loss
                     self.logger.losses.generator.task_loss[update_task][
                         batch_domain
                     ] = update_loss.item()
