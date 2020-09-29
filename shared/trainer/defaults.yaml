@@ -73,6 +73,7 @@ gen:
     pad_type: reflect # padding type [zero/reflect]
     res_dim: 2048 # Resblock number of channels (=latent space's), should be 2048 if using deeplabv2, 256 otherwise
     res_norm: spectral # ResBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
+    conv_norm: spectral
     proj_dim: 32 # Dim of projection from latent space
   encoder: # specific params for the encoder
     <<: *default-gen
@@ -91,6 +92,8 @@ gen:
   d: # specific params for the depth estimation decoder
     <<: *default-gen
     output_dim: 1
+    conv_norm: batch
+    res_norm: batch
   s: # specific params for the semantic segmentation decoder
     <<: *default-gen
     num_classes: 11

@@ -246,6 +246,7 @@ class BaseDecoder(nn.Module):
         activ="relu",
         pad_type="zero",
         output_activ="tanh",
+        conv_norm="layer",
     ):
         super().__init__()
         self.model = [
@@ -264,7 +265,7 @@ class BaseDecoder(nn.Module):
                     5,
                     1,
                     2,
-                    norm="layer",
+                    norm=conv_norm,
                     activation=activ,
                     pad_type=pad_type,
                 ),

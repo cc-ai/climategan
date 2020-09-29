@@ -128,6 +128,7 @@ class DepthDecoder(BaseDecoder):
             activ=opts.gen.d.activ,
             pad_type=opts.gen.d.pad_type,
             output_activ="sigmoid",
+            conv_norm=opts.gen.d.conv_norm,
         )
 
 
