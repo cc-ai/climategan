@@ -18,7 +18,7 @@ from addict import Dict
 from comet_ml import Experiment
 
 from omnigan.classifier import OmniClassifier, get_classifier
-from omnigan.data import get_all_loaders, decode_segmap_unity_labels
+from omnigan.data import get_all_loaders, decode_segmap_merged_labels
 from omnigan.discriminator import OmniDiscriminator, get_dis
 from omnigan.generator import OmniGenerator, get_gen
 from omnigan.losses import get_losses
@@ -65,6 +65,7 @@ class Trainer:
         self.logger.epoch = 0
         self.loaders = None
         self.losses = None
+        self.lr_names = {}
 
         self.is_setup = False
 
@@ -156,15 +157,19 @@ class Trainer:
         Returns:
             tuple: (c, h, w)
         """
-        b = None
+        x = None
         for mode in self.loaders:
             for domain in self.loaders[mode]:
-                b = Dict(next(iter(self.loaders[mode][domain])))
+                x = self.loaders[mode][domain].dataset[0]["data"]["x"].to(self.device)
                 break
-        if b is None:
+            if x is not None:
+                break
+
+        if x is None:
             raise ValueError("No batch found to compute_latent_shape")
-        b = self.batch_to_device(b)
-        z = self.G.encode(b.data.x[0:1, ...])
+
+        x = x.unsqueeze(0)
+        z = self.G.encode(x)
         return z.shape[1:]
 
     def compute_input_shape(self):
@@ -177,17 +182,18 @@ class Trainer:
         Returns:
             tuple: (c, h, w)
         """
-        b = None
+        shape = None
         for mode in self.loaders:
             for domain in self.loaders[mode]:
-                b = Dict(next(iter(self.loaders[mode][domain])))
+                shape = self.loaders[mode][domain].dataset[0]["data"]["x"].shape
                 break
-            if b is not None:
+            if shape is not None:
                 break
 
-        if b is None:
+        if shape is None:
             raise ValueError("No batch found to compute_latent_shape")
-        return b["data"]["x"].shape[1:]
+
+        return shape
 
     def print_num_parameters(self):
         print("---------------------------")
@@ -241,16 +247,21 @@ class Trainer:
         print("Classifier OK.")
         self.print_num_parameters()
 
-        self.g_opt, self.g_scheduler = get_optimizer(self.G, self.opts.gen.opt)
+        # Get different optimizers for each task (different learning rates)
+        self.g_opt, self.g_scheduler, self.lr_names["G"] = get_optimizer(
+            self.G, self.opts.gen.opt, self.opts.tasks
+        )
 
         if get_num_params(self.D) > 0:
-            self.d_opt, self.d_scheduler = get_optimizer(self.D, self.opts.dis.opt)
+            self.d_opt, self.d_scheduler, self.lr_names["D"] = get_optimizer(
+                self.D, self.opts.dis.opt, self.opts.tasks
+            )
         else:
             self.d_opt, self.d_scheduler = None, None
 
         if self.C is not None:
-            self.c_opt, self.c_scheduler = get_optimizer(
-                self.C, self.opts.classifier.opt
+            self.c_opt, self.c_scheduler, self.lr_names["C"] = get_optimizer(
+                self.C, self.opts.classifier.opt, None
             )
         else:
             self.c_opt, self.c_scheduler = None, None
@@ -336,6 +347,19 @@ class Trainer:
         if self.c_scheduler is not None:
             self.c_scheduler.step()
 
+    def log_learning_rates(self):
+        lrs = {}
+        if self.g_scheduler is not None:
+            for name, lr in zip(self.lr_names["G"], self.g_scheduler.get_last_lr()):
+                lrs[f"lr_G_{name}"] = lr
+        if self.d_scheduler is not None:
+            for name, lr in zip(self.lr_names["D"], self.d_scheduler.get_last_lr()):
+                lrs[f"lr_D_{name}"] = lr
+        if self.c_scheduler is not None:
+            for name, lr in zip(self.lr_names["C"], self.c_scheduler.get_last_lr()):
+                lrs[f"lr_C_{name}"] = lr
+        self.exp.log_metrics(lrs, step=self.logger.global_step)
+
     @property
     def val_loaders(self):
         """Get a zip of all validation loaders
@@ -355,16 +379,15 @@ class Trainer:
         """
         assert self.is_setup
         self.train_mode()
+        self.exp.log_parameter("epoch", self.logger.epoch)
         epoch_len = min(len(loader) for loader in self.loaders["train"].values())
         epoch_desc = "Epoch {}".format(self.logger.epoch)
-        for i, multi_batch_tuple in enumerate(
-            tqdm(
-                self.train_loaders,
-                desc=epoch_desc,
-                total=epoch_len,
-                mininterval=0.5,
-                unit="batch",
-            )
+        for multi_batch_tuple in tqdm(
+            self.train_loaders,
+            desc=epoch_desc,
+            total=epoch_len,
+            mininterval=0.5,
+            unit="batch",
         ):
             # create a dictionnay (domain => batch) from tuple
             # (batch_domain_0, ..., batch_domain_i)
@@ -414,6 +437,7 @@ class Trainer:
             self.log_step_time(step_time)
 
         self.update_learning_rates()
+        self.log_learning_rates()
 
     def log_step_time(self, step_time):
         """Logs step-time on comet.ml
@@ -445,14 +469,13 @@ class Trainer:
                     prediction = self.G.decoders[update_task](self.z)
 
                     if update_task == "s":
-                        if domain == "s":
-                            target = (
-                                decode_segmap_unity_labels(target, domain, True)
-                                .float()
-                                .to(self.device)
-                            )
+                        target = (
+                            decode_segmap_merged_labels(target, domain, True)
+                            .float()
+                            .to(self.device)
+                        )
                         prediction = (
-                            decode_segmap_unity_labels(prediction, domain, False)
+                            decode_segmap_merged_labels(prediction, domain, False)
                             .float()
                             .to(self.device)
                         )
@@ -711,12 +734,18 @@ class Trainer:
             # -------------------------------------------------
             for update_task, update_target in batch["data"].items():
                 if update_task not in {"m", "p", "x", "s"}:
+
+                    if update_task == "d":
+                        scaler = lambdas.G.d.main
+                    else:
+                        scaler = lambdas.G[update_task]
+
                     prediction = self.G.decoders[update_task](self.z)
                     update_loss = self.losses["G"]["tasks"][update_task](
                         prediction, update_target
                     )
 
-                    step_loss += lambdas.G[update_task] * update_loss
+                    step_loss += scaler * update_loss
                     self.logger.losses.generator.task_loss[update_task][
                         batch_domain
                     ] = update_loss.item()
@@ -800,6 +829,32 @@ class Trainer:
                         batch_domain
                     ] = update_loss.item()
 
+                    # Then Compare loss
+                    if self.opts.gen.m.use_compare_loss:
+                        print("update_target.shape", update_target.shape)
+                        print("\n")
+                        print("update_target", update_target)
+                        print("\n")
+                        print("prediction.shape", prediction.shape)
+                        print("\n")
+                        print("prediction", prediction)
+                        print("\n")
+                        print(
+                            "lambdas.G[update_task][compare]",
+                            lambdas.G[update_task]["compare"],
+                        )
+                        update_loss = (
+                            self.losses["G"]["tasks"][update_task]["compare"](
+                                prediction, update_target
+                            )
+                            * lambdas.G[update_task]["compare"]
+                        )
+                    step_loss += update_loss
+                    self.logger.losses.generator.task_loss[update_task]["compare"][
+                        batch_domain
+                    ] = update_loss.item()
+
+                    # ADVENT
                     if batch_domain == "r":
                         pred_complementary = 1 - prediction
                         prob = torch.cat([prediction, pred_complementary], dim=1)
@@ -1254,9 +1309,14 @@ class Trainer:
         self.G.load_state_dict(checkpoint["G"])
         if not ("m" in self.opts.tasks and "p" in self.opts.tasks):
             self.g_opt.load_state_dict(checkpoint["g_opt"])
-        # the starting epoch should be the last finished epoch + 1
-        self.logger.epoch = checkpoint["epoch"] + 1
+        self.logger.epoch = checkpoint["epoch"]
         self.logger.global_step = checkpoint["step"]
+
+        # resume scheduler:
+        # https://discuss.pytorch.org/t/a-problem-occured-when-resuming-an-optimizer/28822
+        for _ in range(self.logger.epoch + 1):
+            self.update_learning_rates()
+
         # Round step to even number for extraGradient
         if self.logger.global_step % 2 != 0:
             self.logger.global_step += 1

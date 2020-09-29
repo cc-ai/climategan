@@ -1,0 +1,85 @@
+addict==2.2.1
+APScheduler==3.6.3
+attrs==20.2.0
+backcall==0.2.0
+Brotli==1.0.9
+certifi==2020.6.20
+chardet==3.0.4
+click==7.1.2
+co2-tracker-utils==0.1.0
+code-carbon @ file:///home/mila/s/schmidtv/mlco2/code-carbon
+comet-git-pure==0.19.16
+comet-ml==3.2.0
+configobj==5.0.6
+cycler==0.10.0
+dash==1.15.0
+dash-bootstrap-components==0.10.5
+dash-core-components==1.11.0
+dash-html-components==1.1.0
+dash-renderer==1.7.0
+dash-table==4.10.0
+dataclasses==0.6
+decorator==4.4.2
+everett==1.0.2
+fire==0.3.1
+Flask==1.1.2
+Flask-Compress==1.5.0
+future==0.18.2
+hydra-core==0.11.3
+idna==2.10
+imageio==2.9.0
+ipykernel @ file:///tmp/build/80754af9/ipykernel_1596207638929/work/dist/ipykernel-5.3.4-py3-none-any.whl
+ipython @ file:///tmp/build/80754af9/ipython_1598883821407/work
+ipython-genutils==0.2.0
+itsdangerous==1.1.0
+jedi @ file:///tmp/build/80754af9/jedi_1598371611696/work
+Jinja2==2.11.2
+jsonschema==3.2.0
+jupyter-client @ file:///tmp/build/80754af9/jupyter_client_1594826976318/work
+jupyter-core==4.6.3
+kiwisolver==1.2.0
+MarkupSafe==1.1.1
+matplotlib==3.3.1
+netifaces==0.10.9
+networkx==2.5
+numpy==1.19.1
+nvidia-ml-py3==7.352.0
+omegaconf==1.4.1
+opencv-python==4.4.0.42
+pandas==1.1.1
+parso==0.7.1
+pexpect==4.8.0
+pickleshare==0.7.5
+Pillow==7.2.0
+plotly==4.9.0
+prompt-toolkit @ file:///tmp/build/80754af9/prompt-toolkit_1598885458782/work
+ptyprocess==0.6.0
+Pygments==2.6.1
+pyparsing==2.4.7
+pyRAPL==0.2.3.1
+pyrsistent==0.16.0
+python-dateutil==2.8.1
+pytz==2020.1
+pywatch==0.4
+PyWavelets==1.1.1
+PyYAML==5.3.1
+pyzmq==19.0.1
+requests==2.24.0
+retrying==1.3.3
+scikit-image==0.17.2
+scipy==1.5.2
+six==1.15.0
+termcolor==1.1.0
+tifffile==2020.9.3
+torch==1.6.0
+torchvision==0.7.0
+tornado==6.0.4
+tqdm==4.48.2
+traitlets==5.0.0
+tzlocal==2.1
+urllib3==1.25.10
+wcwidth @ file:///tmp/build/80754af9/wcwidth_1593447189090/work
+websocket-client==0.57.0
+Werkzeug==1.0.1
+wrapt==1.12.1
+wurlitzer==2.0.1

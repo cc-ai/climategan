@@ -7,6 +7,7 @@ load_paths:
 # -----  Tasks  -----
 # -------------------
 tasks: [d, s, m, p] # [p] [m, s, d]
+
 # ----------------
 # ----- Data -----
 # ----------------
@@ -22,15 +23,9 @@ data:
       r: val_r_full.json
       s: val_s_full.json
       rf: val_rf.json
-    adventv2_base: /network/tmp1/ccai/data/omnigan/base # where the entropy split saved and where the dataset is in the second stage
-    adventv2_train:
-      r: hard_split.json
-      s0: easy_split.json
-      s: easy_split_with_orignal_sim.json
   check_samples: True
   loaders:
     batch_size: 6
-    shuffle: true
     num_workers: 8
   transforms:
     - name: hflip
@@ -40,7 +35,7 @@ data:
       ignore: false
       new_size: 640
     - name: crop
-      ignore: true
+      ignore: false
       height: 600
       width: 600
     - name: resize # ? this or change generator's output? Or resize larger then crop to 256?
@@ -54,9 +49,18 @@ gen:
   opt:
     optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
     beta1: 0.9
-    lr: 0.00001
-    lr_policy: step # constant or step ; if step, specify step_size and gamma
-    lr_step_size: 30 # for linear decay : period of learning rate decay (epochs)
+    lr:
+      default: 0.00001
+    lr_policy: multi_step
+    # lr_policy can be constant, step or multi_step; if step, specify lr_step_size and lr_gamma
+    # if multi_step specify lr_step_size lr_gamma and lr_milestones:
+    #   if lr_milestones is a list:
+    #     the learning rate will be multiplied by gamma each time the epoch reaches an
+    #     item in the list (no need for lr_step_size).
+    #   if lr_milestones is an int:
+    #      a list of milestones is created from `range(lr_milestones, train.epochs, lr_step_size)`
+    lr_step_size: 10 # for linear decay : period of learning rate decay (epochs)
+    lr_milestones: 15
     lr_gamma: 0.5 # Multiplicative factor of learning rate decay
   default:
     &default-gen # default parameters for the generator (encoder and decoders)
@@ -121,10 +125,19 @@ dis:
   opt:
     optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
     beta1: 0.5
-    lr: 0.0001
-    lr_policy: step # constant or step ; if step, specify step_size and gamma
-    lr_step_size: 30 # for linear decay
-    lr_gamma: 0.5
+    lr:
+      default: 0.0001
+    lr_policy: multi_step
+    # lr_policy can be constant, step or multi_step; if step, specify lr_step_size and lr_gamma
+    # if multi_step specify lr_step_size lr_gamma and lr_milestones:
+    #   if lr_milestones is a list:
+    #     the learning rate will be multiplied by gamma each time the epoch reaches an
+    #     item in the list (no need for lr_step_size).
+    #   if lr_milestones is an int:
+    #      a list of milestones is created from `range(lr_milestones, train.epochs, lr_step_size)`
+    lr_step_size: 10 # for linear decay : period of learning rate decay (epochs)
+    lr_milestones: 15
+    lr_gamma: 0.5 # Multiplicative factor of learning rate decay
   default:
     &default-dis # default setting for discriminators (there are 4 of them for rn rf sn sf)
     input_nc: 3
@@ -167,13 +180,13 @@ classifier:
 # ----- Train Params -----
 # ------------------------
 train:
-  epochs: 100000000
-  representational_training: True
-  representation_steps: 10000 # for how many steps would the representation be trained before we train the translation
+  epochs: 300
   latent_domain_adaptation: True # whether or not to do domain adaptation on the latent vectors # Needs to be turned off if use_advent is True
   lambdas: # scaling factors in the total loss
     G:
-      d: 1
+      d:
+        main: 1
+        gml: 1
       s:
         crossent: 1
         crossent_pseudo: 0.001
@@ -198,14 +211,8 @@ train:
       ent_var: 0.1 # the proportion of variance of entropy map in the entropy measure for a certain picture
       adv_main: 1.0 # the coefficient of the AdvEnt loss that minimize the entropy of the image by adversarial training
       adv_aux: 0.0 # the corresponding coefficient of the AdvEnt loss of second output
-      dis_main: 1 # the discriminator take care of the first output in the adversarial training
-      dis_aux: 0 # the discriminator take care of the second output in the adversarial training
-      is_auto_adventv2: False # Please set it true when you want to train adventv2 automatically
-      entropy_split: 0.67 # #hard_split/(#easy_split + #hard_split) in adventv2
-      stage_one_epochs: 100 # the epoches expected to finish in the first stage of advent
-      stage_two_epochs: 100 # the epoches expected to finish in the second stage of advent
-      split_prepared: False # True if entropy_split is already generated
-      preserve_sim: True # True if s domain data includes both easy_split.json and train_s_full.json
+      dis_main: 0.5 # the discriminator take care of the first output in the adversarial training
+      dis_aux: 0.5 # the discriminator take care of the second output in the adversarial training
   log_level: 2 # 0: no log, 1: only aggregated losses, >1 detailed losses
   save_n_epochs: 1 # Save model every n epochs
   resume: false # Load latest_ckpt.pth checkpoint from `output_path` #TODO Make this path of checkpoint to load

@@ -277,6 +277,26 @@ class SIMSELoss(nn.Module):
         return diff - relDiff
 
 
+class SIGMLoss(nn.Module):
+    def __init__(self, gmweight, device="cuda"):
+        super(SIGMLoss, self).__init__()
+        self.gmweight = gmweight
+        sobelx = torch.Tensor([[1, 0, -1], [2, 0, -2], [1, 0, -1]])
+        sobely = torch.Tensor([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
+        self.filter = (0.5 * (sobelx + sobely)).to(device)
+        self.simse = SIMSELoss()
+
+    def __call__(self, prediction, target):
+        # get gradient map with sobel filters
+        batch_size = prediction.size()[0]
+        self.filter = (self.filter).expand((batch_size, 1, -1, -1))
+        grad_pred = F.conv2d(prediction, self.filter, stride=1)
+        grad_target = F.conv2d(target, self.filter, stride=1)
+        gmLoss = self.gmweight * torch.norm(grad_pred - grad_target)
+        diff = self.simse(prediction, target) + gmLoss
+        return diff
+
+
 class ContextLoss(nn.Module):
     """
     Masked L1 loss
@@ -284,6 +304,15 @@ class ContextLoss(nn.Module):
 
     def __call__(self, input, target, mask):
         return torch.mean(torch.abs(torch.mul((input - target), 1 - mask)))
+
+
+class CompareLoss(nn.Module):
+    """
+    
+    """
+
+    def __call__(self, pred, pseudo_ground):
+        return torch.mean(1.0 * (pseudo_ground - pred) > 0)
 
 
 ##################################################################################
@@ -379,7 +408,7 @@ def get_losses(opts, verbose, device=None):
     # ? * add discriminator and gan loss to these task when no ground truth
     # ?   instead of noisy label
     if "d" in opts.tasks:
-        losses["G"]["tasks"]["d"] = SIMSELoss()
+        losses["G"]["tasks"]["d"] = SIGMLoss(opts.train.lambdas.G.d.gml)
     if "s" in opts.tasks:
         losses["G"]["tasks"]["s"] = {}
         losses["G"]["tasks"]["s"]["crossent"] = CrossEntropy()
@@ -396,6 +425,7 @@ def get_losses(opts, verbose, device=None):
             losses["G"]["tasks"]["m"]["minent"] = entropy_loss
         losses["G"]["tasks"]["m"]["tv"] = TVLoss(opts.train.lambdas.G.m.tv)
         losses["G"]["tasks"]["m"]["advent"] = ADVENTAdversarialLoss(opts)
+        losses["G"]["tasks"]["m"]["compare"] = CompareLoss()
 
     # undistinguishable features loss
     # TODO setup a get_losses func to assign the right loss according to the yaml
