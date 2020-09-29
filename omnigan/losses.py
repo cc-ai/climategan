@@ -312,7 +312,7 @@ class CompareLoss(nn.Module):
     """
 
     def __call__(self, pred, pseudo_ground):
-        return torch.mean(1.0 * ((pseudo_ground - pred) > 0))
+        return torch.mean(1.0 * ((pseudo_ground - pred) > 0.5))
 
 
 ##################################################################################
