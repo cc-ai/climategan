@@ -35,6 +35,7 @@ from omnigan.tutils import (
 from omnigan.utils import div_dict, flatten_opts, sum_dict, merge, get_display_indices
 from omnigan.eval_metrics import iou, accuracy
 from tqdm import tqdm
+from torch.cuda.amp import autocast, GradScaler
 
 
 class Trainer:
@@ -76,6 +77,18 @@ class Trainer:
         if isinstance(comet_exp, Experiment):
             self.exp = comet_exp
         self.domain_labels = {"s": 0, "r": 1}
+
+        if self.opts.amp:
+            optimizers = [
+                self.opts.gen.opt.optimizer.lower(),
+                self.opts.dis.opt.optimizer.lower(),
+                self.opts.classifier.opt.optimizer.lower(),
+            ]
+            if "extraadam" in optimizers:
+                raise ValueError(
+                    "AMP does not work with ExtraAdam ({})".format(optimizers)
+                )
+            self.scaler = GradScaler()
 
     def eval_mode(self):
         """
@@ -681,9 +694,16 @@ class Trainer:
             multi_domain_batch (dict): dictionnary of domain batches
         """
         zero_grad(self.G)
-        g_loss = self.get_g_loss(multi_domain_batch, verbose)
-        g_loss.backward()
-        self.g_opt_step()
+        if self.opts.amp:
+            with autocast():
+                g_loss = self.get_g_loss(multi_domain_batch, verbose)
+            self.scaler.scale(g_loss).backward()
+            self.scaler.step(self.g_opt)
+        else:
+            g_loss = self.get_g_loss(multi_domain_batch, verbose)
+            g_loss.backward()
+            self.g_opt_step()
+
         self.log_losses(model_to_update="G", mode="train")
 
     def get_masker_loss(self, multi_domain_batch):  # TODO update docstrings
@@ -1022,10 +1042,16 @@ class Trainer:
         # ? split representational as in update_g
         # ? repr: domain-adaptation traduction
         zero_grad(self.D)
-        d_loss = self.get_d_loss(multi_domain_batch, verbose)
 
-        d_loss.backward()
-        self.d_opt_step()
+        if self.opts.amp:
+            with autocast():
+                d_loss = self.get_d_loss(multi_domain_batch, verbose)
+            self.scaler.scale(d_loss).backward()
+            self.scaler.step(self.d_opt)
+        else:
+            d_loss = self.get_d_loss(multi_domain_batch, verbose)
+            d_loss.backward()
+            self.d_opt_step()
 
         self.logger.losses.disc.total_loss = d_loss.item()
         self.log_losses(model_to_update="D", mode="train")
@@ -1149,11 +1175,20 @@ class Trainer:
 
         """
         zero_grad(self.C)
-        c_loss = self.get_classifier_loss(multi_domain_batch)
-        # ? Log policy
+        if self.opts.amp:
+            with autocast():
+                c_loss = self.get_classifier_loss(multi_domain_batch)
+            # ? Log policy
+            self.scaler.scale(c_loss).backward()
+            self.scaler.step(self.c_opt)
+        else:
+            c_loss = self.get_classifier_loss(multi_domain_batch)
+            # ? Log policy
+            self.logger.losses.classifier = c_loss.item()
+            c_loss.backward()
+            self.c_opt_step()
+
         self.logger.losses.classifier = c_loss.item()
-        c_loss.backward()
-        self.c_opt_step()
 
     def get_classifier_loss(self, multi_domain_batch):
         """Compute the loss of the domain classifier with real labels
