@@ -104,7 +104,7 @@ class Trainer:
         Args:
             model_to_update (str, optional): One of "G", "D" or "C". Defaults to "G".
         """
-        loss_names = {"G": "generator", "D": "discriminator", "C": "classifier"}
+        loss_names = {"G": "gen", "D": "disc", "C": "classifier"}
 
         if self.opts.train.log_level < 1:
             return
@@ -131,7 +131,7 @@ class Trainer:
 
         losses = flatten_opts(losses)
         self.exp.log_metrics(
-            losses, prefix=f"{model_to_update}_{mode}", step=self.logger.global_step
+            losses, prefix=f"{model_to_update}_{mode}:", step=self.logger.global_step
         )
 
     def batch_to_device(self, b):
@@ -644,12 +644,12 @@ class Trainer:
 
         if "m" in self.opts.tasks:
             m_loss = self.get_masker_loss(multi_domain_batch)
-            self.logger.losses.generator.masker = m_loss.item()
+            self.logger.losses.gen.masker = m_loss.item()
             g_loss += m_loss
 
         if "p" in self.opts.tasks:
             p_loss = self.get_painter_loss(multi_domain_batch)
-            self.logger.losses.generator.painter = p_loss.item()
+            self.logger.losses.gen.painter = p_loss.item()
             g_loss += p_loss
 
         if "m" in self.opts.tasks and "p" in self.opts.tasks:
@@ -658,7 +658,7 @@ class Trainer:
 
         assert g_loss != 0 and not isinstance(g_loss, int), "No update in get_g_loss!"
 
-        self.logger.losses.generator.total_loss = g_loss.item()
+        self.logger.losses.gen.total_loss = g_loss.item()
 
         return g_loss
 
@@ -725,9 +725,7 @@ class Trainer:
                 )
 
                 step_loss += lambdas.G.classifier * update_loss
-                self.logger.losses.generator.classifier[
-                    batch_domain
-                ] = update_loss.item()
+                self.logger.losses.gen.classifier[batch_domain] = update_loss.item()
 
             # -------------------------------------------------
             # -----  task-specific regression losses (2)  -----
@@ -746,7 +744,7 @@ class Trainer:
                     )
 
                     step_loss += scaler * update_loss
-                    self.logger.losses.generator.task_loss[update_task][
+                    self.logger.losses.gen.task[update_task][
                         batch_domain
                     ] = update_loss.item()
                 elif update_task == "s":
@@ -767,7 +765,7 @@ class Trainer:
                         )
                         step_loss += update_loss
 
-                        self.logger.losses.generator.task_loss["s"][loss_name][
+                        self.logger.losses.gen.task["s"][loss_name][
                             batch_domain
                         ] = update_loss.item()
 
@@ -783,9 +781,9 @@ class Trainer:
                             )
                             step_loss += update_loss
 
-                            self.logger.losses.generator.task_loss[update_task][
-                                "minient"
-                            ][batch_domain] = update_loss.item()
+                            self.logger.losses.gen.task[update_task]["minient"][
+                                batch_domain
+                            ] = update_loss.item()
 
                         # Fool ADVENT discriminator
                         if self.opts.gen.s.use_advent:
@@ -798,34 +796,34 @@ class Trainer:
                                 * lambdas.G[update_task]["advent"]
                             )
                             step_loss += update_loss
-                            self.logger.losses.generator.task_loss[update_task][
-                                "advent"
-                            ][batch_domain] = update_loss.item()
+                            self.logger.losses.gen.task[update_task]["advent"][
+                                batch_domain
+                            ] = update_loss.item()
                 elif update_task == "m":
                     # ? output features classifier
-                    prediction = self.G.decoders[update_task](self.z)
+                    prediction = self.G.decoders["m"](self.z)
                     if batch_domain == "s":
 
                         # Main loss first:
                         update_loss = (
-                            self.losses["G"]["tasks"][update_task]["main"](
+                            self.losses["G"]["tasks"]["m"]["main"](
                                 prediction, update_target
                             )
-                            * lambdas.G[update_task]["main"]
+                            * lambdas.G["m"]["main"]
                         )
                         step_loss += update_loss
 
-                        self.logger.losses.generator.task_loss[update_task]["main"][
-                            batch_domain
+                        self.logger.losses.gen.task["m"]["main"][
+                            "s"
                         ] = update_loss.item()
 
                     # Then TV loss
-                    update_loss = self.losses["G"]["tasks"][update_task]["tv"](
+                    update_loss = self.losses["G"]["tasks"]["m"]["tv"](
                         prediction
                     )
                     step_loss += update_loss
 
-                    self.logger.losses.generator.task_loss[update_task]["tv"][
+                    self.logger.losses.gen.task["m"]["tv"][
                         batch_domain
                     ] = update_loss.item()
 
@@ -835,20 +833,20 @@ class Trainer:
                         if self.opts.gen.m.use_minent:
                             # Then Minent loss
                             update_loss = (
-                                self.losses["G"]["tasks"][update_task]["minent"](
+                                self.losses["G"]["tasks"]["m"]["minent"](
                                     prob.to(self.device)
                                 )
                                 * self.opts.train.lambdas.advent.ent_main
                             )
                             step_loss += update_loss
-                            self.logger.losses.generator.task_loss[update_task][
-                                "minent"
-                            ][batch_domain] = update_loss.item()
+                            self.logger.losses.gen.task["m"]["minent"][
+                                "r"
+                            ] = update_loss.item()
 
                         if self.opts.gen.m.use_advent:
                             # Then Advent loss
                             update_loss = (
-                                self.losses["G"]["tasks"][update_task]["advent"](
+                                self.losses["G"]["tasks"]["m"]["advent"](
                                     prob.to(self.device),
                                     self.domain_labels["s"],
                                     self.D["m"]["Advent"],
@@ -856,9 +854,9 @@ class Trainer:
                                 * self.opts.train.lambdas.advent.adv_main
                             )
                             step_loss += update_loss
-                            self.logger.losses.generator.task_loss[update_task][
-                                "advent"
-                            ][batch_domain] = update_loss.item()
+                            self.logger.losses.gen.task["m"]["advent"][
+                                batch_domain
+                            ] = update_loss.item()
         return step_loss
 
     def sample_z(self, batch_size):
@@ -906,13 +904,11 @@ class Trainer:
                 * lambdas.G["p"]["vgg"]
             )
 
-            self.logger.losses.generator.p.vgg = (
-                update_loss.item() * lambdas.G["p"]["vgg"]
-            )
+            self.logger.losses.gen.p.vgg = update_loss.item() * lambdas.G["p"]["vgg"]
             step_loss += update_loss
 
             update_loss = self.losses["G"]["p"]["tv"](fake_flooded * m)
-            self.logger.losses.generator.p.tv = update_loss.item()
+            self.logger.losses.gen.p.tv = update_loss.item()
             step_loss += update_loss
 
             update_loss = (
@@ -920,7 +916,7 @@ class Trainer:
                 * lambdas.G["p"]["context"]
             )
 
-            self.logger.losses.generator.p.context = update_loss.item()
+            self.logger.losses.gen.p.context = update_loss.item()
             step_loss += update_loss
 
             # GAN Losses
@@ -932,7 +928,7 @@ class Trainer:
             # Note: discriminator returns [out_1,...,out_num_D] outputs
             # Each out_i is a list [feat1, feat2, ..., pred_i]
 
-            self.logger.losses.generator.p.gan = 0
+            self.logger.losses.gen.p.gan = 0
 
             num_D = len(fake_d_global)
             for i in range(num_D):
@@ -946,7 +942,7 @@ class Trainer:
                     / num_D
                 )
 
-                self.logger.losses.generator.p.gan += update_loss.item()
+                self.logger.losses.gen.p.gan += update_loss.item()
 
             step_loss += update_loss
 
@@ -959,9 +955,9 @@ class Trainer:
                 )
 
                 if isinstance(update_loss, float):
-                    self.logger.losses.generator.p.featmatch = update_loss
+                    self.logger.losses.gen.p.featmatch = update_loss
                 else:
-                    self.logger.losses.generator.p.featmatch = update_loss.item()
+                    self.logger.losses.gen.p.featmatch = update_loss.item()
 
                 step_loss += update_loss
 
@@ -1008,7 +1004,7 @@ class Trainer:
             # Note: discriminator returns [out_1,...,out_num_D] outputs
             # Each out_i is a list [feat1, feat2, ..., pred_i]
 
-            self.logger.losses.generator.p.endtoend = 0
+            self.logger.losses.gen.p.endtoend = 0
 
             num_D = len(fake_d_global)
             for i in range(num_D):
@@ -1019,7 +1015,7 @@ class Trainer:
                     / num_D
                 )
 
-                self.logger.losses.generator.p.endtoend += update_loss.item()
+                self.logger.losses.gen.p.endtoend += update_loss.item()
 
         return step_loss
 
@@ -1032,7 +1028,7 @@ class Trainer:
         d_loss.backward()
         self.d_opt_step()
 
-        self.logger.losses.discriminator.total_loss = d_loss.item()
+        self.logger.losses.disc.total_loss = d_loss.item()
         self.log_losses(model_to_update="D", mode="train")
 
     def get_d_loss(self, multi_domain_batch, verbose=0):
@@ -1131,7 +1127,7 @@ class Trainer:
                             self.opts.train.lambdas.advent.adv_main * loss_main
                         )
 
-        self.logger.losses.discriminator.update(
+        self.logger.losses.disc.update(
             {
                 dom: {
                     k: v.item() if isinstance(v, torch.Tensor) else v
@@ -1207,12 +1203,12 @@ class Trainer:
                 self.get_g_loss(multi_domain_batch, verbose)
 
                 if val_logger is None:
-                    val_logger = deepcopy(self.logger.losses.generator)
+                    val_logger = deepcopy(self.logger.losses.gen)
                 else:
-                    val_logger = sum_dict(val_logger, self.logger.losses.generator)
+                    val_logger = sum_dict(val_logger, self.logger.losses.gen)
 
             val_logger = div_dict(val_logger, nb_of_batches)
-            self.logger.losses.generator = val_logger
+            self.logger.losses.gen = val_logger
             self.log_losses(model_to_update="G", mode="val")
 
             for d in self.opts.domains:
