@@ -1184,43 +1184,44 @@ class Trainer:
 
         return lambdas.C * loss
 
+    @torch.no_grad()
     def run_evaluation(self, verbose=0):
         print("******************* Running Evaluation ***********************")
         self.eval_mode()
-        with torch.no_grad():
-            val_logger = None
-            nb_of_batches = None
-            for i, multi_batch_tuple in enumerate(self.val_loaders):
-                # create a dictionnary (domain => batch) from tuple
-                # (batch_domain_0, ..., batch_domain_i)
-                # and send it to self.device
-                nb_of_batches = i + 1
-                multi_domain_batch = {
-                    batch["domain"][0]: self.batch_to_device(batch)
-                    for batch in multi_batch_tuple
-                }
-                self.get_g_loss(multi_domain_batch, verbose)
 
-                if val_logger is None:
-                    val_logger = deepcopy(self.logger.losses.gen)
-                else:
-                    val_logger = sum_dict(val_logger, self.logger.losses.gen)
+        val_logger = None
+        nb_of_batches = None
+        for i, multi_batch_tuple in enumerate(self.val_loaders):
+            # create a dictionnary (domain => batch) from tuple
+            # (batch_domain_0, ..., batch_domain_i)
+            # and send it to self.device
+            nb_of_batches = i + 1
+            multi_domain_batch = {
+                batch["domain"][0]: self.batch_to_device(batch)
+                for batch in multi_batch_tuple
+            }
+            self.get_g_loss(multi_domain_batch, verbose)
 
-            val_logger = div_dict(val_logger, nb_of_batches)
-            self.logger.losses.gen = val_logger
-            self.log_losses(model_to_update="G", mode="val")
+            if val_logger is None:
+                val_logger = deepcopy(self.logger.losses.gen)
+            else:
+                val_logger = sum_dict(val_logger, self.logger.losses.gen)
 
-            for d in self.opts.domains:
-                self.log_comet_images("train", d)
-                self.log_comet_images("val", d)
+        val_logger = div_dict(val_logger, nb_of_batches)
+        self.logger.losses.gen = val_logger
+        self.log_losses(model_to_update="G", mode="val")
 
-            if "m" in self.opts.tasks and "p" in self.opts.tasks:
-                self.log_comet_combined_images("train", "r")
-                self.log_comet_combined_images("val", "r")
+        for d in self.opts.domains:
+            self.log_comet_images("train", d)
+            self.log_comet_images("val", d)
 
-            if "m" in self.opts.tasks:
-                self.eval_images("val", "r")
-                self.eval_images("val", "s")
+        if "m" in self.opts.tasks and "p" in self.opts.tasks:
+            self.log_comet_combined_images("train", "r")
+            self.log_comet_combined_images("val", "r")
+
+        if "m" in self.opts.tasks:
+            self.eval_images("val", "r")
+            self.eval_images("val", "s")
 
         self.train_mode()
         print("****************** Done *********************")
