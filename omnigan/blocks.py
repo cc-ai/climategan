@@ -93,7 +93,7 @@ class Conv2dBlock(nn.Module):
                 kernel_size,
                 stride,
                 dilation=dilation,
-                bias=self.use_bias,
+                bias=self.use_bias if norm != "batch" else False,
             )
 
     def forward(self, x):

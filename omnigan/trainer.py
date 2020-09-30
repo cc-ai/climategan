@@ -30,6 +30,7 @@ from omnigan.tutils import (
     shuffle_batch_tuple,
     vgg_preprocess,
     norm_tensor,
+    zero_grad,
 )
 from omnigan.utils import div_dict, flatten_opts, sum_dict, merge, get_display_indices
 from omnigan.eval_metrics import iou, accuracy
@@ -679,7 +680,7 @@ class Trainer:
         Args:
             multi_domain_batch (dict): dictionnary of domain batches
         """
-        self.g_opt.zero_grad()
+        zero_grad(self.G)
         g_loss = self.get_g_loss(multi_domain_batch, verbose)
         g_loss.backward()
         self.g_opt_step()
@@ -818,9 +819,7 @@ class Trainer:
                         ] = update_loss.item()
 
                     # Then TV loss
-                    update_loss = self.losses["G"]["tasks"]["m"]["tv"](
-                        prediction
-                    )
+                    update_loss = self.losses["G"]["tasks"]["m"]["tv"](prediction)
                     step_loss += update_loss
 
                     self.logger.losses.gen.task["m"]["tv"][
@@ -882,7 +881,7 @@ class Trainer:
             torch.Tensor: scalar loss tensor, weighted according to opts.train.lambdas
         """
         step_loss = 0
-        self.g_opt.zero_grad()
+        # self.g_opt.zero_grad()
         lambdas = self.opts.train.lambdas
 
         for batch_domain, batch in multi_domain_batch.items():
@@ -1022,7 +1021,7 @@ class Trainer:
     def update_d(self, multi_domain_batch, verbose=0):
         # ? split representational as in update_g
         # ? repr: domain-adaptation traduction
-        self.d_opt.zero_grad()
+        zero_grad(self.D)
         d_loss = self.get_d_loss(multi_domain_batch, verbose)
 
         d_loss.backward()
@@ -1149,7 +1148,7 @@ class Trainer:
                 the trainer's loaders
 
         """
-        self.c_opt.zero_grad()
+        zero_grad(self.C)
         c_loss = self.get_classifier_loss(multi_domain_batch)
         # ? Log policy
         self.logger.losses.classifier = c_loss.item()

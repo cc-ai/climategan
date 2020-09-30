@@ -7,6 +7,7 @@ import yaml
 from addict import Dict
 from comet_ml import Experiment, ExistingExperiment
 from omegaconf import OmegaConf
+import torch
 
 from omnigan.trainer import Trainer
 
@@ -18,12 +19,13 @@ from omnigan.utils import (
     get_increased_path,
     load_opts,
     copy_sbatch,
-    merge,
     find_existing_training,
     kill_job,
     pprint,
     get_existing_comet_id,
 )
+
+torch.backends.cudnn.benchmark = True
 
 hydra_config_path = Path(__file__).resolve().parent / "shared/trainer/config.yaml"
 
