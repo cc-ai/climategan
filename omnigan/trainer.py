@@ -36,6 +36,7 @@ from omnigan.utils import div_dict, flatten_opts, sum_dict, merge, get_display_i
 from omnigan.eval_metrics import iou, accuracy
 from tqdm import tqdm
 from torch.cuda.amp import autocast, GradScaler
+from torch.utils.checkpoint import checkpoint
 
 
 class Trainer:
@@ -732,12 +733,12 @@ class Trainer:
                 continue
 
             x = batch["data"]["x"]
-            self.z = self.G.encode(x)
+            self.z = checkpoint(self.G.encode, x)
             # ---------------------------------
             # -----  classifier loss (1)  -----
             # ---------------------------------
             if self.opts.train.latent_domain_adaptation:
-                output_classifier = self.C(self.z)
+                output_classifier = checkpoint(self.C, self.z)
 
                 # Cross entropy loss (with sigmoid) with fake labels to fool C
                 update_loss = self.losses["G"]["classifier"](
@@ -759,7 +760,7 @@ class Trainer:
                     else:
                         scaler = lambdas.G[update_task]
 
-                    prediction = self.G.decoders[update_task](self.z)
+                    prediction = checkpoint(self.G.decoders[update_task], self.z)
                     update_loss = self.losses["G"]["tasks"][update_task](
                         prediction, update_target
                     )
@@ -769,7 +770,7 @@ class Trainer:
                         batch_domain
                     ] = update_loss.item()
                 elif update_task == "s":
-                    prediction = self.G.decoders[update_task](self.z)
+                    prediction = checkpoint(self.G.decoders[update_task], self.z)
                     # Supervised segmentation loss: crossent for sim domain,
                     # crossent_pseudo for real ; loss is crossent in any case
                     if batch_domain == "s" or self.opts.gen.s.use_pseudo_labels:
@@ -822,7 +823,7 @@ class Trainer:
                             ] = update_loss.item()
                 elif update_task == "m":
                     # ? output features classifier
-                    prediction = self.G.decoders["m"](self.z)
+                    prediction = checkpoint(self.G.decoders["m"], self.z)
                     if batch_domain == "s":
 
                         # Main loss first:
@@ -879,16 +880,13 @@ class Trainer:
         return step_loss
 
     def sample_z(self, batch_size):
-        return (
-            torch.empty(
-                batch_size,
-                self.opts.gen.p.latent_dim,
-                self.painter_z_h,
-                self.painter_z_w,
-            )
-            .normal_(mean=0, std=1.0)
-            .to(self.device)
-        )
+        return torch.empty(
+            batch_size,
+            self.opts.gen.p.latent_dim,
+            self.painter_z_h,
+            self.painter_z_w,
+            device=self.device,
+        ).normal_(mean=0, std=1.0)
 
     def get_painter_loss(self, multi_domain_batch):
         """Computes the translation loss when flooding/deflooding images
@@ -914,7 +912,7 @@ class Trainer:
             z = self.sample_z(x.shape[0])
             masked_x = x * (1.0 - m)
 
-            fake_flooded = self.G.painter(z, masked_x)
+            fake_flooded = checkpoint(self.G.painter, z, masked_x)
 
             update_loss = (
                 self.losses["G"]["p"]["vgg"](
@@ -939,10 +937,10 @@ class Trainer:
             step_loss += update_loss
 
             # GAN Losses
-            fake_d_global = self.D["p"]["global"](fake_flooded)
-            fake_d_local = self.D["p"]["local"](fake_flooded * m)
+            fake_d_global = checkpoint(self.D["p"]["global"], fake_flooded)
+            fake_d_local = checkpoint(self.D["p"]["local"], fake_flooded * m)
 
-            real_d_global = self.D["p"]["global"](x)
+            real_d_global = checkpoint(self.D["p"]["global"], x)
 
             # Note: discriminator returns [out_1,...,out_num_D] outputs
             # Each out_i is a list [feat1, feat2, ..., pred_i]
@@ -1007,18 +1005,18 @@ class Trainer:
                 continue
 
             x = batch["data"]["x"]
-            self.z = self.G.encode(x)
+            self.z = checkpoint(self.G.encode, x)
 
             update_task = "m"
             # Get mask from masker
-            m = self.G.decoders[update_task](self.z)
+            m = checkpoint(self.G.decoders[update_task], self.z)
 
             z = self.sample_z(x.shape[0])
             masked_x = x * (1.0 - m)
 
-            fake_flooded = self.G.painter(z, masked_x)
+            fake_flooded = checkpoint(self.G.painter, z, masked_x)
             # GAN Losses
-            fake_d_global = self.D["p"]["global"](fake_flooded)
+            fake_d_global = checkpoint(self.D["p"]["global"], fake_flooded)
 
             # Note: discriminator returns [out_1,...,out_num_D] outputs
             # Each out_i is a list [feat1, feat2, ..., pred_i]
@@ -1093,11 +1091,11 @@ class Trainer:
             if batch_domain == "rf":
                 # sample vector
                 z_paint = self.sample_z(x.shape[0])
-                fake = self.G.painter(z_paint, x * (1.0 - m))
-                fake_d_global = self.D["p"]["global"](fake)
-                real_d_global = self.D["p"]["global"](x)
-                fake_d_local = self.D["p"]["local"](fake * m)
-                real_d_local = self.D["p"]["local"](x * m)
+                fake = checkpoint(self.G.painter, z_paint, x * (1.0 - m))
+                fake_d_global = checkpoint(self.D["p"]["global"], fake)
+                real_d_global = checkpoint(self.D["p"]["global"], x)
+                fake_d_local = checkpoint(self.D["p"]["local"], fake * m)
+                real_d_local = checkpoint(self.D["p"]["local"], x * m)
 
                 # Note: discriminator returns [out_1,...,out_num_D] outputs
                 # Each out_i is a list [feat1, feat2, ..., pred_i]
@@ -1118,12 +1116,12 @@ class Trainer:
                     disc_loss["p"]["local"] += local_loss / num_D
 
             else:
-                z = self.G.encode(x)
+                z = checkpoint(self.G.encode, x)
                 if "m" in self.opts.tasks:
                     if self.opts.gen.m.use_advent:
                         if verbose > 0:
                             print("Now training the ADVENT discriminator!")
-                        fake_mask = self.G.decoders["m"](z)
+                        fake_mask = checkpoint(self.G.decoders["m"], z)
                         fake_complementary_mask = 1 - fake_mask
                         prob = torch.cat([fake_mask, fake_complementary_mask], dim=1)
                         prob = prob.detach()
@@ -1139,7 +1137,7 @@ class Trainer:
                         )
                 if "s" in self.opts.tasks:
                     if self.opts.gen.s.use_advent:
-                        preds = self.G.decoders["s"](z)
+                        preds = checkpoint(self.G.decoders["s"], z)
                         preds = preds.detach()
 
                         loss_main = self.losses["D"]["advent"](
@@ -1207,9 +1205,9 @@ class Trainer:
             # We don't care about the flooded domain here
             if batch_domain == "rf":
                 continue
-            self.z = self.G.encode(batch["data"]["x"])
+            self.z = checkpoint(self.G.encode, batch["data"]["x"])
             # Forward through classifier, output classifier = (batch_size, 4)
-            output_classifier = self.C(self.z)
+            output_classifier = checkpoint(self.C, self.z)
             # Cross entropy loss (with sigmoid)
             update_loss = self.losses["C"](
                 output_classifier,

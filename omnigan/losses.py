@@ -8,6 +8,7 @@ from torch.autograd import Variable
 import torch.nn as nn
 from random import random as rand
 from torchvision import models
+from torch.utils.checkpoint import checkpoint
 
 
 class GANLoss(nn.Module):
@@ -276,14 +277,16 @@ class SIMSELoss(nn.Module):
         relDiff = torch.mean(d) * torch.mean(d)
         return diff - relDiff
 
+
 class SIGMLoss(nn.Module):
-    def __init__(self, gmweight, device='cuda'):
+    def __init__(self, gmweight, device="cuda"):
         super(SIGMLoss, self).__init__()
         self.gmweight = gmweight
-        sobelx = torch.Tensor([[1,0,-1],[2,0,-2],[1,0,-1]])
-        sobely = torch.Tensor([[1,2,1],[0,0,0],[-1,-2,-1]])
+        sobelx = torch.Tensor([[1, 0, -1], [2, 0, -2], [1, 0, -1]])
+        sobely = torch.Tensor([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
         self.filter = (0.5 * (sobelx + sobely)).to(device)
         self.simse = SIMSELoss()
+
     def __call__(self, prediction, target):
         # get gradient map with sobel filters
         batch_size = prediction.size()[0]
@@ -292,7 +295,8 @@ class SIGMLoss(nn.Module):
         grad_target = F.conv2d(target, self.filter, stride=1)
         gmLoss = self.gmweight * torch.norm(grad_pred - grad_target)
         diff = self.simse(prediction, target) + gmLoss
-        return diff 
+        return diff
+
 
 class ContextLoss(nn.Module):
     """
@@ -350,7 +354,7 @@ class VGGLoss(nn.Module):
         self.weights = [1.0 / 32, 1.0 / 16, 1.0 / 8, 1.0 / 4, 1.0]
 
     def forward(self, x, y):
-        x_vgg, y_vgg = self.vgg(x), self.vgg(y)
+        x_vgg, y_vgg = checkpoint(self.vgg, x), checkpoint(self.vgg, y)
         loss = 0
         for i in range(len(x_vgg)):
             loss += self.weights[i] * self.criterion(x_vgg[i], y_vgg[i].detach())
@@ -475,7 +479,7 @@ class ADVENTAdversarialLoss(nn.Module):
         self.loss = CustomBCELoss()
 
     def __call__(self, prediction, target, discriminator):
-        d_out = discriminator(prob_2_entropy(F.softmax(prediction, dim=1)))
+        d_out = checkpoint(discriminator, prob_2_entropy(F.softmax(prediction, dim=1)))
         if self.opts.dis.m.architecture == "OmniDiscriminator":
             d_out = multiDiscriminatorAdapter(d_out, self.opts)
         loss_ = self.loss(d_out, target)
