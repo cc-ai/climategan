@@ -733,7 +733,7 @@ class Trainer:
                 continue
 
             x = batch["data"]["x"]
-            self.z = checkpoint(self.G.encode, x)
+            self.z = checkpoint(self.G.encode, x.requires_grad_())
             # ---------------------------------
             # -----  classifier loss (1)  -----
             # ---------------------------------
@@ -1005,7 +1005,7 @@ class Trainer:
                 continue
 
             x = batch["data"]["x"]
-            self.z = checkpoint(self.G.encode, x)
+            self.z = checkpoint(self.G.encode, x.requires_grad_())
 
             update_task = "m"
             # Get mask from masker
@@ -1116,7 +1116,7 @@ class Trainer:
                     disc_loss["p"]["local"] += local_loss / num_D
 
             else:
-                z = checkpoint(self.G.encode, x)
+                z = checkpoint(self.G.encode, x.requires_grad_())
                 if "m" in self.opts.tasks:
                     if self.opts.gen.m.use_advent:
                         if verbose > 0:
@@ -1205,7 +1205,7 @@ class Trainer:
             # We don't care about the flooded domain here
             if batch_domain == "rf":
                 continue
-            self.z = checkpoint(self.G.encode, batch["data"]["x"])
+            self.z = checkpoint(self.G.encode, batch["data"]["x"].requires_grad_())
             # Forward through classifier, output classifier = (batch_size, 4)
             output_classifier = checkpoint(self.C, self.z)
             # Cross entropy loss (with sigmoid)
