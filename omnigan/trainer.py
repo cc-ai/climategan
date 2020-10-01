@@ -825,21 +825,20 @@ class Trainer:
                     self.logger.losses.gen.task["m"]["tv"][
                         batch_domain
                     ] = update_loss.item()
-                    
+
                     # Then Compare loss
                     if self.opts.gen.m.use_compare_loss:
-                            lambdas.G[update_task]["compare"],
-                        )
+                        print("using compare loss")
                         update_loss = (
                             self.losses["G"]["tasks"][update_task]["compare"](
                                 prediction, update_target
                             )
                             * lambdas.G[update_task]["compare"]
                         )
-                    step_loss += update_loss
-                    self.logger.losses.generator.task_loss[update_task]["compare"][
-                        batch_domain
-                    ] = update_loss.item()
+                        step_loss += update_loss
+                        self.logger.losses.generator.task_loss[update_task]["compare"][
+                            batch_domain
+                        ] = update_loss.item()
 
                     # ADVENT
                     if batch_domain == "r":
