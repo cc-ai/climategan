@@ -276,14 +276,16 @@ class SIMSELoss(nn.Module):
         relDiff = torch.mean(d) * torch.mean(d)
         return diff - relDiff
 
+
 class SIGMLoss(nn.Module):
-    def __init__(self, gmweight, device='cuda'):
+    def __init__(self, gmweight, device="cuda"):
         super(SIGMLoss, self).__init__()
         self.gmweight = gmweight
-        sobelx = torch.Tensor([[1,0,-1],[2,0,-2],[1,0,-1]])
-        sobely = torch.Tensor([[1,2,1],[0,0,0],[-1,-2,-1]])
+        sobelx = torch.Tensor([[1, 0, -1], [2, 0, -2], [1, 0, -1]])
+        sobely = torch.Tensor([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
         self.filter = (0.5 * (sobelx + sobely)).to(device)
         self.simse = SIMSELoss()
+
     def __call__(self, prediction, target):
         # get gradient map with sobel filters
         batch_size = prediction.size()[0]
@@ -292,7 +294,8 @@ class SIGMLoss(nn.Module):
         grad_target = F.conv2d(target, self.filter, stride=1)
         gmLoss = self.gmweight * torch.norm(grad_pred - grad_target)
         diff = self.simse(prediction, target) + gmLoss
-        return diff 
+        return diff
+
 
 class ContextLoss(nn.Module):
     """
@@ -301,6 +304,15 @@ class ContextLoss(nn.Module):
 
     def __call__(self, input, target, mask):
         return torch.mean(torch.abs(torch.mul((input - target), 1 - mask)))
+
+
+class CompareLoss(nn.Module):
+    """
+    Penalize areas in ground seg but not in flood mask
+    """
+
+    def __call__(self, pred, pseudo_ground):
+        return torch.mean(1.0 * ((pseudo_ground - pred) > 0.5))
 
 
 ##################################################################################
@@ -413,6 +425,7 @@ def get_losses(opts, verbose, device=None):
             losses["G"]["tasks"]["m"]["minent"] = entropy_loss
         losses["G"]["tasks"]["m"]["tv"] = TVLoss(opts.train.lambdas.G.m.tv)
         losses["G"]["tasks"]["m"]["advent"] = ADVENTAdversarialLoss(opts)
+        losses["G"]["tasks"]["m"]["compare"] = CompareLoss()
 
     # undistinguishable features loss
     # TODO setup a get_losses func to assign the right loss according to the yaml
@@ -448,7 +461,7 @@ def prob_2_entropy(prob):
 class CustomBCELoss(nn.Module):
     """
         The first argument is a tensor and the second arguement is an int.
-        There is no need to take simoid before calling this function.
+        There is no need to take sigmoid before calling this function.
     """
 
     def __init__(self):
@@ -466,7 +479,7 @@ class CustomBCELoss(nn.Module):
 
 class ADVENTAdversarialLoss(nn.Module):
     """
-        TODO
+        The first and second arguement are tensor. The third arguement is a discriminator model.
     """
 
     def __init__(self, opts):
@@ -483,6 +496,11 @@ class ADVENTAdversarialLoss(nn.Module):
 
 
 def multiDiscriminatorAdapter(d_out, opts):
+    """
+    Because the OmniDiscriminator does not directly return a tensor (but a list of tensor).
+    Since there is no multilevel masker, the 0th tensor in the list is all we want.
+    This Adapter returns the first element(tensor) of the list that OmniDiscriminator returns.
+    """
     if (
         isinstance(d_out, list) and len(d_out) == 1
     ):  # adapt the multi-scale Omnidiscriminator
