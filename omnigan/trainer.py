@@ -836,7 +836,7 @@ class Trainer:
                             * lambdas.G[update_task]["compare"]
                         )
                         step_loss += update_loss
-                        self.logger.losses.generator.task_loss[update_task]["compare"][
+                        self.logger.losses.gen.task[update_task]["compare"][
                             batch_domain
                         ] = update_loss.item()
 
