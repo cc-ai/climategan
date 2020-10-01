@@ -25,8 +25,6 @@ from omnigan.utils import (
     get_existing_comet_id,
 )
 
-torch.backends.cudnn.benchmark = True
-
 hydra_config_path = Path(__file__).resolve().parent / "shared/trainer/config.yaml"
 
 
