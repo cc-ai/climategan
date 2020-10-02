@@ -284,8 +284,8 @@ class SIGMLoss(nn.Module):
     def __init__(self, gmweight = 0.5, scale = 4, device='cuda'):
         super(SIGMLoss, self).__init__()
         self.gmweight = gmweight
-        self.sobelx = torch.Tensor([[1,0,-1],[2,0,-2],[1,0,-1]])
-        self.sobely = torch.Tensor([[1,2,1],[0,0,0],[-1,-2,-1]])
+        self.sobelx = torch.Tensor([[1,0,-1],[2,0,-2],[1,0,-1]]).to(device)
+        self.sobely = torch.Tensor([[1,2,1],[0,0,0],[-1,-2,-1]]).to(device)
         self.scale = scale
     def __call__(self, prediction, target):
         #get disparities
@@ -311,7 +311,7 @@ class SIGMLoss(nn.Module):
             Rx = F.conv2d(R_, self.sobelx, stride=1)
             Ry = F.conv2d(R_, self.sobely, stride=1)
             gmLoss += torch.sum(torch.abs(Rx) + torch.abs(Ry))
-        gmLoss = self.gmweight/ num_pix * gmLoss
+        gmLoss = self.gmweight / num_pix * gmLoss
         #scale invariant MSE
         simseLoss = 0.5/num_pix * torch.sum(torch.abs(R))
         loss = simseLoss + gmLoss
