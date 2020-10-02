@@ -104,9 +104,15 @@ class ToTensor:
 
 
 class Normalize:
-    def __init__(self):
-        # self.normImage = trsfs.Normalize(([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))
-        self.normImage = trsfs.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    def __init__(self, opts):
+        if opts.data.normalization == "default":
+            self.normImage = trsfs.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        elif opts.data.normalization == "HRNet":
+            self.normImage = trsfs.Normalize(
+                ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            )
+        else:
+            raise NotImplementedError
         self.normDepth = lambda x: x  # trsfs.Normalize([1 / 255], [1 / 3])
         self.normMask = lambda x: x
         self.normSeg = lambda x: x
@@ -150,7 +156,7 @@ def get_transforms(opts):
     """Get all the transform functions listed in opts.data.transforms
     using get_transform(transform_item)
     """
-    last_transforms = [Normalize()]
+    last_transforms = [Normalize(opts)]
 
     conf_transforms = []
     for t in opts.data.transforms:
