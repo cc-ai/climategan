@@ -303,9 +303,6 @@ class DepthDecoder(nn.Module):
         self.enc4_1 = nn.Conv2d(2048, 512, kernel_size=1, stride=1, padding=0, bias=True)
         self.enc4_2 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1, bias=True)
         self.enc4_3 = nn.Conv2d(512, 128, kernel_size=1, stride=1, padding=0, bias=True)
-        self.enc4_1.weight.data.normal_(0, 0.01)
-        self.enc4_2.weight.data.normal_(0, 0.01)
-        self.enc4_3.weight.data.normal_(0, 0.01)
         self.output_size = opts.data.transforms[-1].new_size
     def forward(self, x):
         x4_enc = self.enc4_1(x)
@@ -322,7 +319,7 @@ class DepthDecoder(nn.Module):
                     align_corners=False,
                 )
         depth = F.interpolate(
-                    depth, (self.output_size,self.output_size), mode=nearest
+                    depth, (self.output_size,self.output_size), mode="nearest"
                 )  #what we used in the transforms to resize input 
         return depth
 
