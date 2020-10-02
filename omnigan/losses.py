@@ -276,14 +276,16 @@ class SIMSELoss(nn.Module):
         relDiff = torch.mean(d) * torch.mean(d)
         return diff - relDiff
 
+
 class SIGMLoss(nn.Module):
-    def __init__(self, gmweight, device='cuda'):
+    def __init__(self, gmweight, device="cuda"):
         super(SIGMLoss, self).__init__()
         self.gmweight = gmweight
-        sobelx = torch.Tensor([[1,0,-1],[2,0,-2],[1,0,-1]])
-        sobely = torch.Tensor([[1,2,1],[0,0,0],[-1,-2,-1]])
+        sobelx = torch.Tensor([[1, 0, -1], [2, 0, -2], [1, 0, -1]])
+        sobely = torch.Tensor([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
         self.filter = (0.5 * (sobelx + sobely)).to(device)
         self.simse = SIMSELoss()
+
     def __call__(self, prediction, target):
         # get gradient map with sobel filters
         batch_size = prediction.size()[0]
@@ -292,7 +294,8 @@ class SIGMLoss(nn.Module):
         grad_target = F.conv2d(target, self.filter, stride=1)
         gmLoss = self.gmweight * torch.norm(grad_pred - grad_target)
         diff = self.simse(prediction, target) + gmLoss
-        return diff 
+        return diff
+
 
 class ContextLoss(nn.Module):
     """
@@ -388,7 +391,7 @@ def get_losses(opts, verbose, device=None):
         losses["G"]["p"]["sm"] = PixelCrossEntropy()
         losses["G"]["p"]["dm"] = MSELoss()
         losses["G"]["p"]["vgg"] = VGGLoss(device)
-        losses["G"]["p"]["tv"] = TVLoss(opts.train.lambdas.G.p.tv)
+        losses["G"]["p"]["tv"] = TVLoss()
         losses["G"]["p"]["context"] = ContextLoss()
         losses["G"]["p"]["featmatch"] = FeatMatchLoss()
 
@@ -411,7 +414,7 @@ def get_losses(opts, verbose, device=None):
             )
         else:
             losses["G"]["tasks"]["m"]["minent"] = entropy_loss
-        losses["G"]["tasks"]["m"]["tv"] = TVLoss(opts.train.lambdas.G.m.tv)
+        losses["G"]["tasks"]["m"]["tv"] = TVLoss()
         losses["G"]["tasks"]["m"]["advent"] = ADVENTAdversarialLoss(opts)
 
     # undistinguishable features loss

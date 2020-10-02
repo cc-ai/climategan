@@ -7,7 +7,6 @@ import yaml
 from addict import Dict
 from comet_ml import Experiment, ExistingExperiment
 from omegaconf import OmegaConf
-import torch
 
 from omnigan.trainer import Trainer
 

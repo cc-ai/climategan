@@ -740,11 +740,14 @@ class Trainer:
                         scaler = lambdas.G[update_task]
 
                     prediction = self.G.decoders[update_task](self.z)
-                    update_loss = self.losses["G"]["tasks"][update_task](
-                        prediction, update_target
+                    update_loss = (
+                        self.losses["G"]["tasks"][update_task](
+                            prediction, update_target
+                        )
+                        * scaler
                     )
 
-                    step_loss += scaler * update_loss
+                    step_loss += update_loss
                     self.logger.losses.gen.task[update_task][
                         batch_domain
                     ] = update_loss.item()
@@ -819,7 +822,10 @@ class Trainer:
                         ] = update_loss.item()
 
                     # Then TV loss
-                    update_loss = self.losses["G"]["tasks"]["m"]["tv"](prediction)
+                    update_loss = (
+                        self.losses["G"]["tasks"]["m"]["tv"](prediction)
+                        * self.opts.train.lambdas.G.m.tv
+                    )
                     step_loss += update_loss
 
                     self.logger.losses.gen.task["m"]["tv"][
@@ -906,7 +912,10 @@ class Trainer:
             self.logger.losses.gen.p.vgg = update_loss.item() * lambdas.G["p"]["vgg"]
             step_loss += update_loss
 
-            update_loss = self.losses["G"]["p"]["tv"](fake_flooded * m)
+            update_loss = (
+                self.losses["G"]["p"]["tv"](fake_flooded * m)
+                * opts.train.lambdas.G.p.tv
+            )
             self.logger.losses.gen.p.tv = update_loss.item()
             step_loss += update_loss
 
