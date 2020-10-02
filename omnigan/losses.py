@@ -305,7 +305,7 @@ class SIGMLoss(nn.Module):
         num_pix = prediction.size()[-1] * prediction.size()[-2]
         self.sobelx = (self.sobelx).expand((batch_size, 1, -1, -1))
         self.sobely = (self.sobely).expand((batch_size, 1, -1, -1))
-        gmLoss = O #gradient matching term
+        gmLoss = 0 #gradient matching term
         for k in range(scale):
             R_ = F.interpolate(R, scale_factor = 1/2**k)
             Rx = F.conv2d(R_, self.sobelx, stride=1)
@@ -418,6 +418,7 @@ def get_losses(opts, verbose, device=None):
     # task losses
     # ? * add discriminator and gan loss to these task when no ground truth
     # ?   instead of noisy label
+    
     if "d" in opts.tasks:
         losses["G"]["tasks"]["d"] = SIGMLoss(opts.train.lambdas.G.d.gml)
     if "s" in opts.tasks:
