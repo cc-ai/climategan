@@ -828,7 +828,8 @@ class Trainer:
 
                     # Then Compare loss
                     if self.opts.gen.m.use_compare_loss:
-                        print("using compare loss")
+                        if verbose > 0:
+                            print("Using compare loss.")
                         update_loss = (
                             self.losses["G"]["tasks"][update_task]["compare"](
                                 prediction, update_target
