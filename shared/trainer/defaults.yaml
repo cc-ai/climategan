@@ -184,7 +184,7 @@ classifier:
 # ------------------------
 train:
   epochs: 300
-  latent_domain_adaptation: True # whether or not to do domain adaptation on the latent vectors # Needs to be turned off if use_advent is True
+  latent_domain_adaptation: False # whether or not to do domain adaptation on the latent vectors # Needs to be turned off if use_advent is True
   lambdas: # scaling factors in the total loss
     G:
       d:
@@ -196,7 +196,7 @@ train:
         minient: 0.001
         advent: 0.001
       m:
-        main: 1 # Main prediction loss, i.e. GAN or BCE
+        bce: 1 # Main prediction loss, i.e. GAN or BCE
         tv: 1 # Total variational loss (for smoothing)
       p:
         gan: 1 # gan loss

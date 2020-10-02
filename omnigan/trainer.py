@@ -720,12 +720,15 @@ class Trainer:
                 output_classifier = self.C(self.z)
 
                 # Cross entropy loss (with sigmoid) with fake labels to fool C
-                update_loss = self.losses["G"]["classifier"](
-                    output_classifier,
-                    fake_domains_to_class_tensor(batch["domain"], one_hot),
+                update_loss = (
+                    self.losses["G"]["classifier"](
+                        output_classifier,
+                        fake_domains_to_class_tensor(batch["domain"], one_hot),
+                    )
+                    * lambdas.G.classifier
                 )
 
-                step_loss += lambdas.G.classifier * update_loss
+                step_loss += update_loss
                 self.logger.losses.gen.classifier[batch_domain] = update_loss.item()
 
             # -------------------------------------------------
@@ -810,14 +813,14 @@ class Trainer:
 
                         # Main loss first:
                         update_loss = (
-                            self.losses["G"]["tasks"]["m"]["main"](
+                            self.losses["G"]["tasks"]["m"]["bce"](
                                 prediction, update_target
                             )
-                            * lambdas.G["m"]["main"]
+                            * lambdas.G.m.bce
                         )
                         step_loss += update_loss
 
-                        self.logger.losses.gen.task["m"]["main"][
+                        self.logger.losses.gen.task["m"]["bce"][
                             "s"
                         ] = update_loss.item()
 
@@ -1345,7 +1348,7 @@ class Trainer:
             if self.exp is not None:
                 self.exp.log_metrics(
                     metric_avg_scores,
-                    prefix=f"METRICS_{mode}",
+                    prefix=f"metrics_{mode}",
                     step=self.logger.global_step,
                 )
 
