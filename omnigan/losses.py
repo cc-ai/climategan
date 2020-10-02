@@ -286,7 +286,7 @@ class SIGMLoss(nn.Module):
         self.gmweight = gmweight
         self.sobelx = torch.Tensor([[1,0,-1],[2,0,-2],[1,0,-1]])
         self.sobely = torch.Tensor([[1,2,1],[0,0,0],[-1,-2,-1]])
-
+        self.scale = scale
     def __call__(self, prediction, target):
         #get disparities
         #align both the prediction and the ground truth to have zero
@@ -306,7 +306,7 @@ class SIGMLoss(nn.Module):
         self.sobelx = (self.sobelx).expand((batch_size, 1, -1, -1))
         self.sobely = (self.sobely).expand((batch_size, 1, -1, -1))
         gmLoss = 0 #gradient matching term
-        for k in range(scale):
+        for k in range(self.scale):
             R_ = F.interpolate(R, scale_factor = 1/2**k)
             Rx = F.conv2d(R_, self.sobelx, stride=1)
             Ry = F.conv2d(R_, self.sobely, stride=1)
