@@ -76,21 +76,34 @@ def get_optimizer(net, opt_conf, tasks=None, iterations=-1):
     else:
         lr = opt_conf.lr.default
         params = list()
-        for task in tasks:
-            l_r = opt_conf.lr.get(task, lr)
-            # Parameters for encoder
-            if task == "m":
-                parameters = net.encoder.parameters()
+        if "Discriminator" in net.__class__.__name__:
+            for task in net.keys():
+                l_r = opt_conf.lr.get(task, lr)
+                if task == "p":
+                    for dis_name in net[task].keys():
+                        parameters = net[task][dis_name].parameters()
+                        params.append({"params": parameters, "lr": l_r})
+                        lr_names.append("disc_p_" + dis_name)
+                else:
+                    parameters = net[task].parameters()
+                    params.append({"params": parameters, "lr": l_r})
+                    lr_names.append(f"disc_{task}")
+        else:
+            for task in tasks:
+                l_r = opt_conf.lr.get(task, lr)
+                # Parameters for encoder
+                if task == "m":
+                    parameters = net.encoder.parameters()
+                    params.append({"params": parameters, "lr": l_r})
+                    lr_names.append("encoder")
+                # Parameters for decoders
+                if task == "p":
+                    parameters = net.painter.parameters()
+                    lr_names.append("painter")
+                else:
+                    parameters = net.decoders[task].parameters()
+                    lr_names.append(f"decoder_{task}")
                 params.append({"params": parameters, "lr": l_r})
-                lr_names.append("encoder")
-            # Parameters for decoders
-            if task == "p":
-                parameters = net.painter.parameters()
-                lr_names.append("painter")
-            else:
-                parameters = net.decoders[task].parameters()
-                lr_names.append(f"decoder_{task}")
-            params.append({"params": parameters, "lr": l_r})
     if opt_conf.optimizer == "ExtraAdam":
         opt = ExtraAdam(params, lr=lr, betas=(opt_conf.beta1, 0.999))
     else:
