@@ -199,7 +199,7 @@ train:
       m:
         main: 1 # Main prediction loss, i.e. GAN or BCE
         tv: 1 # Total variational loss (for smoothing)
-        compare: 0.5 # Compare loss (penalize areas in ground seg but not in flood mask)
+        compare: 0.05 # Compare loss (penalize areas in ground seg but not in flood mask) # This hyper-param is not good/ready. I am still exploring it.
       p:
         gan: 1 # gan loss
         sm: 1 # semantic matching
