@@ -61,8 +61,6 @@ class Trainer:
         self.opts = opts
         self.verbose = verbose
         self.logger = Dict()
-        self.logger.lr.g = opts.gen.opt.lr
-        self.logger.lr.d = opts.dis.opt.lr
         self.logger.epoch = 0
         self.loaders = None
         self.losses = None
@@ -1025,8 +1023,8 @@ class Trainer:
                     * lambdas.G["p"]["gan"]
                     / num_D
                 )
-
-                self.logger.losses.gen.p.endtoend += update_loss.item()
+                step_loss += update_loss
+                self.logger.losses.gen.p.endtoend += update_loss
 
         return step_loss
 
