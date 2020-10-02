@@ -5,7 +5,7 @@
 """
 import torch.nn as nn
 from omnigan.tutils import init_weights
-from omnigan.blocks import SpadeDecoder, BaseDecoder, ASPP
+from omnigan.blocks import SpadeDecoder, BaseDecoder, ASPP, DepthDecoder
 from omnigan.encoder import DeeplabEncoder, BaseEncoder
 import omnigan.strings as strings
 import torch.nn.functional as F
@@ -116,20 +116,20 @@ class MaskDecoder(BaseDecoder):
         )
 
 
-class DepthDecoder(BaseDecoder):
-    def __init__(self, opts):
-        super().__init__(
-            n_upsample=opts.gen.d.n_upsample,
-            n_res=opts.gen.d.n_res,
-            input_dim=opts.gen.encoder.res_dim,
-            proj_dim=opts.gen.d.proj_dim,
-            output_dim=opts.gen.d.output_dim,
-            res_norm=opts.gen.d.res_norm,
-            activ=opts.gen.d.activ,
-            pad_type=opts.gen.d.pad_type,
-            output_activ="sigmoid",
-            conv_norm=opts.gen.d.conv_norm,
-        )
+# class DepthDecoder(BaseDecoder):
+#     def __init__(self, opts):
+#         super().__init__(
+#             n_upsample=opts.gen.d.n_upsample,
+#             n_res=opts.gen.d.n_res,
+#             input_dim=opts.gen.encoder.res_dim,
+#             proj_dim=opts.gen.d.proj_dim,
+#             output_dim=opts.gen.d.output_dim,
+#             res_norm=opts.gen.d.res_norm,
+#             activ=opts.gen.d.activ,
+#             pad_type=opts.gen.d.pad_type,
+#             output_activ="sigmoid",
+#             conv_norm=opts.gen.d.conv_norm,
+#         )
 
 
 class SegmentationDecoder(BaseDecoder):
