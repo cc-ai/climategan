@@ -17,7 +17,7 @@ from omnigan.utils import (
     get_git_revision_hash,
     get_increased_path,
     load_opts,
-    copy_sbatch,
+    copy_run_files,
     find_existing_training,
     kill_job,
     pprint,
@@ -80,7 +80,7 @@ def main(opts):
         Path(opts.output_path).mkdir(parents=True, exist_ok=True)
 
     # Copy the opts's sbatch_file to output_path
-    copy_sbatch(opts)
+    copy_run_files(opts)
     # store git hash
     opts.git_hash = get_git_revision_hash()
 
