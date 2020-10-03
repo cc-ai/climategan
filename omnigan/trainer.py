@@ -223,7 +223,6 @@ class Trainer:
         if self.G.encoder is not None:
             self.latent_shape = self.compute_latent_shape()
 
-
         self.input_shape = self.compute_input_shape()
         if "s" in self.opts.tasks:
             self.G.decoders["s"].set_target_size(self.input_shape[-2:])
@@ -462,26 +461,32 @@ class Trainer:
 
                     if update_task not in save_images:
                         save_images[update_task] = []
-                    if update_task == "m2":
-                        prediction = self.G.decoders["m"](
-                            torch.cat(
-                                (self.z, self.label_2[0, :, :, :].unsqueeze(0)),
-                                dim=1,
-                            )
-                        )
 
-                    elif update_task == "m":
-                        if "m2" in self.opts.tasks:
-                            prediction = self.G.decoders[update_task](
+                    if update_task == "m" or update_task == "m2":
+                        if update_task == "m":
+                            if "m2" in self.opts.tasks:
+                                prediction = self.G.decoders[update_task](
+                                    torch.cat(
+                                        (self.z, self.label_1[0, :, :, :].unsqueeze(0)),
+                                        dim=1,
+                                    )
+                                )
+                            else:
+                                prediction = self.G.decoders[update_task](self.z)
+
+                        if update_task == "m2":
+                            prediction = self.G.decoders["m"](
                                 torch.cat(
-                                    (self.z, self.label_1[0, :, :, :].unsqueeze(0)),
+                                    (self.z, self.label_2[0, :, :, :].unsqueeze(0)),
                                     dim=1,
                                 )
                             )
-                        else:
-                            prediction = self.G.decoders[update_task](self.z)
 
-                    if update_task == "s":
+                        prediction = prediction.repeat(1, 3, 1, 1)
+                        task_saves.append(x * (1.0 - prediction))
+                        task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
+
+                    elif update_task == "s":
                         if domain == "s":
                             target = (
                                 decode_segmap_unity_labels(target, domain, True)
@@ -494,12 +499,8 @@ class Trainer:
                             .to(self.device)
                         )
                         task_saves.append(target)
-                    if update_task == "m" or update_task == "m2":
-                        prediction = prediction.repeat(1, 3, 1, 1)
-                        task_saves.append(x * (1.0 - prediction))
-                        task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
 
-                    if update_task == "d":
+                    elif update_task == "d":
                         # prediction is a log depth tensor
                         target = (norm_tensor(target)) * 255
                         prediction = (norm_tensor(prediction)) * 255
@@ -619,7 +620,7 @@ class Trainer:
             image_grid = vutils.make_grid(
                 ims, nrow=im_per_row, normalize=True, scale_each=True
             )
-            image_grid = image_grid.permute(1, 2, 0).numpy()
+            image_grid = image_grid.permute(1, 2, 0).cpu().numpy()
 
             if comet_exp is not None:
                 comet_exp.log_image(
@@ -809,85 +810,26 @@ class Trainer:
                                 "advent"
                             ][batch_domain] = update_loss.item()
                 elif update_task in {"m", "m2"}:
-                    # ? output features classifier
-
                     # If multi-level flooding
                     if "m2" in self.opts.tasks:
                         # Get label
                         if update_task == "m":
-                            prediction = self.G.decoders["m"](
-                                torch.cat((self.z, self.label_1), dim=1)
+                            prediction, m_step_loss = self.multi_level_loss(
+                                label_idx=1, batch_domain=batch_domain
                             )
-
-                            # AC-GAN loss
-                            validity, auxiliary = self.D["m2"]["FloodLevel"](
-                                prediction, self.z
-                            )
-
-                            # GAN loss
-                            update_loss = (
-                                self.losses["D"]["default"](validity, True)
-                                * self.opts.train.lambdas.G.m2.gan
-                            )
-                            self.logger.losses.generator.task_loss["m"]["gan"][
-                                batch_domain
-                            ] = update_loss.item()
-
-                            step_loss += update_loss
-
-                            # Auxiliary loss
-                            update_loss = (
-                                self.losses["D"]["multilevel"](
-                                    auxiliary, self.label_1[:, 0, 0, 0].squeeze()
-                                )
-                                * self.opts.train.lambdas.G.m2.aux
-                            )
-
-                            self.logger.losses.generator.task_loss["m"]["aux"][
-                                batch_domain
-                            ] = update_loss.item()
-
-                            step_loss += update_loss
 
                         elif update_task == "m2":
-                            prediction = self.G.decoders["m"](
-                                torch.cat((self.z, self.label_2), dim=1)
+                            prediction, m_step_loss = self.multi_level_loss(
+                                label_idx=2, batch_domain=batch_domain
                             )
-
-                            # AC GAN loss
-                            validity, auxiliary = self.D["m2"]["FloodLevel"](
-                                prediction, self.z
-                            )
-
-                            # GAN loss
-                            update_loss = (
-                                self.losses["D"]["default"](validity, True)
-                                * self.opts.train.lambdas.G.m2.gan
-                            )
-                            self.logger.losses.generator.task_loss["m2"]["gan"][
-                                batch_domain
-                            ] = update_loss.item()
-
-                            step_loss += update_loss
-
-                            # Auxiliary loss
-                            update_loss = (
-                                self.losses["D"]["multilevel"](
-                                    auxiliary, self.label_2[:, 0, 0, 0].squeeze()
-                                )
-                                * self.opts.train.lambdas.G.m2.aux
-                            )
-
-                            self.logger.losses.generator.task_loss["m2"]["aux"][
-                                batch_domain
-                            ] = update_loss.item()
-
-                            step_loss += update_loss
+                        
+                        step_loss += m_step_loss
 
                     # No multi-level flooding
                     else:
                         prediction = self.G.decoders["m"](self.z)
 
+                    # Simulated domain --> compare w/ ground truth masks
                     if batch_domain == "s":
                         # Main loss first:
                         update_loss = (
@@ -902,14 +844,7 @@ class Trainer:
                             batch_domain
                         ] = update_loss.item()
 
-                    # Then TV loss
-                    update_loss = self.losses["G"]["tasks"]["m"]["tv"](prediction)
-                    step_loss += update_loss
-
-                    self.logger.losses.generator.task_loss["m"]["tv"][
-                        batch_domain
-                    ] = update_loss.item()
-
+                    # Real domain --> ADVENT domain adaptation
                     if batch_domain == "r":
                         # -----------ADVENT losses--------------
                         pred_complementary = 1 - prediction
@@ -943,7 +878,51 @@ class Trainer:
                             ] = update_loss.item()
                         # -------------------------------------
 
+                    # Then TV loss
+                    update_loss = self.losses["G"]["tasks"]["m"]["tv"](prediction)
+                    step_loss += update_loss
+
+                    self.logger.losses.generator.task_loss["m"]["tv"][
+                        batch_domain
+                    ] = update_loss.item()
+
         return step_loss
+
+    def multi_level_loss(self, batch_domain, label_idx):
+        step_loss = 0
+        labels = {1: self.label_1, 2: self.label_2}
+
+        prediction = self.G.decoders["m"](torch.cat((self.z, labels[label_idx]), dim=1))
+
+        # AC-GAN loss
+        validity, auxiliary = self.D["m2"]["FloodLevel"](prediction, self.z)
+
+        # GAN loss
+        update_loss = (
+            self.losses["D"]["default"](validity, True)
+            * self.opts.train.lambdas.G.m2.gan
+        )
+        self.logger.losses.generator.task_loss["m"]["gan"][
+            batch_domain
+        ] = update_loss.item()
+
+        step_loss += update_loss
+
+        # Auxiliary loss
+        update_loss = (
+            self.losses["D"]["multilevel"](
+                auxiliary, labels[label_idx][:, 0, 0, 0].squeeze()
+            )
+            * self.opts.train.lambdas.G.m2.aux
+        )
+
+        self.logger.losses.generator.task_loss["m"]["aux"][
+            batch_domain
+        ] = update_loss.item()
+
+        step_loss += update_loss
+
+        return prediction, step_loss
 
     def sample_z(self, batch_size):
         return (
@@ -1407,39 +1386,40 @@ class Trainer:
     def run_evaluation(self, verbose=0):
         print("******************* Running Evaluation ***********************")
         self.eval_mode()
-        val_logger = None
-        nb_of_batches = None
-        for i, multi_batch_tuple in enumerate(self.val_loaders):
-            # create a dictionnary (domain => batch) from tuple
-            # (batch_domain_0, ..., batch_domain_i)
-            # and send it to self.device
-            nb_of_batches = i + 1
-            multi_domain_batch = {
-                batch["domain"][0]: self.batch_to_device(batch)
-                for batch in multi_batch_tuple
-            }
-            self.get_g_loss(multi_domain_batch, verbose)
+        with torch.no_grad():
+            val_logger = None
+            nb_of_batches = None
+            for i, multi_batch_tuple in enumerate(self.val_loaders):
+                # create a dictionnary (domain => batch) from tuple
+                # (batch_domain_0, ..., batch_domain_i)
+                # and send it to self.device
+                nb_of_batches = i + 1
+                multi_domain_batch = {
+                    batch["domain"][0]: self.batch_to_device(batch)
+                    for batch in multi_batch_tuple
+                }
+                self.get_g_loss(multi_domain_batch, verbose)
 
-            if val_logger is None:
-                val_logger = deepcopy(self.logger.losses.generator)
-            else:
-                val_logger = sum_dict(val_logger, self.logger.losses.generator)
+                if val_logger is None:
+                    val_logger = deepcopy(self.logger.losses.generator)
+                else:
+                    val_logger = sum_dict(val_logger, self.logger.losses.generator)
 
-        val_logger = div_dict(val_logger, nb_of_batches)
-        self.logger.losses.generator = val_logger
-        self.log_losses(model_to_update="G", mode="val")
+            val_logger = div_dict(val_logger, nb_of_batches)
+            self.logger.losses.generator = val_logger
+            self.log_losses(model_to_update="G", mode="val")
 
-        for d in self.opts.domains:
-            self.log_comet_images("train", d)
-            self.log_comet_images("val", d)
+            for d in self.opts.domains:
+                self.log_comet_images("train", d)
+                self.log_comet_images("val", d)
 
-        if "m" in self.opts.tasks and "p" in self.opts.tasks:
-            self.log_comet_combined_images("train", "r")
-            self.log_comet_combined_images("val", "r")
+            if "m" in self.opts.tasks and "p" in self.opts.tasks:
+                self.log_comet_combined_images("train", "r")
+                self.log_comet_combined_images("val", "r")
 
-        if "m" in self.opts.tasks:
-            self.eval_images("val", "r")
-            self.eval_images("val", "s")
+            if "m" in self.opts.tasks:
+                self.eval_images("val", "r")
+                self.eval_images("val", "s")
 
         self.train_mode()
         print("****************** Done *********************")
