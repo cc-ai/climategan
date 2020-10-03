@@ -18,7 +18,6 @@ from omnigan.utils import (
     get_increased_path,
     load_opts,
     copy_sbatch,
-    merge,
     find_existing_training,
     kill_job,
     pprint,

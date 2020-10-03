@@ -276,6 +276,7 @@ class SIMSELoss(nn.Module):
         relDiff = torch.mean(d) * torch.mean(d)
         return diff - relDiff
 
+
 class SIGMLoss(nn.Module):
     """loss from MiDaS paper
     MiDaS did not specify how the gradients were computed but we use Sobel filters which approximate
@@ -287,6 +288,7 @@ class SIGMLoss(nn.Module):
         self.sobelx = torch.Tensor([[1,0,-1],[2,0,-2],[1,0,-1]]).to(device)
         self.sobely = torch.Tensor([[1,2,1],[0,0,0],[-1,-2,-1]]).to(device)
         self.scale = scale
+
     def __call__(self, prediction, target):
         #get disparities
         #align both the prediction and the ground truth to have zero
@@ -316,6 +318,7 @@ class SIGMLoss(nn.Module):
         simseLoss = 0.5/num_pix * torch.sum(torch.abs(R))
         loss = simseLoss + gmLoss
         return loss
+
 
 class ContextLoss(nn.Module):
     """
@@ -411,7 +414,7 @@ def get_losses(opts, verbose, device=None):
         losses["G"]["p"]["sm"] = PixelCrossEntropy()
         losses["G"]["p"]["dm"] = MSELoss()
         losses["G"]["p"]["vgg"] = VGGLoss(device)
-        losses["G"]["p"]["tv"] = TVLoss(opts.train.lambdas.G.p.tv)
+        losses["G"]["p"]["tv"] = TVLoss()
         losses["G"]["p"]["context"] = ContextLoss()
         losses["G"]["p"]["featmatch"] = FeatMatchLoss()
 
@@ -428,14 +431,14 @@ def get_losses(opts, verbose, device=None):
         losses["G"]["tasks"]["s"]["advent"] = ADVENTAdversarialLoss(opts)
     if "m" in opts.tasks:
         losses["G"]["tasks"]["m"] = {}
-        losses["G"]["tasks"]["m"]["main"] = nn.BCELoss()
+        losses["G"]["tasks"]["m"]["bce"] = nn.BCELoss()
         if opts.gen.m.use_minent_var:
             losses["G"]["tasks"]["m"]["minent"] = lambda x: entropy_loss_v2(
                 x, lambda_var=opts.train.lambdas.advent.ent_var
             )
         else:
             losses["G"]["tasks"]["m"]["minent"] = entropy_loss
-        losses["G"]["tasks"]["m"]["tv"] = TVLoss(opts.train.lambdas.G.m.tv)
+        losses["G"]["tasks"]["m"]["tv"] = TVLoss()
         losses["G"]["tasks"]["m"]["advent"] = ADVENTAdversarialLoss(opts)
 
     # undistinguishable features loss

@@ -10,6 +10,7 @@ import torch
 from torch.autograd import Variable
 from skimage import io as skio
 from torch.nn import init
+import torch.nn as nn
 
 
 def transforms_string(ts):
@@ -359,3 +360,15 @@ def vgg_preprocess(batch):
     mean[:, 2, :, :] = 123.680
     batch = batch.sub(Variable(mean))  # subtract mean
     return batch
+
+
+def zero_grad(model: nn.Module):
+    """
+    Sets gradients to None. Mode efficient than model.zero_grad()
+    or opt.zero_grad() according to https://www.youtube.com/watch?v=9mS1fIYj1So
+
+    Args:
+        model (nn.Module): model to zero out
+    """
+    for p in model.parameters():
+        p.grad = None
