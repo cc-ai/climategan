@@ -1,2 +1,177 @@
-#TODO: fill this with all possible parameters we want to explore:
-#  proj_dim, learning rates, lambdas, tasks
+# File that contains all possible parameters we want to explore:
+# proj_dim, learning rates, lambdas, tasks
+
+--- # ---------------------------
+# `sample` can be
+# - `uniform` (np.random.uniform(*from))
+# - `range` (np.choice(np.arange(*from)))
+# - `list` (np.choice(from))
+# - `cartesian` special case where a cartesian product of all keys with the `cartesian` sampling scheme
+#               is created and iterated over in order. `from` MUST be a list
+#               As we iterate over the cartesian product of all
+#               such keys, others are sampled as usual. If n_search is larger than the size of the cartesian
+#               product, it will cycle again through the product in the same order
+#               example with A being `cartesian` from [1, 2] and B from [y, z] and 5 searches:
+#                  => {A:1, B: y}, {A:1, B: z}, {A:2, B: y}, {A:2, B: z}, {A:1, B: y}
+# - `sequential` samples will loop through the values in `from`. `from` MUST be a list
+
+# ---------------------------
+# -----  SBATCH config  -----
+cpus: 8
+partition: long
+mem: 32G
+gres: "gpu:rtx8000:1"
+codeloc: $HOME/ccai/omnigan
+
+modules: "module load anaconda/3 && module load pytorch"
+conda: "conda activate omnienv && conda deactivate && conda activate omnienv"
+
+n_search: -1
+
+# ------------------------
+# -----  Train Args  -----
+# ------------------------
+
+"args.note": "Hyperparameter search"
+"args.comet_tags": ["Exploration_search", "v1"]
+"args.config": "config/trainer/my_config.yaml"
+
+# --------------------------
+# -----  Model config  -----
+# --------------------------
+"tasks": # Note: comment all the task-lists and keep only 1!
+  sample: list
+  from:
+    - [p]
+    - [m]
+    - [m,s]
+    - [m,d]
+    - [m,s,d]
+
+# ------- LR tuning -------
+# Generator
+"gen.opt.lr.p":
+  sample: list
+  from: [0.0001, 0,00005, 0.00001, 0.000005]
+
+"gen.opt.lr.m":
+  sample: list
+  from: [0.0001, 0,00005, 0.00001, 0.000005]
+
+"gen.opt.lr.s":
+  sample: list
+  from: [0.00001, 0,000005, 0.000001]
+
+"gen.opt.lr.d":
+  sample: list
+  from: [0.0001, 0.00001, 0.000001]
+
+# Discriminator
+"dis.opt.lr.p":
+  sample: list
+  from: [0.001, 0.0001, 0.00001, 0.000001]
+
+"dis.opt.lr.m":
+  sample: list
+  from: [0.001, 0.0001, 0.00001, 0.000001]
+
+"dis.opt.lr.s":
+  sample: list
+  from: [0.001, 0.0001, 0.00001, 0.000001]
+
+# Schedulers
+"gen.opt.lr_step_size": # default = 10
+  sample: list
+  from: [5, 10, 15, 20]
+
+"gen.opt.lr_milestones": # default = 15
+  sample: list
+  from: [15]
+
+"gen.opt.lr_gamma": # default = 0.5
+  sample: uniform
+  from: [0, 1]
+
+"dis.opt.lr_step_size": # default = 10
+  sample: list
+  from: [5, 10, 20, 50]
+
+"dis.opt.lr_milestones": # default = 15
+  sample: list
+  from: [15]
+
+"dis.opt.lr_gamma": # default = 0.5
+  sample: uniform
+  from: [0, 1]
+
+
+# ------ Lambdas tuning ------
+# Depth
+"train.lambdas.G.d.main": # Default = 1
+  sample: uniform
+  from: [0.5, 1]
+
+"train.lambdas.G.d.gml": # Default = 1
+  sample: uniform
+  from: [0.5, 1]
+
+# Segmentation
+"train.lambdas.G.s.crossent": # Default = 1
+  sample: uniform
+  from: [0.5, 1]
+
+"train.lambdas.G.s.crossent_pseudo": # Default = 0.001
+  sample: uniform
+  from: [0.01, 1]
+
+"train.lambdas.G.s.advent": # Default = 0.001
+  sample: uniform
+  from: [0.001, 1]
+
+# Masker
+"train.lambdas.G.m.bce": # Default = 1
+  sample: uniform
+  from: [0.5, 1]
+
+"train.lambdas.G.m.tv": # Default = 1
+  sample: uniform
+  from: [0.5, 1]
+
+"train.lambdas.advent.ent_main": # Default = 0.5
+  sample: uniform
+  from: [0.1, 1]
+
+"train.lambdas.advent.ent_var": # Default = 0.1
+  sample: uniform
+  from: [0.5, 1]
+
+"train.lambdas.advent.adv_main": # Default = 1
+  sample: uniform
+  from: [0.5, 1]
+
+# Painter
+"train.lambdas.G.p.gan": # Default = 1
+  sample: uniform
+  from: [0.5, 1]
+
+"train.lambdas.G.p.tv": # Default = 500
+  sample: uniform
+  from: [200, 1000]
+
+"train.lambdas.G.p.vgg": # Default = 1
+  sample: uniform
+  from: [0.5, 1]
+
+"train.lambdas.G.p.context": # Default = 12
+  sample: uniform
+  from: [5, 20]
+
+"train.lambdas.G.p.featmatch": # Defautl = 10
+  sample: uniform
+  from: [5, 20]
+
+
+# ------- Other hp tuning -------
+"gen.default.proj_dim": # default = 32
+  sample: list
+  from: [12, 24, 32, 48]
