@@ -69,7 +69,7 @@ def merge(
 def load_opts(
     path: Optional[Union[str, Path]] = None,
     default: Optional[Union[str, Path, dict, Dict]] = None,
-    commandline_opts: Optional[Union[Dict, dict]] = None
+    commandline_opts: Optional[Union[Dict, dict]] = None,
 ) -> Dict:
     # TODO add assert: if deeplabv2 then res_dim = 2048
     """Loadsize a configuration Dict from 2 files:
@@ -104,7 +104,7 @@ def load_opts(
         overriding_opts = {}
     else:
         with open(path, "r") as f:
-            overriding_opts = yaml.safe_load(f)
+            overriding_opts = yaml.safe_load(f) or {}
 
     opts = Dict(merge(overriding_opts, default_opts))
 
