@@ -22,7 +22,7 @@ comet_kwargs = {
 }
 
 
-def copy_sbatch(opts: Dict) -> None:
+def copy_run_files(opts: Dict) -> None:
     """
     Copy the opts's sbatch_file to output_path
 
@@ -31,6 +31,12 @@ def copy_sbatch(opts: Dict) -> None:
     """
     if opts.sbatch_file:
         p = Path(opts.sbatch_file)
+        if p.exists():
+            o = Path(opts.output_path)
+            if o.exists():
+                shutil.copyfile(p, o / p.name)
+    if opts.exp_file:
+        p = Path(opts.exp_file)
         if p.exists():
             o = Path(opts.output_path)
             if o.exists():
@@ -69,7 +75,7 @@ def merge(
 def load_opts(
     path: Optional[Union[str, Path]] = None,
     default: Optional[Union[str, Path, dict, Dict]] = None,
-    commandline_opts: Optional[Union[Dict, dict]] = None
+    commandline_opts: Optional[Union[Dict, dict]] = None,
 ) -> Dict:
     # TODO add assert: if deeplabv2 then res_dim = 2048
     """Loadsize a configuration Dict from 2 files:
