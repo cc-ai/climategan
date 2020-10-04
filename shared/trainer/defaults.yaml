@@ -44,7 +44,7 @@ data:
     - name: rot
       ignore: False
       p: 0.5 # the prob to trigger the rotaion transform
-      angle: [-6.0, -3.0, 3.0, 6.0] # can be float/int or list of float/int
+      angle: [-6.0, -3.0, 3.0, 6.0] # can be float/int or list of float/int; positive/negtive angles for counter-clockwise/clockwise
     - name: resize # ? this or change generator's output? Or resize larger then crop to 256?
       ignore: false
       new_size: 640
