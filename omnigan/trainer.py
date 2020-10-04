@@ -757,7 +757,6 @@ class Trainer:
                             loss_name = "crossent"
                         else:
                             loss_name = "crossent_pseudo"
-
                         update_loss = (
                             self.losses["G"]["tasks"]["s"]["crossent"](
                                 prediction, update_target.squeeze(1)
