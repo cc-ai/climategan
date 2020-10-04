@@ -89,6 +89,8 @@ class RandomRotations:
         self.angle = angle
 
     def cut_balck_edge(self, rotated, angle_selected):
+        if angle_selected < 0:
+            angle_selected = -angle_selected
         angle_selected = angle_selected / 180 * pi
         if angle_selected < 15:
             tanAngle = angle_selected
