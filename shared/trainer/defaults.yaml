@@ -45,6 +45,8 @@ data:
       ignore: False
       p: 0.5 # the prob to trigger the rotaion transform
       angle: [-6.0, -3.0, 3.0, 6.0] # can be float/int or list of float/int; positive/negtive angles for counter-clockwise/clockwise
+      # Suggestion: had better not to rotate more than 6 degree (abs value) because the slope will be kind of fake beyond 6.
+      # Please noticed that, the area preserved after the rotation has a propotion of (1-tan(a)/1+tan(a))^2 where a is the abs rotation angle. This conclusion also works for rectangles.
     - name: resize # ? this or change generator's output? Or resize larger then crop to 256?
       ignore: false
       new_size: 640
