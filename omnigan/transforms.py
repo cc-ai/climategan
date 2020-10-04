@@ -119,7 +119,7 @@ class RandomRotations:
         return tmp
 
     def __call__(self, data):
-        if self.p > 1 or np.random.rand() > self.p:
+        if self.p < 0 or np.random.rand() > self.p:
             return data
         if isinstance(self.angle, (int, float)):
             selected_angle = self.angle

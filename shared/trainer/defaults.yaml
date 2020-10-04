@@ -41,6 +41,10 @@ data:
       ignore: false
       height: 600
       width: 600
+    - name: rot
+      ignore: False
+      p: 0.5 # the prob to trigger the rotaion transform
+      angle: [4.0, 8.0, 12.0] # can be float/int or list of float/int
     - name: resize # ? this or change generator's output? Or resize larger then crop to 256?
       ignore: false
       new_size: 640
