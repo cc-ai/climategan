@@ -112,8 +112,9 @@ class RandomRotations:
             1.0: 1.0,
             0.98039216: 6.0,
             0.99215686: 3.0,
-            0.9882353: 4,
-            0.9647059: 10,
+            0.9882353: 4.0,
+            0.9647059: 10.0,
+            0.972549: 8.0,
         }
         tmp = torch.zeros(rotated.shape)
         for k, v in seg_dict.items():
@@ -138,6 +139,8 @@ class RandomRotations:
         totensor = trsfs.ToTensor()
 
         for task, tensor in data.items():
+            # print("data.items()", data.items())
+            # print("task", task)
             if task == "s":
                 self.cut_black_edge(
                     self.mapping(
@@ -222,8 +225,10 @@ def get_transform(transform_item):
 
     if transform_item.name == "hflip" and not transform_item.ignore:
         return RandomHorizontalFlip(p=transform_item.p or 0.5)
+
     if transform_item.name == "rot" and not transform_item.ignore:
         return RandomRotations(p=transform_item.p, angle=transform_item.angle)
+
     if transform_item.ignore:
         return None
 
