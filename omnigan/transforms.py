@@ -139,23 +139,20 @@ class RandomRotations:
         totensor = trsfs.ToTensor()
 
         for task, tensor in data.items():
-            # print("data.items()", data.items())
-            # print("task", task)
             if task == "s":
-                d[task] = torch.tensor(
-                    self.cut_black_edge(
-                        self.mapping(
-                            totensor(
-                                TF.rotate(
-                                    TF.to_pil_image(tensor[0, 0, :, :], "L"),
-                                    selected_angle,
-                                    expand=True,
-                                )
+                d[task] = self.cut_black_edge(
+                    self.mapping(
+                        totensor(
+                            TF.rotate(
+                                TF.to_pil_image(tensor[0, 0, :, :], "L"),
+                                selected_angle,
+                                expand=True,
                             )
-                        ),
-                        selected_angle,
-                    )
+                        )
+                    ),
+                    selected_angle,
                 )
+
             else:
                 d[task] = torch.tensor(
                     self.cut_black_edge(
