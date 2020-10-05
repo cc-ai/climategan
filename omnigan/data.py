@@ -380,7 +380,7 @@ def get_loader(mode, domain, opts):
             mode, domain, opts, transform=transforms.Compose(get_transforms(opts))
         ),
         batch_size=opts.data.loaders.get("batch_size", 4),
-        shuffle=True,
+        shuffle=opts.data.loaders.shuffle,
         num_workers=opts.data.loaders.get("num_workers", 8),
         pin_memory=True,  # faster transfer to gpu
         drop_last=True,  # avoids batchnorm pbs if last batch has size 1
