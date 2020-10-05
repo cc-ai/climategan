@@ -9,6 +9,7 @@ from scipy.ndimage.interpolation import rotate
 from PIL import Image
 import traceback
 from math import pi
+from collections import Counter
 
 
 def interpolation(task):
@@ -103,23 +104,23 @@ class RandomRotations:
         c = int(w * tanAngle / (tanAngle + 1))
         return rotated[:, :, c:-c, a:-a]
 
-    def mapping(self, rotated):
-        seg_dict = {
-            0.99607843: 2.0,
-            0.9843137: 5.0,
-            0.96862745: 9.0,
-            0.9764706: 7.0,
-            1.0: 1.0,
-            0.98039216: 6.0,
-            0.99215686: 3.0,
-            0.9882353: 4.0,
-            0.9647059: 10.0,
-            0.972549: 8.0,
-        }
-        tmp = torch.zeros(rotated.shape)
-        for k, v in seg_dict.items():
-            tmp += (rotated == k) * v
-        return tmp
+    # def mapping(self, rotated):
+    #     seg_dict = {
+    #         0.99607843: 2.0,
+    #         0.9843137: 5.0,
+    #         0.96862745: 9.0,
+    #         0.9764706: 7.0,
+    #         1.0: 1.0,
+    #         0.98039216: 6.0,
+    #         0.99215686: 3.0,
+    #         0.9882353: 4.0,
+    #         0.9647059: 10.0,
+    #         0.972549: 8.0,
+    #     }
+    #     tmp = torch.zeros(rotated.shape)
+    #     for k, v in seg_dict.items():
+    #         tmp += (rotated == k) * v
+    #     return tmp
 
     def __call__(self, data):
         if self.p < 0 or np.random.rand() > self.p:
@@ -136,23 +137,36 @@ class RandomRotations:
             return data
         task = tensor = None
         d = {}
-        totensor = trsfs.ToTensor()
+        # totensor = trsfs.ToTensor()
 
         for task, tensor in data.items():
             if task == "s":
+                # d[task] = self.cut_black_edge(
+                #     self.mapping(
+                #         totensor(
+                #             TF.rotate(
+                #                 TF.to_pil_image(tensor[0, 0, :, :], "L"),
+                #                 selected_angle,
+                #                 expand=True,
+                #             )
+                #         )
+                #     ),
+                #     selected_angle,
+                # )
                 d[task] = self.cut_black_edge(
-                    self.mapping(
-                        totensor(
+                    (
+                        256
+                        - TF.pil_to_tensor(
                             TF.rotate(
                                 TF.to_pil_image(tensor[0, 0, :, :], "L"),
                                 selected_angle,
                                 expand=True,
                             )
                         )
-                    ),
+                    )
+                    * 1.0,
                     selected_angle,
                 )
-
             else:
                 d[task] = torch.tensor(
                     self.cut_black_edge(
