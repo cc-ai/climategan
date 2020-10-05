@@ -48,64 +48,59 @@ n_search: -1
     - [m,d]
     - [m,s,d]
 
+# -------------------------
 # ------- LR tuning -------
+# -------------------------
 # Generator
-"gen.opt.lr.p":
+"gen.opt.lr.p": # Default is 0.00001
   sample: list
-  from: [0.0001, 0,00005, 0.00001, 0.000005]
+  from: [0.000005, 0,00001, 0.00005, 0.0001]
 
-"gen.opt.lr.m":
+"gen.opt.lr.m": # Default is 0.00001
   sample: list
-  from: [0.0001, 0,00005, 0.00001, 0.000005]
+  from: [0.000005, 0,00001, 0.00005, 0.0001]
 
-"gen.opt.lr.s":
+"gen.opt.lr.s": # Default is 0.00001
   sample: list
-  from: [0.00001, 0,000005, 0.000001]
+  from: [0.000001, 0,000005, 0.00001, 0.00005]
 
-"gen.opt.lr.d":
+"gen.opt.lr.d": # Default is 0.00001
   sample: list
-  from: [0.0001, 0.00001, 0.000001]
+  from: [0.000005, 0,00001, 0.00005, 0.0001]
 
 # Discriminator
-"dis.opt.lr.p":
+"dis.opt.lr.p": # Default is 0.0001
   sample: list
   from: [0.001, 0.0001, 0.00001, 0.000001]
 
-"dis.opt.lr.m":
+"dis.opt.lr.m": # Default is 0.0001
   sample: list
   from: [0.001, 0.0001, 0.00001, 0.000001]
 
-"dis.opt.lr.s":
+"dis.opt.lr.s": # Default is 0.0001
   sample: list
   from: [0.001, 0.0001, 0.00001, 0.000001]
 
 # Schedulers
 "gen.opt.lr_step_size": # default = 10
   sample: list
-  from: [5, 10, 15, 20]
-
-"gen.opt.lr_milestones": # default = 15
-  sample: list
-  from: [15]
+  from: [5, 10, 20, 50]
 
 "gen.opt.lr_gamma": # default = 0.5
   sample: uniform
-  from: [0, 1]
+  from: [0.1, 1]
 
 "dis.opt.lr_step_size": # default = 10
   sample: list
   from: [5, 10, 20, 50]
 
-"dis.opt.lr_milestones": # default = 15
-  sample: list
-  from: [15]
-
 "dis.opt.lr_gamma": # default = 0.5
   sample: uniform
-  from: [0, 1]
+  from: [0.1, 1]
 
-
-# ------ Lambdas tuning ------
+# -------------------------
+# ---- Lambdas tuning -----
+# -------------------------
 # Depth
 "train.lambdas.G.d.main": # Default = 1
   sample: uniform
@@ -120,30 +115,30 @@ n_search: -1
   sample: uniform
   from: [0.5, 1]
 
-"train.lambdas.G.s.crossent_pseudo": # Default = 0.001
+"train.lambdas.G.s.crossent_pseudo": # Default = 0.001, current values around 0.0008
   sample: uniform
-  from: [0.01, 1]
+  from: [0.01, 10]
 
-"train.lambdas.G.s.advent": # Default = 0.001
+"train.lambdas.G.s.advent": # Default = 0.001, current values around 0.002
   sample: uniform
   from: [0.001, 1]
 
 # Masker
 "train.lambdas.G.m.bce": # Default = 1
   sample: uniform
-  from: [0.5, 1]
+  from: [1] # Current value makes sense
 
-"train.lambdas.G.m.tv": # Default = 1
+"train.lambdas.G.m.tv": # Default = 1, current value around 0.0002 
   sample: uniform
-  from: [0.5, 1]
+  from: [10, 1000]
 
 "train.lambdas.advent.ent_main": # Default = 0.5
   sample: uniform
-  from: [0.1, 1]
+  from: [0.5] # Current value makes sense
 
 "train.lambdas.advent.ent_var": # Default = 0.1
   sample: uniform
-  from: [0.5, 1]
+  from: [1] # Current value makes sense
 
 "train.lambdas.advent.adv_main": # Default = 1
   sample: uniform
@@ -170,8 +165,9 @@ n_search: -1
   sample: uniform
   from: [5, 20]
 
-
-# ------- Other hp tuning -------
+# -------------------------
+# ---- Other hp tuning ----
+# -------------------------
 "gen.default.proj_dim": # default = 32
   sample: list
   from: [12, 24, 32, 48]
