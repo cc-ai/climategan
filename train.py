@@ -84,8 +84,6 @@ def main(opts):
     # store git hash
     opts.git_hash = get_git_revision_hash()
 
-    breakpoint()
-
     if not args.no_comet:
         # ----------------------------------
         # -----  Set Comet Experiment  -----
