@@ -170,7 +170,7 @@ class ToTensor:
     def __call__(self, data):
         new_data = {}
         for task, im in data.items():
-            if task in {"x", "a"}:
+            if task in {"x"}:
                 new_data[task] = self.ImagetoTensor(im)
             elif task in {"m"}:
                 new_data[task] = self.MaptoTensor(im)
