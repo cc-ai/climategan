@@ -293,6 +293,39 @@ class BaseDecoder(nn.Module):
         return strings.basedecoder(self)
 
 
+class DepthDecoder(nn.Module):
+    """#Depth decoder based on depth auxiliary task in DADA paper
+
+    """
+    def __init__(self, opts):
+        super().__init__()
+        self.relu = nn.ReLU(inplace = True)
+        self.enc4_1 = nn.Conv2d(2048, 512, kernel_size=1, stride=1, padding=0, bias=True)
+        self.enc4_2 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1, bias=True)
+        self.enc4_3 = nn.Conv2d(512, 128, kernel_size=1, stride=1, padding=0, bias=True)
+        self.output_size = opts.data.transforms[-1].new_size
+    def forward(self, x):
+        x4_enc = self.enc4_1(x)
+        x4_enc = self.relu(x4_enc)
+        x4_enc = self.enc4_2(x4_enc)
+        x4_enc = self.relu(x4_enc)
+        x4_enc = self.enc4_3(x4_enc)
+        
+        depth = torch.mean(x4_enc, dim=1, keepdim=True)  # DADA paper decoder
+        depth = F.interpolate(
+                    depth,
+                    size=(384,384), #size used in MiDaS inference
+                    mode="bicubic", #what MiDaS uses
+                    align_corners=False,
+                )
+        depth = F.interpolate(
+                    depth, (self.output_size,self.output_size), mode="nearest"
+                )  #what we used in the transforms to resize input 
+        return depth
+
+    def __str__(self):
+        return strings.basedecoder(self)
+
 # --------------------------
 # -----  SPADE Blocks  -----
 # --------------------------
