@@ -88,7 +88,7 @@ class RandomRotations:
         self.p = p
         self.angle = angle
 
-    def cut_balck_edge(self, rotated, angle_selected):
+    def cut_black_edge(self, rotated, angle_selected):
         if angle_selected < 0:
             angle_selected = -angle_selected
         angle_selected = angle_selected / 180 * pi
@@ -104,7 +104,7 @@ class RandomRotations:
         return rotated[:, :, c:-c, a:-a]
 
     def mapping(self, rotated):
-        Dict = {
+        seg_dict = {
             0.99607843: 2.0,
             0.9843137: 5.0,
             0.96862745: 9.0,
@@ -116,7 +116,7 @@ class RandomRotations:
             0.9647059: 10,
         }
         tmp = torch.zeros(rotated.shape)
-        for k, v in Dict.items():
+        for k, v in seg_dict.items():
             tmp += (rotated == k) * v
         return tmp
 
@@ -139,7 +139,7 @@ class RandomRotations:
 
         for task, tensor in data.items():
             if task == "s":
-                self.cut_balck_edge(
+                self.cut_black_edge(
                     self.mapping(
                         totensor(
                             TF.rotate(
@@ -153,7 +153,7 @@ class RandomRotations:
                 )
             else:
                 d[task] = torch.tensor(
-                    self.cut_balck_edge(
+                    self.cut_black_edge(
                         rotate(tensor, selected_angle, axes=(3, 2)), selected_angle
                     )
                 )

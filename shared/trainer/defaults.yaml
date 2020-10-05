@@ -100,6 +100,8 @@ gen:
 
   d: # specific params for the depth estimation decoder
     <<: *default-gen
+    init_type: normal
+    init_gain: 0.01
     output_dim: 1
     conv_norm: batch
     res_norm: batch
@@ -194,19 +196,19 @@ classifier:
 # ------------------------
 train:
   epochs: 300
-  latent_domain_adaptation: True # whether or not to do domain adaptation on the latent vectors # Needs to be turned off if use_advent is True
+  latent_domain_adaptation: False # whether or not to do domain adaptation on the latent vectors # Needs to be turned off if use_advent is True
   lambdas: # scaling factors in the total loss
     G:
       d:
         main: 1
-        gml: 1
+        gml: 0.5
       s:
         crossent: 1
         crossent_pseudo: 0.001
         minient: 0.001
         advent: 0.001
       m:
-        main: 1 # Main prediction loss, i.e. GAN or BCE
+        bce: 1 # Main prediction loss, i.e. GAN or BCE
         tv: 1 # Total variational loss (for smoothing)
         compare: 0.05 # Compare loss (penalize areas in ground seg but not in flood mask) # This hyper-param is not good/ready. I am still exploring it.
       p:

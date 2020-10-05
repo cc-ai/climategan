@@ -720,12 +720,15 @@ class Trainer:
                 output_classifier = self.C(self.z)
 
                 # Cross entropy loss (with sigmoid) with fake labels to fool C
-                update_loss = self.losses["G"]["classifier"](
-                    output_classifier,
-                    fake_domains_to_class_tensor(batch["domain"], one_hot),
+                update_loss = (
+                    self.losses["G"]["classifier"](
+                        output_classifier,
+                        fake_domains_to_class_tensor(batch["domain"], one_hot),
+                    )
+                    * lambdas.G.classifier
                 )
 
-                step_loss += lambdas.G.classifier * update_loss
+                step_loss += update_loss
                 self.logger.losses.gen.classifier[batch_domain] = update_loss.item()
 
             # -------------------------------------------------
@@ -740,11 +743,14 @@ class Trainer:
                         scaler = lambdas.G[update_task]
 
                     prediction = self.G.decoders[update_task](self.z)
-                    update_loss = self.losses["G"]["tasks"][update_task](
-                        prediction, update_target
+                    update_loss = (
+                        self.losses["G"]["tasks"][update_task](
+                            prediction, update_target
+                        )
+                        * scaler
                     )
 
-                    step_loss += scaler * update_loss
+                    step_loss += update_loss
                     self.logger.losses.gen.task[update_task][
                         batch_domain
                     ] = update_loss.item()
@@ -757,6 +763,7 @@ class Trainer:
                             loss_name = "crossent"
                         else:
                             loss_name = "crossent_pseudo"
+
                         update_loss = (
                             self.losses["G"]["tasks"]["s"]["crossent"](
                                 prediction, update_target.squeeze(1)
@@ -806,19 +813,22 @@ class Trainer:
 
                         # Main loss first:
                         update_loss = (
-                            self.losses["G"]["tasks"]["m"]["main"](
+                            self.losses["G"]["tasks"]["m"]["bce"](
                                 prediction, update_target
                             )
-                            * lambdas.G["m"]["main"]
+                            * lambdas.G.m.bce
                         )
                         step_loss += update_loss
 
-                        self.logger.losses.gen.task["m"]["main"][
+                        self.logger.losses.gen.task["m"]["bce"][
                             "s"
                         ] = update_loss.item()
 
                     # Then TV loss
-                    update_loss = self.losses["G"]["tasks"]["m"]["tv"](prediction)
+                    update_loss = (
+                        self.losses["G"]["tasks"]["m"]["tv"](prediction)
+                        * self.opts.train.lambdas.G.m.tv
+                    )
                     step_loss += update_loss
 
                     self.logger.losses.gen.task["m"]["tv"][
@@ -921,7 +931,10 @@ class Trainer:
             self.logger.losses.gen.p.vgg = update_loss.item() * lambdas.G["p"]["vgg"]
             step_loss += update_loss
 
-            update_loss = self.losses["G"]["p"]["tv"](fake_flooded * m)
+            update_loss = (
+                self.losses["G"]["p"]["tv"](fake_flooded * m)
+                * opts.train.lambdas.G.p.tv
+            )
             self.logger.losses.gen.p.tv = update_loss.item()
             step_loss += update_loss
 
@@ -1351,7 +1364,7 @@ class Trainer:
             if self.exp is not None:
                 self.exp.log_metrics(
                     metric_avg_scores,
-                    prefix=f"METRICS_{mode}",
+                    prefix=f"metrics_{mode}",
                     step=self.logger.global_step,
                 )
 
