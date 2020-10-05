@@ -631,10 +631,7 @@ class Trainer:
             self.run_epoch()
             self.run_evaluation(verbose=1)
 
-            if (
-                self.logger.epoch != 0
-                and self.logger.epoch % self.opts.train.save_n_epochs == 0
-            ):
+            if self.logger.epoch % self.opts.train.save_n_epochs == 0:
                 self.save()
 
     def get_g_loss(self, multi_domain_batch, verbose=0):
@@ -1308,7 +1305,7 @@ class Trainer:
         self.G.load_state_dict(checkpoint["G"])
         if not ("m" in self.opts.tasks and "p" in self.opts.tasks):
             self.g_opt.load_state_dict(checkpoint["g_opt"])
-        self.logger.epoch = checkpoint["epoch"]
+        self.logger.epoch = checkpoint["epoch"] + 1
         self.logger.global_step = checkpoint["step"]
 
         # resume scheduler:
