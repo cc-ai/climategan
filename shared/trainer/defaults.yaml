@@ -91,6 +91,8 @@ gen:
 
   d: # specific params for the depth estimation decoder
     <<: *default-gen
+    init_type: normal
+    init_gain: 0.01
     output_dim: 1
     conv_norm: batch
     res_norm: batch
@@ -189,7 +191,7 @@ train:
     G:
       d:
         main: 1
-        gml: 1
+        gml: 0.5
       s:
         crossent: 1
         crossent_pseudo: 0.001

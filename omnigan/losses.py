@@ -278,23 +278,46 @@ class SIMSELoss(nn.Module):
 
 
 class SIGMLoss(nn.Module):
-    def __init__(self, gmweight, device="cuda"):
+    """loss from MiDaS paper
+    MiDaS did not specify how the gradients were computed but we use Sobel filters which approximate
+    the derivative of an image. 
+    """
+    def __init__(self, gmweight = 0.5, scale = 4, device='cuda'):
         super(SIGMLoss, self).__init__()
         self.gmweight = gmweight
-        sobelx = torch.Tensor([[1, 0, -1], [2, 0, -2], [1, 0, -1]])
-        sobely = torch.Tensor([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
-        self.filter = (0.5 * (sobelx + sobely)).to(device)
-        self.simse = SIMSELoss()
+        self.sobelx = torch.Tensor([[1,0,-1],[2,0,-2],[1,0,-1]]).to(device)
+        self.sobely = torch.Tensor([[1,2,1],[0,0,0],[-1,-2,-1]]).to(device)
+        self.scale = scale
 
     def __call__(self, prediction, target):
+        #get disparities
+        #align both the prediction and the ground truth to have zero
+        # translation and unit scale
+        t_pred = torch.median(prediction)
+        t_targ = torch.median(target)
+        s_pred = torch.mean(torch.abs(prediction - t_pred))
+        s_targ = torch.mean(torch.abs(target - t_targ))
+        pred = (prediction - t_pred)/s_pred
+        targ = (target - t_targ)/s_targ
+
+        R = pred - targ
+
         # get gradient map with sobel filters
         batch_size = prediction.size()[0]
-        self.filter = (self.filter).expand((batch_size, 1, -1, -1))
-        grad_pred = F.conv2d(prediction, self.filter, stride=1)
-        grad_target = F.conv2d(target, self.filter, stride=1)
-        gmLoss = self.gmweight * torch.norm(grad_pred - grad_target)
-        diff = self.simse(prediction, target) + gmLoss
-        return diff
+        num_pix = prediction.size()[-1] * prediction.size()[-2]
+        self.sobelx = (self.sobelx).expand((batch_size, 1, -1, -1))
+        self.sobely = (self.sobely).expand((batch_size, 1, -1, -1))
+        gmLoss = 0 #gradient matching term
+        for k in range(self.scale):
+            R_ = F.interpolate(R, scale_factor = 1/2**k)
+            Rx = F.conv2d(R_, self.sobelx, stride=1)
+            Ry = F.conv2d(R_, self.sobely, stride=1)
+            gmLoss += torch.sum(torch.abs(Rx) + torch.abs(Ry))
+        gmLoss = self.gmweight / num_pix * gmLoss
+        #scale invariant MSE
+        simseLoss = 0.5/num_pix * torch.sum(torch.abs(R))
+        loss = simseLoss + gmLoss
+        return loss
 
 
 class ContextLoss(nn.Module):
@@ -398,6 +421,7 @@ def get_losses(opts, verbose, device=None):
     # task losses
     # ? * add discriminator and gan loss to these task when no ground truth
     # ?   instead of noisy label
+    
     if "d" in opts.tasks:
         losses["G"]["tasks"]["d"] = SIGMLoss(opts.train.lambdas.G.d.gml)
     if "s" in opts.tasks:
