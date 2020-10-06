@@ -189,7 +189,7 @@ train:
     G:
       d:
         main: 1
-        gml: 1
+        gml: 0.5
       s:
         crossent: 1
         crossent_pseudo: 0.001
