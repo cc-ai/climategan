@@ -62,6 +62,17 @@ n_search: -1
   sample: list
   from: [0.000005, 0.00001, 0.00002, 0.00005, 0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005]
 
+# --------------------------
+# --- Optimizer's choice ---
+# --------------------------
+"gen.opt.optimizer":
+  sample: list
+  from: ["Adam", "ExtraAdam", "RAdam", "NovoGrad"]
+
+"dis.opt.optimizer":
+  sample: list
+  from: ["Adam", "ExtraAdam", "RAdam", "NovoGrad"]
+
 # -------------------------
 # ---- Lambdas tuning -----
 # -------------------------
@@ -71,7 +82,7 @@ n_search: -1
   from: [0.1, 0.5, 1, 2, 5]
 
 # "train.lambdas.G.d.gml": # Default = 1
-#   sample: uniform
+#   sample: list
 #   from: [0.1, 0.5, 1]
 
 # Segmentation
