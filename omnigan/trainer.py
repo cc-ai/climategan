@@ -1023,8 +1023,8 @@ class Trainer:
                     * lambdas.G["p"]["gan"]
                     / num_D
                 )
-                step_loss += update_loss
-                self.logger.losses.gen.p.endtoend += update_loss
+                step_loss += update_loss.item()
+                self.logger.losses.gen.p.endtoend += update_loss.item()
 
         return step_loss
 
