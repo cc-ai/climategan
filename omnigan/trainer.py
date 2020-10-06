@@ -778,17 +778,17 @@ class Trainer:
 
                     if batch_domain == "r":
                         # Entropy minimization loss
-                        if self.opts.gen.s.use_minient:
+                        if self.opts.gen.s.use_minent:
                             # Direct entropy minimization
                             update_loss = (
-                                self.losses["G"]["tasks"][update_task]["minient"](
+                                self.losses["G"]["tasks"][update_task]["minent"](
                                     prediction
                                 )
-                                * lambdas.G[update_task]["minient"]
+                                * lambdas.G[update_task]["minent"]
                             )
                             step_loss += update_loss
 
-                            self.logger.losses.gen.task[update_task]["minient"][
+                            self.logger.losses.gen.task[update_task]["minent"][
                                 batch_domain
                             ] = update_loss.item()
 

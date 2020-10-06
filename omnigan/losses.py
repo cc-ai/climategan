@@ -201,7 +201,7 @@ def cross_entropy_2d(predict, target):
     return loss
 
 
-class MiniEntLoss(nn.Module):
+class MinEntLoss(nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -280,25 +280,26 @@ class SIMSELoss(nn.Module):
 class SIGMLoss(nn.Module):
     """loss from MiDaS paper
     MiDaS did not specify how the gradients were computed but we use Sobel filters which approximate
-    the derivative of an image. 
+    the derivative of an image.
     """
-    def __init__(self, gmweight = 0.5, scale = 4, device='cuda'):
+
+    def __init__(self, gmweight=0.5, scale=4, device="cuda"):
         super(SIGMLoss, self).__init__()
         self.gmweight = gmweight
-        self.sobelx = torch.Tensor([[1,0,-1],[2,0,-2],[1,0,-1]]).to(device)
-        self.sobely = torch.Tensor([[1,2,1],[0,0,0],[-1,-2,-1]]).to(device)
+        self.sobelx = torch.Tensor([[1, 0, -1], [2, 0, -2], [1, 0, -1]]).to(device)
+        self.sobely = torch.Tensor([[1, 2, 1], [0, 0, 0], [-1, -2, -1]]).to(device)
         self.scale = scale
 
     def __call__(self, prediction, target):
-        #get disparities
-        #align both the prediction and the ground truth to have zero
+        # get disparities
+        # align both the prediction and the ground truth to have zero
         # translation and unit scale
         t_pred = torch.median(prediction)
         t_targ = torch.median(target)
         s_pred = torch.mean(torch.abs(prediction - t_pred))
         s_targ = torch.mean(torch.abs(target - t_targ))
-        pred = (prediction - t_pred)/s_pred
-        targ = (target - t_targ)/s_targ
+        pred = (prediction - t_pred) / s_pred
+        targ = (target - t_targ) / s_targ
 
         R = pred - targ
 
@@ -307,15 +308,15 @@ class SIGMLoss(nn.Module):
         num_pix = prediction.size()[-1] * prediction.size()[-2]
         self.sobelx = (self.sobelx).expand((batch_size, 1, -1, -1))
         self.sobely = (self.sobely).expand((batch_size, 1, -1, -1))
-        gmLoss = 0 #gradient matching term
+        gmLoss = 0  # gradient matching term
         for k in range(self.scale):
-            R_ = F.interpolate(R, scale_factor = 1/2**k)
+            R_ = F.interpolate(R, scale_factor=1 / 2 ** k)
             Rx = F.conv2d(R_, self.sobelx, stride=1)
             Ry = F.conv2d(R_, self.sobely, stride=1)
             gmLoss += torch.sum(torch.abs(Rx) + torch.abs(Ry))
         gmLoss = self.gmweight / num_pix * gmLoss
-        #scale invariant MSE
-        simseLoss = 0.5/num_pix * torch.sum(torch.abs(R))
+        # scale invariant MSE
+        simseLoss = 0.5 / num_pix * torch.sum(torch.abs(R))
         loss = simseLoss + gmLoss
         return loss
 
@@ -421,13 +422,13 @@ def get_losses(opts, verbose, device=None):
     # task losses
     # ? * add discriminator and gan loss to these task when no ground truth
     # ?   instead of noisy label
-    
+
     if "d" in opts.tasks:
         losses["G"]["tasks"]["d"] = SIGMLoss(opts.train.lambdas.G.d.gml)
     if "s" in opts.tasks:
         losses["G"]["tasks"]["s"] = {}
         losses["G"]["tasks"]["s"]["crossent"] = CrossEntropy()
-        losses["G"]["tasks"]["s"]["minient"] = MiniEntLoss()
+        losses["G"]["tasks"]["s"]["minent"] = MinEntLoss()
         losses["G"]["tasks"]["s"]["advent"] = ADVENTAdversarialLoss(opts)
     if "m" in opts.tasks:
         losses["G"]["tasks"]["m"] = {}
