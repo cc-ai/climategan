@@ -3,6 +3,7 @@
 import torch
 import math
 from torch.optim import Optimizer, Adam, lr_scheduler
+from torch_optimizer import NovoGrad, RAdam
 
 
 def get_scheduler(optimizer, hyperparameters, iterations=-1):
@@ -104,8 +105,14 @@ def get_optimizer(net, opt_conf, tasks=None, iterations=-1):
                     parameters = net.decoders[task].parameters()
                     lr_names.append(f"decoder_{task}")
                 params.append({"params": parameters, "lr": l_r})
-    if opt_conf.optimizer == "ExtraAdam":
+    if opt_conf.optimizer.lower() == "extraadam":
         opt = ExtraAdam(params, lr=lr, betas=(opt_conf.beta1, 0.999))
+    elif opt_conf.optimizer.lower() == "novograd":
+        opt = NovoGrad(
+            params, lr=lr, betas=(opt_conf.beta1, 0)
+        )  # default for beta2 is 0
+    elif opt_conf.optimizer.lower() == "radam":
+        opt = RAdam(params, lr=lr, betas=(opt_conf.beta1, 0.999))
     else:
         opt = Adam(params, lr=lr, betas=(opt_conf.beta1, 0.999))
     scheduler = get_scheduler(opt, opt_conf, iterations)

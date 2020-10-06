@@ -91,6 +91,8 @@ gen:
 
   d: # specific params for the depth estimation decoder
     <<: *default-gen
+    init_type: normal
+    init_gain: 0.01
     output_dim: 1
     conv_norm: batch
     res_norm: batch
