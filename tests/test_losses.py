@@ -33,13 +33,4 @@ if __name__ == "__main__":
     G = get_gen(opts).to(device)
     z = G.encode(image)
 
-    # -----------------------------------
-    # -----  Test cross_entropy_2d  -----
-    # -----------------------------------
-    print_header("test_crossentropy_2d")
-    prediction = G.decoders["s"](z)
-    pce = PixelCrossEntropy()
-    print(pce(prediction.squeeze(), batch["data"]["x"].long().squeeze().to(device)))
-    # ! error how to infer from cropped data: input: 224 output: 256??
-
     # TODO more test for the losses
