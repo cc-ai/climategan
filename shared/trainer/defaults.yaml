@@ -221,6 +221,7 @@ train:
   log_level: 2 # 0: no log, 1: only aggregated losses, >1 detailed losses
   save_n_epochs: 1 # Save model every n epochs
   resume: false # Load latest_ckpt.pth checkpoint from `output_path` #TODO Make this path of checkpoint to load
+  auto_resume: true # automatically looks for similar output paths and exact same jobID to resume training automatically even if resume is false.
 
 # -----------------------------
 # ----- Validation Params -----
