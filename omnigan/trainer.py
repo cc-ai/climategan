@@ -61,8 +61,6 @@ class Trainer:
         self.opts = opts
         self.verbose = verbose
         self.logger = Dict()
-        self.logger.lr.g = opts.gen.opt.lr
-        self.logger.lr.d = opts.dis.opt.lr
         self.logger.epoch = 0
         self.loaders = None
         self.losses = None
@@ -778,7 +776,7 @@ class Trainer:
 
                     if batch_domain == "r":
                         # Entropy minimization loss
-                        if self.opts.gen.s.use_minient:
+                        if self.opts.gen.s.use_minent:
                             # Direct entropy minimization
                             update_loss = (
                                 self.losses["G"]["tasks"][update_task]["minient"](
