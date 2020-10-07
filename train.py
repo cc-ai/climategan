@@ -57,6 +57,7 @@ def main(opts):
     opts = load_opts(args.config, default=default, commandline_opts=hydra_opts)
     if args.resume:
         opts.train.resume = True
+
     opts.jobID = os.environ.get("SLURM_JOBID")
     opts.output_path = str(env_to_path(opts.output_path))
     print("Config output_path:", opts.output_path)
@@ -68,7 +69,7 @@ def main(opts):
     # -------------------------------
 
     # Auto-continue if same slurm job ID (=job was requeued)
-    if not opts.train.resume:
+    if not opts.train.resume and not args.no_resume:
         existing_path = find_existing_training(opts)
         if existing_path is not None and existing_path.exists():
             opts.train.resume = True

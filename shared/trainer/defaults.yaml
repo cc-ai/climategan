@@ -195,7 +195,7 @@ train:
       s:
         crossent: 1
         crossent_pseudo: 0.001
-        minient: 0.001
+        minent: 0.001
         advent: 0.001
       m:
         bce: 1 # Main prediction loss, i.e. GAN or BCE

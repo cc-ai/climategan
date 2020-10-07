@@ -270,7 +270,7 @@ class SIMSELoss(nn.Module):
 class SIGMLoss(nn.Module):
     """loss from MiDaS paper
     MiDaS did not specify how the gradients were computed but we use Sobel filters which approximate
-    the derivative of an image. 
+    the derivative of an image.
     """
 
     def __init__(self, gmweight=0.5, scale=4, device="cuda"):
