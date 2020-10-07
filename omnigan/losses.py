@@ -206,7 +206,7 @@ class MinentLoss(nn.Module):
         Loss for the minimization of the entropy map
         Source for version 1: https://github.com/valeoai/ADVENT 
 
-        Version 2 adds the variance of the entropy map in the computation the loss
+        Version 2 adds the variance of the entropy map in the computation of the loss
     """
 
     def __init__(self, version=1, lambda_var=0.1):
@@ -226,31 +226,6 @@ class MinentLoss(nn.Module):
             return torch.sum(entropy_map + self.lambda_var * entropy_map_squ) / (
                 n * h * w
             )
-
-
-def entropy_loss(v):
-    """
-        Entropy loss for probabilistic prediction vectors
-        input: batch_size x channels x h x w
-        output: batch_size x 1 x h x w
-    """
-    assert v.dim() == 4
-    n, c, h, w = v.size()
-    return -torch.sum(torch.mul(v, torch.log2(v + 1e-30))) / (n * h * w * np.log2(c))
-
-
-def entropy_loss_v2(v, lambda_var=0.1):
-    """
-        Entropy loss for probabilistic prediction vectors
-        input: batch_size x channels x h x w
-        output: batch_size x 1 x h x w
-    """
-    assert v.dim() == 4
-    n, c, h, w = v.size()
-    entropy_map = -torch.mul(v, torch.log2(v + 1e-30)) / np.log2(c)
-    entropy_map_demean = entropy_map - torch.sum(entropy_map) / (n * h * w)
-    entropy_map_squ = torch.mul(entropy_map_demean, entropy_map_demean)
-    return torch.sum(entropy_map + lambda_var * entropy_map_squ) / (n * h * w)
 
 
 class MSELoss(nn.Module):
