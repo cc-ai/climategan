@@ -13,7 +13,7 @@ codeloc: $HOME/ccai/omnigan
 modules: "module load anaconda/3 && module load pytorch"
 conda: "conda activate omnienv && conda deactivate && conda activate omnienv"
 
-n_search: -1
+n_search: 2
 
 # ------------------------
 # -----  Train Args  -----
@@ -25,13 +25,13 @@ n_search: -1
 # --------------------------
 # -----  Model config  -----
 # --------------------------
-"tasks": # Note: comment all the task-lists and keep only 1!
+"tasks":
   sample: list
   from:
-    - [m]
-    - [m,s]
-    - [m,d]
-    - [m,s,d]
+    - m
+    - m,s
+    - m,d
+    - m,s,d
 
 # -------------------------
 # ------- LR tuning -------
