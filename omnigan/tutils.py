@@ -209,12 +209,11 @@ def decode_unity_depth_t(unity_depth, log=True, normalize=False, numpy=False, fa
     G = unity_depth[:, :, 1]
     B = unity_depth[:, :, 2]
 
-    R = ((256.0 - R) / 8.0).type(torch.FloatTensor)
-    G = ((256.0 - G) / 8.0).type(torch.FloatTensor)
-    B = (256.0 - B).type(torch.FloatTensor)
-    depth = ((R * 256.0 * 31.0 + G * 256.0 + B).type(torch.FloatTensor)) / (
-        256.0 * 31.0 * 31.0 - 1.0
-    )
+    R = ((247 - R) / 8).type(torch.IntTensor)
+    G = ((247 - G) / 8).type(torch.IntTensor)
+    B = (255 - B).type(torch.IntTensor)
+    depth = ((R * 256 * 31 + G * 256 + B).type(torch.FloatTensor)) / (256 * 31 * 31 -1)
+    depth = (depth * far)
     depth = 1 / depth
     depth = depth.unsqueeze(0)  # (depth * far).unsqueeze(0)
 
