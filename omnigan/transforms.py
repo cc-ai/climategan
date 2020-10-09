@@ -104,23 +104,12 @@ class RandomRotations:
         c = int(w * tanAngle / (tanAngle + 1))
         return rotated[:, :, c:-c, a:-a]
 
-    # def mapping(self, rotated):
-    #     seg_dict = {
-    #         0.99607843: 2.0,
-    #         0.9843137: 5.0,
-    #         0.96862745: 9.0,
-    #         0.9764706: 7.0,
-    #         1.0: 1.0,
-    #         0.98039216: 6.0,
-    #         0.99215686: 3.0,
-    #         0.9882353: 4.0,
-    #         0.9647059: 10.0,
-    #         0.972549: 8.0,
-    #     }
-    #     tmp = torch.zeros(rotated.shape)
-    #     for k, v in seg_dict.items():
-    #         tmp += (rotated == k) * v
-    #     return tmp
+    def maxminnormalize(self, tensor):
+        if tensor.max() == 0 or tensor.min() == 1:
+            return tensor
+        t0 = tensor - tensor.min()
+        t0 = torch.true_divide(t0, t0.max())
+        return t0
 
     def __call__(self, data):
         if self.p < 0 or np.random.rand() > self.p:
@@ -141,18 +130,6 @@ class RandomRotations:
 
         for task, tensor in data.items():
             if task == "s":
-                # d[task] = self.cut_black_edge(
-                #     self.mapping(
-                #         totensor(
-                #             TF.rotate(
-                #                 TF.to_pil_image(tensor[0, 0, :, :], "L"),
-                #                 selected_angle,
-                #                 expand=True,
-                #             )
-                #         )
-                #     ),
-                #     selected_angle,
-                # )
                 d[task] = self.cut_black_edge(
                     (
                         256
@@ -167,11 +144,29 @@ class RandomRotations:
                     * 1.0,
                     selected_angle,
                 )
-            else:
-                d[task] = torch.tensor(
-                    self.cut_black_edge(
-                        rotate(tensor, selected_angle, axes=(3, 2)), selected_angle
+            elif task == "m":
+                d[task] = self.maxminnormalize(
+                    torch.tensor(
+                        self.cut_black_edge(
+                            rotate(tensor, selected_angle, axes=(3, 2)), selected_angle
+                        )
                     )
+                )
+                d[task][d[task] > 0.5] = 1.0
+                d[task][d[task] < 0.5] = 0.0
+            else:
+                d[task] = self.maxminnormalize(
+                    torch.tensor(
+                        self.cut_black_edge(
+                            rotate(tensor, selected_angle, axes=(3, 2)), selected_angle
+                        )
+                    )
+                )
+                assert d[task].max() <= 1 and d[task].min() >= 0, (
+                    "Error in the rotation tensor! It must in the range of [0,1]! We get max="
+                    + str(d[task].max())
+                    + ";min="
+                    + str(d[task].min())
                 )
         return d
 
@@ -184,9 +179,9 @@ class ToTensor:
     def __call__(self, data):
         new_data = {}
         for task, im in data.items():
-            if task in {"x"}:
+            if task == "x":
                 new_data[task] = self.ImagetoTensor(im)
-            elif task in {"m"}:
+            elif task == "m":
                 new_data[task] = self.MaptoTensor(im)
             elif task == "s":
                 new_data[task] = torch.squeeze(torch.from_numpy(np.array(im))).to(
