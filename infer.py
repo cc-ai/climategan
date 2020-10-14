@@ -78,7 +78,8 @@ def eval_folder(
     image_list = os.listdir(path_to_images)
     image_list.sort()
     images = [path_to_images / Path(i) for i in image_list]
-    if not masker:
+
+    if paint:
         mask_list = os.listdir(path_to_masks)
         mask_list.sort()
         masks = [path_to_masks / Path(i) for i in mask_list]
@@ -94,7 +95,7 @@ def eval_folder(
 
         img = img.unsqueeze(0).to(device)
 
-        if not masker or not seg:
+        if paint:
             mask = tensor_loader(masks[i], task="m", domain="val", binarize=False)
             # mask = F.interpolate(mask, (new_size, new_size), mode="nearest")
             mask = mask.squeeze()
@@ -146,7 +147,7 @@ def eval_folder(
         if seg:
             z = model.encode(img)
             seg_tens = model.decoders["s"](z)
-            file_name = img_path.name.rsplit("/", 1)[-1]
+            file_name = img_path.stem
             print(file_name)
             torch.save(seg_tens, output_dir / ("seg_" + file_name + ".pt"))
 
