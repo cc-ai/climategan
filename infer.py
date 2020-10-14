@@ -85,7 +85,7 @@ def eval_folder(
     image_list.sort()
     images = [path_to_images / Path(i) for i in image_list]
 
-    if paint:
+    if not masker and paint:
         mask_list = os.listdir(path_to_masks)
         mask_list.sort()
         masks = [path_to_masks / Path(i) for i in mask_list]
