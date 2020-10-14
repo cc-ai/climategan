@@ -395,7 +395,7 @@ def get_losses(opts, verbose, device=None):
     if "s" in opts.tasks:
         losses["G"]["tasks"]["s"] = {}
         losses["G"]["tasks"]["s"]["crossent"] = CrossEntropy()
-        losses["G"]["tasks"]["s"]["minient"] = MinentLoss()
+        losses["G"]["tasks"]["s"]["minent"] = MinentLoss()
         losses["G"]["tasks"]["s"]["advent"] = ADVENTAdversarialLoss(opts)
     if "m" in opts.tasks:
         losses["G"]["tasks"]["m"] = {}
