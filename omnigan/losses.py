@@ -178,64 +178,31 @@ class TVLoss(nn.Module):
         return t.size()[1] * t.size()[2] * t.size()[3]
 
 
-def cross_entropy_2d(predict, target):
+class MinentLoss(nn.Module):
     """
-    Args:
-        predict:(n, c, h, w)
-        target:(n, h, w)
+        Loss for the minimization of the entropy map
+        Source for version 1: https://github.com/valeoai/ADVENT 
+
+        Version 2 adds the variance of the entropy map in the computation of the loss
     """
-    assert not target.requires_grad
-    assert predict.dim() == 4
-    assert target.dim() == 3
-    assert predict.size(0) == target.size(0), f"{predict.size(0)} vs {target.size(0)}"
-    assert predict.size(2) == target.size(1), f"{predict.size(2)} vs {target.size(1)}"
-    assert predict.size(3) == target.size(2), f"{predict.size(3)} vs {target.size(3)}"
-    n, c, h, w = predict.size()
-    target_mask = (target >= 0) * (target != 255)
-    target = target[target_mask]
-    if not target.data.dim():
-        return Variable(torch.zeros(1))
-    predict = predict.transpose(1, 2).transpose(2, 3).contiguous()
-    predict = predict[target_mask.view(n, h, w, 1).repeat(1, 1, 1, c)].view(-1, c)
-    loss = F.cross_entropy(predict, target)
-    return loss
 
-
-class MinEntLoss(nn.Module):
-    def __init__(self):
+    def __init__(self, version=1, lambda_var=0.1):
         super().__init__()
+        self.version = version
+        self.lambda_var = lambda_var
 
-    def __call__(self, prediction):
-        assert prediction.dim() == 4
-        n, c, h, w = prediction.size()
-        return -torch.sum(torch.mul(prediction, torch.log2(prediction + 1e-30))) / (
-            n * h * w * np.log2(c)
-        )
-
-
-def entropy_loss(v):
-    """
-        Entropy loss for probabilistic prediction vectors
-        input: batch_size x channels x h x w
-        output: batch_size x 1 x h x w
-    """
-    assert v.dim() == 4
-    n, c, h, w = v.size()
-    return -torch.sum(torch.mul(v, torch.log2(v + 1e-30))) / (n * h * w * np.log2(c))
-
-
-def entropy_loss_v2(v, lambda_var=0.1):
-    """
-        Entropy loss for probabilistic prediction vectors
-        input: batch_size x channels x h x w
-        output: batch_size x 1 x h x w
-    """
-    assert v.dim() == 4
-    n, c, h, w = v.size()
-    entropy_map = -torch.mul(v, torch.log2(v + 1e-30)) / np.log2(c)
-    entropy_map_demean = entropy_map - torch.sum(entropy_map) / (n * h * w)
-    entropy_map_squ = torch.mul(entropy_map_demean, entropy_map_demean)
-    return torch.sum(entropy_map + lambda_var * entropy_map_squ) / (n * h * w)
+    def __call__(self, pred):
+        assert pred.dim() == 4
+        n, c, h, w = pred.size()
+        entropy_map = -torch.mul(pred, torch.log2(pred + 1e-30)) / np.log2(c)
+        if self.version == 1:
+            return torch.sum(entropy_map) / (n * h * w)
+        else:
+            entropy_map_demean = entropy_map - torch.sum(entropy_map) / (n * h * w)
+            entropy_map_squ = torch.mul(entropy_map_demean, entropy_map_demean)
+            return torch.sum(entropy_map + self.lambda_var * entropy_map_squ) / (
+                n * h * w
+            )
 
 
 class MSELoss(nn.Module):
@@ -428,17 +395,17 @@ def get_losses(opts, verbose, device=None):
     if "s" in opts.tasks:
         losses["G"]["tasks"]["s"] = {}
         losses["G"]["tasks"]["s"]["crossent"] = CrossEntropy()
-        losses["G"]["tasks"]["s"]["minent"] = MinEntLoss()
+        losses["G"]["tasks"]["s"]["minent"] = MinentLoss()
         losses["G"]["tasks"]["s"]["advent"] = ADVENTAdversarialLoss(opts)
     if "m" in opts.tasks:
         losses["G"]["tasks"]["m"] = {}
         losses["G"]["tasks"]["m"]["bce"] = nn.BCELoss()
         if opts.gen.m.use_minent_var:
-            losses["G"]["tasks"]["m"]["minent"] = lambda x: entropy_loss_v2(
-                x, lambda_var=opts.train.lambdas.advent.ent_var
+            losses["G"]["tasks"]["m"]["minent"] = MinentLoss(
+                version=2, lambda_var=opts.train.lambdas.advent.ent_var
             )
         else:
-            losses["G"]["tasks"]["m"]["minent"] = entropy_loss
+            losses["G"]["tasks"]["m"]["minent"] = MinentLoss()
         losses["G"]["tasks"]["m"]["tv"] = TVLoss()
         losses["G"]["tasks"]["m"]["advent"] = ADVENTAdversarialLoss(opts)
 
