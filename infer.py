@@ -44,9 +44,7 @@ def parsed_args():
         required=True,
     )
     parser.add_argument(
-        "--new_size",
-        type=int,
-        help="Size of generated masks",
+        "--new_size", type=int, help="Size of generated masks",
     )
     parser.add_argument(
         "--output_dir",
@@ -61,9 +59,7 @@ def parsed_args():
         required=False,
     )
     parser.add_argument(
-        "--apply_mask",
-        action="store_true",
-        help="Apply mask to image to save",
+        "--apply_mask", action="store_true", help="Apply mask to image to save",
     )
 
     return parser.parse_args()
@@ -75,6 +71,7 @@ def eval_folder(
     path_to_masks=None,
     paint=False,
     masker=False,
+    seg=False,
     apply_mask=False,
 ):
 
@@ -97,7 +94,7 @@ def eval_folder(
 
         img = img.unsqueeze(0).to(device)
 
-        if not masker:
+        if not masker or not seg:
             mask = tensor_loader(masks[i], task="m", domain="val", binarize=False)
             # mask = F.interpolate(mask, (new_size, new_size), mode="nearest")
             mask = mask.squeeze()
@@ -116,12 +113,15 @@ def eval_folder(
                     mask = model.decoders["m"](z_aug)
 
                     vutils.save_image(
-                        mask, output_dir / (f"mask_{label_val}_" + img_path.name), normalize=True
+                        mask,
+                        output_dir / (f"mask_{label_val}_" + img_path.name),
+                        normalize=True,
                     )
                     if apply_mask:
                         vutils.save_image(
                             img * (1.0 - mask) + mask,
-                            output_dir / (img_path.stem + f"img_masked_{label_val}" + ".jpg"),
+                            output_dir
+                            / (img_path.stem + f"img_masked_{label_val}" + ".jpg"),
                             normalize=True,
                         )
 
@@ -142,6 +142,13 @@ def eval_folder(
                     output_dir / (img_path.stem + "_masked" + ".jpg"),
                     normalize=True,
                 )
+
+        if seg:
+            z = model.encode(img)
+            seg_tens = model.decoders["s"](z)
+            file_name = img_path.name.rsplit("/", 1)[-1]
+            print(file_name)
+            torch.save(seg_tens, output_dir / ("seg_" + file_name + ".pt"))
 
 
 def isimg(path_file):
@@ -181,14 +188,16 @@ if __name__ == "__main__":
 
     paint = False
     masker = False
+    seg = False
     if "p" in opts.tasks:
         paint = True
     if "m" in opts.tasks:
         masker = True
+    if "s" in opts.tasks:
+        seg = True
     # ------------------------
     # ----- Define model -----
     # ------------------------
-
     trainer = Trainer(opts)
     trainer.setup()
     trainer.resume()
@@ -235,5 +244,6 @@ if __name__ == "__main__":
                 path_to_masks=maskdir,
                 paint=paint,
                 masker=masker,
+                seg=seg,
                 apply_mask=args.apply_mask,
             )

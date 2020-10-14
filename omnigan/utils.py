@@ -118,7 +118,7 @@ def load_opts(
         opts = Dict(merge(commandline_opts, opts))
 
     opts.domains = []
-    if "m" in opts.tasks:
+    if "m" in opts.tasks or "s" in opts.tasks:
         opts.domains.extend(["r", "s"])
     if "p" in opts.tasks:
         opts.domains.append("rf")
