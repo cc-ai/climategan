@@ -49,7 +49,7 @@ def parsed_args():
         required=True,
     )
     parser.add_argument(
-        "--new_size", type=int, help="Size of generated masks",
+        "--new_size", type=int, help="Size of generated images",
     )
     parser.add_argument(
         "-o",
@@ -183,13 +183,6 @@ if __name__ == "__main__":
     opts.train.resume = True
     opts.output_path = str(Path(args.checkpoint).resolve())
 
-    if args.new_size is None:
-        for tf in opts.data.transforms:
-            if tf["name"] == "resize":
-                new_size = tf["new_size"]
-    else:
-        new_size = args.new_size
-
     paint = False
     masker = False
     segment = False
@@ -215,6 +208,15 @@ if __name__ == "__main__":
     # -------------------------------
     transforms = [trsfs.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+    if args.new_size is None:
+        for tf in opts.data.transforms:
+            if tf["name"] == "resize":
+                new_size = tf["new_size"]
+    else:
+        new_size = args.new_size
+        if "s" in opts.tasks:
+            model.decoders["s"].set_target_size(new_size)
 
     # ----------------------------
     # -----  Iterate images  -----
