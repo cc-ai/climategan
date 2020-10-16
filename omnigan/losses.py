@@ -178,64 +178,31 @@ class TVLoss(nn.Module):
         return t.size()[1] * t.size()[2] * t.size()[3]
 
 
-def cross_entropy_2d(predict, target):
+class MinentLoss(nn.Module):
     """
-    Args:
-        predict:(n, c, h, w)
-        target:(n, h, w)
+        Loss for the minimization of the entropy map
+        Source for version 1: https://github.com/valeoai/ADVENT 
+
+        Version 2 adds the variance of the entropy map in the computation of the loss
     """
-    assert not target.requires_grad
-    assert predict.dim() == 4
-    assert target.dim() == 3
-    assert predict.size(0) == target.size(0), f"{predict.size(0)} vs {target.size(0)}"
-    assert predict.size(2) == target.size(1), f"{predict.size(2)} vs {target.size(1)}"
-    assert predict.size(3) == target.size(2), f"{predict.size(3)} vs {target.size(3)}"
-    n, c, h, w = predict.size()
-    target_mask = (target >= 0) * (target != 255)
-    target = target[target_mask]
-    if not target.data.dim():
-        return Variable(torch.zeros(1))
-    predict = predict.transpose(1, 2).transpose(2, 3).contiguous()
-    predict = predict[target_mask.view(n, h, w, 1).repeat(1, 1, 1, c)].view(-1, c)
-    loss = F.cross_entropy(predict, target)
-    return loss
 
-
-class MiniEntLoss(nn.Module):
-    def __init__(self):
+    def __init__(self, version=1, lambda_var=0.1):
         super().__init__()
+        self.version = version
+        self.lambda_var = lambda_var
 
-    def __call__(self, prediction):
-        assert prediction.dim() == 4
-        n, c, h, w = prediction.size()
-        return -torch.sum(torch.mul(prediction, torch.log2(prediction + 1e-30))) / (
-            n * h * w * np.log2(c)
-        )
-
-
-def entropy_loss(v):
-    """
-        Entropy loss for probabilistic prediction vectors
-        input: batch_size x channels x h x w
-        output: batch_size x 1 x h x w
-    """
-    assert v.dim() == 4
-    n, c, h, w = v.size()
-    return -torch.sum(torch.mul(v, torch.log2(v + 1e-30))) / (n * h * w * np.log2(c))
-
-
-def entropy_loss_v2(v, lambda_var=0.1):
-    """
-        Entropy loss for probabilistic prediction vectors
-        input: batch_size x channels x h x w
-        output: batch_size x 1 x h x w
-    """
-    assert v.dim() == 4
-    n, c, h, w = v.size()
-    entropy_map = -torch.mul(v, torch.log2(v + 1e-30)) / np.log2(c)
-    entropy_map_demean = entropy_map - torch.sum(entropy_map) / (n * h * w)
-    entropy_map_squ = torch.mul(entropy_map_demean, entropy_map_demean)
-    return torch.sum(entropy_map + lambda_var * entropy_map_squ) / (n * h * w)
+    def __call__(self, pred):
+        assert pred.dim() == 4
+        n, c, h, w = pred.size()
+        entropy_map = -torch.mul(pred, torch.log2(pred + 1e-30)) / np.log2(c)
+        if self.version == 1:
+            return torch.sum(entropy_map) / (n * h * w)
+        else:
+            entropy_map_demean = entropy_map - torch.sum(entropy_map) / (n * h * w)
+            entropy_map_squ = torch.mul(entropy_map_demean, entropy_map_demean)
+            return torch.sum(entropy_map + self.lambda_var * entropy_map_squ) / (
+                n * h * w
+            )
 
 
 class MSELoss(nn.Module):
@@ -275,6 +242,50 @@ class SIMSELoss(nn.Module):
         diff = torch.mean(d * d)
         relDiff = torch.mean(d) * torch.mean(d)
         return diff - relDiff
+
+
+class SIGMLoss(nn.Module):
+    """loss from MiDaS paper
+    MiDaS did not specify how the gradients were computed but we use Sobel filters which approximate
+    the derivative of an image.
+    """
+
+    def __init__(self, gmweight=0.5, scale=4, device="cuda"):
+        super(SIGMLoss, self).__init__()
+        self.gmweight = gmweight
+        self.sobelx = torch.Tensor([[1, 0, -1], [2, 0, -2], [1, 0, -1]]).to(device)
+        self.sobely = torch.Tensor([[1, 2, 1], [0, 0, 0], [-1, -2, -1]]).to(device)
+        self.scale = scale
+
+    def __call__(self, prediction, target):
+        # get disparities
+        # align both the prediction and the ground truth to have zero
+        # translation and unit scale
+        t_pred = torch.median(prediction)
+        t_targ = torch.median(target)
+        s_pred = torch.mean(torch.abs(prediction - t_pred))
+        s_targ = torch.mean(torch.abs(target - t_targ))
+        pred = (prediction - t_pred) / s_pred
+        targ = (target - t_targ) / s_targ
+
+        R = pred - targ
+
+        # get gradient map with sobel filters
+        batch_size = prediction.size()[0]
+        num_pix = prediction.size()[-1] * prediction.size()[-2]
+        self.sobelx = (self.sobelx).expand((batch_size, 1, -1, -1))
+        self.sobely = (self.sobely).expand((batch_size, 1, -1, -1))
+        gmLoss = 0  # gradient matching term
+        for k in range(self.scale):
+            R_ = F.interpolate(R, scale_factor=1 / 2 ** k)
+            Rx = F.conv2d(R_, self.sobelx, stride=1)
+            Ry = F.conv2d(R_, self.sobely, stride=1)
+            gmLoss += torch.sum(torch.abs(Rx) + torch.abs(Ry))
+        gmLoss = self.gmweight / num_pix * gmLoss
+        # scale invariant MSE
+        simseLoss = 0.5 / num_pix * torch.sum(torch.abs(R))
+        loss = simseLoss + gmLoss
+        return loss
 
 
 class ContextLoss(nn.Module):
@@ -371,30 +382,31 @@ def get_losses(opts, verbose, device=None):
         losses["G"]["p"]["sm"] = PixelCrossEntropy()
         losses["G"]["p"]["dm"] = MSELoss()
         losses["G"]["p"]["vgg"] = VGGLoss(device)
-        losses["G"]["p"]["tv"] = TVLoss(opts.train.lambdas.G.p.tv)
+        losses["G"]["p"]["tv"] = TVLoss()
         losses["G"]["p"]["context"] = ContextLoss()
         losses["G"]["p"]["featmatch"] = FeatMatchLoss()
 
     # task losses
     # ? * add discriminator and gan loss to these task when no ground truth
     # ?   instead of noisy label
+
     if "d" in opts.tasks:
-        losses["G"]["tasks"]["d"] = SIMSELoss()
+        losses["G"]["tasks"]["d"] = SIGMLoss(opts.train.lambdas.G.d.gml)
     if "s" in opts.tasks:
         losses["G"]["tasks"]["s"] = {}
         losses["G"]["tasks"]["s"]["crossent"] = CrossEntropy()
-        losses["G"]["tasks"]["s"]["minient"] = MiniEntLoss()
+        losses["G"]["tasks"]["s"]["minent"] = MinentLoss()
         losses["G"]["tasks"]["s"]["advent"] = ADVENTAdversarialLoss(opts)
     if "m" in opts.tasks:
         losses["G"]["tasks"]["m"] = {}
-        losses["G"]["tasks"]["m"]["main"] = nn.BCELoss()
+        losses["G"]["tasks"]["m"]["bce"] = nn.BCELoss()
         if opts.gen.m.use_minent_var:
-            losses["G"]["tasks"]["m"]["minent"] = lambda x: entropy_loss_v2(
-                x, lambda_var=opts.train.lambdas.advent.ent_var
+            losses["G"]["tasks"]["m"]["minent"] = MinentLoss(
+                version=2, lambda_var=opts.train.lambdas.advent.ent_var
             )
         else:
-            losses["G"]["tasks"]["m"]["minent"] = entropy_loss
-        losses["G"]["tasks"]["m"]["tv"] = TVLoss(opts.train.lambdas.G.m.tv)
+            losses["G"]["tasks"]["m"]["minent"] = MinentLoss()
+        losses["G"]["tasks"]["m"]["tv"] = TVLoss()
         losses["G"]["tasks"]["m"]["advent"] = ADVENTAdversarialLoss(opts)
 
     # undistinguishable features loss

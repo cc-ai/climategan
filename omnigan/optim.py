@@ -3,6 +3,7 @@
 import torch
 import math
 from torch.optim import Optimizer, Adam, lr_scheduler
+from torch_optimizer import NovoGrad, RAdam
 
 
 def get_scheduler(optimizer, hyperparameters, iterations=-1):
@@ -17,14 +18,30 @@ def get_scheduler(optimizer, hyperparameters, iterations=-1):
     Returns:
         [type]: [description]
     """
-    if "lr_policy" not in hyperparameters or hyperparameters["lr_policy"] == "constant":
+
+    policy = hyperparameters.get("lr_policy")
+    lr_step_size = hyperparameters.get("lr_step_size")
+    lr_gamma = hyperparameters.get("lr_gamma")
+    milestones = hyperparameters.get("lr_milestones")
+
+    if policy is None or policy == "constant":
         scheduler = None  # constant scheduler
-    elif hyperparameters["lr_policy"] == "step":
+    elif policy == "step":
         scheduler = lr_scheduler.StepLR(
-            optimizer,
-            step_size=hyperparameters["lr_step_size"],
-            gamma=hyperparameters["lr_gamma"],
-            last_epoch=iterations,
+            optimizer, step_size=lr_step_size, gamma=lr_gamma, last_epoch=iterations,
+        )
+    elif policy == "multi_step":
+        if isinstance(milestones, (list, tuple)):
+            milestones = milestones
+        elif isinstance(milestones, int):
+            assert "lr_step_size" in hyperparameters
+            if iterations == -1:
+                last_milestone = 1000
+            else:
+                last_milestone = iterations
+            milestones = list(range(milestones, last_milestone, lr_step_size))
+        scheduler = lr_scheduler.MultiStepLR(
+            optimizer, milestones=milestones, gamma=lr_gamma, last_epoch=iterations,
         )
     else:
         return NotImplementedError(
@@ -33,13 +50,14 @@ def get_scheduler(optimizer, hyperparameters, iterations=-1):
     return scheduler
 
 
-def get_optimizer(net, opt_conf, iterations=-1):
+def get_optimizer(net, opt_conf, tasks=None, iterations=-1):
     """Returns a tuple (optimizer, scheduler) according to opt_conf which
     should come from the trainer's opts as: trainer.opts.<model>.opt
 
     Args:
         net (nn.Module): Network to update
         opt_conf (addict.Dict): optimizer and scheduler options
+        tasks: list of tasks
         iterations (int, optional): Last epoch number. Defaults to -1, meaning
             start with base lr.
 
@@ -47,12 +65,45 @@ def get_optimizer(net, opt_conf, iterations=-1):
         Tuple: (torch.Optimizer, torch._LRScheduler)
     """
     opt = scheduler = None
-    if opt_conf.optimizer == "ExtraAdam":
-        opt = ExtraAdam(net.parameters(), lr=opt_conf.lr, betas=(opt_conf.beta1, 0.999))
+    lr_names = []
+    if tasks is None:
+        lr = opt_conf.lr
+        params = net.parameters()
+        lr_names.append("full")
+    elif len(opt_conf.lr) == 1:  # Use default for all tasks
+        lr = opt_conf.lr.default
+        params = net.parameters()
+        lr_names.append("full")
     else:
-        opt = Adam(net.parameters(), lr=opt_conf.lr, betas=(opt_conf.beta1, 0.999))
+        lr = opt_conf.lr.default
+        params = list()
+        for task in tasks:
+            l_r = opt_conf.lr.get(task, lr)
+            # Parameters for encoder
+            if task == "m":
+                parameters = net.encoder.parameters()
+                params.append({"params": parameters, "lr": l_r})
+                lr_names.append("encoder")
+            # Parameters for decoders
+            if task == "p":
+                parameters = net.painter.parameters()
+                lr_names.append("painter")
+            else:
+                parameters = net.decoders[task].parameters()
+                lr_names.append(f"decoder_{task}")
+            params.append({"params": parameters, "lr": l_r})
+    if opt_conf.optimizer.lower() == "extraadam":
+        opt = ExtraAdam(params, lr=lr, betas=(opt_conf.beta1, 0.999))
+    elif opt_conf.optimizer.lower() == "novograd":
+        opt = NovoGrad(
+            params, lr=lr, betas=(opt_conf.beta1, 0)
+        )  # default for beta2 is 0
+    elif opt_conf.optimizer.lower() == "radam":
+        opt = RAdam(params, lr=lr, betas=(opt_conf.beta1, 0.999))
+    else:
+        opt = Adam(params, lr=lr, betas=(opt_conf.beta1, 0.999))
     scheduler = get_scheduler(opt, opt_conf, iterations)
-    return opt, scheduler
+    return opt, scheduler, lr_names
 
 
 """

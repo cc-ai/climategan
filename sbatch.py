@@ -65,9 +65,15 @@ def cols():
 
 
 def print_box(txt):
+    if not txt:
+        txt = "{}{}ERROR ⇪{}".format(C.BOLD, C.FAIL, C.ENDC)
+        lt = 7
+    else:
+        lt = len(txt)
+    nlt = lt + 12
     txt = "|" + " " * 5 + txt + " " * 5 + "|"
-    line = "-" * len(txt)
-    empty = "|" + " " * (len(txt) - 2) + "|"
+    line = "-" * nlt
+    empty = "|" + " " * (nlt - 2) + "|"
     print(line)
     print(empty)
     print(txt)
@@ -444,7 +450,7 @@ def get_template_params(template):
     )
 
 
-def read_hp(name):
+def read_exp_conf(name):
     """
     Read hp search configuration from shared/experiment/
     specified with or without the .yaml extension
@@ -453,7 +459,7 @@ def read_hp(name):
         name (str): name of the template to find in shared/experiment/
 
     Returns:
-        dict: file's loaded
+        Tuple(Path, dict): file path and loaded dict
     """
     if ".yaml" not in name:
         name += ".yaml"
@@ -462,7 +468,7 @@ def read_hp(name):
     for d in dirs:
         path = Path(__file__).parent / d / "experiment" / name
         if path.exists():
-            paths.append(path)
+            paths.append(path.resolve())
 
     if len(paths) == 0:
         failed = [Path(__file__).parent / d / "experiment" for d in dirs]
@@ -482,7 +488,7 @@ def read_hp(name):
         print("Using {}".format(paths[-1]))
 
     with paths[-1].open("r") as f:
-        return yaml.safe_load(f)
+        return (paths[-1], yaml.safe_load(f))
 
 
 def read_template(name):
@@ -553,7 +559,7 @@ if __name__ == "__main__":
     command_output = ""
     user = os.environ.get("USER")
     home = os.environ.get("HOME")
-    search_conf = {}
+    exp_conf = {}
     dev = False
     escape = False
     verbose = False
@@ -630,20 +636,20 @@ if __name__ == "__main__":
         else:
             train_args.append(f"{k}={v}")
 
-    # -----------------------------------------
-    # -----  Load Hyper-Parameter Search  -----
-    # -----------------------------------------
+    # ------------------------------------
+    # -----  Load Experiment Config  -----
+    # ------------------------------------
 
     if hp_search_name is not None:
-        search_conf = read_hp(hp_search_name)
-        if "n_search" in search_conf and hp_search_nb is None:
-            hp_search_nb = search_conf["n_search"]
+        exp_path, exp_conf = read_exp_conf(hp_search_name)
+        if "n_search" in exp_conf and hp_search_nb is None:
+            hp_search_nb = exp_conf["n_search"]
 
         assert (
             hp_search_nb is not None
         ), "n_search should be specified in a yaml file or from the command line"
 
-        hps = resolve(search_conf, hp_search_nb)
+        hps = resolve(exp_conf, hp_search_nb)
 
     else:
         hps = [None]
@@ -677,12 +683,12 @@ if __name__ == "__main__":
                     v = escape_path(v)
                 # override template params depending on exp config
                 if k in tmp_template_dict:
-                    if template_dict[k] is None or is_sampled(k, search_conf):
+                    if template_dict[k] is None or is_sampled(k, exp_conf):
                         tmp_template_dict[k] = v
                 # store sampled / specified params in current tmp_train_args_dict
                 else:
                     if k in tmp_train_args_dict:
-                        if is_sampled(k, search_conf):
+                        if is_sampled(k, exp_conf):
                             # warn if key was specified from the command line
                             tv = tmp_train_args_dict[k]
                             warn(
@@ -698,6 +704,7 @@ if __name__ == "__main__":
             tmp_sbatch_path = Path(home) / "omnigan_sbatchs" / (now() + ".sh")
             tmp_sbatch_path.parent.mkdir(parents=True, exist_ok=True)
             tmp_train_args_dict["sbatch_file"] = str(tmp_sbatch_path)
+            tmp_train_args_dict["exp_file"] = str(exp_path)
         else:
             tmp_sbatch_path = Path(sbatch_path).resolve()
 
