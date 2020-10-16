@@ -909,15 +909,15 @@ class Trainer:
                 self.losses["G"]["p"]["vgg"](
                     vgg_preprocess(fake_flooded), vgg_preprocess(x)
                 )
-                * lambdas.G["p"]["vgg"]
+                * lambdas.G.p.vgg
             )
 
-            self.logger.losses.gen.p.vgg = update_loss.item() * lambdas.G["p"]["vgg"]
+            self.logger.losses.gen.p.vgg = update_loss.item()
             step_loss += update_loss
 
             update_loss = (
                 self.losses["G"]["p"]["tv"](fake_flooded * m)
-                * opts.train.lambdas.G.p.tv
+                * lambdas.G.p.tv
             )
             self.logger.losses.gen.p.tv = update_loss.item()
             step_loss += update_loss
