@@ -160,13 +160,14 @@ batch = Dict({
 
 #### json files
 
-| name                                           | domain | description                                                     |  author   |
-| :--------------------------------------------- | :----: | :-------------------------------------------------------------- | :-------: |
-| **train_r_full.json, val_r_full.json**         |   r    | MiDaS+ Segmentation pseudo-labels .pt (HRNet + Cityscapes)      | Mélisande |
-| **train_s_full.json, val_s_full.json**         |   s    | Simulated data from Unity11k urban + Unity suburban dataset     |    ***    |
-| train_r_full_pl.json, val_r_full_pl.json       |   r    | MegaDepth + Segmentation pseudo-labels .pt (HRNet + Cityscapes) |  Alexia   |
-| train_r_full_midas.json, val_r_full_midas.json |   r    | MiDaS+ Segmentation (HRNet + Cityscapes)                        | Mélisande |
-| train_r_full_old.json, val_r_full_old.json     |   r    | MegaDepth+ Segmentation (HRNet + Cityscapes)                    |    ***    |
+| name                                           | domain | description                                                                 |  author   |
+| :--------------------------------------------- | :----: | :---------------------------------------------------------------------------| :-------: |
+| **train_r_full.json, val_r_full.json**         |   r    | MiDaS+ Segmentation pseudo-labels .pt (HRNet + Cityscapes)                  | Mélisande |
+| **train_s_full.json, val_s_full.json**         |   s    | Simulated data from Unity11k urban + Unity suburban dataset                 |    ***    |
+| train_s_nofences.json, val_s_nofences.json     |   s    | Simulated data from Unity11k urban + Unity suburban dataset without fences  |  Alexia   |
+| train_r_full_pl.json, val_r_full_pl.json       |   r    | MegaDepth + Segmentation pseudo-labels .pt (HRNet + Cityscapes)             |  Alexia   |
+| train_r_full_midas.json, val_r_full_midas.json |   r    | MiDaS+ Segmentation (HRNet + Cityscapes)                                    | Mélisande |
+| train_r_full_old.json, val_r_full_old.json     |   r    | MegaDepth+ Segmentation (HRNet + Cityscapes)                                |    ***    |
 
 We provide the script `process_data.py` for the preprocessing task. Given a source folder the script will create the appropriate JSON. In the default mode, only one JSON for the whole data folder will be created. If you want to split the dataset into train and validation you can use the `--train_size` argument and specify the percentage, therefore two JSONs (train and val) will be created.
 
