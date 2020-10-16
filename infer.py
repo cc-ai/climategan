@@ -1,68 +1,15 @@
-import time
-
-
-class Timer:
-    def __init__(self, name=""):
-        self.name = name
-
-    def __enter__(self):
-        """Start a new timer as a context manager"""
-        self._start_time = time.perf_counter()
-        return self
-
-    def __exit__(self, *exc_info):
-        """Stop the context manager timer"""
-        s = "\n"
-        t = time.perf_counter()
-        if self.name:
-            s += f"[{self.name}] "
-        print(s + f"Elapsed time: {t - self._start_time:.3f}\n")
-
-
-with Timer("Imports"):
-    from torch.utils.data import Dataset, DataLoader
-    from omnigan.utils import load_opts
-    from pathlib import Path
-    from argparse import ArgumentParser
-    from omnigan.trainer import Trainer
-    from omnigan.data import tensor_loader
-    from torchvision.transforms import Normalize
-    import torchvision.utils as vutils
-    import torch.nn.functional as F
-    import os
-    from tqdm import tqdm
-    import torch
-    import numpy as np
-
-TRANSFORMS = [Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
-
-
-class InferDataset(Dataset):
-    def __init__(self, path, output_size=640):
-        self.path = Path(path)
-        self.paths = [str(p.resolve()) for p in self.path.glob("*") if isimg(p)]
-        self.output_size = output_size
-
-    def transform(self, img):
-        if len(img.shape) == 3:
-            img = img.unsqueeze(0)
-        img = F.interpolate(img, (self.output_size, self.output_size), mode="nearest")
-        img = img.squeeze(0)
-        for tf in TRANSFORMS:
-            img = tf(img)
-        return img
-
-    def load(self, path):
-        img = tensor_loader(path, task="x", domain="val")
-        img = self.transform(img)
-        img = img.squeeze(0)
-        return img
-
-    def __len__(self) -> int:
-        return len(self.paths)
-
-    def __getitem__(self, index: int):
-        return {"x": self.load(self.paths[index]), "path": self.paths[index]}
+import torch
+import numpy as np
+from omnigan.utils import load_opts
+from pathlib import Path
+from argparse import ArgumentParser
+from omnigan.trainer import Trainer
+from omnigan.data import tensor_loader
+from torchvision import transforms as trsfs
+import torchvision.utils as vutils
+import torch.nn.functional as F
+import os
+from tqdm import tqdm
 
 
 def parsed_args():
@@ -106,129 +53,94 @@ def parsed_args():
         help="Directory to write images to",
     )
     parser.add_argument(
-        "--batch_size",
-        default=4,
-        type=int,
-        help="Batch size for inference. "
-        + "Set to -1 to disable (infer 1 by 1, no DataLoader)",
+        "--path_to_masks",
+        type=str,
+        help="Path of masks to be used for painting",
+        required=False,
     )
     parser.add_argument(
-        "--num_workers",
-        default=4,
-        type=int,
-        help="Number of workers for the DataLoader"
-        + "(only relevant if batch_size > 0)",
-    )
-    parser.add_argument(
-        "--keep_in_memory",
-        default=False,
-        action="store_true",
-        help="Without this flag, images are written after each batch. "
-        + "With the flag they are kept in memory and written after all inferences "
-        + "are performed (only relevant if batch_size > 0)",
-    )
-    parser.add_argument(
-        "--no_inference_mode",
-        default=False,
-        action="store_true",
-        help="Initialize the trainer without the inference mode",
+        "--apply_mask", action="store_true", help="Apply mask to image to save",
     )
 
     return parser.parse_args()
 
 
-def eval_folder(path_to_images, output_dir, paint=False, device="cpu"):
-    images = [path_to_images / Path(i) for i in os.listdir(path_to_images)]
-    for img_path in images:
+def eval_folder(
+    output_dir,
+    path_to_images,
+    path_to_masks=None,
+    paint=False,
+    masker=False,
+    apply_mask=False,
+):
+
+    image_list = os.listdir(path_to_images)
+    image_list.sort()
+    images = [path_to_images / Path(i) for i in image_list]
+    if not masker:
+        mask_list = os.listdir(path_to_masks)
+        mask_list.sort()
+        masks = [path_to_masks / Path(i) for i in mask_list]
+
+    for i, img_path in enumerate(images):
         img = tensor_loader(img_path, task="x", domain="val")
+
         # Resize img:
         img = F.interpolate(img, (new_size, new_size), mode="nearest")
         img = img.squeeze(0)
-        for tf in TRANSFORMS:
+        for tf in transforms:
             img = tf(img)
 
         img = img.unsqueeze(0).to(device)
-        z = model.encode(img)
-        mask = model.decoders["m"](z)
 
-        vutils.save_image(mask, output_dir / ("mask_" + img_path.name), normalize=True)
+        if not masker:
+            mask = tensor_loader(masks[i], task="m", domain="val", binarize=False)
+            # mask = F.interpolate(mask, (new_size, new_size), mode="nearest")
+            mask = mask.squeeze()
+            mask = mask.unsqueeze(0).to(device)
+
+        if masker:
+            if "m2" in opts.tasks:
+                z = model.encode(img)
+                num_masks = 10
+                label_vals = np.linspace(start=0, stop=1, num=num_masks)
+                for label_val in label_vals:
+                    z_aug = torch.cat(
+                        (z, label_val * trainer.label_2[0, :, :, :].unsqueeze(0)),
+                        dim=1,
+                    )
+                    mask = model.decoders["m"](z_aug)
+
+                    vutils.save_image(
+                        mask,
+                        output_dir / (f"mask_{label_val}_" + img_path.name),
+                        normalize=True,
+                    )
+                    if apply_mask:
+                        vutils.save_image(
+                            img * (1.0 - mask) + mask,
+                            output_dir
+                            / (img_path.stem + f"img_masked_{label_val}" + ".jpg"),
+                            normalize=True,
+                        )
+
+            else:
+                z = model.encode(img)
+                mask = model.decoders["m"](z)
+                vutils.save_image(
+                    mask, output_dir / ("mask_" + img_path.name), normalize=True
+                )
 
         if paint:
             z_painter = trainer.sample_z(1)
             fake_flooded = model.painter(z_painter, img * (1.0 - mask))
             vutils.save_image(fake_flooded, output_dir / img_path.name, normalize=True)
-
-
-def batch_eval_folder(
-    path_to_images,
-    output_dir,
-    model,
-    output_size=640,
-    batch_size=8,
-    num_workers=8,
-    paint=False,
-    keep_in_memory=True,
-    device="cpu",
-):
-    dataset = InferDataset(path_to_images, output_size)
-    dataloader = DataLoader(
-        dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=num_workers,
-        pin_memory=True,
-    )
-
-    masks = []
-    painted = []
-    paths = []
-    times = []
-
-    for img in tqdm(dataloader, desc="Inferring"):
-        with torch.no_grad():
-            inference_time = time.perf_counter()
-            x = img["x"].to(device)
-            z = model.encode(x)
-            mask = model.decoders["m"](z)
-            times.append((time.perf_counter() - inference_time) / x.shape[0])
-            if keep_in_memory:
-                masks.extend(list(mask.detach().cpu()))
-                paths.extend(img["path"])
-            else:
-                for k, m in enumerate(mask):
-                    vutils.save_image(
-                        m,
-                        output_dir / ("mask_" + Path(img["path"][k]).name),
-                        normalize=True,
-                    )
-
-            if paint:
-                painter_time = time.perf_counter()
-                z_painter = trainer.sample_z(x.shape[0])
-                fake_flooded = model.painter(z_painter, x * (1.0 - mask))
-                times[-1] += (time.perf_counter() - painter_time) / x.shape[0]
-                if keep_in_memory:
-                    painted.extend(list(fake_flooded.detach().cpu()))
-                else:
-                    for k, fake in enumerate(fake_flooded):
-                        vutils.save_image(
-                            fake, output_dir / Path(img["path"][k]).name, normalize=True
-                        )
-
-    if keep_in_memory:
-        for mask, fake, path in tqdm(
-            zip(masks, painted, paths), total=len(masks), desc="Saving Images"
-        ):
-            vutils.save_image(fake, output_dir / Path(path).name, normalize=True)
-            vutils.save_image(
-                mask, output_dir / ("mask_" + Path(path).name), normalize=True,
-            )
-
-    print(
-        ">> Average pure inference time per sample: {} +/- {}".format(
-            np.mean(times), np.std(times)
-        )
-    )
+            if apply_mask:
+                vutils.save_image(
+                    img * (1.0 - mask) + mask,
+                    output_dir / (img_path.stem + "_masked" + ".jpg"),
+                    normalize=True,
+                )
 
 
 def isimg(path_file):
@@ -259,8 +171,6 @@ if __name__ == "__main__":
     opts = load_opts(Path(args.config), default="./shared/trainer/defaults.yaml")
     opts.train.resume = True
     opts.output_path = str(Path(args.checkpoint).resolve())
-
-    new_size = None
     if args.new_size is None:
         for tf in opts.data.transforms:
             if tf["name"] == "resize":
@@ -268,49 +178,47 @@ if __name__ == "__main__":
     else:
         new_size = args.new_size
 
-    if new_size is None:
-        print("Warning: no size provided, defaulting to 640px")
-        new_size = 640
-
-    if "m" in opts.tasks and "p" in opts.tasks:
+    paint = False
+    masker = False
+    if "p" in opts.tasks:
         paint = True
-    else:
-        paint = False
+    if "m" in opts.tasks:
+        masker = True
     # ------------------------
     # ----- Define model -----
     # ------------------------
-    inference = not args.no_inference_mode
+
     trainer = Trainer(opts)
-    trainer.input_shape = (3, 640, 640)
-    with Timer("trainer.setup"):
-        trainer.setup(inference=inference)
-    with Timer("trainer.resume"):
-        trainer.resume(inference=inference)
+    trainer.setup()
+    trainer.resume()
     model = trainer.G
     model.eval()
-    for p in model.parameters():
-        p.requires_grad = False
 
-    # -----------------------------------------------
-    # -----  Iterate Subdirs in Base Directory  -----
-    # -----------------------------------------------
+    # -------------------------------
+    # -----  Transforms images  -----
+    # -------------------------------
+
+    transforms = [trsfs.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+    # ----------------------------
+    # -----  Iterate images  -----
+    # ----------------------------
 
     # eval_folder(args.path_to_images, output_dir)
 
     rootdir = args.path_to_images
+    maskdir = args.path_to_masks
     writedir = args.output_dir
 
-    for root, subdirs, files in os.walk(rootdir):
+    for root, subdirs, files in tqdm(os.walk(rootdir)):
         root = Path(root)
         subdirs = [Path(subdir) for subdir in subdirs]
         files = [Path(f) for f in files]
         has_imgs = False
         for f in files:
             if isimg(f):
-                # read_path = root / f
-                # rel_path = read_path.relative_to(rootdir)
-                # write_path = writedir / rel_path
-                # write_path.mkdir(parents=True, exist_ok=True)
                 has_imgs = True
                 break
 
@@ -319,23 +227,12 @@ if __name__ == "__main__":
             rel_path = root.relative_to(rootdir)
             write_path = writedir / rel_path
             write_path.mkdir(parents=True, exist_ok=True)
-            # -------------------------
-            # -----  Eval Folder  -----
-            # -------------------------
-            if args.batch_size <= 0:
-                with Timer("eval_folder"):
-                    eval_folder(root, write_path, paint, trainer.device)
-            else:
-                with Timer("batch_eval_folder " + root.name):
-                    batch_eval_folder(
-                        root,
-                        write_path,
-                        model,
-                        new_size,
-                        args.batch_size,
-                        args.num_workers,
-                        paint,
-                        args.keep_in_memory,
-                        trainer.device,
-                    )
-
+            print("root: ", root)
+            eval_folder(
+                write_path,
+                root,
+                path_to_masks=maskdir,
+                paint=paint,
+                masker=masker,
+                apply_mask=args.apply_mask,
+            )
