@@ -10,6 +10,7 @@ import torch
 from torch.autograd import Variable
 from skimage import io as skio
 from torch.nn import init
+import torch.nn as nn
 
 
 def transforms_string(ts):
@@ -172,7 +173,7 @@ def get_normalized_depth_t(arr, domain, normalize=False):
             arr = torch.true_divide(arr, torch.max(arr))
     elif domain == "s":
         # from 3-channel depth encoding from Unity simulator to 1-channel [0-1] values
-        arr = decode_unity_depth_t(arr, log=True, normalize=normalize)
+        arr = decode_unity_depth_t(arr, log=False, normalize=normalize)
     return arr
 
 
@@ -208,13 +209,14 @@ def decode_unity_depth_t(unity_depth, log=True, normalize=False, numpy=False, fa
     G = unity_depth[:, :, 1]
     B = unity_depth[:, :, 2]
 
-    R = ((256.0 - R) / 8.0).type(torch.FloatTensor)
-    G = ((256.0 - G) / 8.0).type(torch.FloatTensor)
-    B = (256.0 - B).type(torch.FloatTensor)
-    depth = ((R * 256.0 * 31.0 + G * 256.0 + B).type(torch.FloatTensor)) / (
-        256.0 * 31.0 * 31.0 - 1.0
-    )
-    depth = (depth * far).unsqueeze(0)
+    R = ((247 - R) / 8).type(torch.IntTensor)
+    G = ((247 - G) / 8).type(torch.IntTensor)
+    B = (255 - B).type(torch.IntTensor)
+    depth = ((R * 256 * 31 + G * 256 + B).type(torch.FloatTensor)) / (256 * 31 * 31 -1)
+    depth = (depth * far)
+    depth = 1 / depth
+    depth = depth.unsqueeze(0)  # (depth * far).unsqueeze(0)
+
     if log:
         depth = torch.log(depth)
     if normalize:
@@ -357,3 +359,15 @@ def vgg_preprocess(batch):
     mean[:, 2, :, :] = 123.680
     batch = batch.sub(Variable(mean))  # subtract mean
     return batch
+
+
+def zero_grad(model: nn.Module):
+    """
+    Sets gradients to None. Mode efficient than model.zero_grad()
+    or opt.zero_grad() according to https://www.youtube.com/watch?v=9mS1fIYj1So
+
+    Args:
+        model (nn.Module): model to zero out
+    """
+    for p in model.parameters():
+        p.grad = None
