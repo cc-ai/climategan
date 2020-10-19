@@ -236,6 +236,11 @@ class Trainer:
         )
 
         if self.input_shape is None:
+            if inference:
+                raise ValueError(
+                    "Cannot auto-set input_shape from loaders in inference mode."
+                    + " It  has to  be set prior to setup()."
+                )
             print("Computing latent & input shapes...", end="", flush=True)
             self.input_shape = self.compute_input_shape()
 
@@ -1281,7 +1286,7 @@ class Trainer:
             p_checkpoint = torch.load(p_ckpt_path)
 
             checkpoint = merge(m_checkpoint, p_checkpoint)
-            print(f"Resuming model from {m_ckpt_path} and {p_ckpt_path}")
+            print(f"Resuming model from \n  -{m_ckpt_path} \nand \n  -{p_ckpt_path}")
         # ----------------------------------
         # -----  Single Model Loading  -----
         # ----------------------------------
@@ -1299,6 +1304,7 @@ class Trainer:
 
         if inference:
             # only G is needed to infer
+            print("Done loading checkpoints.")
             return
 
         if not ("m" in self.opts.tasks and "p" in self.opts.tasks):
