@@ -367,7 +367,7 @@ def get_losses(opts, verbose, device=None):
     # ------------------------------
     # painter losses
     if "p" in opts.tasks:
-        losses["G"]["p"]["gan"] = HingeLoss()
+        losses["G"]["p"]["hinge"] = HingeLoss()
         losses["G"]["p"]["sm"] = PixelCrossEntropy()
         losses["G"]["p"]["dm"] = MSELoss()
         losses["G"]["p"]["vgg"] = VGGLoss(device)
