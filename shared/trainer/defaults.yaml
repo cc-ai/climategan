@@ -91,6 +91,8 @@ gen:
 
   d: # specific params for the depth estimation decoder
     <<: *default-gen
+    init_type: normal
+    init_gain: 0.01
     output_dim: 1
     conv_norm: batch
     res_norm: batch
@@ -99,7 +101,7 @@ gen:
     num_classes: 11
     output_dim: 11
     use_advent: True
-    use_minient: False
+    use_minent: False
     use_pseudo_labels: False
     upsample_featuremaps: False # upsamples from 80x80 to 160x160 intermediate feature maps
   p: # specific params for the SPADE painter
@@ -184,19 +186,19 @@ classifier:
 # ------------------------
 train:
   epochs: 300
-  latent_domain_adaptation: True # whether or not to do domain adaptation on the latent vectors # Needs to be turned off if use_advent is True
+  latent_domain_adaptation: False # whether or not to do domain adaptation on the latent vectors # Needs to be turned off if use_advent is True
   lambdas: # scaling factors in the total loss
     G:
       d:
         main: 1
-        gml: 1
+        gml: 0.5
       s:
         crossent: 1
         crossent_pseudo: 0.001
-        minient: 0.001
+        minent: 0.001
         advent: 0.001
       m:
-        main: 1 # Main prediction loss, i.e. GAN or BCE
+        bce: 1 # Main prediction loss, i.e. GAN or BCE
         tv: 1 # Total variational loss (for smoothing)
       p:
         gan: 1 # gan loss
@@ -219,6 +221,7 @@ train:
   log_level: 2 # 0: no log, 1: only aggregated losses, >1 detailed losses
   save_n_epochs: 1 # Save model every n epochs
   resume: false # Load latest_ckpt.pth checkpoint from `output_path` #TODO Make this path of checkpoint to load
+  auto_resume: true # automatically looks for similar output paths and exact same jobID to resume training automatically even if resume is false.
 
 # -----------------------------
 # ----- Validation Params -----

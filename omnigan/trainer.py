@@ -63,8 +63,6 @@ class Trainer:
         self.opts = opts
         self.verbose = verbose
         self.logger = Dict()
-        self.logger.lr.g = opts.gen.opt.lr
-        self.logger.lr.d = opts.dis.opt.lr
         self.logger.epoch = 0
         self.loaders = None
         self.losses = None
@@ -741,12 +739,15 @@ class Trainer:
                 output_classifier = checkpoint(self.C, self.z)
 
                 # Cross entropy loss (with sigmoid) with fake labels to fool C
-                update_loss = self.losses["G"]["classifier"](
-                    output_classifier,
-                    fake_domains_to_class_tensor(batch["domain"], one_hot),
+                update_loss = (
+                    self.losses["G"]["classifier"](
+                        output_classifier,
+                        fake_domains_to_class_tensor(batch["domain"], one_hot),
+                    )
+                    * lambdas.G.classifier
                 )
 
-                step_loss += lambdas.G.classifier * update_loss
+                step_loss += update_loss
                 self.logger.losses.gen.classifier[batch_domain] = update_loss.item()
 
             # -------------------------------------------------
@@ -760,12 +761,15 @@ class Trainer:
                     else:
                         scaler = lambdas.G[update_task]
 
-                    prediction = checkpoint(self.G.decoders[update_task], self.z)
-                    update_loss = self.losses["G"]["tasks"][update_task](
-                        prediction, update_target
+                    prediction = self.G.decoders[update_task](self.z)
+                    update_loss = (
+                        self.losses["G"]["tasks"][update_task](
+                            prediction, update_target
+                        )
+                        * scaler
                     )
 
-                    step_loss += scaler * update_loss
+                    step_loss += update_loss
                     self.logger.losses.gen.task[update_task][
                         batch_domain
                     ] = update_loss.item()
@@ -793,17 +797,17 @@ class Trainer:
 
                     if batch_domain == "r":
                         # Entropy minimization loss
-                        if self.opts.gen.s.use_minient:
+                        if self.opts.gen.s.use_minent:
                             # Direct entropy minimization
                             update_loss = (
-                                self.losses["G"]["tasks"][update_task]["minient"](
+                                self.losses["G"]["tasks"][update_task]["minent"](
                                     prediction
                                 )
-                                * lambdas.G[update_task]["minient"]
+                                * lambdas.G[update_task]["minent"]
                             )
                             step_loss += update_loss
 
-                            self.logger.losses.gen.task[update_task]["minient"][
+                            self.logger.losses.gen.task[update_task]["minent"][
                                 batch_domain
                             ] = update_loss.item()
 
@@ -828,19 +832,22 @@ class Trainer:
 
                         # Main loss first:
                         update_loss = (
-                            self.losses["G"]["tasks"]["m"]["main"](
+                            self.losses["G"]["tasks"]["m"]["bce"](
                                 prediction, update_target
                             )
-                            * lambdas.G["m"]["main"]
+                            * lambdas.G.m.bce
                         )
                         step_loss += update_loss
 
-                        self.logger.losses.gen.task["m"]["main"][
+                        self.logger.losses.gen.task["m"]["bce"][
                             "s"
                         ] = update_loss.item()
 
                     # Then TV loss
-                    update_loss = self.losses["G"]["tasks"]["m"]["tv"](prediction)
+                    update_loss = (
+                        self.losses["G"]["tasks"]["m"]["tv"](prediction)
+                        * self.opts.train.lambdas.G.m.tv
+                    )
                     step_loss += update_loss
 
                     self.logger.losses.gen.task["m"]["tv"][
@@ -918,13 +925,13 @@ class Trainer:
                 self.losses["G"]["p"]["vgg"](
                     vgg_preprocess(fake_flooded), vgg_preprocess(x)
                 )
-                * lambdas.G["p"]["vgg"]
+                * lambdas.G.p.vgg
             )
 
-            self.logger.losses.gen.p.vgg = update_loss.item() * lambdas.G["p"]["vgg"]
+            self.logger.losses.gen.p.vgg = update_loss.item()
             step_loss += update_loss
 
-            update_loss = self.losses["G"]["p"]["tv"](fake_flooded * m)
+            update_loss = self.losses["G"]["p"]["tv"](fake_flooded * m) * lambdas.G.p.tv
             self.logger.losses.gen.p.tv = update_loss.item()
             step_loss += update_loss
 
@@ -1217,43 +1224,44 @@ class Trainer:
 
         return lambdas.C * loss
 
+    @torch.no_grad()
     def run_evaluation(self, verbose=0):
         print("******************* Running Evaluation ***********************")
         self.eval_mode()
-        with torch.no_grad():
-            val_logger = None
-            nb_of_batches = None
-            for i, multi_batch_tuple in enumerate(self.val_loaders):
-                # create a dictionnary (domain => batch) from tuple
-                # (batch_domain_0, ..., batch_domain_i)
-                # and send it to self.device
-                nb_of_batches = i + 1
-                multi_domain_batch = {
-                    batch["domain"][0]: self.batch_to_device(batch)
-                    for batch in multi_batch_tuple
-                }
-                self.get_g_loss(multi_domain_batch, verbose)
 
-                if val_logger is None:
-                    val_logger = deepcopy(self.logger.losses.gen)
-                else:
-                    val_logger = sum_dict(val_logger, self.logger.losses.gen)
+        val_logger = None
+        nb_of_batches = None
+        for i, multi_batch_tuple in enumerate(self.val_loaders):
+            # create a dictionnary (domain => batch) from tuple
+            # (batch_domain_0, ..., batch_domain_i)
+            # and send it to self.device
+            nb_of_batches = i + 1
+            multi_domain_batch = {
+                batch["domain"][0]: self.batch_to_device(batch)
+                for batch in multi_batch_tuple
+            }
+            self.get_g_loss(multi_domain_batch, verbose)
 
-            val_logger = div_dict(val_logger, nb_of_batches)
-            self.logger.losses.gen = val_logger
-            self.log_losses(model_to_update="G", mode="val")
+            if val_logger is None:
+                val_logger = deepcopy(self.logger.losses.gen)
+            else:
+                val_logger = sum_dict(val_logger, self.logger.losses.gen)
 
-            for d in self.opts.domains:
-                self.log_comet_images("train", d)
-                self.log_comet_images("val", d)
+        val_logger = div_dict(val_logger, nb_of_batches)
+        self.logger.losses.gen = val_logger
+        self.log_losses(model_to_update="G", mode="val")
 
-            if "m" in self.opts.tasks and "p" in self.opts.tasks:
-                self.log_comet_combined_images("train", "r")
-                self.log_comet_combined_images("val", "r")
+        for d in self.opts.domains:
+            self.log_comet_images("train", d)
+            self.log_comet_images("val", d)
 
-            if "m" in self.opts.tasks:
-                self.eval_images("val", "r")
-                self.eval_images("val", "s")
+        if "m" in self.opts.tasks and "p" in self.opts.tasks:
+            self.log_comet_combined_images("train", "r")
+            self.log_comet_combined_images("val", "r")
+
+        if "m" in self.opts.tasks:
+            self.eval_images("val", "r")
+            self.eval_images("val", "s")
 
         self.train_mode()
         print("****************** Done *********************")
@@ -1368,7 +1376,7 @@ class Trainer:
             if self.exp is not None:
                 self.exp.log_metrics(
                     metric_avg_scores,
-                    prefix=f"METRICS_{mode}",
+                    prefix=f"metrics_{mode}",
                     step=self.logger.global_step,
                 )
 

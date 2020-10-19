@@ -7,7 +7,6 @@ import yaml
 from addict import Dict
 from comet_ml import Experiment, ExistingExperiment
 from omegaconf import OmegaConf
-import torch
 
 from omnigan.trainer import Trainer
 
@@ -18,14 +17,12 @@ from omnigan.utils import (
     get_git_revision_hash,
     get_increased_path,
     load_opts,
-    copy_sbatch,
+    copy_run_files,
     find_existing_training,
     kill_job,
     pprint,
     get_existing_comet_id,
 )
-
-torch.backends.cudnn.benchmark = True
 
 hydra_config_path = Path(__file__).resolve().parent / "shared/trainer/config.yaml"
 
@@ -60,6 +57,7 @@ def main(opts):
     opts = load_opts(args.config, default=default, commandline_opts=hydra_opts)
     if args.resume:
         opts.train.resume = True
+
     opts.jobID = os.environ.get("SLURM_JOBID")
     opts.output_path = str(env_to_path(opts.output_path))
     print("Config output_path:", opts.output_path)
@@ -71,7 +69,7 @@ def main(opts):
     # -------------------------------
 
     # Auto-continue if same slurm job ID (=job was requeued)
-    if not opts.train.resume:
+    if not opts.train.resume and opts.train.auto_resume:
         existing_path = find_existing_training(opts)
         if existing_path is not None and existing_path.exists():
             opts.train.resume = True
@@ -83,7 +81,7 @@ def main(opts):
         Path(opts.output_path).mkdir(parents=True, exist_ok=True)
 
     # Copy the opts's sbatch_file to output_path
-    copy_sbatch(opts)
+    copy_run_files(opts)
     # store git hash
     opts.git_hash = get_git_revision_hash()
 
