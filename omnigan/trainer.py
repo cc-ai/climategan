@@ -236,6 +236,11 @@ class Trainer:
         )
 
         if self.input_shape is None:
+            if inference:
+                raise ValueError(
+                    "Cannot auto-set input_shape from loaders in inference mode."
+                    + " It  has to  be set prior to setup()."
+                )
             print("Computing latent & input shapes...", end="", flush=True)
             self.input_shape = self.compute_input_shape()
 
@@ -944,8 +949,12 @@ class Trainer:
                 # Take last element for GAN loss on discrim prediction
                 update_loss = (
                     (
-                        self.losses["G"]["p"]["gan"](fake_d_global[i][-1], True)
-                        + self.losses["G"]["p"]["gan"](fake_d_local[i][-1], True)
+                        self.losses["G"]["p"]["hinge"](
+                            fake_d_global[i][-1], True, False
+                        )
+                        + self.losses["G"]["p"]["hinge"](
+                            fake_d_local[i][-1], True, False
+                        )
                     )
                     * lambdas.G["p"]["gan"]
                     / num_D
@@ -1090,13 +1099,13 @@ class Trainer:
                 for i in range(num_D):
                     # Take last element for GAN loss on discrim prediction
 
-                    global_loss = self.losses["D"]["default"](
-                        fake_d_global[i][-1], False
-                    ) + self.losses["D"]["default"](real_d_global[i][-1], True)
+                    global_loss = self.losses["D"]["p"](
+                        fake_d_global[i][-1], False, True
+                    ) + self.losses["D"]["p"](real_d_global[i][-1], True, True)
 
-                    local_loss = self.losses["D"]["default"](
-                        fake_d_local[i][-1], False
-                    ) + self.losses["D"]["default"](real_d_local[i][-1], True)
+                    local_loss = self.losses["D"]["p"](
+                        fake_d_local[i][-1], False, True
+                    ) + self.losses["D"]["p"](real_d_local[i][-1], True, True)
 
                     disc_loss["p"]["global"] += global_loss / num_D
                     disc_loss["p"]["local"] += local_loss / num_D
