@@ -493,6 +493,7 @@ class HingeLoss(nn.Module):
         if self.zero_tensor is None:
             self.zero_tensor = self.Tensor(1).fill_(0)
             self.zero_tensor.requires_grad_(False)
+            self.zero_tensor = self.zero_tensor.to(input.device)
         return self.zero_tensor.expand_as(input)
 
     def loss(self, input, target_is_real, for_discriminator=True):
