@@ -623,7 +623,7 @@ class Trainer:
             image_grid = vutils.make_grid(
                 ims, nrow=im_per_row, normalize=True, scale_each=True
             )
-            image_grid = image_grid.permute(1, 2, 0).numpy()
+            image_grid = image_grid.permute(1, 2, 0).cpu().numpy()
 
             if comet_exp is not None:
                 comet_exp.log_image(
