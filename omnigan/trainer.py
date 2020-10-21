@@ -1326,7 +1326,7 @@ class Trainer:
             p_checkpoint = torch.load(p_ckpt_path)
 
             checkpoint = merge(m_checkpoint, p_checkpoint)
-            print(f"Resuming model from {m_ckpt_path} and {p_ckpt_path}")
+            print(f"Resuming model from \n  -{m_ckpt_path} \nand \n  -{p_ckpt_path}")
         # ----------------------------------
         # -----  Single Model Loading  -----
         # ----------------------------------
@@ -1344,6 +1344,7 @@ class Trainer:
 
         if inference:
             # only G is needed to infer
+            print("Done loading checkpoints.")
             return
 
         if not ("m" in self.opts.tasks and "p" in self.opts.tasks):
