@@ -1,4 +1,5 @@
-"""Main component: the trainer handles everything:
+"""
+Main component: the trainer handles everything:
     * initializations
     * training
     * saving
@@ -65,7 +66,6 @@ class Trainer:
         self.loaders = None
         self.losses = None
         self.input_shape = None
-
         self.G = self.D = self.C = None
         self.lr_names = {}
 
@@ -645,7 +645,7 @@ class Trainer:
             image_grid = vutils.make_grid(
                 ims, nrow=im_per_row, normalize=True, scale_each=True
             )
-            image_grid = image_grid.permute(1, 2, 0).numpy()
+            image_grid = image_grid.permute(1, 2, 0).cpu().numpy()
 
             if comet_exp is not None:
                 comet_exp.log_image(
@@ -983,8 +983,12 @@ class Trainer:
                 # Take last element for GAN loss on discrim prediction
                 update_loss = (
                     (
-                        self.losses["G"]["p"]["gan"](fake_d_global[i][-1], True)
-                        + self.losses["G"]["p"]["gan"](fake_d_local[i][-1], True)
+                        self.losses["G"]["p"]["hinge"](
+                            fake_d_global[i][-1], True, False
+                        )
+                        + self.losses["G"]["p"]["hinge"](
+                            fake_d_local[i][-1], True, False
+                        )
                     )
                     * lambdas.G["p"]["gan"]
                     / num_D
@@ -1129,13 +1133,13 @@ class Trainer:
                 for i in range(num_D):
                     # Take last element for GAN loss on discrim prediction
 
-                    global_loss = self.losses["D"]["default"](
-                        fake_d_global[i][-1], False
-                    ) + self.losses["D"]["default"](real_d_global[i][-1], True)
+                    global_loss = self.losses["D"]["p"](
+                        fake_d_global[i][-1], False, True
+                    ) + self.losses["D"]["p"](real_d_global[i][-1], True, True)
 
-                    local_loss = self.losses["D"]["default"](
-                        fake_d_local[i][-1], False
-                    ) + self.losses["D"]["default"](real_d_local[i][-1], True)
+                    local_loss = self.losses["D"]["p"](
+                        fake_d_local[i][-1], False, True
+                    ) + self.losses["D"]["p"](real_d_local[i][-1], True, True)
 
                     disc_loss["p"]["global"] += global_loss / num_D
                     disc_loss["p"]["local"] += local_loss / num_D
@@ -1236,41 +1240,41 @@ class Trainer:
     @torch.no_grad()
     def run_evaluation(self, verbose=0):
         print("******************* Running Evaluation ***********************")
-        self.eval_mode()
+        with torch.no_grad():
+            self.eval_mode()
+            val_logger = None
+            nb_of_batches = None
+            for i, multi_batch_tuple in enumerate(self.val_loaders):
+                # create a dictionnary (domain => batch) from tuple
+                # (batch_domain_0, ..., batch_domain_i)
+                # and send it to self.device
+                nb_of_batches = i + 1
+                multi_domain_batch = {
+                    batch["domain"][0]: self.batch_to_device(batch)
+                    for batch in multi_batch_tuple
+                }
+                self.get_g_loss(multi_domain_batch, verbose)
 
-        val_logger = None
-        nb_of_batches = None
-        for i, multi_batch_tuple in enumerate(self.val_loaders):
-            # create a dictionnary (domain => batch) from tuple
-            # (batch_domain_0, ..., batch_domain_i)
-            # and send it to self.device
-            nb_of_batches = i + 1
-            multi_domain_batch = {
-                batch["domain"][0]: self.batch_to_device(batch)
-                for batch in multi_batch_tuple
-            }
-            self.get_g_loss(multi_domain_batch, verbose)
+                if val_logger is None:
+                    val_logger = deepcopy(self.logger.losses.generator)
+                else:
+                    val_logger = sum_dict(val_logger, self.logger.losses.generator)
 
-            if val_logger is None:
-                val_logger = deepcopy(self.logger.losses.gen)
-            else:
-                val_logger = sum_dict(val_logger, self.logger.losses.gen)
+            val_logger = div_dict(val_logger, nb_of_batches)
+            self.logger.losses.generator = val_logger
+            self.log_losses(model_to_update="G", mode="val")
 
-        val_logger = div_dict(val_logger, nb_of_batches)
-        self.logger.losses.gen = val_logger
-        self.log_losses(model_to_update="G", mode="val")
+            for d in self.opts.domains:
+                self.log_comet_images("train", d)
+                self.log_comet_images("val", d)
 
-        for d in self.opts.domains:
-            self.log_comet_images("train", d)
-            self.log_comet_images("val", d)
+            if "m" in self.opts.tasks and "p" in self.opts.tasks:
+                self.log_comet_combined_images("train", "r")
+                self.log_comet_combined_images("val", "r")
 
-        if "m" in self.opts.tasks and "p" in self.opts.tasks:
-            self.log_comet_combined_images("train", "r")
-            self.log_comet_combined_images("val", "r")
-
-        if "m" in self.opts.tasks:
-            self.eval_images("val", "r")
-            self.eval_images("val", "s")
+            if "m" in self.opts.tasks:
+                self.eval_images("val", "r")
+                self.eval_images("val", "s")
 
         self.train_mode()
         print("****************** Done *********************")

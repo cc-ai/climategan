@@ -44,9 +44,7 @@ def parsed_args():
         required=True,
     )
     parser.add_argument(
-        "--new_size",
-        type=int,
-        help="Size of generated masks",
+        "--new_size", type=int, help="Size of generated masks",
     )
     parser.add_argument(
         "--output_dir",

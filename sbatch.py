@@ -11,6 +11,24 @@ import numpy as np
 import yaml
 
 
+def env_to_path(path):
+    """Transorms an environment variable mention in a json
+    into its actual value. E.g. $HOME/clouds -> /home/vsch/clouds
+
+    Args:
+        path (str): path potentially containing the env variable
+
+    """
+    path_elements = path.split("/")
+    new_path = []
+    for el in path_elements:
+        if "$" in el:
+            new_path.append(os.environ[el.replace("$", "")])
+        else:
+            new_path.append(el)
+    return "/".join(new_path)
+
+
 class C:
     HEADER = "\033[95m"
     OKBLUE = "\033[94m"
@@ -212,7 +230,31 @@ def clean_arg(v):
     Returns:
         str: parsed value to string
     """
-    return stringify_list(crop_float(quote_string(v)))
+    return stringify_list(crop_float(quote_string(resolve_env(v))))
+
+
+def resolve_env(v):
+    """
+    resolve env variables in paths
+
+    Args:
+        v (any): arg to pass to train.py
+
+    Returns:
+        str: try and resolve an env variable
+    """
+    if isinstance(v, str):
+        try:
+            if "$" in v:
+                if "/" in v:
+                    v = env_to_path(v)
+                else:
+                    _v = os.environ.get(v)
+                    if _v is not None:
+                        v = _v
+        except Exception:
+            pass
+    return v
 
 
 def stringify_list(v):

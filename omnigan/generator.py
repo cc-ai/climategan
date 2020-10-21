@@ -12,7 +12,7 @@ import torch.nn.functional as F
 
 # --------------------------------------------------------------------------
 # -----  For now no network structure, just project in a 64 x 32 x 32  -----
-# -----   latent space and decode to (3 or 1) x 256 x 256              -----
+# -----  latent space and decode to (3 or 1) x 256 x 256               -----
 # --------------------------------------------------------------------------
 
 # TODO think about how to use the classifier probs at inference

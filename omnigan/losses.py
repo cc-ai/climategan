@@ -378,7 +378,7 @@ def get_losses(opts, verbose, device=None):
     # ------------------------------
     # painter losses
     if "p" in opts.tasks:
-        losses["G"]["p"]["gan"] = GANLoss()
+        losses["G"]["p"]["hinge"] = HingeLoss()
         losses["G"]["p"]["sm"] = PixelCrossEntropy()
         losses["G"]["p"]["dm"] = MSELoss()
         losses["G"]["p"]["vgg"] = VGGLoss(device)
@@ -425,9 +425,7 @@ def get_losses(opts, verbose, device=None):
     # ----------------------------------
     # -----  Discriminator Losses  -----
     # ----------------------------------
-    losses["D"]["default"] = GANLoss(
-        soft_shift=opts.dis.soft_shift, flip_prob=opts.dis.flip_prob, verbose=verbose
-    )
+    losses["D"]["p"] = HingeLoss()
     losses["D"]["advent"] = ADVENTAdversarialLoss(opts)
     return losses
 
@@ -490,3 +488,51 @@ def multiDiscriminatorAdapter(d_out, opts):
             "Check the setting of OmniDiscriminator! For now, we don't support multi-scale Omnidiscriminator."
         )
     return d_out
+
+
+class HingeLoss(nn.Module):
+    """
+    Adapted from https://github.com/NVlabs/SPADE/blob/master/models/networks/loss.py
+    for  the painter
+    """
+
+    def __init__(self, tensor=torch.FloatTensor):
+        super().__init__()
+        self.zero_tensor = None
+        self.Tensor = tensor
+
+    def get_zero_tensor(self, input):
+        if self.zero_tensor is None:
+            self.zero_tensor = self.Tensor(1).fill_(0)
+            self.zero_tensor.requires_grad_(False)
+            self.zero_tensor = self.zero_tensor.to(input.device)
+        return self.zero_tensor.expand_as(input)
+
+    def loss(self, input, target_is_real, for_discriminator=True):
+        if for_discriminator:
+            if target_is_real:
+                minval = torch.min(input - 1, self.get_zero_tensor(input))
+                loss = -torch.mean(minval)
+            else:
+                minval = torch.min(-input - 1, self.get_zero_tensor(input))
+                loss = -torch.mean(minval)
+        else:
+            assert target_is_real, "The generator's hinge loss must be aiming for real"
+            loss = -torch.mean(input)
+        return loss
+
+    def __call__(self, input, target_is_real, for_discriminator=True):
+        # computing loss is a bit complicated because |input| may not be
+        # a tensor, but list of tensors in case of multiscale discriminator
+        if isinstance(input, list):
+            loss = 0
+            for pred_i in input:
+                if isinstance(pred_i, list):
+                    pred_i = pred_i[-1]
+                loss_tensor = self.loss(pred_i, target_is_real, for_discriminator)
+                bs = 1 if len(loss_tensor.size()) == 0 else loss_tensor.size(0)
+                new_loss = torch.mean(loss_tensor.view(bs, -1), dim=1)
+                loss += new_loss
+            return loss / len(input)
+        else:
+            return self.loss(input, target_is_real, for_discriminator)
