@@ -181,7 +181,7 @@ class TVLoss(nn.Module):
 class MinentLoss(nn.Module):
     """
         Loss for the minimization of the entropy map
-        Source for version 1: https://github.com/valeoai/ADVENT 
+        Source for version 1: https://github.com/valeoai/ADVENT
 
         Version 2 adds the variance of the entropy map in the computation of the loss
     """
@@ -530,9 +530,7 @@ class HingeLoss(nn.Module):
                 if isinstance(pred_i, list):
                     pred_i = pred_i[-1]
                 loss_tensor = self.loss(pred_i, target_is_real, for_discriminator)
-                bs = 1 if len(loss_tensor.size()) == 0 else loss_tensor.size(0)
-                new_loss = torch.mean(loss_tensor.view(bs, -1), dim=1)
-                loss += new_loss
+                loss += loss_tensor
             return loss / len(input)
         else:
             return self.loss(input, target_is_real, for_discriminator)
