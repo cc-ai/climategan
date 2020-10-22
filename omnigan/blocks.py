@@ -502,6 +502,9 @@ class SpadeDecoder(nn.Module):
         return self
 
     def forward(self, z, cond):
+        if z is None:
+            assert self.z_h is not None and self.z_w is not None
+            z = self.fc(F.interpolate(cond, size=(self.z_h, self.z_w)))
         y = self.head_0(z, cond)
         y = self.upsample(y)
         y = self.G_middle_0(y, cond)
