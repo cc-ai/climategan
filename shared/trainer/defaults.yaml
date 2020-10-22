@@ -147,7 +147,7 @@ dis:
     &default-dis # default setting for discriminators (there are 4 of them for rn rf sn sf)
     input_nc: 3
     ndf: 64
-    n_layers: 3
+    n_layers: 4
     norm: instance
     init_type: kaiming
     init_gain: 0.2

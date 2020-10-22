@@ -866,16 +866,13 @@ class Trainer:
         return step_loss
 
     def sample_z(self, batch_size):
-        return (
-            torch.empty(
-                batch_size,
-                self.opts.gen.p.latent_dim,
-                self.painter_z_h,
-                self.painter_z_w,
-            )
-            .normal_(mean=0, std=1.0)
-            .to(self.device)
-        )
+        return torch.empty(
+            batch_size,
+            self.opts.gen.p.latent_dim,
+            self.painter_z_h,
+            self.painter_z_w,
+            device=self.device,
+        ).normal_(mean=0, std=1.0)
 
     def get_painter_loss(self, multi_domain_batch):
         """Computes the translation loss when flooding/deflooding images
@@ -913,10 +910,7 @@ class Trainer:
             self.logger.losses.gen.p.vgg = update_loss.item()
             step_loss += update_loss
 
-            update_loss = (
-                self.losses["G"]["p"]["tv"](fake_flooded * m)
-                * lambdas.G.p.tv
-            )
+            update_loss = self.losses["G"]["p"]["tv"](fake_flooded * m) * lambdas.G.p.tv
             self.logger.losses.gen.p.tv = update_loss.item()
             step_loss += update_loss
 
@@ -1076,8 +1070,13 @@ class Trainer:
 
             if batch_domain == "rf":
                 # sample vector
-                z_paint = self.sample_z(x.shape[0])
-                fake = self.G.painter(z_paint, x * (1.0 - m))
+                with torch.no_grad():
+                    # see spade compute_discriminator_loss
+                    z_paint = self.sample_z(x.shape[0])
+                    fake = self.G.painter(z_paint, x * (1.0 - m))
+                    fake = fake.detach()
+                    fake.requires_grad_()
+
                 fake_d_global = self.D["p"]["global"](fake)
                 real_d_global = self.D["p"]["global"](x)
                 fake_d_local = self.D["p"]["local"](fake * m)
