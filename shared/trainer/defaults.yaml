@@ -158,6 +158,8 @@ dis:
     <<: *default-dis
     num_D: 3
     get_intermediate_features: true
+    use_local_discriminator: false
+    no_z: true # <=> use_vae=False in the SPADE repo
   m:
     <<: *default-dis
     multi_level: false

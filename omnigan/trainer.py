@@ -254,8 +254,8 @@ class Trainer:
             self.G.decoders["s"].set_target_size(self.input_shape[-2:])
 
         print("OK.")
-        self.painter_z_h = self.input_shape[-2] // (2 ** self.opts.gen.p.spade_n_up)
-        self.painter_z_w = self.input_shape[-1] // (2 ** self.opts.gen.p.spade_n_up)
+        self.G.painter.z_h = self.input_shape[-2] // (2 ** self.opts.gen.p.spade_n_up)
+        self.G.painter.z_w = self.input_shape[-1] // (2 ** self.opts.gen.p.spade_n_up)
 
         if inference:
             print("Inference mode: no Discriminator, no Classifier, no optimizers")
@@ -909,8 +909,8 @@ class Trainer:
         return torch.empty(
             batch_size,
             self.opts.gen.p.latent_dim,
-            self.painter_z_h,
-            self.painter_z_w,
+            self.G.painter.z_h,
+            self.G.painter.z_w,
             device=self.device,
         ).normal_(mean=0, std=1.0)
 
