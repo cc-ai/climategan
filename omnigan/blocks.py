@@ -403,15 +403,7 @@ class SPADEResnetBlock(nn.Module):
 
 
 class SpadeDecoder(nn.Module):
-    def __init__(
-        self,
-        latent_dim,
-        cond_nc,
-        spade_n_up,
-        spade_use_spectral_norm,
-        spade_param_free_norm,
-        spade_kernel_size,
-    ):
+    def __init__(self, opts):
         """Create a SPADE-based decoder, which forwards z and the conditioning
         tensors seg (in the original paper, conditioning is on a semantic map only).
         All along, z is conditioned on seg. First 3 SpadeResblocks (SRB) do not shrink
@@ -431,6 +423,13 @@ class SpadeDecoder(nn.Module):
             [type]: [description]
         """
         super().__init__()
+
+        latent_dim = opts.gen.p.latent_dim
+        cond_nc = 3
+        spade_n_up = opts.gen.p.spade_n_up
+        spade_use_spectral_norm = opts.gen.p.spade_use_spectral_norm
+        spade_param_free_norm = opts.gen.p.spade_param_free_norm
+        spade_kernel_size = 3
 
         self.z_nc = latent_dim
         self.spade_n_up = spade_n_up
