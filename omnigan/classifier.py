@@ -5,8 +5,12 @@ from omnigan.tutils import init_weights
 from omnigan.blocks import Conv2dBlock
 
 
-def get_classifier(opts, latent_space, verbose):
+def get_classifier(opts, latent_space, verbose, no_init=False):
     C = OmniClassifier(latent_space, opts.classifier.proj_dim, opts.classifier.loss)
+
+    if no_init:
+        return C
+
     init_weights(
         C,
         init_type=opts.classifier.init_type,

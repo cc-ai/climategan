@@ -44,9 +44,7 @@ def parsed_args():
         required=True,
     )
     parser.add_argument(
-        "--new_size",
-        type=int,
-        help="Size of generated masks",
+        "--new_size", type=int, help="Size of generated masks",
     )
     parser.add_argument(
         "--output_dir",
@@ -61,9 +59,7 @@ def parsed_args():
         required=False,
     )
     parser.add_argument(
-        "--apply_mask",
-        action="store_true",
-        help="Apply mask to image to save",
+        "--apply_mask", action="store_true", help="Apply mask to image to save",
     )
 
     return parser.parse_args()
@@ -116,12 +112,15 @@ def eval_folder(
                     mask = model.decoders["m"](z_aug)
 
                     vutils.save_image(
-                        mask, output_dir / (f"mask_{label_val}_" + img_path.name), normalize=True
+                        mask,
+                        output_dir / (f"mask_{label_val}_" + img_path.name),
+                        normalize=True,
                     )
                     if apply_mask:
                         vutils.save_image(
                             img * (1.0 - mask) + mask,
-                            output_dir / (img_path.stem + f"img_masked_{label_val}" + ".jpg"),
+                            output_dir
+                            / (img_path.stem + f"img_masked_{label_val}" + ".jpg"),
                             normalize=True,
                         )
 
