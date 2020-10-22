@@ -210,5 +210,11 @@ class FullSpadeGen(nn.Module):
             spade_kernel_size=3,
         )
 
+        self.z_h = self.z_w = None
+
     def forward(self, z, cond):
+        if z is None:
+            assert self.z_h is not None and self.z_w is not None
+            z = self.fc(F.interpolate(cond, size=(self.z_h, self.z_w)))
+
         return self.dec(z, cond)
