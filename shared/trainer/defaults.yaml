@@ -34,6 +34,7 @@ data:
     - name: resize
       ignore: false
       new_size: 640
+      keep_aspect_ratio: true # smallest dimension will be `new_size` and the other will be computed to keep aspect  ratio
     - name: crop
       ignore: false
       height: 600
