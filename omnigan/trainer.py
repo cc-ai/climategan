@@ -32,6 +32,7 @@ from omnigan.tutils import (
     vgg_preprocess,
     norm_tensor,
     zero_grad,
+    divide_pred,
 )
 from omnigan.utils import div_dict, flatten_opts, sum_dict, merge, get_display_indices
 from omnigan.eval_metrics import iou, accuracy
@@ -962,41 +963,58 @@ class Trainer:
             step_loss += update_loss
 
             # GAN Losses
-            fake_d_global = self.D["p"]["global"](fake_flooded)
-            fake_d_local = self.D["p"]["local"](fake_flooded * m)
+            if self.opts.dis.p.use_local_discriminator:
+                fake_d_global = self.D["p"]["global"](fake_flooded)
+                fake_d_local = self.D["p"]["local"](fake_flooded * m)
 
-            real_d_global = self.D["p"]["global"](x)
+                real_d_global = self.D["p"]["global"](x)
 
-            # Note: discriminator returns [out_1,...,out_num_D] outputs
-            # Each out_i is a list [feat1, feat2, ..., pred_i]
+                # Note: discriminator returns [out_1,...,out_num_D] outputs
+                # Each out_i is a list [feat1, feat2, ..., pred_i]
 
-            self.logger.losses.gen.p.gan = 0
+                self.logger.losses.gen.p.gan = 0
 
-            num_D = len(fake_d_global)
-            for i in range(num_D):
-                # Take last element for GAN loss on discrim prediction
                 update_loss = (
-                    (
-                        self.losses["G"]["p"]["hinge"](
-                            fake_d_global[i][-1], True, False
-                        )
-                        + self.losses["G"]["p"]["hinge"](
-                            fake_d_local[i][-1], True, False
-                        )
+                    self.losses["G"]["p"]["hinge"](fake_d_global, True, False)
+                    + self.losses["G"]["p"]["hinge"](fake_d_local, True, False)
+                ) * lambdas.G["p"]["gan"]
+
+                self.logger.losses.gen.p.gan = update_loss.item()
+
+                step_loss += update_loss
+
+                # Feature matching loss (only on global discriminator)
+                # Order must be real, fake
+                if self.opts.dis.p.get_intermediate_features:
+                    update_loss = (
+                        self.losses["G"]["p"]["featmatch"](real_d_global, fake_d_global)
+                        * lambdas.G["p"]["featmatch"]
                     )
-                    * lambdas.G["p"]["gan"]
-                    / num_D
+
+                    if isinstance(update_loss, float):
+                        self.logger.losses.gen.p.featmatch = update_loss
+                    else:
+                        self.logger.losses.gen.p.featmatch = update_loss.item()
+
+                    step_loss += update_loss
+
+            else:
+                real_fake_d = self.D["p"](
+                    torch.cat(
+                        [
+                            torch.cat([m, x], axis=1),
+                            torch.cat([m, fake_flooded], axis=1),
+                        ],
+                        axis=0,
+                    )
                 )
+                fake_d, real_d = divide_pred(real_fake_d)
+                update_loss = self.losses["D"]["p"](fake_d, False, False)
+                self.logger.losses.gen.p.gan = update_loss.item()
+                step_loss += update_loss
 
-                self.logger.losses.gen.p.gan += update_loss.item()
-
-            step_loss += update_loss
-
-            # Feature matching loss (only on global discriminator)
-            # Order must be real, fake
-            if self.opts.dis.p.get_intermediate_features:
                 update_loss = (
-                    self.losses["G"]["p"]["featmatch"](real_d_global, fake_d_global)
+                    self.losses["G"]["p"]["featmatch"](real_d, fake_d)
                     * lambdas.G["p"]["featmatch"]
                 )
 
@@ -1104,8 +1122,11 @@ class Trainer:
         disc_loss = {
             "m": {"Advent": 0},
             "s": {"Advent": 0},
-            "p": {"global": 0, "local": 0},
         }
+        if self.opts.dis.p.use_local_discriminator:
+            disc_loss["p"] = {"global": 0, "local": 0}
+        else:
+            disc_loss["p"] = {"hinge": 0}
 
         for batch_domain, batch in multi_domain_batch.items():
             x = batch["data"]["x"]
@@ -1120,28 +1141,36 @@ class Trainer:
                     fake = fake.detach()
                     fake.requires_grad_()
 
-                fake_d_global = self.D["p"]["global"](fake)
-                real_d_global = self.D["p"]["global"](x)
-                fake_d_local = self.D["p"]["local"](fake * m)
-                real_d_local = self.D["p"]["local"](x * m)
+                if self.opts.dis.p.use_local_discriminator:
+                    fake_d_global = self.D["p"]["global"](fake)
+                    real_d_global = self.D["p"]["global"](x)
+                    fake_d_local = self.D["p"]["local"](fake * m)
+                    real_d_local = self.D["p"]["local"](x * m)
+
+                    global_loss = self.losses["D"]["p"](
+                        fake_d_global, False, True
+                    ) + self.losses["D"]["p"](real_d_global, True, True)
+
+                    local_loss = self.losses["D"]["p"](
+                        fake_d_local, False, True
+                    ) + self.losses["D"]["p"](real_d_local, True, True)
+
+                    disc_loss["p"]["global"] += global_loss
+                    disc_loss["p"]["local"] += local_loss
+                else:
+                    real_fake_d = self.D["p"](
+                        torch.cat(
+                            [torch.cat([m, x], axis=1), torch.cat([m, fake], axis=1)],
+                            axis=0,
+                        )
+                    )
+                    fake_d, real_d = divide_pred(real_fake_d)
+                    self.losses["D"]["p"](fake_d, False, True) + self.losses["D"]["p"](
+                        real_d, True, True
+                    )
 
                 # Note: discriminator returns [out_1,...,out_num_D] outputs
                 # Each out_i is a list [feat1, feat2, ..., pred_i]
-
-                num_D = len(fake_d_global)
-                for i in range(num_D):
-                    # Take last element for GAN loss on discrim prediction
-
-                    global_loss = self.losses["D"]["p"](
-                        fake_d_global[i][-1], False, True
-                    ) + self.losses["D"]["p"](real_d_global[i][-1], True, True)
-
-                    local_loss = self.losses["D"]["p"](
-                        fake_d_local[i][-1], False, True
-                    ) + self.losses["D"]["p"](real_d_local[i][-1], True, True)
-
-                    disc_loss["p"]["global"] += global_loss / num_D
-                    disc_loss["p"]["local"] += local_loss / num_D
 
             else:
                 z = self.G.encode(x)
