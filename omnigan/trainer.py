@@ -1,4 +1,5 @@
-"""Main component: the trainer handles everything:
+"""
+Main component: the trainer handles everything:
     * initializations
     * training
     * saving
@@ -64,6 +65,8 @@ class Trainer:
         self.logger.epoch = 0
         self.loaders = None
         self.losses = None
+        self.input_shape = None
+        self.G = self.D = self.C = None
         self.lr_names = {}
 
         self.is_setup = False
@@ -211,7 +214,7 @@ class Trainer:
             print("num params classif: ", get_num_params(self.C))
         print("---------------------------")
 
-    def setup(self):
+    def setup(self, inference=False):
         """Prepare the trainer before it can be used to train the models:
             * initialize G and D
             * compute latent space dims and create classifier accordingly
@@ -220,32 +223,67 @@ class Trainer:
         self.logger.global_step = 0
         start_time = time()
         self.logger.time.start_time = start_time
+        verbose = self.verbose
 
-        self.loaders = get_all_loaders(self.opts)
+        if not inference:
+            self.loaders = get_all_loaders(self.opts)
 
-        self.G: OmniGenerator = get_gen(self.opts, verbose=self.verbose).to(self.device)
-        print("Generator OK. Computing latent & input shapes...", end="", flush=True)
+        # -----------------------
+        # -----  Generator  -----
+        # -----------------------
+        __t = time()
+        print("Creating generator:")
+        self.G: OmniGenerator = get_gen(self.opts, verbose=verbose, no_init=inference)
+        print("Sending to", self.device)
+        self.G = self.G.to(self.device)
+        print(
+            f"Generator OK in {time() - __t:.1f}s.", end="", flush=True,
+        )
 
-        self.input_shape = self.compute_input_shape()
+        if self.input_shape is None:
+            if inference:
+                raise ValueError(
+                    "Cannot auto-set input_shape from loaders in inference mode."
+                    + " It  has to  be set prior to setup()."
+                )
+            print("Computing latent & input shapes...", end="", flush=True)
+            self.input_shape = self.compute_input_shape()
+
         if "s" in self.opts.tasks:
             self.G.decoders["s"].set_target_size(self.input_shape[-2:])
 
         print("OK.")
         self.painter_z_h = self.input_shape[-2] // (2 ** self.opts.gen.p.spade_n_up)
         self.painter_z_w = self.input_shape[-1] // (2 ** self.opts.gen.p.spade_n_up)
-        self.D: OmniDiscriminator = get_dis(self.opts, verbose=self.verbose).to(
-            self.device
-        )
+
+        if inference:
+            print("Inference mode: no Discriminator, no Classifier, no optimizers")
+            return
+
+        # ---------------------------
+        # -----  Discriminator  -----
+        # ---------------------------
+
+        self.D: OmniDiscriminator = get_dis(self.opts, verbose=verbose).to(self.device)
         print("Discriminator OK.")
+
+        # ------------------------
+        # -----  Classifier  -----
+        # ------------------------
+
         self.C: OmniClassifier = None
         if self.G.encoder is not None and self.opts.train.latent_domain_adaptation:
             self.latent_shape = self.compute_latent_shape()
-            self.C = get_classifier(
-                self.opts, self.latent_shape, verbose=self.verbose
-            ).to(self.device)
+            self.C = get_classifier(self.opts, self.latent_shape, verbose=verbose).to(
+                self.device
+            )
         print("Classifier OK.")
+
         self.print_num_parameters()
 
+        # --------------------------
+        # -----  Optimization  -----
+        # --------------------------
         # Get different optimizers for each task (different learning rates)
         self.g_opt, self.g_scheduler, self.lr_names["G"] = get_optimizer(
             self.G, self.opts.gen.opt, self.opts.tasks
@@ -268,9 +306,9 @@ class Trainer:
         if self.opts.train.resume:
             self.resume()
 
-        self.losses = get_losses(self.opts, self.verbose, device=self.device)
+        self.losses = get_losses(self.opts, verbose, device=self.device)
 
-        if self.verbose > 0:
+        if verbose > 0:
             for mode, mode_dict in self.loaders.items():
                 for domain, domain_loader in mode_dict.items():
                     print(
@@ -279,9 +317,10 @@ class Trainer:
                         )
                     )
 
-        # Create display images:
+        # ----------------------------
+        # -----  Display images  -----
+        # ----------------------------
         print("Creating display images...", end="", flush=True)
-
         self.display_images = {}
         for mode, mode_dict in self.loaders.items():
             self.display_images[mode] = {}
@@ -606,7 +645,7 @@ class Trainer:
             image_grid = vutils.make_grid(
                 ims, nrow=im_per_row, normalize=True, scale_each=True
             )
-            image_grid = image_grid.permute(1, 2, 0).numpy()
+            image_grid = image_grid.permute(1, 2, 0).cpu().numpy()
 
             if comet_exp is not None:
                 comet_exp.log_image(
@@ -938,8 +977,12 @@ class Trainer:
                 # Take last element for GAN loss on discrim prediction
                 update_loss = (
                     (
-                        self.losses["G"]["p"]["gan"](fake_d_global[i][-1], True)
-                        + self.losses["G"]["p"]["gan"](fake_d_local[i][-1], True)
+                        self.losses["G"]["p"]["hinge"](
+                            fake_d_global[i][-1], True, False
+                        )
+                        + self.losses["G"]["p"]["hinge"](
+                            fake_d_local[i][-1], True, False
+                        )
                     )
                     * lambdas.G["p"]["gan"]
                     / num_D
@@ -1089,13 +1132,13 @@ class Trainer:
                 for i in range(num_D):
                     # Take last element for GAN loss on discrim prediction
 
-                    global_loss = self.losses["D"]["default"](
-                        fake_d_global[i][-1], False
-                    ) + self.losses["D"]["default"](real_d_global[i][-1], True)
+                    global_loss = self.losses["D"]["p"](
+                        fake_d_global[i][-1], False, True
+                    ) + self.losses["D"]["p"](real_d_global[i][-1], True, True)
 
-                    local_loss = self.losses["D"]["default"](
-                        fake_d_local[i][-1], False
-                    ) + self.losses["D"]["default"](real_d_local[i][-1], True)
+                    local_loss = self.losses["D"]["p"](
+                        fake_d_local[i][-1], False, True
+                    ) + self.losses["D"]["p"](real_d_local[i][-1], True, True)
 
                     disc_loss["p"]["global"] += global_loss / num_D
                     disc_loss["p"]["local"] += local_loss / num_D
@@ -1196,41 +1239,41 @@ class Trainer:
     @torch.no_grad()
     def run_evaluation(self, verbose=0):
         print("******************* Running Evaluation ***********************")
-        self.eval_mode()
+        with torch.no_grad():
+            self.eval_mode()
+            val_logger = None
+            nb_of_batches = None
+            for i, multi_batch_tuple in enumerate(self.val_loaders):
+                # create a dictionnary (domain => batch) from tuple
+                # (batch_domain_0, ..., batch_domain_i)
+                # and send it to self.device
+                nb_of_batches = i + 1
+                multi_domain_batch = {
+                    batch["domain"][0]: self.batch_to_device(batch)
+                    for batch in multi_batch_tuple
+                }
+                self.get_g_loss(multi_domain_batch, verbose)
 
-        val_logger = None
-        nb_of_batches = None
-        for i, multi_batch_tuple in enumerate(self.val_loaders):
-            # create a dictionnary (domain => batch) from tuple
-            # (batch_domain_0, ..., batch_domain_i)
-            # and send it to self.device
-            nb_of_batches = i + 1
-            multi_domain_batch = {
-                batch["domain"][0]: self.batch_to_device(batch)
-                for batch in multi_batch_tuple
-            }
-            self.get_g_loss(multi_domain_batch, verbose)
+                if val_logger is None:
+                    val_logger = deepcopy(self.logger.losses.generator)
+                else:
+                    val_logger = sum_dict(val_logger, self.logger.losses.generator)
 
-            if val_logger is None:
-                val_logger = deepcopy(self.logger.losses.gen)
-            else:
-                val_logger = sum_dict(val_logger, self.logger.losses.gen)
+            val_logger = div_dict(val_logger, nb_of_batches)
+            self.logger.losses.generator = val_logger
+            self.log_losses(model_to_update="G", mode="val")
 
-        val_logger = div_dict(val_logger, nb_of_batches)
-        self.logger.losses.gen = val_logger
-        self.log_losses(model_to_update="G", mode="val")
+            for d in self.opts.domains:
+                self.log_comet_images("train", d)
+                self.log_comet_images("val", d)
 
-        for d in self.opts.domains:
-            self.log_comet_images("train", d)
-            self.log_comet_images("val", d)
+            if "m" in self.opts.tasks and "p" in self.opts.tasks:
+                self.log_comet_combined_images("train", "r")
+                self.log_comet_combined_images("val", "r")
 
-        if "m" in self.opts.tasks and "p" in self.opts.tasks:
-            self.log_comet_combined_images("train", "r")
-            self.log_comet_combined_images("val", "r")
-
-        if "m" in self.opts.tasks:
-            self.eval_images("val", "r")
-            self.eval_images("val", "s")
+            if "m" in self.opts.tasks:
+                self.eval_images("val", "r")
+                self.eval_images("val", "s")
 
         self.train_mode()
         print("****************** Done *********************")
@@ -1259,8 +1302,12 @@ class Trainer:
 
         torch.save(save_dict, save_path)
 
-    def resume(self):
+    def resume(self, inference=False):
         # load_path = self.get_latest_ckpt()
+
+        # ----------------------------------------
+        # -----  Masker and Painter Loading  -----
+        # ----------------------------------------
         if "m" in self.opts.tasks and "p" in self.opts.tasks:
             m_path = self.opts.load_paths.m
             p_path = self.opts.load_paths.p
@@ -1278,7 +1325,10 @@ class Trainer:
             p_checkpoint = torch.load(p_ckpt_path)
 
             checkpoint = merge(m_checkpoint, p_checkpoint)
-            print(f"Resuming model from {m_ckpt_path} and {p_ckpt_path}")
+            print(f"Resuming model from \n  -{m_ckpt_path} \nand \n  -{p_ckpt_path}")
+        # ----------------------------------
+        # -----  Single Model Loading  -----
+        # ----------------------------------
         else:
             load_path = Path(self.opts.output_path) / Path(
                 "checkpoints/latest_ckpt.pth"
@@ -1286,7 +1336,16 @@ class Trainer:
             checkpoint = torch.load(load_path)
             print(f"Resuming model from {load_path}")
 
+        # -----------------------
+        # -----  Restore G  -----
+        # -----------------------
         self.G.load_state_dict(checkpoint["G"])
+
+        if inference:
+            # only G is needed to infer
+            print("Done loading checkpoints.")
+            return
+
         if not ("m" in self.opts.tasks and "p" in self.opts.tasks):
             self.g_opt.load_state_dict(checkpoint["g_opt"])
         self.logger.epoch = checkpoint["epoch"]
@@ -1301,15 +1360,30 @@ class Trainer:
         if self.logger.global_step % 2 != 0:
             self.logger.global_step += 1
 
+        # -----------------------
+        # -----  Restore D  -----
+        # -----------------------
+        if self.D is not None and get_num_params(self.D) > 0:
+            self.D.load_state_dict(checkpoint["D"])
+            if not ("m" in self.opts.tasks and "p" in self.opts.tasks):
+                self.d_opt.load_state_dict(checkpoint["d_opt"])
+
+        # -----------------------
+        # -----  Restore C  -----
+        # -----------------------
         if self.C is not None and get_num_params(self.C) > 0:
             self.C.load_state_dict(checkpoint["C"])
             if not ("m" in self.opts.tasks and "p" in self.opts.tasks):
                 self.c_opt.load_state_dict(checkpoint["c_opt"])
 
-        if self.D is not None and get_num_params(self.D) > 0:
-            self.D.load_state_dict(checkpoint["D"])
-            if not ("m" in self.opts.tasks and "p" in self.opts.tasks):
-                self.d_opt.load_state_dict(checkpoint["d_opt"])
+        # ---------------------------
+        # -----  Resore logger  -----
+        # ---------------------------
+        self.logger.epoch = checkpoint["epoch"]
+        self.logger.global_step = checkpoint["step"]
+        # Round step to even number for extraGradient
+        if self.logger.global_step % 2 != 0:
+            self.logger.global_step += 1
 
     def get_latest_ckpt(self):
         load_dir = Path(self.opts.output_path) / Path("checkpoints")

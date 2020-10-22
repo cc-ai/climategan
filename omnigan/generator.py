@@ -12,13 +12,13 @@ import torch.nn.functional as F
 
 # --------------------------------------------------------------------------
 # -----  For now no network structure, just project in a 64 x 32 x 32  -----
-# -----   latent space and decode to (3 or 1) x 256 x 256              -----
+# -----  latent space and decode to (3 or 1) x 256 x 256               -----
 # --------------------------------------------------------------------------
 
 # TODO think about how to use the classifier probs at inference
 
 
-def get_gen(opts, latent_shape=None, verbose=0):
+def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
     G = OmniGenerator(opts, latent_shape, verbose)
     for model in G.decoders:
         net = G.decoders[model]
@@ -45,12 +45,13 @@ def get_gen(opts, latent_shape=None, verbose=0):
             verbose=verbose,
         )
     # Init painter weights
-    init_weights(
-        G.painter,
-        init_type=opts.gen.p.init_type,
-        init_gain=opts.gen.p.init_gain,
-        verbose=verbose,
-    )
+    if not no_init:
+        init_weights(
+            G.painter,
+            init_type=opts.gen.p.init_type,
+            init_gain=opts.gen.p.init_gain,
+            verbose=verbose,
+        )
     return G
 
 
@@ -71,27 +72,34 @@ class OmniGenerator(nn.Module):
         if "m" in opts.tasks:
             if opts.gen.encoder.architecture == "deeplabv2":
                 self.encoder = DeeplabEncoder(opts)
+                print("  - Created Pretrained Deeplab Encoder")
             else:
                 self.encoder = BaseEncoder(opts)
+                print("  - Created Base Encoder")
 
         self.verbose = verbose
         self.decoders = {}
 
         if "d" in opts.tasks and not opts.gen.d.ignore:
             self.decoders["d"] = DepthDecoder(opts)
+            print("  - Created Depth Decoder")
 
         if "s" in opts.tasks and not opts.gen.s.ignore:
+            print("  - Created Segmentation Decoder")
             self.decoders["s"] = SegmentationDecoder(opts)
 
         if "m" in opts.tasks and not opts.gen.m.ignore:
+            print("  - Created Mask Decoder")
             self.decoders["m"] = MaskDecoder(opts)
 
         self.decoders = nn.ModuleDict(self.decoders)
 
         if "p" in self.opts.tasks:
             self.painter = FullSpadeGen(opts)
+            print("  - Created FullSpade Painter")
         else:
             self.painter = nn.Module()
+            print("  - Created Empty Painter")
 
     def encode(self, x):
         assert self.encoder is not None
