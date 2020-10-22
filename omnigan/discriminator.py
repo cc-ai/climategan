@@ -17,9 +17,17 @@ def get_dis(opts, verbose, no_init=False):
         return disc
 
     for task, model in disc.items():
-        for domain_model in model.values():
+        if isinstance(model, nn.ModuleDict):
+            for domain_model in model.values():
+                init_weights(
+                    domain_model,
+                    init_type=opts.dis[task].init_type,
+                    init_gain=opts.dis[task].init_gain,
+                    verbose=verbose,
+                )
+        else:
             init_weights(
-                domain_model,
+                model,
                 init_type=opts.dis[task].init_type,
                 init_gain=opts.dis[task].init_gain,
                 verbose=verbose,
@@ -30,7 +38,7 @@ def get_dis(opts, verbose, no_init=False):
 def define_D(
     input_nc,
     ndf,
-    n_layers_D=3,
+    n_layers=3,
     norm="batch",
     use_sigmoid=False,
     get_intermediate_features=False,
@@ -40,7 +48,7 @@ def define_D(
     net = MultiscaleDiscriminator(
         input_nc,
         ndf,
-        n_layers=3,
+        n_layers=n_layers,
         norm_layer=norm_layer,
         use_sigmoid=use_sigmoid,
         get_intermediate_features=get_intermediate_features,
@@ -240,28 +248,40 @@ class OmniDiscriminator(nn.ModuleDict):
     def __init__(self, opts):
         super().__init__()
         if "p" in opts.tasks:
-            self["p"] = nn.ModuleDict(
-                {
-                    "global": define_D(
-                        input_nc=3,
-                        ndf=opts.dis.p.ndf,
-                        n_layers_D=opts.dis.p.n_layers,
-                        norm=opts.dis.p.norm,
-                        use_sigmoid=opts.dis.p.use_sigmoid,
-                        get_intermediate_features=opts.dis.p.get_intermediate_features,
-                        num_D=opts.dis.p.num_D,
-                    ),
-                    "local": define_D(
-                        input_nc=3,
-                        ndf=opts.dis.p.ndf,
-                        n_layers_D=opts.dis.p.n_layers,
-                        norm=opts.dis.p.norm,
-                        use_sigmoid=opts.dis.p.use_sigmoid,
-                        get_intermediate_features=opts.dis.p.get_intermediate_features,
-                        num_D=opts.dis.p.num_D,
-                    ),
-                }
-            )
+            if opts.dis.p.use_local_discriminator:
+
+                self["p"] = nn.ModuleDict(
+                    {
+                        "global": define_D(
+                            input_nc=3,
+                            ndf=opts.dis.p.ndf,
+                            n_layers=opts.dis.p.n_layers,
+                            norm=opts.dis.p.norm,
+                            use_sigmoid=opts.dis.p.use_sigmoid,
+                            get_intermediate_features=opts.dis.p.get_intermediate_features,
+                            num_D=opts.dis.p.num_D,
+                        ),
+                        "local": define_D(
+                            input_nc=3,
+                            ndf=opts.dis.p.ndf,
+                            n_layers=opts.dis.p.n_layers,
+                            norm=opts.dis.p.norm,
+                            use_sigmoid=opts.dis.p.use_sigmoid,
+                            get_intermediate_features=opts.dis.p.get_intermediate_features,
+                            num_D=opts.dis.p.num_D,
+                        ),
+                    }
+                )
+            else:
+                self["p"] = define_D(
+                    input_nc=4,  # image + mask
+                    ndf=opts.dis.p.ndf,
+                    n_layers=opts.dis.p.n_layers,
+                    norm=opts.dis.p.norm,
+                    use_sigmoid=opts.dis.p.use_sigmoid,
+                    get_intermediate_features=opts.dis.p.get_intermediate_features,
+                    num_D=opts.dis.p.num_D,
+                )
         if "m" in opts.tasks:
             if opts.gen.m.use_advent:
                 if opts.dis.m.architecture == "base":
@@ -274,7 +294,7 @@ class OmniDiscriminator(nn.ModuleDict):
                             "Advent": define_D(
                                 input_nc=2,
                                 ndf=opts.dis.m.ndf,
-                                n_layers_D=opts.dis.m.n_layers,
+                                n_layers=opts.dis.m.n_layers,
                                 norm=opts.dis.m.norm,
                                 use_sigmoid=opts.dis.m.use_sigmoid,
                                 get_intermediate_features=opts.dis.m.get_intermediate_features,
