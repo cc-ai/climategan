@@ -69,6 +69,7 @@ class Trainer:
         self.input_shape = None
         self.G = self.D = self.C = None
         self.lr_names = {}
+        self.no_z = self.opts.gen.p.no_z
 
         self.is_setup = False
 
@@ -555,7 +556,7 @@ class Trainer:
                 x = im_set["data"]["x"].unsqueeze(0).to(self.device)
                 m = im_set["data"]["m"].unsqueeze(0).to(self.device)
 
-                z = self.sample_z(x.shape[0])
+                z = self.sample_z(x.shape[0]) if not self.no_z else None
                 prediction = self.G.painter(z, x * (1.0 - m))
                 image_outputs.append(x * (1.0 - m))
                 image_outputs.append(prediction)
@@ -581,7 +582,7 @@ class Trainer:
             x = im_set["data"]["x"].unsqueeze(0).to(self.device)
             # m = im_set["data"]["m"].unsqueeze(0).to(self.device)
 
-            z = self.sample_z(x.shape[0])
+            z = self.sample_z(x.shape[0]) if not self.no_z else None
             m = self.G.decoders["m"](self.G.encode(x))
 
             prediction = self.G.painter(z, x * (1.0 - m))
@@ -935,7 +936,7 @@ class Trainer:
 
             x = batch["data"]["x"]
             m = batch["data"]["m"]  # ! different mask: hides water to be reconstructed
-            z = self.sample_z(x.shape[0])
+            z = self.sample_z(x.shape[0]) if not self.no_z else None
             masked_x = x * (1.0 - m)
 
             fake_flooded = self.G.painter(z, masked_x)
@@ -1058,7 +1059,7 @@ class Trainer:
             # Get mask from masker
             m = self.G.decoders[update_task](self.z)
 
-            z = self.sample_z(x.shape[0])
+            z = self.sample_z(x.shape[0]) if not self.no_z else None
             masked_x = x * (1.0 - m)
 
             fake_flooded = self.G.painter(z, masked_x)
@@ -1136,7 +1137,7 @@ class Trainer:
                 # sample vector
                 with torch.no_grad():
                     # see spade compute_discriminator_loss
-                    z_paint = self.sample_z(x.shape[0])
+                    z_paint = self.sample_z(x.shape[0]) if not self.no_z else None
                     fake = self.G.painter(z_paint, x * (1.0 - m))
                     fake = fake.detach()
                     fake.requires_grad_()
