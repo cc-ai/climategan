@@ -1010,7 +1010,7 @@ class Trainer:
                     )
                 )
                 fake_d, real_d = divide_pred(real_fake_d)
-                update_loss = self.losses["D"]["p"](fake_d, False, False)
+                update_loss = self.losses["G"]["p"]["hinge"](fake_d, True, False)
                 self.logger.losses.gen.p.gan = update_loss.item()
                 step_loss += update_loss
 
