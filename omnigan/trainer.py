@@ -1166,9 +1166,8 @@ class Trainer:
                         )
                     )
                     fake_d, real_d = divide_pred(real_fake_d)
-                    self.losses["D"]["p"](fake_d, False, True) + self.losses["D"]["p"](
-                        real_d, True, True
-                    )
+                    disc_loss["p"]["hinge"] = self.losses["D"]["p"](fake_d, False, True)
+                    disc_loss["p"]["hinge"] += self.losses["D"]["p"](real_d, True, True)
 
                 # Note: discriminator returns [out_1,...,out_num_D] outputs
                 # Each out_i is a list [feat1, feat2, ..., pred_i]
