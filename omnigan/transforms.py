@@ -47,7 +47,7 @@ class Resize:
             d = {}
             for task, tensor in data.items():
                 d[task] = F.interpolate(
-                    tensor, *self.get_size(tensor), mode=interpolation(task)
+                    tensor, size=self.get_size(tensor), mode=interpolation(task)
                 )
             return d
         except Exception as e:
