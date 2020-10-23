@@ -928,94 +928,64 @@ class Trainer:
         step_loss = 0
         # self.g_opt.zero_grad()
         lambdas = self.opts.train.lambdas
+        batch_domain = "rf"
+        batch = multi_domain_batch[batch_domain]
 
-        for batch_domain, batch in multi_domain_batch.items():
-            # We don't care about the flooded domain here
-            if batch_domain != "rf":
-                continue
+        x = batch["data"]["x"]
+        m = batch["data"]["m"]  # ! different mask: hides water to be reconstructed
+        z = self.sample_z(x.shape[0]) if not self.no_z else None
+        masked_x = x * (1.0 - m)
 
-            x = batch["data"]["x"]
-            m = batch["data"]["m"]  # ! different mask: hides water to be reconstructed
-            z = self.sample_z(x.shape[0]) if not self.no_z else None
-            masked_x = x * (1.0 - m)
+        fake_flooded = self.G.painter(z, masked_x)
 
-            fake_flooded = self.G.painter(z, masked_x)
+        update_loss = (
+            self.losses["G"]["p"]["vgg"](
+                vgg_preprocess(fake_flooded), vgg_preprocess(x)
+            )
+            * lambdas.G.p.vgg
+        )
+
+        self.logger.losses.gen.p.vgg = update_loss.item()
+        step_loss += update_loss
+
+        update_loss = self.losses["G"]["p"]["tv"](fake_flooded * m) * lambdas.G.p.tv
+        self.logger.losses.gen.p.tv = update_loss.item()
+        step_loss += update_loss
+
+        update_loss = (
+            self.losses["G"]["p"]["context"](fake_flooded, x, m)
+            * lambdas.G["p"]["context"]
+        )
+
+        self.logger.losses.gen.p.context = update_loss.item()
+        step_loss += update_loss
+
+        # GAN Losses
+        if self.opts.dis.p.use_local_discriminator:
+            fake_d_global = self.D["p"]["global"](fake_flooded)
+            fake_d_local = self.D["p"]["local"](fake_flooded * m)
+
+            real_d_global = self.D["p"]["global"](x)
+
+            # Note: discriminator returns [out_1,...,out_num_D] outputs
+            # Each out_i is a list [feat1, feat2, ..., pred_i]
+
+            self.logger.losses.gen.p.gan = 0
 
             update_loss = (
-                self.losses["G"]["p"]["vgg"](
-                    vgg_preprocess(fake_flooded), vgg_preprocess(x)
-                )
-                * lambdas.G.p.vgg
-            )
+                self.losses["G"]["p"]["hinge"](fake_d_global, True, False)
+                + self.losses["G"]["p"]["hinge"](fake_d_local, True, False)
+            ) * lambdas.G["p"]["gan"]
 
-            self.logger.losses.gen.p.vgg = update_loss.item()
+            self.logger.losses.gen.p.gan = update_loss.item()
+
             step_loss += update_loss
 
-            update_loss = self.losses["G"]["p"]["tv"](fake_flooded * m) * lambdas.G.p.tv
-            self.logger.losses.gen.p.tv = update_loss.item()
-            step_loss += update_loss
-
-            update_loss = (
-                self.losses["G"]["p"]["context"](fake_flooded, x, m)
-                * lambdas.G["p"]["context"]
-            )
-
-            self.logger.losses.gen.p.context = update_loss.item()
-            step_loss += update_loss
-
-            # GAN Losses
-            if self.opts.dis.p.use_local_discriminator:
-                fake_d_global = self.D["p"]["global"](fake_flooded)
-                fake_d_local = self.D["p"]["local"](fake_flooded * m)
-
-                real_d_global = self.D["p"]["global"](x)
-
-                # Note: discriminator returns [out_1,...,out_num_D] outputs
-                # Each out_i is a list [feat1, feat2, ..., pred_i]
-
-                self.logger.losses.gen.p.gan = 0
-
+            # Feature matching loss (only on global discriminator)
+            # Order must be real, fake
+            if self.opts.dis.p.get_intermediate_features:
                 update_loss = (
-                    self.losses["G"]["p"]["hinge"](fake_d_global, True, False)
-                    + self.losses["G"]["p"]["hinge"](fake_d_local, True, False)
-                ) * lambdas.G["p"]["gan"]
-
-                self.logger.losses.gen.p.gan = update_loss.item()
-
-                step_loss += update_loss
-
-                # Feature matching loss (only on global discriminator)
-                # Order must be real, fake
-                if self.opts.dis.p.get_intermediate_features:
-                    update_loss = (
-                        self.losses["G"]["p"]["featmatch"](real_d_global, fake_d_global)
-                        * lambdas.G["p"]["featmatch"]
-                    )
-
-                    if isinstance(update_loss, float):
-                        self.logger.losses.gen.p.featmatch = update_loss
-                    else:
-                        self.logger.losses.gen.p.featmatch = update_loss.item()
-
-                    step_loss += update_loss
-
-            else:
-                real_fake_d = self.D["p"](
-                    torch.cat(
-                        [
-                            torch.cat([m, x], axis=1),
-                            torch.cat([m, fake_flooded], axis=1),
-                        ],
-                        axis=0,
-                    )
-                )
-                fake_d, real_d = divide_pred(real_fake_d)
-                update_loss = self.losses["G"]["p"]["hinge"](fake_d, True, False)
-                self.logger.losses.gen.p.gan = update_loss.item()
-                step_loss += update_loss
-
-                update_loss = (
-                    self.losses["G"]["p"]["featmatch"](real_d, fake_d)
+                    self.losses["G"]["p"]["featmatch"](real_d_global, fake_d_global)
                     * lambdas.G["p"]["featmatch"]
                 )
 
@@ -1025,6 +995,30 @@ class Trainer:
                     self.logger.losses.gen.p.featmatch = update_loss.item()
 
                 step_loss += update_loss
+
+        else:
+            real_fake_d = self.D["p"](
+                torch.cat(
+                    [torch.cat([m, x], axis=1), torch.cat([m, fake_flooded], axis=1),],
+                    axis=0,
+                )
+            )
+            fake_d, real_d = divide_pred(real_fake_d)
+            update_loss = self.losses["G"]["p"]["hinge"](fake_d, True, False)
+            self.logger.losses.gen.p.gan = update_loss.item()
+            step_loss += update_loss
+
+            update_loss = (
+                self.losses["G"]["p"]["featmatch"](real_d, fake_d)
+                * lambdas.G["p"]["featmatch"]
+            )
+
+            if isinstance(update_loss, float):
+                self.logger.losses.gen.p.featmatch = update_loss
+            else:
+                self.logger.losses.gen.p.featmatch = update_loss.item()
+
+            step_loss += update_loss
 
         return step_loss
 
