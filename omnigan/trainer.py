@@ -670,10 +670,7 @@ class Trainer:
             self.run_epoch()
             self.run_evaluation(verbose=1)
 
-            if (
-                self.logger.epoch != 0
-                and self.logger.epoch % self.opts.train.save_n_epochs == 0
-            ):
+            if self.logger.epoch % self.opts.train.save_n_epochs == 0:
                 self.save()
 
     def get_g_loss(self, multi_domain_batch, verbose=0):
