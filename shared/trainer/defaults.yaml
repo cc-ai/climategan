@@ -161,6 +161,7 @@ dis:
     num_D: 3
     get_intermediate_features: true
     use_local_discriminator: false
+    # ttur: false # two time-scale update rule (see SPADE repo)
   m:
     <<: *default-dis
     multi_level: false
@@ -210,6 +211,7 @@ train:
         tv: 500
         vgg: 1
         context: 12
+        reconstruction: 12
         featmatch: 10
       classifier: 1
     C: 1

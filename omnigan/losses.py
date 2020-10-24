@@ -290,11 +290,20 @@ class SIGMLoss(nn.Module):
 
 class ContextLoss(nn.Module):
     """
-    Masked L1 loss
+    Masked L1 loss on non-water
     """
 
     def __call__(self, input, target, mask):
         return torch.mean(torch.abs(torch.mul((input - target), 1 - mask)))
+
+
+class ReconstructionLoss(nn.Module):
+    """
+    Masked L1 loss on water
+    """
+
+    def __call__(self, input, target, mask):
+        return torch.mean(torch.abs(torch.mul((input - target), mask)))
 
 
 ##################################################################################
@@ -384,6 +393,7 @@ def get_losses(opts, verbose, device=None):
         losses["G"]["p"]["vgg"] = VGGLoss(device)
         losses["G"]["p"]["tv"] = TVLoss()
         losses["G"]["p"]["context"] = ContextLoss()
+        losses["G"]["p"]["reconstruction"] = ReconstructionLoss()
         losses["G"]["p"]["featmatch"] = FeatMatchLoss()
 
     # task losses

@@ -932,7 +932,9 @@ class Trainer:
         batch = multi_domain_batch[batch_domain]
 
         x = batch["data"]["x"]
-        m = batch["data"]["m"]  # ! different mask: hides water to be reconstructed
+        # ! different mask: hides water to be reconstructed
+        # ! 1 for water, 0 otherwise
+        m = batch["data"]["m"]
         z = self.sample_z(x.shape[0]) if not self.no_z else None
         masked_x = x * (1.0 - m)
 
@@ -940,7 +942,7 @@ class Trainer:
 
         update_loss = (
             self.losses["G"]["p"]["vgg"](
-                vgg_preprocess(fake_flooded), vgg_preprocess(x)
+                vgg_preprocess(fake_flooded * m), vgg_preprocess(x * m)
             )
             * lambdas.G.p.vgg
         )
@@ -953,11 +955,16 @@ class Trainer:
         step_loss += update_loss
 
         update_loss = (
-            self.losses["G"]["p"]["context"](fake_flooded, x, m)
-            * lambdas.G["p"]["context"]
+            self.losses["G"]["p"]["context"](fake_flooded, x, m) * lambdas.G.p.context
         )
-
         self.logger.losses.gen.p.context = update_loss.item()
+        step_loss += update_loss
+
+        update_loss = (
+            self.losses["G"]["p"]["reconstruction"](fake_flooded, x, m)
+            * lambdas.G.p.reconstruction
+        )
+        self.logger.losses.gen.p.reconstruction = update_loss.item()
         step_loss += update_loss
 
         # GAN Losses
