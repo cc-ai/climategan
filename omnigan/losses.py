@@ -459,7 +459,7 @@ class CustomBCELoss(nn.Module):
 
 class ADVENTAdversarialLoss(nn.Module):
     """
-        TODO
+        The first and second argument are tensor. The third argument is a discriminator model.
     """
 
     def __init__(self, opts):
@@ -476,6 +476,11 @@ class ADVENTAdversarialLoss(nn.Module):
 
 
 def multiDiscriminatorAdapter(d_out, opts):
+    """
+    Because the OmniDiscriminator does not directly return a tensor (but a list of tensor).
+    Since there is no multilevel masker, the 0th tensor in the list is all we want.
+    This Adapter returns the first element(tensor) of the list that OmniDiscriminator returns.
+    """
     if (
         isinstance(d_out, list) and len(d_out) == 1
     ):  # adapt the multi-scale Omnidiscriminator
