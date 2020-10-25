@@ -319,9 +319,14 @@ class OmniDiscriminator(nn.ModuleDict):
                     raise Exception("This Discriminator is currently not supported!")
         if "s" in opts.tasks:
             if opts.gen.s.use_advent:
-                self["s"] = nn.ModuleDict(
-                    {"Advent": get_fc_discriminator(num_classes=11)}
-                )
+                if opts.dis.s.gan_type == "WGAN_norm":
+                    self["s"] = nn.ModuleDict(
+                        {"Advent": get_fc_discriminator(num_classes=1, use_norm=True)}
+                    )
+                else:
+                    self["s"] = nn.ModuleDict(
+                        {"Advent": get_fc_discriminator(num_classes=11, use_norm=False)}
+                    )
 
 
 def get_fc_discriminator(num_classes=2, ndf=64, use_norm=False):

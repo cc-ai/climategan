@@ -1223,9 +1223,38 @@ class Trainer:
                             self.D["s"]["Advent"],
                         )
 
-                        disc_loss["s"]["Advent"] += (
-                            self.opts.train.lambdas.advent.adv_main * loss_main
-                        )
+                        if self.opts.dis.s.gan_type == "GAN" or "WGAN_norm":
+                            disc_loss["s"]["Advent"] += (
+                                self.opts.train.lambdas.advent.adv_main * loss_main
+                            )
+                        elif self.opts.dis.s.gan_type == "WGAN":
+                            for p in self.D["s"]["Advent"].parameters():
+                                p.data.clamp_(
+                                    self.opts.dis.s.wgan_clamp_lower,
+                                    self.opts.dis.s.wgan_clamp_upper,
+                                )
+                            disc_loss["s"]["Advent"] += (
+                                self.opts.train.lambdas.advent.adv_main * loss_main
+                            )
+                        elif self.opts.dis.s.gan_type == "WGAN_gp":
+                            prob_need_grad = autograd.Variable(prob, requires_grad=True)
+                            d_out = self.D["s"]["Advent"](prob_need_grad)
+                            grads = autograd.grad(
+                                outputs=d_out,
+                                inputs=prob_need_grad,
+                                grad_outputs=torch.ones(d_out.size()).cuda(),
+                                create_graph=True,
+                                retain_graph=True,
+                                only_inputs=True,
+                            )[0]
+                            grads = grads.view(grads.size(0), -1)
+                            gp = ((grads.norm(2, dim=1) - 1) ** 2).mean()
+                            disc_loss["s"]["Advent"] += (
+                                self.opts.train.lambdas.advent.adv_main * loss_main
+                                + self.opts.train.lambdas.advent.WGAN_gp * gp
+                            )
+                        else:
+                            raise NotImplementedError
 
         self.logger.losses.disc.update(
             {
