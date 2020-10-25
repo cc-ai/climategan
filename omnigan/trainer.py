@@ -1180,7 +1180,7 @@ class Trainer:
                             self.domain_labels[batch_domain],
                             self.D["m"]["Advent"],
                         )
-                        if self.opts.dis.m.gan_type == "GAN":
+                        if self.opts.dis.m.gan_type == "GAN" or "WGAN_norm":
                             disc_loss["m"]["Advent"] += (
                                 self.opts.train.lambdas.advent.adv_main * loss_main
                             )

@@ -467,30 +467,12 @@ class ADVENTAdversarialLoss(nn.Module):
         self.opts = opts
         if opts.dis.m.gan_type == "GAN":
             self.loss = CustomBCELoss()
-        elif opts.dis.m.gan_type == "WGAN" or "WGAN_GP":
+        elif opts.dis.m.gan_type == "WGAN" or "WGAN_gp" or "WGAN_norm":
             self.loss = lambda x, y: -torch.mean(y * x + (1 - y) * (1 - x))
         else:
             raise NotImplementedError
 
     def __call__(self, prediction, target, discriminator, need_d_out=False):
-        d_out = discriminator(prob_2_entropy(F.softmax(prediction, dim=1)))
-        if self.opts.dis.m.architecture == "OmniDiscriminator":
-            d_out = multiDiscriminatorAdapter(d_out, self.opts)
-        loss_ = self.loss(d_out, target)
-        return loss_
-
-
-class ADVENTwganLoss(nn.Module):
-    """
-        The first and second argument are tensor. The third argument is a discriminator model.
-    """
-
-    def __init__(self, opts):
-        super().__init__()
-        self.opts = opts
-        self.loss = CustomBCELoss()
-
-    def __call__(self, prediction, target, discriminator):
         d_out = discriminator(prob_2_entropy(F.softmax(prediction, dim=1)))
         if self.opts.dis.m.architecture == "OmniDiscriminator":
             d_out = multiDiscriminatorAdapter(d_out, self.opts)

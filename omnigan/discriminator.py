@@ -285,9 +285,22 @@ class OmniDiscriminator(nn.ModuleDict):
         if "m" in opts.tasks:
             if opts.gen.m.use_advent:
                 if opts.dis.m.architecture == "base":
-                    self["m"] = nn.ModuleDict(
-                        {"Advent": get_fc_discriminator(num_classes=2)}
-                    )
+                    if opts.dis.m.gan_type == "WGAN_norm":
+                        self["m"] = nn.ModuleDict(
+                            {
+                                "Advent": get_fc_discriminator(
+                                    num_classes=2, use_norm=True
+                                )
+                            }
+                        )
+                    else:
+                        self["m"] = nn.ModuleDict(
+                            {
+                                "Advent": get_fc_discriminator(
+                                    num_classes=2, use_norm=False
+                                )
+                            }
+                        )
                 elif opts.dis.m.architecture == "OmniDiscriminator":
                     self["m"] = nn.ModuleDict(
                         {
@@ -311,15 +324,38 @@ class OmniDiscriminator(nn.ModuleDict):
                 )
 
 
-def get_fc_discriminator(num_classes=2, ndf=64):
-    return torch.nn.Sequential(
-        torch.nn.Conv2d(num_classes, ndf, kernel_size=4, stride=2, padding=1),
-        torch.nn.LeakyReLU(negative_slope=0.2, inplace=True),
-        torch.nn.Conv2d(ndf, ndf * 2, kernel_size=4, stride=2, padding=1),
-        torch.nn.LeakyReLU(negative_slope=0.2, inplace=True),
-        torch.nn.Conv2d(ndf * 2, ndf * 4, kernel_size=4, stride=2, padding=1),
-        torch.nn.LeakyReLU(negative_slope=0.2, inplace=True),
-        torch.nn.Conv2d(ndf * 4, ndf * 8, kernel_size=4, stride=2, padding=1),
-        torch.nn.LeakyReLU(negative_slope=0.2, inplace=True),
-        torch.nn.Conv2d(ndf * 8, 1, kernel_size=4, stride=2, padding=1),
-    )
+def get_fc_discriminator(num_classes=2, ndf=64, use_norm=False):
+    if use_norm:
+        return torch.nn.Sequential(
+            SpectralNorm(
+                torch.nn.Conv2d(num_classes, ndf, kernel_size=4, stride=2, padding=1)
+            ),
+            torch.nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            SpectralNorm(
+                torch.nn.Conv2d(ndf, ndf * 2, kernel_size=4, stride=2, padding=1)
+            ),
+            torch.nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            SpectralNorm(
+                torch.nn.Conv2d(ndf * 2, ndf * 4, kernel_size=4, stride=2, padding=1)
+            ),
+            torch.nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            SpectralNorm(
+                torch.nn.Conv2d(ndf * 4, ndf * 8, kernel_size=4, stride=2, padding=1)
+            ),
+            torch.nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            SpectralNorm(
+                torch.nn.Conv2d(ndf * 8, 1, kernel_size=4, stride=2, padding=1)
+            ),
+        )
+    else:
+        return torch.nn.Sequential(
+            torch.nn.Conv2d(num_classes, ndf, kernel_size=4, stride=2, padding=1),
+            torch.nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            torch.nn.Conv2d(ndf, ndf * 2, kernel_size=4, stride=2, padding=1),
+            torch.nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            torch.nn.Conv2d(ndf * 2, ndf * 4, kernel_size=4, stride=2, padding=1),
+            torch.nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            torch.nn.Conv2d(ndf * 4, ndf * 8, kernel_size=4, stride=2, padding=1),
+            torch.nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            torch.nn.Conv2d(ndf * 8, 1, kernel_size=4, stride=2, padding=1),
+        )
