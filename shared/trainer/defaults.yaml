@@ -168,6 +168,10 @@ dis:
     gan_type: GAN
     wgan_clamp_lower: -0.01
     wgan_clamp_upper: 0.01
+  s:
+    gan_type: GAN
+    wgan_clamp_lower: -0.01
+    wgan_clamp_upper: 0.01
 # -------------------------------
 # -----  Domain Classifier  -----
 # -------------------------------
