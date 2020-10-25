@@ -165,7 +165,9 @@ dis:
     <<: *default-dis
     multi_level: false
     architecture: base # can be [base | OmniDiscriminator]
-
+    gan_type: GAN
+    wgan_clamp_lower: -0.01
+    wgan_clamp_upper: 0.01
 # -------------------------------
 # -----  Domain Classifier  -----
 # -------------------------------
@@ -221,6 +223,7 @@ train:
       adv_aux: 0.0 # the corresponding coefficient of the AdvEnt loss of second output
       dis_main: 0.5 # the discriminator take care of the first output in the adversarial training
       dis_aux: 0.5 # the discriminator take care of the second output in the adversarial training
+      WGAN_gp: 10
   log_level: 2 # 0: no log, 1: only aggregated losses, >1 detailed losses
   save_n_epochs: 1 # Save model every n epochs
   resume: false # Load latest_ckpt.pth checkpoint from `output_path` #TODO Make this path of checkpoint to load

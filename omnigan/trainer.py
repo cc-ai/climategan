@@ -15,6 +15,7 @@ warnings.simplefilter("ignore", UserWarning)
 
 import torch
 import torchvision.utils as vutils
+from torch import autograd
 from addict import Dict
 from comet_ml import Experiment
 
@@ -1179,10 +1180,38 @@ class Trainer:
                             self.domain_labels[batch_domain],
                             self.D["m"]["Advent"],
                         )
-
-                        disc_loss["m"]["Advent"] += (
-                            self.opts.train.lambdas.advent.adv_main * loss_main
-                        )
+                        if self.opts.dis.m.gan_type == "GAN":
+                            disc_loss["m"]["Advent"] += (
+                                self.opts.train.lambdas.advent.adv_main * loss_main
+                            )
+                        elif self.opts.dis.m.gan_type == "WGAN":
+                            for p in self.D["m"]["Advent"].parameters():
+                                p.data.clamp_(
+                                    self.opts.dis.m.wgan_clamp_lower,
+                                    self.opts.dis.m.wgan_clamp_upper,
+                                )
+                            disc_loss["m"]["Advent"] += (
+                                self.opts.train.lambdas.advent.adv_main * loss_main
+                            )
+                        elif self.opts.dis.m.gan_type == "WGAN_gp":
+                            prob_need_grad = autograd.Variable(prob, requires_grad=True)
+                            d_out = self.D["m"]["Advent"](prob_need_grad)
+                            grads = autograd.grad(
+                                outputs=d_out,
+                                inputs=prob_need_grad,
+                                grad_outputs=torch.ones(d_out.size()).cuda(),
+                                create_graph=True,
+                                retain_graph=True,
+                                only_inputs=True,
+                            )[0]
+                            grads = grads.view(grads.size(0), -1)
+                            gp = ((grads.norm(2, dim=1) - 1) ** 2).mean()
+                            disc_loss["m"]["Advent"] += (
+                                self.opts.train.lambdas.advent.adv_main * loss_main
+                                + self.opts.train.lambdas.advent.WGAN_gp * gp
+                            )
+                        else:
+                            raise NotImplementedError
                 if "s" in self.opts.tasks:
                     if self.opts.gen.s.use_advent:
                         preds = self.G.decoders["s"](z)

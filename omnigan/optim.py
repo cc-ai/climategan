@@ -2,7 +2,7 @@
 """
 import torch
 import math
-from torch.optim import Optimizer, Adam, lr_scheduler
+from torch.optim import Optimizer, Adam, lr_scheduler, RMSprop
 from torch_optimizer import NovoGrad, RAdam
 
 
@@ -100,6 +100,8 @@ def get_optimizer(net, opt_conf, tasks=None, iterations=-1):
         )  # default for beta2 is 0
     elif opt_conf.optimizer.lower() == "radam":
         opt = RAdam(params, lr=lr, betas=(opt_conf.beta1, 0.999))
+    elif opt_conf.optimizer.lower() == "rmsprop":
+        opt = RMSprop(params, lr=lr)
     else:
         opt = Adam(params, lr=lr, betas=(opt_conf.beta1, 0.999))
     scheduler = get_scheduler(opt, opt_conf, iterations)
