@@ -142,12 +142,11 @@ def eval_folder(
 
         with Timer("Inference loop", store=inference_loop_time):
             for i in range(len(image_tensors) // batch_size + 1):
-                print("Batch", i, end="\r", flush=True)
-
                 img = image_tensors[i * batch_size : (i + 1) * batch_size]
                 if not img:
                     continue
                 img = torch.cat(img, axis=0)
+                print("Batch", i, img.shape, img.device, end="\r", flush=True)
 
                 if not masker:
                     mask = mask_tensors[i * batch_size : (i + 1) * batch_size]
