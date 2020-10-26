@@ -836,6 +836,7 @@ class Trainer:
                                     prediction,
                                     self.domain_labels["s"],
                                     self.D["s"]["Advent"],
+                                    gan_type=self.opts.dis.s.gan_type,
                                 )
                                 * lambdas.G[update_task]["advent"]
                             )
@@ -871,6 +872,21 @@ class Trainer:
                     self.logger.losses.gen.task["m"]["tv"][
                         batch_domain
                     ] = update_loss.item()
+
+                    # Then GroundIntersection loss
+                    if self.opts.gen.m.use_ground_intersection:
+                        if self.verbose > 0:
+                            print("Using GroundIntersection loss.")
+                        update_loss = (
+                            self.losses["G"]["tasks"][update_task]["gi"](
+                                prediction, update_target
+                            )
+                            * lambdas.G[update_task]["gi"]
+                        )
+                        step_loss += update_loss
+                        self.logger.losses.gen.task[update_task]["gi"][
+                            batch_domain
+                        ] = update_loss.item()
 
                     if batch_domain == "r":
                         pred_complementary = 1 - prediction
@@ -1179,6 +1195,7 @@ class Trainer:
                             prob.to(self.device),
                             self.domain_labels[batch_domain],
                             self.D["m"]["Advent"],
+                            gan_type=self.opts.dis.m.gan_type,
                         )
                         if self.opts.dis.m.gan_type == "GAN" or "WGAN_norm":
                             disc_loss["m"]["Advent"] += (
@@ -1221,6 +1238,7 @@ class Trainer:
                             preds.to(self.device),
                             self.domain_labels[batch_domain],
                             self.D["s"]["Advent"],
+                            gan_type=self.opts.dis.m.gan_type,
                         )
 
                         if self.opts.dis.s.gan_type == "GAN" or "WGAN_norm":
