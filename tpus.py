@@ -256,6 +256,7 @@ if __name__ == "__main__":
     parser.add_argument("-p", "--painter_dir", required=True, type=str)
     parser.add_argument("-d", "--inference_data_dir", required=True, type=str)
     parser.add_argument("-o", "--output_dir", required=True, type=str)
+    parser.add_argument("-l", "--deeplab_pretrained", required=True, type=str)
     args = parser.parse_args()
     print(args)
 
@@ -274,6 +275,7 @@ if __name__ == "__main__":
     opts.load_paths.p = args.painter_dir
     opts.train.resume = True
     opts.output_path = str(masker_path)
+    opts.deeplabv2.pretrained_model = args.deeplab_pretrained
 
     new_size = 640
 
