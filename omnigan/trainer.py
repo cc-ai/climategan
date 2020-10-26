@@ -1350,8 +1350,8 @@ class Trainer:
             m_ckpt_path = Path(m_path) / Path("checkpoints/latest_ckpt.pth")
             p_ckpt_path = Path(p_path) / Path("checkpoints/latest_ckpt.pth")
 
-            m_checkpoint = torch.load(m_ckpt_path)
-            p_checkpoint = torch.load(p_ckpt_path)
+            m_checkpoint = torch.load(m_ckpt_path, map_location=self.device)
+            p_checkpoint = torch.load(p_ckpt_path, map_location=self.device)
 
             checkpoint = merge(m_checkpoint, p_checkpoint)
             print(f"Resuming model from \n  -{m_ckpt_path} \nand \n  -{p_ckpt_path}")
@@ -1362,7 +1362,7 @@ class Trainer:
             load_path = Path(self.opts.output_path) / Path(
                 "checkpoints/latest_ckpt.pth"
             )
-            checkpoint = torch.load(load_path)
+            checkpoint = torch.load(load_path, map_location=self.device)
             print(f"Resuming model from {load_path}")
 
         # -----------------------
