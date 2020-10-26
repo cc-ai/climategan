@@ -836,7 +836,6 @@ class Trainer:
                                     prediction,
                                     self.domain_labels["s"],
                                     self.D["s"]["Advent"],
-                                    gan_type=self.opts.dis.s.gan_type,
                                 )
                                 * lambdas.G[update_task]["advent"]
                             )
