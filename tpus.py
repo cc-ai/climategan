@@ -274,7 +274,7 @@ if __name__ == "__main__":
     opts.load_paths.p = args.painter_dir
     opts.train.resume = True
     opts.output_path = str(masker_path)
-    opts.deeplabv2.pretrained_model = args.deeplab_pretrained
+    opts.gen.deeplabv2.pretrained_model = args.deeplab_pretrained
 
     new_size = 640
 
