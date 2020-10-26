@@ -38,6 +38,11 @@ from omnigan.utils import div_dict, flatten_opts, sum_dict, merge, get_display_i
 from omnigan.eval_metrics import iou, accuracy
 from tqdm import tqdm
 
+try:
+    import torch_xla.core.xla_model as xm
+except ImportError:
+    pass
+
 
 class Trainer:
     """Main trainer class
@@ -1337,6 +1342,9 @@ class Trainer:
         # ----------------------------------------
         # -----  Masker and Painter Loading  -----
         # ----------------------------------------
+        tpu = "xla" in str(self.device)
+        if tpu:
+            print("Resuming on TPU:", self.device)
         if "m" in self.opts.tasks and "p" in self.opts.tasks:
             m_path = self.opts.load_paths.m
             p_path = self.opts.load_paths.p
@@ -1350,10 +1358,15 @@ class Trainer:
             m_ckpt_path = Path(m_path) / Path("checkpoints/latest_ckpt.pth")
             p_ckpt_path = Path(p_path) / Path("checkpoints/latest_ckpt.pth")
 
-            m_checkpoint = torch.load(m_ckpt_path, map_location=self.device)
-            p_checkpoint = torch.load(p_ckpt_path, map_location=self.device)
-
+            m_checkpoint = torch.load(
+                m_ckpt_path, map_location=self.device if not tpu else "cpu"
+            )
+            p_checkpoint = torch.load(
+                p_ckpt_path, map_location=self.device if not tpu else "cpu"
+            )
             checkpoint = merge(m_checkpoint, p_checkpoint)
+            if tpu:
+                checkpoint = xm.send_cpu_data_to_device(checkpoint, self.device)
             print(f"Resuming model from \n  -{m_ckpt_path} \nand \n  -{p_ckpt_path}")
         # ----------------------------------
         # -----  Single Model Loading  -----
@@ -1362,7 +1375,11 @@ class Trainer:
             load_path = Path(self.opts.output_path) / Path(
                 "checkpoints/latest_ckpt.pth"
             )
-            checkpoint = torch.load(load_path, map_location=self.device)
+            checkpoint = torch.load(
+                load_path, map_location=self.device if not tpu else "cpu"
+            )
+            if tpu:
+                checkpoint = xm.send_cpu_data_to_device(checkpoint, self.device)
             print(f"Resuming model from {load_path}")
 
         # -----------------------
