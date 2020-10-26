@@ -143,7 +143,7 @@ def eval_folder(
             prepare_image(im, new_size, transforms, device, use_half) for im in images
         ]
 
-        with Timer("Infrence loop", store=inference_loop_time):
+        with Timer("Inference loop", store=inference_loop_time):
             for i in range(len(image_tensors) // batch_size + 1):
                 print("Batch", i, end="\r", flush=True)
 
@@ -255,16 +255,17 @@ def eval_folder(
 if __name__ == "__main__":
 
     parser = ArgumentParser()
-    parser.add_argument("-m", "--masker_dir")
-    parser.add_argument("-p", "--painter_dir")
+    parser.add_argument("-m", "--masker_dir", required=True, type=str)
+    parser.add_argument("-p", "--painter_dir", required=True, type=str)
+    parser.add_argument("-d", "--inference_data_dir", required=True, type=str)
+    parser.add_argument("-o", "--output_dir", required=True, type=str)
     args = parser.parse_args()
-
-    print(Path().resolve())
+    print(args)
 
     # -----------------------
     # -----  Load opts  -----
     # -----------------------
-    output_dir = Path("./output_infer")
+    output_dir = Path(args.output_dir)
     output_dir.mkdir(exist_ok=True, parents=True)
 
     masker_path = Path(args.masker_dir)
@@ -312,18 +313,18 @@ if __name__ == "__main__":
     # eval_folder(args.path_to_images, output_dir)
 
     # rootdir = Path("/network/tmp1/ccai/data/psychology_wave4")
-    rootdir = Path("/network/tmp1/ccai/data/100postalcode")
+    rootdir = Path(args.inference_data_dir)
 
-    # eval_fodler params
-    path_to_images = rootdir  # a fodler with a list of images
+    # eval_folder params
+    path_to_images = rootdir  # a folder with a list of images
     path_to_masks = rootdir  # not used if using the masker, otherwise a path to matching masks to the images
     apply_mask = (
         True  # save images with the mask only, in addition to the painted images
     )
-    save_images = False  # write the outptus to a folder
+    save_images = False  # write the outputs to a folder
     empty_cuda_cache = True  # faster if False but will give erroneous memory footprint
     USE_RTX8000 = True  # Are you with a machine with 48GB?
-    loaded_images = None  #  will be overloaded with data if preload_images is True
+    loaded_images = None  # will be overloaded with data if preload_images is True
     preload_images = True  # faster if running eval_folder multiple times
 
     if preload_images:
