@@ -43,7 +43,7 @@ class Trainer:
     """Main trainer class
     """
 
-    def __init__(self, opts, comet_exp=None, verbose=0):
+    def __init__(self, opts, comet_exp=None, verbose=0, device=None):
         """Trainer class to gather various model training procedures
         such as training evaluating saving and logging
 
@@ -73,7 +73,9 @@ class Trainer:
 
         self.is_setup = False
 
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.device = device or torch.device(
+            "cuda:0" if torch.cuda.is_available() else "cpu"
+        )
 
         self.exp = None
         if isinstance(comet_exp, Experiment):
