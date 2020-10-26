@@ -1212,6 +1212,7 @@ class Trainer:
                         elif self.opts.dis.m.gan_type == "WGAN_gp":
                             prob_need_grad = autograd.Variable(prob, requires_grad=True)
                             d_out = self.D["m"]["Advent"](prob_need_grad)
+                            # github code reference: https://github.com/caogang/wgan-gp/blob/master/gan_cifar10.py
                             grads = autograd.grad(
                                 outputs=d_out,
                                 inputs=prob_need_grad,
@@ -1256,6 +1257,7 @@ class Trainer:
                         elif self.opts.dis.s.gan_type == "WGAN_gp":
                             prob_need_grad = autograd.Variable(prob, requires_grad=True)
                             d_out = self.D["s"]["Advent"](prob_need_grad)
+                            # github code reference: https://github.com/caogang/wgan-gp/blob/master/gan_cifar10.py
                             grads = autograd.grad(
                                 outputs=d_out,
                                 inputs=prob_need_grad,

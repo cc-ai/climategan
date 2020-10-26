@@ -442,6 +442,7 @@ class GroundIntersectionLoss(nn.Module):
     def __call__(self, pred, pseudo_ground):
         return torch.mean(1.0 * ((pseudo_ground - pred) > 0.5))
 
+
 def prob_2_entropy(prob):
     """
     convert probabilistic prediction maps to weighted self-information maps
@@ -471,9 +472,17 @@ class CustomBCELoss(nn.Module):
 
 class ADVENTAdversarialLoss(nn.Module):
     """
-        The class is for calculating the advent loss.
-        It is used to indirectly shrink the domain gap between sim and real
+    The class is for calculating the advent loss.
+    It is used to indirectly shrink the domain gap between sim and real
+
+    _call_ function:
+    prediction: torch.tensor with shape of [bs,c,h,w]
+    target: int; domain label: 0 (sim) or 1 (real)
+    discriminator: the discriminator model tells if a tensor is from sim or real
+
+    output: the loss value of GANLoss
     """
+
     def __init__(self, opts, gan_type="GAN"):
         super().__init__()
         self.opts = opts
@@ -485,13 +494,6 @@ class ADVENTAdversarialLoss(nn.Module):
             raise NotImplementedError
 
     def __call__(self, prediction, target, discriminator):
-    """
-        prediction: torch.tensor with shape of [bs,c,h,w]
-        target: int; domain label: 0 (sim) or 1 (real)
-        discriminator: the discriminator model tells if a tensor is from sim or real
-
-        output: the loss value of GANLoss
-    """
         d_out = discriminator(prob_2_entropy(F.softmax(prediction, dim=1)))
         if self.opts.dis.m.architecture == "OmniDiscriminator":
             d_out = multiDiscriminatorAdapter(d_out, self.opts)
