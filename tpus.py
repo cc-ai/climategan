@@ -4,7 +4,6 @@ from argparse import ArgumentParser
 from pathlib import Path
 
 import numpy as np
-import nvidia_smi
 import torch
 import torch.nn.functional as F
 import torchvision.utils as vutils
@@ -16,8 +15,6 @@ from omnigan.utils import load_opts
 
 import torch_xla
 import torch_xla.core.xla_model as xm
-
-nvidia_smi.nvmlInit()
 
 
 class Timer:
@@ -242,7 +239,7 @@ def eval_folder(
             np.mean(painter_inference_time), np.std(painter_inference_time)
         )
     )
-    print("Used Memory:", gpu_used())
+    # print("Used Memory:", gpu_used())
 
     return (
         painter_inference_time,
