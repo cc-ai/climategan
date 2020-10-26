@@ -267,9 +267,7 @@ if __name__ == "__main__":
 
     masker_path = Path(args.masker_dir)
 
-    opts = load_opts(
-        masker_path / "opts.yaml", default="omnigan/shared/trainer/defaults.yaml"
-    )
+    opts = load_opts(masker_path / "opts.yaml", default="shared/trainer/defaults.yaml")
 
     opts.tasks = ["m", "p"]
     opts.load_paths.m = str(masker_path)
