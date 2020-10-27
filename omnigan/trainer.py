@@ -34,6 +34,7 @@ from omnigan.tutils import (
     norm_tensor,
     zero_grad,
     divide_pred,
+    get_WGAN_gradient,
 )
 from omnigan.utils import div_dict, flatten_opts, sum_dict, merge, get_display_indices
 from omnigan.eval_metrics import iou, accuracy
@@ -1212,17 +1213,7 @@ class Trainer:
                         elif self.opts.dis.m.gan_type == "WGAN_gp":
                             prob_need_grad = autograd.Variable(prob, requires_grad=True)
                             d_out = self.D["m"]["Advent"](prob_need_grad)
-                            # github code reference: https://github.com/caogang/wgan-gp/blob/master/gan_cifar10.py
-                            grads = autograd.grad(
-                                outputs=d_out,
-                                inputs=prob_need_grad,
-                                grad_outputs=torch.ones(d_out.size()).cuda(),
-                                create_graph=True,
-                                retain_graph=True,
-                                only_inputs=True,
-                            )[0]
-                            grads = grads.view(grads.size(0), -1)
-                            gp = ((grads.norm(2, dim=1) - 1) ** 2).mean()
+                            gp = get_WGAN_gradient(prob_need_grad, d_out)
                             disc_loss["m"]["Advent"] += (
                                 self.opts.train.lambdas.advent.adv_main * loss_main
                                 + self.opts.train.lambdas.advent.WGAN_gp * gp
@@ -1256,17 +1247,7 @@ class Trainer:
                         elif self.opts.dis.s.gan_type == "WGAN_gp":
                             prob_need_grad = autograd.Variable(prob, requires_grad=True)
                             d_out = self.D["s"]["Advent"](prob_need_grad)
-                            # github code reference: https://github.com/caogang/wgan-gp/blob/master/gan_cifar10.py
-                            grads = autograd.grad(
-                                outputs=d_out,
-                                inputs=prob_need_grad,
-                                grad_outputs=torch.ones(d_out.size()).cuda(),
-                                create_graph=True,
-                                retain_graph=True,
-                                only_inputs=True,
-                            )[0]
-                            grads = grads.view(grads.size(0), -1)
-                            gp = ((grads.norm(2, dim=1) - 1) ** 2).mean()
+                            gp = get_WGAN_gradient(prob_need_grad, d_out)
                             disc_loss["s"]["Advent"] += (
                                 self.opts.train.lambdas.advent.adv_main * loss_main
                                 + self.opts.train.lambdas.advent.WGAN_gp * gp
