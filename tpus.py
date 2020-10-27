@@ -231,7 +231,6 @@ def eval_folder(
             np.mean(painter_inference_time), np.std(painter_inference_time)
         )
     )
-    # print("Used Memory:", gpu_used())
 
     return (
         painter_inference_time,
@@ -248,7 +247,6 @@ if __name__ == "__main__":
     parser.add_argument("-p", "--painter_dir", required=True, type=str)
     parser.add_argument("-d", "--inference_data_dir", required=True, type=str)
     parser.add_argument("-o", "--output_dir", required=True, type=str)
-    parser.add_argument("-l", "--deeplab_pretrained", required=True, type=str)
     args = parser.parse_args()
     print(args)
 
@@ -259,15 +257,18 @@ if __name__ == "__main__":
     output_dir.mkdir(exist_ok=True, parents=True)
 
     masker_path = Path(args.masker_dir)
+    painter_path = Path(args.painter_dir)
+
+    assert masker_path.exists() and painter_path.exists()
 
     opts = load_opts(masker_path / "opts.yaml", default="shared/trainer/defaults.yaml")
 
     opts.tasks = ["m", "p"]
     opts.load_paths.m = str(masker_path)
-    opts.load_paths.p = args.painter_dir
+    opts.load_paths.p = str(painter_path)
     opts.train.resume = True
-    opts.output_path = str(masker_path)
-    opts.gen.deeplabv2.pretrained_model = args.deeplab_pretrained
+    opts.output_path = output_dir
+    opts.gen.p.latent_dim = 640
 
     new_size = 640
 
@@ -278,33 +279,28 @@ if __name__ == "__main__":
     if "m" in opts.tasks:
         masker = True
 
-    # ------------------------
-    # ----- Define model -----
-    # ------------------------
-    opts.gen.p.latent_dim = 640
+    # --------------------------------------
+    # -----  Define trainer and model  -----
+    # --------------------------------------
+
     torch.set_grad_enabled(False)
     device = xm.xla_device()
     trainer = Trainer(opts, device=device)
     trainer.input_shape = (3, 640, 640)
-    trainer.setup(True)
-    trainer.resume(True)
+    trainer.setup(inference=True)
+    trainer.resume(inference=True)
 
-    # -------------------------------
-    # -----  Transforms images  -----
-    # -------------------------------
+    # ------------------------
+    # -----  Transforms  -----
+    # ------------------------
 
     transforms = [trsfs.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
 
-    # ----------------------------
-    # -----  Iterate images  -----
-    # ----------------------------
+    # --------------------------------
+    # -----  eval_folder params  -----
+    # --------------------------------
 
-    # eval_folder(args.path_to_images, output_dir)
-
-    # rootdir = Path("/network/tmp1/ccai/data/psychology_wave4")
     rootdir = Path(args.inference_data_dir)
-
-    # eval_folder params
     path_to_images = rootdir  # a folder with a list of images
     path_to_masks = rootdir  # not used if using the masker, otherwise a path to matching masks to the images
     apply_mask = (
@@ -312,10 +308,13 @@ if __name__ == "__main__":
     )
     save_images = False  # write the outputs to a folder
     empty_cuda_cache = True  # faster if False but will give erroneous memory footprint
-    USE_RTX8000 = True  # Are you with a machine with 48GB?
+    # USE_RTX8000 = True  # Are you with a machine with 48GB?
     loaded_images = None  # will be overloaded with data if preload_images is True
     preload_images = True  # faster if running eval_folder multiple times
 
+    # -----------------------------------
+    # -----  Load images in memory  -----
+    # -----------------------------------
     if preload_images:
         image_list = os.listdir(path_to_images)
         image_list.sort()
@@ -324,10 +323,14 @@ if __name__ == "__main__":
             for i in image_list
         ]
 
+    # -----------------------
+    # -----      -      -----
+    # -----  Benchmark  -----
+    # -----      -      -----
+    # -----------------------
+
     print("FP32")
     for bs in [1, 2, 4, 8, 16, 32]:
-        if bs > 16 and not USE_RTX8000:
-            continue
         times = eval_folder(
             path_to_images,
             path_to_masks,
@@ -345,24 +348,26 @@ if __name__ == "__main__":
         )
         print()
 
-    print("FP16 (half)\n")
-    for bs in [1, 2, 4, 8, 16, 32, 64, 128]:
-        if bs > 64 and not USE_RTX8000:
-            continue
-        times = eval_folder(
-            path_to_images,
-            path_to_masks,
-            output_dir,
-            masker,
-            paint,
-            opts,
-            bs,
-            True,
-            trainer,
-            device,
-            save_images,
-            empty_cuda_cache,
-            loaded_images,
-        )
-        print()
+    # TPUS => set XLA_USE_BF16 before running the script, no .half() call
+
+    # print("FP16 (half)\n")
+    # for bs in [1, 2, 4, 8, 16, 32, 64, 128]:
+    #     if bs > 64 and not USE_RTX8000:
+    #         continue
+    #     times = eval_folder(
+    #         path_to_images,
+    #         path_to_masks,
+    #         output_dir,
+    #         masker,
+    #         paint,
+    #         opts,
+    #         bs,
+    #         True,
+    #         trainer,
+    #         device,
+    #         save_images,
+    #         empty_cuda_cache,
+    #         loaded_images,
+    #     )
+    #     print()
 
