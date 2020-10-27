@@ -1,6 +1,7 @@
 # omnigan
 - [omnigan](#omnigan)
   - [Setup](#setup)
+- [⚠️ Deprecated](#️-deprecated)
   - [Current Model](#current-model)
     - [Summary](#summary)
     - [Generator](#generator)
@@ -33,8 +34,12 @@ Configuration files use the **YAML** syntax. If you don't know what `&` and `<<`
     * https://stackoverflow.com/questions/41063361/what-is-the-double-left-arrow-syntax-in-yaml-called-and-wheres-it-specced/41065222
 
 ```
-$ pip install scipy opencv-python torch torchvision omegaconf==1.4.1 hydra-core==0.11.3 scikit-image imageio addict tqdm torch_optimizer
+$ pip install comet_ml scipy opencv-python torch torchvision omegaconf==1.4.1 hydra-core==0.11.3 scikit-image imageio addict tqdm torch_optimizer
 ```
+
+# ⚠️ Deprecated
+
+Most of the following sections need an update
 
 ## Current Model
 
@@ -103,33 +108,10 @@ High-level model in `generator.py`, building-blocks in `blocks.py`
 
 ## updates
 
-For a multi-batch like:
-```
-{"rf: batch0, "rn": batch1, "sf": batch2 "sn": batch3}
-```
-
-Updates will be:
+multi-batch:
 
 ```
-- real D["a"]["r"] (batch0)
-- fake D["a"]["s"] (batch0)
-- real D["t"]["f"] (batch0)
-- fake D["t"]["n"] (batch0)
-
-- real D["a"]["r"] (batch1)
-- fake D["a"]["s"] (batch1)
-- real D["t"]["n"] (batch1)
-- fake D["t"]["f"] (batch1)
-
-- real D["a"]["s"] (batch2)
-- fake D["a"]["r"] (batch2)
-- real D["t"]["f"] (batch2)
-- fake D["t"]["n"] (batch2)
-
-- real D["a"]["s"] (batch3)
-- fake D["a"]["r"] (batch3)
-- real D["t"]["n"] (batch3)
-- fake D["t"]["f"] (batch3)
+multi_domain_batch = {"rf: batch0, "r": batch1, "s": batch2}
 ```
 
 ## interfaces
@@ -138,20 +120,15 @@ Updates will be:
 ```python
 batch = Dict({
     "data": {
-        "d": depthmap,
-        "h": heightmap,
-        "w": water_segmentation_map,
+        "d": depthmap,,
         "s": segmentation_map,
+        "m": binary_mask
         "x": real_flooded_image,
     },
     "paths":{
-        "d": depthmap_path,
-        "h": heightmap_path,
-        "w": water_segmentation_map_path,
-        "s": segmentation_map_path,
-        "x": real_flooded_image_path,
+        same_keys: path_to_file
     }
-    "domain": list(rf | rn | sf | sn),
+    "domain": list(rf | r | s),
     "mode": list(train | val)
 })
 ```
@@ -160,14 +137,14 @@ batch = Dict({
 
 #### json files
 
-| name                                           | domain | description                                                                 |  author   |
-| :--------------------------------------------- | :----: | :---------------------------------------------------------------------------| :-------: |
-| **train_r_full.json, val_r_full.json**         |   r    | MiDaS+ Segmentation pseudo-labels .pt (HRNet + Cityscapes)                  | Mélisande |
-| **train_s_full.json, val_s_full.json**         |   s    | Simulated data from Unity11k urban + Unity suburban dataset                 |    ***    |
-| train_s_nofences.json, val_s_nofences.json     |   s    | Simulated data from Unity11k urban + Unity suburban dataset without fences  |  Alexia   |
-| train_r_full_pl.json, val_r_full_pl.json       |   r    | MegaDepth + Segmentation pseudo-labels .pt (HRNet + Cityscapes)             |  Alexia   |
-| train_r_full_midas.json, val_r_full_midas.json |   r    | MiDaS+ Segmentation (HRNet + Cityscapes)                                    | Mélisande |
-| train_r_full_old.json, val_r_full_old.json     |   r    | MegaDepth+ Segmentation (HRNet + Cityscapes)                                |    ***    |
+| name                                           | domain | description                                                                |  author   |
+| :--------------------------------------------- | :----: | :------------------------------------------------------------------------- | :-------: |
+| **train_r_full.json, val_r_full.json**         |   r    | MiDaS+ Segmentation pseudo-labels .pt (HRNet + Cityscapes)                 | Mélisande |
+| **train_s_full.json, val_s_full.json**         |   s    | Simulated data from Unity11k urban + Unity suburban dataset                |    ***    |
+| train_s_nofences.json, val_s_nofences.json     |   s    | Simulated data from Unity11k urban + Unity suburban dataset without fences |  Alexia   |
+| train_r_full_pl.json, val_r_full_pl.json       |   r    | MegaDepth + Segmentation pseudo-labels .pt (HRNet + Cityscapes)            |  Alexia   |
+| train_r_full_midas.json, val_r_full_midas.json |   r    | MiDaS+ Segmentation (HRNet + Cityscapes)                                   | Mélisande |
+| train_r_full_old.json, val_r_full_old.json     |   r    | MegaDepth+ Segmentation (HRNet + Cityscapes)                               |    ***    |
 
 We provide the script `process_data.py` for the preprocessing task. Given a source folder the script will create the appropriate JSON. In the default mode, only one JSON for the whole data folder will be created. If you want to split the dataset into train and validation you can use the `--train_size` argument and specify the percentage, therefore two JSONs (train and val) will be created.
 
@@ -179,9 +156,6 @@ Note that `"m"` corresponds to the mask task, which is not exactly the water mas
 ```yaml
 # data file ; one for each r|s
 - x: /path/to/image
-  h: /path/to/height map
-  d: /path/to/depth map
-  w: /path/to/water map
   m: /path/to/mask
   s: /path/to/segmentation map
 - x: /path/to/another image
