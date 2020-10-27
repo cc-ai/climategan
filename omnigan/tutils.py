@@ -391,7 +391,22 @@ def divide_pred(pred):
     return fake, real
 
 
-def get_WGAN_gradient(input, output):
+def is_tpu_available():
+    _torch_tpu_available = False
+    try:
+        import torch_xla.core.xla_model as xm  # noqa: F401
+
+        if "xla" in str(xm.xla_device()):
+            _torch_tpu_available = True  # pylint: disable=
+        else:
+            _torch_tpu_available = False
+    except ImportError:
+        _torch_tpu_available = False
+
+    return _torch_tpu_available
+
+  
+  def get_WGAN_gradient(input, output):
     # github code reference: https://github.com/caogang/wgan-gp/blob/master/gan_cifar10.py
     # Calculate the gradient that WGAN-gp needs
     grads = autograd.grad(
