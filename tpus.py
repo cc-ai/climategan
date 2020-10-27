@@ -13,7 +13,6 @@ from omnigan.data import tensor_loader
 from omnigan.trainer import Trainer
 from omnigan.utils import load_opts
 
-import torch_xla
 import torch_xla.core.xla_model as xm
 
 
@@ -37,12 +36,6 @@ class Timer:
             self.store.append(new_time)
         if self.name:
             print(f"[{self.name}] Elapsed time: {new_time:.3f}")
-
-
-def gpu_used():
-    handle = nvidia_smi.nvmlDeviceGetHandleByIndex(0)
-    info = nvidia_smi.nvmlDeviceGetMemoryInfo(handle)
-    return "{:.2f}GB".format(info.used / 1e9)
 
 
 def isimg(path_file):

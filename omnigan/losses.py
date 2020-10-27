@@ -4,7 +4,6 @@ To send predictions to target.device
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.autograd import Variable
 import torch.nn as nn
 from random import random as rand
 from torchvision import models
@@ -153,7 +152,8 @@ class TVLoss(nn.Module):
     """Total Variational Regularization: Penalizes differences in
         neighboring pixel values
 
-        source: https://github.com/jxgu1016/Total_Variation_Loss.pytorch/blob/master/TVLoss.py
+        source:
+        https://github.com/jxgu1016/Total_Variation_Loss.pytorch/blob/master/TVLoss.py
     """
 
     def __init__(self, tvloss_weight=1):
@@ -246,8 +246,8 @@ class SIMSELoss(nn.Module):
 
 class SIGMLoss(nn.Module):
     """loss from MiDaS paper
-    MiDaS did not specify how the gradients were computed but we use Sobel filters which approximate
-    the derivative of an image.
+    MiDaS did not specify how the gradients were computed but we use Sobel
+    filters which approximate the derivative of an image.
     """
 
     def __init__(self, gmweight=0.5, scale=4, device="cuda"):
@@ -469,7 +469,8 @@ class CustomBCELoss(nn.Module):
 
 class ADVENTAdversarialLoss(nn.Module):
     """
-        The first and second argument are tensor. The third argument is a discriminator model.
+        The first and second argument are tensors.
+        The third argument is a discriminator model.
     """
 
     def __init__(self, opts):
@@ -487,20 +488,23 @@ class ADVENTAdversarialLoss(nn.Module):
 
 def multiDiscriminatorAdapter(d_out, opts):
     """
-    Because the OmniDiscriminator does not directly return a tensor (but a list of tensor).
+    Because the OmniDiscriminator does not directly return a tensor
+    (but a list of tensor).
     Since there is no multilevel masker, the 0th tensor in the list is all we want.
-    This Adapter returns the first element(tensor) of the list that OmniDiscriminator returns.
+    This Adapter returns the first element(tensor) of the list that OmniDiscriminator
+    returns.
     """
     if (
         isinstance(d_out, list) and len(d_out) == 1
-    ):  # adapt the multi-scale Omnidiscriminator
+    ):  # adapt the multi-scale OmniDiscriminator
         if not opts.dis.p.get_intermediate_features:
             d_out = d_out[0][0]
         else:
             d_out = d_out[0]
     else:
         raise Exception(
-            "Check the setting of OmniDiscriminator! For now, we don't support multi-scale Omnidiscriminator."
+            "Check the setting of OmniDiscriminator! "
+            + "For now, we don't support multi-scale OmniDiscriminator."
         )
     return d_out
 

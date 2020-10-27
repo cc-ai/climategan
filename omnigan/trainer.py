@@ -1010,7 +1010,7 @@ class Trainer:
         else:
             real_fake_d = self.D["p"](
                 torch.cat(
-                    [torch.cat([m, x], axis=1), torch.cat([m, fake_flooded], axis=1),],
+                    [torch.cat([m, x], axis=1), torch.cat([m, fake_flooded], axis=1)],
                     axis=0,
                 )
             )
