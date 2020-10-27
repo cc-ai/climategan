@@ -1194,7 +1194,6 @@ class Trainer:
                             prob.to(self.device),
                             self.domain_labels[batch_domain],
                             self.D["m"]["Advent"],
-                            gan_type=self.opts.dis.m.gan_type,
                         )
                         if self.opts.dis.m.gan_type == "GAN" or "WGAN_norm":
                             disc_loss["m"]["Advent"] += (
@@ -1238,7 +1237,6 @@ class Trainer:
                             preds.to(self.device),
                             self.domain_labels[batch_domain],
                             self.D["s"]["Advent"],
-                            gan_type=self.opts.dis.m.gan_type,
                         )
 
                         if self.opts.dis.s.gan_type == "GAN" or "WGAN_norm":
