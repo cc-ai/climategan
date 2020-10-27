@@ -405,8 +405,8 @@ def is_tpu_available():
 
     return _torch_tpu_available
 
-  
-  def get_WGAN_gradient(input, output):
+
+def get_WGAN_gradient(input, output):
     # github code reference: https://github.com/caogang/wgan-gp/blob/master/gan_cifar10.py
     # Calculate the gradient that WGAN-gp needs
     grads = autograd.grad(

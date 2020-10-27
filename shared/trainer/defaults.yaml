@@ -168,11 +168,11 @@ dis:
     <<: *default-dis
     multi_level: false
     architecture: base # can be [base | OmniDiscriminator]
-    gan_type: GAN
+    gan_type: GAN_norm
     wgan_clamp_lower: -0.01
     wgan_clamp_upper: 0.01
   s:
-    gan_type: GAN
+    gan_type: GAN_norm
     wgan_clamp_lower: -0.01
     wgan_clamp_upper: 0.01
 # -------------------------------
