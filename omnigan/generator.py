@@ -19,7 +19,7 @@ import torch.nn.functional as F
 
 
 def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
-    G = OmniGenerator(opts, latent_shape, verbose)
+    G = OmniGenerator(opts, latent_shape, verbose, no_init)
     for model in G.decoders:
         net = G.decoders[model]
         if isinstance(net, nn.ModuleDict):
@@ -56,7 +56,7 @@ def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
 
 
 class OmniGenerator(nn.Module):
-    def __init__(self, opts, latent_shape=None, verbose=None):
+    def __init__(self, opts, latent_shape=None, verbose=None, no_init=False):
         """Creates the generator. All decoders listed in opts.gen will be added
         to the Generator.decoders ModuleDict if opts.gen.DecoderInitial is not True.
         Then can be accessed as G.decoders.T or G.decoders["T"] for instance,
@@ -71,7 +71,7 @@ class OmniGenerator(nn.Module):
         self.encoder = None
         if "m" in opts.tasks:
             if opts.gen.encoder.architecture == "deeplabv2":
-                self.encoder = DeeplabEncoder(opts)
+                self.encoder = DeeplabEncoder(opts, no_init)
                 print("  - Created Pretrained Deeplab Encoder")
             else:
                 self.encoder = BaseEncoder(opts)
