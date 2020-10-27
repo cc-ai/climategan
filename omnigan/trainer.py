@@ -40,12 +40,17 @@ from omnigan.utils import div_dict, flatten_opts, sum_dict, merge, get_display_i
 from omnigan.eval_metrics import iou, accuracy
 from tqdm import tqdm
 
+try:
+    import torch_xla.core.xla_model as xm
+except ImportError:
+    pass
+
 
 class Trainer:
     """Main trainer class
     """
 
-    def __init__(self, opts, comet_exp=None, verbose=0):
+    def __init__(self, opts, comet_exp=None, verbose=0, device=None):
         """Trainer class to gather various model training procedures
         such as training evaluating saving and logging
 
@@ -75,7 +80,9 @@ class Trainer:
 
         self.is_setup = False
 
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.device = device or torch.device(
+            "cuda:0" if torch.cuda.is_available() else "cpu"
+        )
 
         self.exp = None
         if isinstance(comet_exp, Experiment):
@@ -947,7 +954,9 @@ class Trainer:
         batch = multi_domain_batch[batch_domain]
 
         x = batch["data"]["x"]
-        m = batch["data"]["m"]  # ! different mask: hides water to be reconstructed
+        # ! different mask: hides water to be reconstructed
+        # ! 1 for water, 0 otherwise
+        m = batch["data"]["m"]
         z = self.sample_z(x.shape[0]) if not self.no_z else None
         masked_x = x * (1.0 - m)
 
@@ -955,7 +964,7 @@ class Trainer:
 
         update_loss = (
             self.losses["G"]["p"]["vgg"](
-                vgg_preprocess(fake_flooded), vgg_preprocess(x)
+                vgg_preprocess(fake_flooded * m), vgg_preprocess(x * m)
             )
             * lambdas.G.p.vgg
         )
@@ -968,11 +977,16 @@ class Trainer:
         step_loss += update_loss
 
         update_loss = (
-            self.losses["G"]["p"]["context"](fake_flooded, x, m)
-            * lambdas.G["p"]["context"]
+            self.losses["G"]["p"]["context"](fake_flooded, x, m) * lambdas.G.p.context
         )
-
         self.logger.losses.gen.p.context = update_loss.item()
+        step_loss += update_loss
+
+        update_loss = (
+            self.losses["G"]["p"]["reconstruction"](fake_flooded, x, m)
+            * lambdas.G.p.reconstruction
+        )
+        self.logger.losses.gen.p.reconstruction = update_loss.item()
         step_loss += update_loss
 
         # GAN Losses
@@ -1014,7 +1028,7 @@ class Trainer:
         else:
             real_fake_d = self.D["p"](
                 torch.cat(
-                    [torch.cat([m, x], axis=1), torch.cat([m, fake_flooded], axis=1),],
+                    [torch.cat([m, x], axis=1), torch.cat([m, fake_flooded], axis=1)],
                     axis=0,
                 )
             )
@@ -1385,6 +1399,9 @@ class Trainer:
         # ----------------------------------------
         # -----  Masker and Painter Loading  -----
         # ----------------------------------------
+        tpu = "xla" in str(self.device)
+        if tpu:
+            print("Resuming on TPU:", self.device)
         if "m" in self.opts.tasks and "p" in self.opts.tasks:
             m_path = self.opts.load_paths.m
             p_path = self.opts.load_paths.p
@@ -1398,10 +1415,15 @@ class Trainer:
             m_ckpt_path = Path(m_path) / Path("checkpoints/latest_ckpt.pth")
             p_ckpt_path = Path(p_path) / Path("checkpoints/latest_ckpt.pth")
 
-            m_checkpoint = torch.load(m_ckpt_path)
-            p_checkpoint = torch.load(p_ckpt_path)
-
+            m_checkpoint = torch.load(
+                m_ckpt_path, map_location=self.device if not tpu else "cpu"
+            )
+            p_checkpoint = torch.load(
+                p_ckpt_path, map_location=self.device if not tpu else "cpu"
+            )
             checkpoint = merge(m_checkpoint, p_checkpoint)
+            if tpu:
+                checkpoint = xm.send_cpu_data_to_device(checkpoint, self.device)
             print(f"Resuming model from \n  -{m_ckpt_path} \nand \n  -{p_ckpt_path}")
         # ----------------------------------
         # -----  Single Model Loading  -----
@@ -1410,7 +1432,11 @@ class Trainer:
             load_path = Path(self.opts.output_path) / Path(
                 "checkpoints/latest_ckpt.pth"
             )
-            checkpoint = torch.load(load_path)
+            checkpoint = torch.load(
+                load_path, map_location=self.device if not tpu else "cpu"
+            )
+            if tpu:
+                checkpoint = xm.send_cpu_data_to_device(checkpoint, self.device)
             print(f"Resuming model from {load_path}")
 
         # -----------------------
