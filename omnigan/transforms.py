@@ -3,7 +3,6 @@
 import torch
 import torch.nn.functional as F
 from torchvision import transforms as trsfs
-import torchvision.transforms.functional as TF
 import numpy as np
 from PIL import Image
 import traceback

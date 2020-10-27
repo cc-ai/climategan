@@ -86,12 +86,14 @@ def get_optimizer(net, opt_conf, tasks=None, iterations=-1):
                 lr_names.append("encoder")
             # Parameters for decoders
             if task == "p":
-                parameters = net.painter.parameters()
-                lr_names.append("painter")
+                if hasattr(net, "painter"):
+                    parameters = net.painter.parameters()
+                    lr_names.append("painter")
             else:
                 parameters = net.decoders[task].parameters()
                 lr_names.append(f"decoder_{task}")
             params.append({"params": parameters, "lr": l_r})
+
     if opt_conf.optimizer.lower() == "extraadam":
         opt = ExtraAdam(params, lr=lr, betas=(opt_conf.beta1, 0.999))
     elif opt_conf.optimizer.lower() == "novograd":

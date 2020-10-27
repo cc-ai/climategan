@@ -55,7 +55,8 @@ classes_dict = {
 def decode_segmap_merged_labels(tensor, domain, is_target, nc=11):
     """Creates a label colormap for classes used in Unity segmentation benchmark.
     Arguments:
-        tensor -- segmented image of size (1) x (nc) x (H) x (W) if prediction, or size (1) x (1) x (H) x (W) if target
+        tensor -- segmented image of size (1) x (nc) x (H) x (W)
+            if prediction, or size (1) x (1) x (H) x (W) if target
     Returns:
         RGB tensor of size (1) x (3) x (H) x (W)
     # """
@@ -113,7 +114,9 @@ def decode_segmap_cityscapes_labels(image, nc=19):
 
 
 def find_closest_class(pixel, dict_classes):
-    """Takes a pixel as input and finds the closest known pixel value corresponding to a class in dict_classes
+    """Takes a pixel as input and finds the closest known pixel value corresponding
+    to a class in dict_classes
+
     Arguments:
         pixel -- tuple pixel (R,G,B,A)
     Returns:
@@ -182,10 +185,13 @@ def save_segmap_tensors(path_to_json, path_to_dir, domain):
             "s",
         )
     """
+    ims_list = None
     if path_to_json:
         path_to_json = Path(path_to_json).resolve()
         with open(path_to_json, "r") as f:
             ims_list = yaml.safe_load(f)
+
+    assert ims_list is not None
 
     for im_dict in ims_list:
         for task_name, path in im_dict.items():
