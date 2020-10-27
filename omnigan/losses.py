@@ -4,7 +4,6 @@ To send predictions to target.device
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.autograd import Variable
 import torch.nn as nn
 from random import random as rand
 from torchvision import models
@@ -153,7 +152,8 @@ class TVLoss(nn.Module):
     """Total Variational Regularization: Penalizes differences in
         neighboring pixel values
 
-        source: https://github.com/jxgu1016/Total_Variation_Loss.pytorch/blob/master/TVLoss.py
+        source:
+        https://github.com/jxgu1016/Total_Variation_Loss.pytorch/blob/master/TVLoss.py
     """
 
     def __init__(self, tvloss_weight=1):
@@ -178,64 +178,31 @@ class TVLoss(nn.Module):
         return t.size()[1] * t.size()[2] * t.size()[3]
 
 
-def cross_entropy_2d(predict, target):
+class MinentLoss(nn.Module):
     """
-    Args:
-        predict:(n, c, h, w)
-        target:(n, h, w)
+        Loss for the minimization of the entropy map
+        Source for version 1: https://github.com/valeoai/ADVENT
+
+        Version 2 adds the variance of the entropy map in the computation of the loss
     """
-    assert not target.requires_grad
-    assert predict.dim() == 4
-    assert target.dim() == 3
-    assert predict.size(0) == target.size(0), f"{predict.size(0)} vs {target.size(0)}"
-    assert predict.size(2) == target.size(1), f"{predict.size(2)} vs {target.size(1)}"
-    assert predict.size(3) == target.size(2), f"{predict.size(3)} vs {target.size(3)}"
-    n, c, h, w = predict.size()
-    target_mask = (target >= 0) * (target != 255)
-    target = target[target_mask]
-    if not target.data.dim():
-        return Variable(torch.zeros(1))
-    predict = predict.transpose(1, 2).transpose(2, 3).contiguous()
-    predict = predict[target_mask.view(n, h, w, 1).repeat(1, 1, 1, c)].view(-1, c)
-    loss = F.cross_entropy(predict, target)
-    return loss
 
-
-class MinEntLoss(nn.Module):
-    def __init__(self):
+    def __init__(self, version=1, lambda_var=0.1):
         super().__init__()
+        self.version = version
+        self.lambda_var = lambda_var
 
-    def __call__(self, prediction):
-        assert prediction.dim() == 4
-        n, c, h, w = prediction.size()
-        return -torch.sum(torch.mul(prediction, torch.log2(prediction + 1e-30))) / (
-            n * h * w * np.log2(c)
-        )
-
-
-def entropy_loss(v):
-    """
-        Entropy loss for probabilistic prediction vectors
-        input: batch_size x channels x h x w
-        output: batch_size x 1 x h x w
-    """
-    assert v.dim() == 4
-    n, c, h, w = v.size()
-    return -torch.sum(torch.mul(v, torch.log2(v + 1e-30))) / (n * h * w * np.log2(c))
-
-
-def entropy_loss_v2(v, lambda_var=0.1):
-    """
-        Entropy loss for probabilistic prediction vectors
-        input: batch_size x channels x h x w
-        output: batch_size x 1 x h x w
-    """
-    assert v.dim() == 4
-    n, c, h, w = v.size()
-    entropy_map = -torch.mul(v, torch.log2(v + 1e-30)) / np.log2(c)
-    entropy_map_demean = entropy_map - torch.sum(entropy_map) / (n * h * w)
-    entropy_map_squ = torch.mul(entropy_map_demean, entropy_map_demean)
-    return torch.sum(entropy_map + lambda_var * entropy_map_squ) / (n * h * w)
+    def __call__(self, pred):
+        assert pred.dim() == 4
+        n, c, h, w = pred.size()
+        entropy_map = -torch.mul(pred, torch.log2(pred + 1e-30)) / np.log2(c)
+        if self.version == 1:
+            return torch.sum(entropy_map) / (n * h * w)
+        else:
+            entropy_map_demean = entropy_map - torch.sum(entropy_map) / (n * h * w)
+            entropy_map_squ = torch.mul(entropy_map_demean, entropy_map_demean)
+            return torch.sum(entropy_map + self.lambda_var * entropy_map_squ) / (
+                n * h * w
+            )
 
 
 class MSELoss(nn.Module):
@@ -279,8 +246,8 @@ class SIMSELoss(nn.Module):
 
 class SIGMLoss(nn.Module):
     """loss from MiDaS paper
-    MiDaS did not specify how the gradients were computed but we use Sobel filters which approximate
-    the derivative of an image.
+    MiDaS did not specify how the gradients were computed but we use Sobel
+    filters which approximate the derivative of an image.
     """
 
     def __init__(self, gmweight=0.5, scale=4, device="cuda"):
@@ -323,11 +290,20 @@ class SIGMLoss(nn.Module):
 
 class ContextLoss(nn.Module):
     """
-    Masked L1 loss
+    Masked L1 loss on non-water
     """
 
     def __call__(self, input, target, mask):
         return torch.mean(torch.abs(torch.mul((input - target), 1 - mask)))
+
+
+class ReconstructionLoss(nn.Module):
+    """
+    Masked L1 loss on water
+    """
+
+    def __call__(self, input, target, mask):
+        return torch.mean(torch.abs(torch.mul((input - target), mask)))
 
 
 ##################################################################################
@@ -411,12 +387,13 @@ def get_losses(opts, verbose, device=None):
     # ------------------------------
     # painter losses
     if "p" in opts.tasks:
-        losses["G"]["p"]["gan"] = GANLoss()
+        losses["G"]["p"]["hinge"] = HingeLoss()
         losses["G"]["p"]["sm"] = PixelCrossEntropy()
         losses["G"]["p"]["dm"] = MSELoss()
         losses["G"]["p"]["vgg"] = VGGLoss(device)
         losses["G"]["p"]["tv"] = TVLoss()
         losses["G"]["p"]["context"] = ContextLoss()
+        losses["G"]["p"]["reconstruction"] = ReconstructionLoss()
         losses["G"]["p"]["featmatch"] = FeatMatchLoss()
 
     # task losses
@@ -428,17 +405,17 @@ def get_losses(opts, verbose, device=None):
     if "s" in opts.tasks:
         losses["G"]["tasks"]["s"] = {}
         losses["G"]["tasks"]["s"]["crossent"] = CrossEntropy()
-        losses["G"]["tasks"]["s"]["minent"] = MinEntLoss()
+        losses["G"]["tasks"]["s"]["minent"] = MinentLoss()
         losses["G"]["tasks"]["s"]["advent"] = ADVENTAdversarialLoss(opts)
     if "m" in opts.tasks:
         losses["G"]["tasks"]["m"] = {}
         losses["G"]["tasks"]["m"]["bce"] = nn.BCELoss()
         if opts.gen.m.use_minent_var:
-            losses["G"]["tasks"]["m"]["minent"] = lambda x: entropy_loss_v2(
-                x, lambda_var=opts.train.lambdas.advent.ent_var
+            losses["G"]["tasks"]["m"]["minent"] = MinentLoss(
+                version=2, lambda_var=opts.train.lambdas.advent.ent_var
             )
         else:
-            losses["G"]["tasks"]["m"]["minent"] = entropy_loss
+            losses["G"]["tasks"]["m"]["minent"] = MinentLoss()
         losses["G"]["tasks"]["m"]["tv"] = TVLoss()
         losses["G"]["tasks"]["m"]["advent"] = ADVENTAdversarialLoss(opts)
 
@@ -458,9 +435,7 @@ def get_losses(opts, verbose, device=None):
     # ----------------------------------
     # -----  Discriminator Losses  -----
     # ----------------------------------
-    losses["D"]["default"] = GANLoss(
-        soft_shift=opts.dis.soft_shift, flip_prob=opts.dis.flip_prob, verbose=verbose
-    )
+    losses["D"]["p"] = HingeLoss()
     losses["D"]["advent"] = ADVENTAdversarialLoss(opts)
     return losses
 
@@ -494,7 +469,8 @@ class CustomBCELoss(nn.Module):
 
 class ADVENTAdversarialLoss(nn.Module):
     """
-        TODO
+        The first and second argument are tensors.
+        The third argument is a discriminator model.
     """
 
     def __init__(self, opts):
@@ -511,15 +487,69 @@ class ADVENTAdversarialLoss(nn.Module):
 
 
 def multiDiscriminatorAdapter(d_out, opts):
+    """
+    Because the OmniDiscriminator does not directly return a tensor
+    (but a list of tensor).
+    Since there is no multilevel masker, the 0th tensor in the list is all we want.
+    This Adapter returns the first element(tensor) of the list that OmniDiscriminator
+    returns.
+    """
     if (
         isinstance(d_out, list) and len(d_out) == 1
-    ):  # adapt the multi-scale Omnidiscriminator
+    ):  # adapt the multi-scale OmniDiscriminator
         if not opts.dis.p.get_intermediate_features:
             d_out = d_out[0][0]
         else:
             d_out = d_out[0]
     else:
         raise Exception(
-            "Check the setting of OmniDiscriminator! For now, we don't support multi-scale Omnidiscriminator."
+            "Check the setting of OmniDiscriminator! "
+            + "For now, we don't support multi-scale OmniDiscriminator."
         )
     return d_out
+
+
+class HingeLoss(nn.Module):
+    """
+    Adapted from https://github.com/NVlabs/SPADE/blob/master/models/networks/loss.py
+    for  the painter
+    """
+
+    def __init__(self, tensor=torch.FloatTensor):
+        super().__init__()
+        self.zero_tensor = None
+        self.Tensor = tensor
+
+    def get_zero_tensor(self, input):
+        if self.zero_tensor is None:
+            self.zero_tensor = self.Tensor(1).fill_(0)
+            self.zero_tensor.requires_grad_(False)
+            self.zero_tensor = self.zero_tensor.to(input.device)
+        return self.zero_tensor.expand_as(input)
+
+    def loss(self, input, target_is_real, for_discriminator=True):
+        if for_discriminator:
+            if target_is_real:
+                minval = torch.min(input - 1, self.get_zero_tensor(input))
+                loss = -torch.mean(minval)
+            else:
+                minval = torch.min(-input - 1, self.get_zero_tensor(input))
+                loss = -torch.mean(minval)
+        else:
+            assert target_is_real, "The generator's hinge loss must be aiming for real"
+            loss = -torch.mean(input)
+        return loss
+
+    def __call__(self, input, target_is_real, for_discriminator=True):
+        # computing loss is a bit complicated because |input| may not be
+        # a tensor, but list of tensors in case of multiscale discriminator
+        if isinstance(input, list):
+            loss = 0
+            for pred_i in input:
+                if isinstance(pred_i, list):
+                    pred_i = pred_i[-1]
+                loss_tensor = self.loss(pred_i, target_is_real, for_discriminator)
+                loss += loss_tensor
+            return loss / len(input)
+        else:
+            return self.loss(input, target_is_real, for_discriminator)

@@ -297,34 +297,39 @@ class DepthDecoder(nn.Module):
     """#Depth decoder based on depth auxiliary task in DADA paper
 
     """
+
     def __init__(self, opts):
         super().__init__()
-        self.relu = nn.ReLU(inplace = True)
-        self.enc4_1 = nn.Conv2d(2048, 512, kernel_size=1, stride=1, padding=0, bias=True)
+        self.relu = nn.ReLU(inplace=True)
+        self.enc4_1 = nn.Conv2d(
+            2048, 512, kernel_size=1, stride=1, padding=0, bias=True
+        )
         self.enc4_2 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1, bias=True)
         self.enc4_3 = nn.Conv2d(512, 128, kernel_size=1, stride=1, padding=0, bias=True)
         self.output_size = opts.data.transforms[-1].new_size
+
     def forward(self, x):
         x4_enc = self.enc4_1(x)
         x4_enc = self.relu(x4_enc)
         x4_enc = self.enc4_2(x4_enc)
         x4_enc = self.relu(x4_enc)
         x4_enc = self.enc4_3(x4_enc)
-        
+
         depth = torch.mean(x4_enc, dim=1, keepdim=True)  # DADA paper decoder
         depth = F.interpolate(
-                    depth,
-                    size=(384,384), #size used in MiDaS inference
-                    mode="bicubic", #what MiDaS uses
-                    align_corners=False,
-                )
+            depth,
+            size=(384, 384),  # size used in MiDaS inference
+            mode="bicubic",  # what MiDaS uses
+            align_corners=False,
+        )
         depth = F.interpolate(
-                    depth, (self.output_size,self.output_size), mode="nearest"
-                )  #what we used in the transforms to resize input 
+            depth, (self.output_size, self.output_size), mode="nearest"
+        )  # what we used in the transforms to resize input
         return depth
 
     def __str__(self):
         return strings.basedecoder(self)
+
 
 # --------------------------
 # -----  SPADE Blocks  -----
@@ -398,15 +403,7 @@ class SPADEResnetBlock(nn.Module):
 
 
 class SpadeDecoder(nn.Module):
-    def __init__(
-        self,
-        latent_dim,
-        cond_nc,
-        spade_n_up,
-        spade_use_spectral_norm,
-        spade_param_free_norm,
-        spade_kernel_size,
-    ):
+    def __init__(self, opts):
         """Create a SPADE-based decoder, which forwards z and the conditioning
         tensors seg (in the original paper, conditioning is on a semantic map only).
         All along, z is conditioned on seg. First 3 SpadeResblocks (SRB) do not shrink
@@ -427,9 +424,17 @@ class SpadeDecoder(nn.Module):
         """
         super().__init__()
 
+        latent_dim = opts.gen.p.latent_dim
+        cond_nc = 3
+        spade_n_up = opts.gen.p.spade_n_up
+        spade_use_spectral_norm = opts.gen.p.spade_use_spectral_norm
+        spade_param_free_norm = opts.gen.p.spade_param_free_norm
+        spade_kernel_size = 3
+
         self.z_nc = latent_dim
         self.spade_n_up = spade_n_up
 
+        self.fc = nn.Conv2d(3, latent_dim, 3, padding=1)
         self.head_0 = SPADEResnetBlock(
             self.z_nc,
             self.z_nc,
@@ -497,6 +502,9 @@ class SpadeDecoder(nn.Module):
         return self
 
     def forward(self, z, cond):
+        if z is None:
+            assert self.z_h is not None and self.z_w is not None
+            z = self.fc(F.interpolate(cond, size=(self.z_h, self.z_w)))
         y = self.head_0(z, cond)
         y = self.upsample(y)
         y = self.G_middle_0(y, cond)

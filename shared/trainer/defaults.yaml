@@ -34,6 +34,7 @@ data:
     - name: resize
       ignore: false
       new_size: 640
+      keep_aspect_ratio: true # smallest dimension will be `new_size` and the other will be computed to keep aspect  ratio
     - name: crop
       ignore: false
       height: 600
@@ -66,7 +67,7 @@ gen:
     &default-gen # default parameters for the generator (encoder and decoders)
     activ: lrelu # activation function [relu/lrelu/prelu/selu/tanh]
     init_gain: 0.2
-    init_type: kaiming
+    init_type: xavier
     n_res: 1 # number of residual blocks before upsampling
     n_downsample: &n_downsample 3 # number of downsampling layers in encoder | dim 32 + down 3 => z = 256 x 32 x 32
     n_upsample: *n_downsample # upsampling in spade decoder ; should match encoder.n_downsample
@@ -113,6 +114,7 @@ gen:
     spade_param_free_norm: instance # what param-free normalization to apply in SPADE normalization
     spade_use_spectral_norm: true
     spade_n_up: 7 # number of upsampling layers in the translation decoder is equal to number of downsamplings in the encoder.  output's h and w are z's h and w x 2^spade_num_upsampling_layers | z:32 and spade_n_up:4 => output 512
+    no_z: true # <=> use_vae=False in the SPADE repo
 
   m: # specific params for the mask-generation decoder
     <<: *default-gen
@@ -147,7 +149,7 @@ dis:
     &default-dis # default setting for discriminators (there are 4 of them for rn rf sn sf)
     input_nc: 3
     ndf: 64
-    n_layers: 3
+    n_layers: 4
     norm: instance
     init_type: kaiming
     init_gain: 0.2
@@ -158,6 +160,8 @@ dis:
     <<: *default-dis
     num_D: 3
     get_intermediate_features: true
+    use_local_discriminator: false
+    # ttur: false # two time-scale update rule (see SPADE repo)
   m:
     <<: *default-dis
     multi_level: false
@@ -207,6 +211,7 @@ train:
         tv: 500
         vgg: 1
         context: 12
+        reconstruction: 12
         featmatch: 10
       classifier: 1
     C: 1
@@ -221,6 +226,7 @@ train:
   log_level: 2 # 0: no log, 1: only aggregated losses, >1 detailed losses
   save_n_epochs: 1 # Save model every n epochs
   resume: false # Load latest_ckpt.pth checkpoint from `output_path` #TODO Make this path of checkpoint to load
+  auto_resume: true # automatically looks for similar output paths and exact same jobID to resume training automatically even if resume is false.
 
 # -----------------------------
 # ----- Validation Params -----

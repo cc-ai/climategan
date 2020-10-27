@@ -212,8 +212,8 @@ def decode_unity_depth_t(unity_depth, log=True, normalize=False, numpy=False, fa
     R = ((247 - R) / 8).type(torch.IntTensor)
     G = ((247 - G) / 8).type(torch.IntTensor)
     B = (255 - B).type(torch.IntTensor)
-    depth = ((R * 256 * 31 + G * 256 + B).type(torch.FloatTensor)) / (256 * 31 * 31 -1)
-    depth = (depth * far)
+    depth = ((R * 256 * 31 + G * 256 + B).type(torch.FloatTensor)) / (256 * 31 * 31 - 1)
+    depth = depth * far
     depth = 1 / depth
     depth = depth.unsqueeze(0)  # (depth * far).unsqueeze(0)
 
@@ -371,3 +371,36 @@ def zero_grad(model: nn.Module):
     """
     for p in model.parameters():
         p.grad = None
+
+
+# Take the prediction of fake and real images from the combined batch
+def divide_pred(pred):
+    # https://github.com/NVlabs/SPADE/blob/master/models/pix2pix_model.py
+    # the prediction contains the intermediate outputs of multiscale GAN,
+    # so it's usually a list
+    if type(pred) == list:
+        fake = []
+        real = []
+        for p in pred:
+            fake.append([tensor[: tensor.size(0) // 2] for tensor in p])
+            real.append([tensor[tensor.size(0) // 2 :] for tensor in p])
+    else:
+        fake = pred[: pred.size(0) // 2]
+        real = pred[pred.size(0) // 2 :]
+
+    return fake, real
+
+
+def is_tpu_available():
+    _torch_tpu_available = False
+    try:
+        import torch_xla.core.xla_model as xm  # noqa: F401
+
+        if "xla" in str(xm.xla_device()):
+            _torch_tpu_available = True  # pylint: disable=
+        else:
+            _torch_tpu_available = False
+    except ImportError:
+        _torch_tpu_available = False
+
+    return _torch_tpu_available

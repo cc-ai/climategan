@@ -3,7 +3,6 @@
 import torch
 import torch.nn.functional as F
 from torchvision import transforms as trsfs
-import torchvision.transforms.functional as TF
 import numpy as np
 from PIL import Image
 import traceback
@@ -17,16 +16,29 @@ def interpolation(task):
 
 
 class Resize:
-    def __init__(self, target_size):
+    def __init__(self, target_size, keep_aspect_ratio=False):
         assert isinstance(target_size, (int, tuple, list))
-        if not isinstance(target_size, int):
+        if not isinstance(target_size, int) and not keep_aspect_ratio:
             assert len(target_size) == 2
             self.h, self.w = target_size
         else:
+            if keep_aspect_ratio:
+                assert isinstance(target_size, int)
             self.h = self.w = target_size
+
+        self.keep_aspect_ratio = keep_aspect_ratio
 
         self.h = int(self.h)
         self.w = int(self.w)
+
+    def get_size(self, tensor):
+        if self.keep_aspect_ratio:
+            h, w = tensor.shape[-2:]
+            if h < w:
+                return (self.h, int(self.h * w / h))
+            else:
+                return (int(self.h * h / w), self.w)
+        return (self.h, self.w)
 
     def __call__(self, data):
         task = tensor = None
@@ -34,7 +46,7 @@ class Resize:
             d = {}
             for task, tensor in data.items():
                 d[task] = F.interpolate(
-                    tensor, (self.h, self.w), mode=interpolation(task)
+                    tensor, size=self.get_size(tensor), mode=interpolation(task)
                 )
             return d
         except Exception as e:
@@ -135,7 +147,9 @@ def get_transform(transform_item):
         return RandomCrop((transform_item.height, transform_item.width))
 
     if transform_item.name == "resize" and not transform_item.ignore:
-        return Resize(transform_item.new_size)
+        return Resize(
+            transform_item.new_size, transform_item.get("keep_aspect_ratio", False)
+        )
 
     if transform_item.name == "hflip" and not transform_item.ignore:
         return RandomHorizontalFlip(p=transform_item.p or 0.5)
