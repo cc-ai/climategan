@@ -608,6 +608,7 @@ if __name__ == "__main__":
     template_name = None
     hp_search_name = None
     hp_search_nb = None
+    exp_path = None
     resume = None
     summary_dir = Path(home) / "omnigan_exp_summaries"
 
@@ -831,12 +832,13 @@ if __name__ == "__main__":
         )
         print_footer()
 
-    print(f"\nRan a total of {hp_idx + 1} jobs{' in dev mode.' if dev else '.'}\n")
+    print(f"\nRan a total of {len(hps)} jobs{' in dev mode.' if dev else '.'}\n")
 
     table = search_summary_table(summary, summary_dir if not dev else None)
     print(table)
-    print(
-        "Add `[i]: https://...` at the end of a markdown document",
-        "to fill in the comet links",
-    )
-
+    if table is not None:
+        print(
+            "Add `[i]: https://...` at the end of a markdown document",
+            "to fill in the comet links.\n",
+            "Add summary_dir=path to store the printed markdown table ⇪ in there.",
+        )
