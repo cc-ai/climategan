@@ -40,6 +40,12 @@ gcloud compute tpus create vicc-tpu \
     --version=pytorch-${VERSION?}  \
     --accelerator-type=v3-8
 
+# reuse vicc-instance
+gcloud compute instances start vicc-instance
+
+# reuse vicc-tpu
+gcloud compute tpus start vicc-tpu
+
 # list created tpu instances
 gcloud compute tpus list
 #--zone=europe-west4-a
