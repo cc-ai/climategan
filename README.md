@@ -28,6 +28,8 @@
 
 **`PyTorch >= 1.1.0`** otherwise optimizer.step() and scheduler.step() are in the wrong order ([docs](https://pytorch.org/docs/stable/optim.html#how-to-adjust-learning-rate))
 
+**pytorch==1.6** to use pytorch-xla or automatic mixed precision (`amp` branch).
+
 Configuration files use the **YAML** syntax. If you don't know what `&` and `<<` mean, you'll have a hard time reading the files. Have a look at:
 
     * https://dev.to/paulasantamaria/introduction-to-yaml-125f
