@@ -406,7 +406,9 @@ def get_losses(opts, verbose, device=None):
         losses["G"]["tasks"]["s"] = {}
         losses["G"]["tasks"]["s"]["crossent"] = CrossEntropy()
         losses["G"]["tasks"]["s"]["minent"] = MinentLoss()
-        losses["G"]["tasks"]["s"]["advent"] = ADVENTAdversarialLoss(opts)
+        losses["G"]["tasks"]["s"]["advent"] = ADVENTAdversarialLoss(
+            opts, gan_type=opts.dis.s.gan_type
+        )
     if "m" in opts.tasks:
         losses["G"]["tasks"]["m"] = {}
         losses["G"]["tasks"]["m"]["bce"] = nn.BCELoss()
@@ -417,8 +419,10 @@ def get_losses(opts, verbose, device=None):
         else:
             losses["G"]["tasks"]["m"]["minent"] = MinentLoss()
         losses["G"]["tasks"]["m"]["tv"] = TVLoss()
-        losses["G"]["tasks"]["m"]["advent"] = ADVENTAdversarialLoss(opts)
-
+        losses["G"]["tasks"]["m"]["advent"] = ADVENTAdversarialLoss(
+            opts, gan_type=opts.dis.m.gan_type
+        )
+        losses["G"]["tasks"]["m"]["gi"] = GroundIntersectionLoss()
     # undistinguishable features loss
     # TODO setup a get_losses func to assign the right loss according to the yaml
     if opts.classifier.loss == "l1":
@@ -440,6 +444,15 @@ def get_losses(opts, verbose, device=None):
     return losses
 
 
+class GroundIntersectionLoss(nn.Module):
+    """
+    Penalize areas in ground seg but not in flood mask
+    """
+
+    def __call__(self, pred, pseudo_ground):
+        return torch.mean(1.0 * ((pseudo_ground - pred) > 0.5))
+
+
 def prob_2_entropy(prob):
     """
     convert probabilistic prediction maps to weighted self-information maps
@@ -451,7 +464,7 @@ def prob_2_entropy(prob):
 class CustomBCELoss(nn.Module):
     """
         The first argument is a tensor and the second arguement is an int.
-        There is no need to take simoid before calling this function.
+        There is no need to take sigmoid before calling this function.
     """
 
     def __init__(self):
@@ -469,14 +482,26 @@ class CustomBCELoss(nn.Module):
 
 class ADVENTAdversarialLoss(nn.Module):
     """
-        The first and second argument are tensors.
-        The third argument is a discriminator model.
+    The class is for calculating the advent loss.
+    It is used to indirectly shrink the domain gap between sim and real
+
+    _call_ function:
+    prediction: torch.tensor with shape of [bs,c,h,w]
+    target: int; domain label: 0 (sim) or 1 (real)
+    discriminator: the discriminator model tells if a tensor is from sim or real
+
+    output: the loss value of GANLoss
     """
 
-    def __init__(self, opts):
+    def __init__(self, opts, gan_type="GAN"):
         super().__init__()
         self.opts = opts
-        self.loss = CustomBCELoss()
+        if gan_type == "GAN":
+            self.loss = CustomBCELoss()
+        elif gan_type == "WGAN" or "WGAN_gp" or "WGAN_norm":
+            self.loss = lambda x, y: -torch.mean(y * x + (1 - y) * (1 - x))
+        else:
+            raise NotImplementedError
 
     def __call__(self, prediction, target, discriminator):
         d_out = discriminator(prob_2_entropy(F.softmax(prediction, dim=1)))
@@ -486,7 +511,7 @@ class ADVENTAdversarialLoss(nn.Module):
         return loss_
 
 
-def multiDiscriminatorAdapter(d_out, opts):
+def multiDiscriminatorAdapter(d_out: list, opts: dict) -> torch.tensor:
     """
     Because the OmniDiscriminator does not directly return a tensor
     (but a list of tensor).

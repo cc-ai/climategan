@@ -15,6 +15,7 @@ warnings.simplefilter("ignore", UserWarning)
 
 import torch
 import torchvision.utils as vutils
+from torch import autograd
 from addict import Dict
 from comet_ml import Experiment
 
@@ -33,6 +34,7 @@ from omnigan.tutils import (
     norm_tensor,
     zero_grad,
     divide_pred,
+    get_WGAN_gradient,
 )
 from omnigan.utils import div_dict, flatten_opts, sum_dict, merge, get_display_indices
 from omnigan.eval_metrics import iou, accuracy
@@ -878,6 +880,22 @@ class Trainer:
                         batch_domain
                     ] = update_loss.item()
 
+                    # Then GroundIntersection loss
+                    if batch_domain == "r":
+                        if self.opts.gen.m.use_ground_intersection:
+                            if self.verbose > 0:
+                                print("Using GroundIntersection loss.")
+                            update_loss = (
+                                self.losses["G"]["tasks"][update_task]["gi"](
+                                    prediction, update_target
+                                )
+                                * lambdas.G[update_task]["gi"]
+                            )
+                            step_loss += update_loss
+                            self.logger.losses.gen.task[update_task]["gi"][
+                                batch_domain
+                            ] = update_loss.item()
+
                     if batch_domain == "r":
                         pred_complementary = 1 - prediction
                         prob = torch.cat([prediction, pred_complementary], dim=1)
@@ -1193,10 +1211,29 @@ class Trainer:
                             self.domain_labels[batch_domain],
                             self.D["m"]["Advent"],
                         )
-
-                        disc_loss["m"]["Advent"] += (
-                            self.opts.train.lambdas.advent.adv_main * loss_main
-                        )
+                        if self.opts.dis.m.gan_type == "GAN" or "WGAN_norm":
+                            disc_loss["m"]["Advent"] += (
+                                self.opts.train.lambdas.advent.adv_main * loss_main
+                            )
+                        elif self.opts.dis.m.gan_type == "WGAN":
+                            for p in self.D["m"]["Advent"].parameters():
+                                p.data.clamp_(
+                                    self.opts.dis.m.wgan_clamp_lower,
+                                    self.opts.dis.m.wgan_clamp_upper,
+                                )
+                            disc_loss["m"]["Advent"] += (
+                                self.opts.train.lambdas.advent.adv_main * loss_main
+                            )
+                        elif self.opts.dis.m.gan_type == "WGAN_gp":
+                            prob_need_grad = autograd.Variable(prob, requires_grad=True)
+                            d_out = self.D["m"]["Advent"](prob_need_grad)
+                            gp = get_WGAN_gradient(prob_need_grad, d_out)
+                            disc_loss["m"]["Advent"] += (
+                                self.opts.train.lambdas.advent.adv_main * loss_main
+                                + self.opts.train.lambdas.advent.WGAN_gp * gp
+                            )
+                        else:
+                            raise NotImplementedError
                 if "s" in self.opts.tasks:
                     if self.opts.gen.s.use_advent:
                         preds = self.G.decoders["s"](z)
@@ -1208,9 +1245,29 @@ class Trainer:
                             self.D["s"]["Advent"],
                         )
 
-                        disc_loss["s"]["Advent"] += (
-                            self.opts.train.lambdas.advent.adv_main * loss_main
-                        )
+                        if self.opts.dis.s.gan_type == "GAN" or "WGAN_norm":
+                            disc_loss["s"]["Advent"] += (
+                                self.opts.train.lambdas.advent.adv_main * loss_main
+                            )
+                        elif self.opts.dis.s.gan_type == "WGAN":
+                            for p in self.D["s"]["Advent"].parameters():
+                                p.data.clamp_(
+                                    self.opts.dis.s.wgan_clamp_lower,
+                                    self.opts.dis.s.wgan_clamp_upper,
+                                )
+                            disc_loss["s"]["Advent"] += (
+                                self.opts.train.lambdas.advent.adv_main * loss_main
+                            )
+                        elif self.opts.dis.s.gan_type == "WGAN_gp":
+                            prob_need_grad = autograd.Variable(prob, requires_grad=True)
+                            d_out = self.D["s"]["Advent"](prob_need_grad)
+                            gp = get_WGAN_gradient(prob_need_grad, d_out)
+                            disc_loss["s"]["Advent"] += (
+                                self.opts.train.lambdas.advent.adv_main * loss_main
+                                + self.opts.train.lambdas.advent.WGAN_gp * gp
+                            )
+                        else:
+                            raise NotImplementedError
 
         self.logger.losses.disc.update(
             {
