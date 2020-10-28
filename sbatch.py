@@ -172,7 +172,8 @@ def search_summary_table(summary, summary_dir=None):
         ],  # list of values to print
     }
 
-    columns = [[first_col]]
+    print_columns = [[first_col]]
+    file_columns = [first_col]
     for k in sorted(summary.keys()):
         v = summary[k]
         col_title = f" {k} |"
@@ -192,33 +193,42 @@ def search_summary_table(summary, summary_dir=None):
 
         # if adding a new column would overflow the terminal and mess up printing, start
         # new set of columns
-        if sum(c["len"] for c in columns[-1]) + col["len"] >= cols():
-            columns.append([first_col])
+        if sum(c["len"] for c in print_columns[-1]) + col["len"] >= cols():
+            print_columns.append([first_col])
 
         # store current column to latest group of columns
-        columns[-1].append(col)
+        print_columns[-1].append(col)
+        file_columns.append(col)
 
-    table = ""
+    print_table = ""
     # print each column group individually
-    for colgroup in columns:
+    for colgroup in print_columns:
         # print columns line by line
         for i in range(n_searches + 2):
             # get value of column for current line i
             for col in colgroup:
-                table += col["str"][i]
+                print_table += col["str"][i]
             # next line for current columns
-            table += "\n"
+            print_table += "\n"
 
         # new lines for new column group
-        table += "\n"
+        print_table += "\n"
+
+    file_table = ""
+    for i in range(n_searches + 2):
+        # get value of column for current line i
+        for col in file_columns:
+            file_table += col["str"][i]
+        # next line for current columns
+        file_table += "\n"
 
     summary_path = None
     if summary_dir is not None:
         summary_path = summary_dir / (now() + ".md")
         with summary_path.open("w") as f:
-            f.write(table.strip())
+            f.write(file_table.strip())
 
-    return table, summary_path
+    return print_table, summary_path
 
 
 def clean_arg(v):
