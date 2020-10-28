@@ -151,7 +151,7 @@ def search_summary_table(summary, summary_dir=None):
 
     # if everything is constant: no summary
     if not summary:
-        return
+        return None, None
 
     # find number of searches
     n_searches = len(list(summary.values())[0])
@@ -198,26 +198,27 @@ def search_summary_table(summary, summary_dir=None):
         # store current column to latest group of columns
         columns[-1].append(col)
 
-    s = ""
+    table = ""
     # print each column group individually
     for colgroup in columns:
         # print columns line by line
         for i in range(n_searches + 2):
             # get value of column for current line i
             for col in colgroup:
-                s += col["str"][i]
+                table += col["str"][i]
             # next line for current columns
-            s += "\n"
+            table += "\n"
 
         # new lines for new column group
-        s += "\n"
+        table += "\n"
 
+    summary_path = None
     if summary_dir is not None:
         summary_path = summary_dir / (now() + ".md")
         with summary_path.open("w") as f:
-            f.write(s.strip())
+            f.write(table.strip())
 
-    return s
+    return table, summary_path
 
 
 def clean_arg(v):
@@ -834,11 +835,14 @@ if __name__ == "__main__":
 
     print(f"\nRan a total of {len(hps)} jobs{' in dev mode.' if dev else '.'}\n")
 
-    table = search_summary_table(summary, summary_dir if not dev else None)
-    print(table)
+    table, sum_path = search_summary_table(summary, summary_dir if not dev else None)
     if table is not None:
+        print(table)
         print(
             "Add `[i]: https://...` at the end of a markdown document",
             "to fill in the comet links.\n",
-            "Add summary_dir=path to store the printed markdown table ⇪ in there.",
         )
+        if summary_dir is None:
+            print("Add summary_dir=path to store the printed markdown table ⇪")
+        else:
+            print("Saved table in", str(sum_path))
