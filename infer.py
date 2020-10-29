@@ -10,6 +10,9 @@ import torchvision.utils as vutils
 import torch.nn.functional as F
 import os
 from tqdm import tqdm
+from PIL import ImageFile
+
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
 def parsed_args():
@@ -32,27 +35,31 @@ def parsed_args():
         help="What default file to use",
     )
     parser.add_argument(
+        "-i",
         "--path_to_images",
         type=str,
         help="Path of images to be inferred",
         required=True,
     )
     parser.add_argument(
+        "-c",
         "--checkpoint",
         type=str,
         help="Path to experiment folder containing checkpoints/latest_ckpt.pth",
         required=True,
     )
     parser.add_argument(
-        "--new_size", type=int, help="Size of generated masks",
+        "--new_size", type=int, help="Size of generated images",
     )
     parser.add_argument(
+        "-o",
         "--output_dir",
         default="./outputs/",
         type=str,
         help="Directory to write images to",
     )
     parser.add_argument(
+        "-m",
         "--path_to_masks",
         type=str,
         help="Path of masks to be used for painting",
@@ -71,13 +78,14 @@ def eval_folder(
     path_to_masks=None,
     paint=False,
     masker=False,
+    segment=False,
     apply_mask=False,
 ):
-
     image_list = os.listdir(path_to_images)
     image_list.sort()
     images = [path_to_images / Path(i) for i in image_list]
-    if not masker:
+
+    if not masker and paint:
         mask_list = os.listdir(path_to_masks)
         mask_list.sort()
         masks = [path_to_masks / Path(i) for i in mask_list]
@@ -93,7 +101,7 @@ def eval_folder(
 
         img = img.unsqueeze(0).to(device)
 
-        if not masker:
+        if not masker and paint:
             mask = tensor_loader(masks[i], task="m", domain="val", binarize=False)
             # mask = F.interpolate(mask, (new_size, new_size), mode="nearest")
             mask = mask.squeeze()
@@ -142,6 +150,11 @@ def eval_folder(
                     normalize=True,
                 )
 
+        if segment:
+            z = model.encode(img)
+            seg_tens = model.decoders["s"](z)
+            torch.save(seg_tens, output_dir / ("seg_" + img_path.stem + ".pt"))
+
 
 def isimg(path_file):
     if (
@@ -159,7 +172,6 @@ if __name__ == "__main__":
     # -----------------------------
     # -----  Parse arguments  -----
     # -----------------------------
-
     args = parsed_args()
     output_dir = Path(args.output_dir)
     output_dir.mkdir(exist_ok=True, parents=True)
@@ -167,27 +179,24 @@ if __name__ == "__main__":
     # -----------------------
     # -----  Load opts  -----
     # -----------------------
-
     opts = load_opts(Path(args.config), default="./shared/trainer/defaults.yaml")
     opts.train.resume = True
     opts.output_path = str(Path(args.checkpoint).resolve())
-    if args.new_size is None:
-        for tf in opts.data.transforms:
-            if tf["name"] == "resize":
-                new_size = tf["new_size"]
-    else:
-        new_size = args.new_size
 
     paint = False
     masker = False
+    segment = False
+
     if "p" in opts.tasks:
         paint = True
     if "m" in opts.tasks:
         masker = True
+    if "s" in opts.tasks:
+        segment = True
+
     # ------------------------
     # ----- Define model -----
     # ------------------------
-
     trainer = Trainer(opts)
     trainer.setup()
     trainer.resume()
@@ -197,17 +206,21 @@ if __name__ == "__main__":
     # -------------------------------
     # -----  Transforms images  -----
     # -------------------------------
-
     transforms = [trsfs.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
-
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+    if args.new_size is None:
+        for tf in opts.data.transforms:
+            if tf["name"] == "resize":
+                new_size = tf["new_size"]
+    else:
+        new_size = args.new_size
+        if "s" in opts.tasks:
+            model.decoders["s"].set_target_size(new_size)
 
     # ----------------------------
     # -----  Iterate images  -----
     # ----------------------------
-
-    # eval_folder(args.path_to_images, output_dir)
-
     rootdir = args.path_to_images
     maskdir = args.path_to_masks
     writedir = args.output_dir
@@ -234,5 +247,6 @@ if __name__ == "__main__":
                 path_to_masks=maskdir,
                 paint=paint,
                 masker=masker,
+                segment=segment,
                 apply_mask=args.apply_mask,
             )

@@ -4,7 +4,7 @@ from pathlib import Path
 
 # from copy import copy
 from threading import Thread
-
+from torch import autograd
 import numpy as np
 import torch
 from torch.autograd import Variable
@@ -404,3 +404,19 @@ def is_tpu_available():
         _torch_tpu_available = False
 
     return _torch_tpu_available
+
+
+def get_WGAN_gradient(input, output):
+    # github code reference: https://github.com/caogang/wgan-gp/blob/master/gan_cifar10.py
+    # Calculate the gradient that WGAN-gp needs
+    grads = autograd.grad(
+        outputs=output,
+        inputs=input,
+        grad_outputs=torch.ones(output.size()).cuda(),
+        create_graph=True,
+        retain_graph=True,
+        only_inputs=True,
+    )[0]
+    grads = grads.view(grads.size(0), -1)
+    gp = ((grads.norm(2, dim=1) - 1) ** 2).mean()
+    return gp

@@ -27,6 +27,9 @@ data:
   loaders:
     batch_size: 6
     num_workers: 8
+  normalization:
+    default # can be "default" or "HRNet" for now.
+    # default: mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]; HRNet: mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
   transforms:
     - name: hflip
       ignore: false
@@ -122,7 +125,7 @@ gen:
     use_minent: True # directly minimize the entropy of the image
     use_minent_var: True # add variance of entropy map in the measure of entropy for a certain picture
     use_advent: True # minimize the entropy of the image by adversarial training
-
+    use_ground_intersection: True
 # -------------------------
 # ----- Discriminator -----
 # -------------------------
@@ -166,7 +169,13 @@ dis:
     <<: *default-dis
     multi_level: false
     architecture: base # can be [base | OmniDiscriminator]
-
+    gan_type: GAN_norm
+    wgan_clamp_lower: -0.01
+    wgan_clamp_upper: 0.01
+  s:
+    gan_type: GAN_norm
+    wgan_clamp_lower: -0.01
+    wgan_clamp_upper: 0.01
 # -------------------------------
 # -----  Domain Classifier  -----
 # -------------------------------
@@ -204,6 +213,7 @@ train:
       m:
         bce: 1 # Main prediction loss, i.e. GAN or BCE
         tv: 1 # Total variational loss (for smoothing)
+        gi: 0.05
       p:
         gan: 1 # gan loss
         sm: 1 # semantic matching
@@ -221,8 +231,9 @@ train:
       ent_var: 0.1 # the proportion of variance of entropy map in the entropy measure for a certain picture
       adv_main: 1.0 # the coefficient of the AdvEnt loss that minimize the entropy of the image by adversarial training
       adv_aux: 0.0 # the corresponding coefficient of the AdvEnt loss of second output
-      dis_main: 0.5 # the discriminator take care of the first output in the adversarial training
-      dis_aux: 0.5 # the discriminator take care of the second output in the adversarial training
+      dis_main: 1.0 # the discriminator take care of the first output in the adversarial training
+      dis_aux: 0.0 # the discriminator take care of the second output in the adversarial training
+      WGAN_gp: 10
   log_level: 2 # 0: no log, 1: only aggregated losses, >1 detailed losses
   save_n_epochs: 1 # Save model every n epochs
   resume: false # Load latest_ckpt.pth checkpoint from `output_path` #TODO Make this path of checkpoint to load
