@@ -20,6 +20,9 @@ import torch.nn.functional as F
 
 def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
     G = OmniGenerator(opts, latent_shape, verbose, no_init)
+    if no_init:
+        return G
+
     for model in G.decoders:
         net = G.decoders[model]
         if isinstance(net, nn.ModuleDict):
@@ -45,13 +48,12 @@ def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
             verbose=verbose,
         )
     # Init painter weights
-    if not no_init:
-        init_weights(
-            G.painter,
-            init_type=opts.gen.p.init_type,
-            init_gain=opts.gen.p.init_gain,
-            verbose=verbose,
-        )
+    init_weights(
+        G.painter,
+        init_type=opts.gen.p.init_type,
+        init_gain=opts.gen.p.init_gain,
+        verbose=verbose,
+    )
     return G
 
 
