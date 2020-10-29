@@ -233,9 +233,11 @@ train:
       adv_aux: 0.0 # the corresponding coefficient of the AdvEnt loss of second output
       dis_main: 1.0 # the discriminator take care of the first output in the adversarial training
       dis_aux: 0.0 # the discriminator take care of the second output in the adversarial training
-      WGAN_gp: 10 # used in WGAN_gp, it's the hyperparameters for the gradient penalty 
+      WGAN_gp: 10 # used in WGAN_gp, it's the hyperparameters for the gradient penalty
   log_level: 2 # 0: no log, 1: only aggregated losses, >1 detailed losses
   save_n_epochs: 1 # Save model every n epochs
+  save_barrier: 10 # Save extra intermediate checkpoint when epoch > save_barrier and (epoch - save_barrier) % save_frequency = 0
+  save_frequency: 5
   resume: false # Load latest_ckpt.pth checkpoint from `output_path` #TODO Make this path of checkpoint to load
   auto_resume: true # automatically looks for similar output paths and exact same jobID to resume training automatically even if resume is false.
 

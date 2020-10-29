@@ -681,6 +681,13 @@ class Trainer:
 
             if self.logger.epoch % self.opts.train.save_n_epochs == 0:
                 self.save()
+            if (
+                self.logger.epoch >= self.opts.train.save_barrier
+                and (self.logger.epoch - self.opts.train.save_barrier)
+                % self.opts.train.save_frequency
+                == 0
+            ):
+                self.save(save_path_name="epoch_{}_ckpt.pth".format(self.logger.epoch))
 
     def get_g_loss(self, multi_domain_batch, verbose=0):
         m_loss = p_loss = None
@@ -1369,10 +1376,10 @@ class Trainer:
         self.train_mode()
         print("****************** Done *********************")
 
-    def save(self):
+    def save(self, save_path_name="latest_ckpt.pth"):
         save_dir = Path(self.opts.output_path) / Path("checkpoints")
         save_dir.mkdir(exist_ok=True)
-        save_path = Path("latest_ckpt.pth")
+        save_path = Path(save_path_name)
         save_path = save_dir / save_path
 
         # Construct relevant state dicts / optims:
