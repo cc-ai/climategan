@@ -155,7 +155,8 @@ if __name__ == "__main__":
         help="dry run: no mkdir, no download",
     )
     parser.add_argument(
-        "-p" "--post_processings",
+        "-p",
+        "--post_processings",
         default="",
         type=str,
         help="comma separated string list of post processing functions to apply",
@@ -167,6 +168,12 @@ if __name__ == "__main__":
     # -------------------------------------
 
     POST_PROCESSINGS = {"select_lambdas": select_lambdas}
+    post_processes = list(
+        filter(
+            lambda p: p is not None,
+            [POST_PROCESSINGS.get(k.strip()) for k in args.post_processings.split(",")],
+        )
+    )
 
     # ------------------------------------------------------
     # -----  Create Download Dir from download_dir or  -----
@@ -212,7 +219,11 @@ if __name__ == "__main__":
     # -----  Print setup  -----
     # -------------------------
 
-    print("Processing {} experiments in {}".format(len(exps), str(download_dir)))
+    print(
+        "Processing {} experiments in {} with post processes {}".format(
+            len(exps), str(download_dir), post_processes
+        )
+    )
     assert all(
         [v == 1 for v in Counter([e.id[: args.id_length] for e in exps]).values()]
     ), "Experiment ID conflict, use a larger --id_length"
@@ -276,3 +287,5 @@ if __name__ == "__main__":
                     os.system(
                         im["curlDownload"] + "{}_{}.png".format(cropped_id, curr_step)
                     )
+        for p in post_processes:
+            p(locals())
