@@ -206,7 +206,7 @@ if __name__ == "__main__":
             workspace=conf.get("comet.workspace"),
             project_name=conf.get("comet.project_name") or "omnigan",
         )
-        exps = filter(lambda e: has_right_tags(e, keep_tags, remove_tags), exps)
+        exps = list(filter(lambda e: has_right_tags(e, keep_tags, remove_tags), exps))
 
     # -------------------------
     # -----  Print setup  -----
