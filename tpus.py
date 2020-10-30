@@ -107,6 +107,7 @@ def eval_folder(
     loaded_images,
     limit=-1,
     to_cpu=False,
+    n_iter=1,
 ):
     if empty_cuda_cache:
         torch.cuda.empty_cache()
@@ -154,12 +155,7 @@ def eval_folder(
     print("Batch Size:", batch_size)
     print("Using Half:", use_half)
 
-    with Timer(
-        "Full procedure (numpy->torch->transforms->device->infer) on {} images".format(
-            len(images)
-        ),
-        store=full_procedure_time,
-    ):
+    with Timer(store=full_procedure_time):
 
         if not masker:
             mask_tensors = [prepare_mask(m, device, use_half) for m in masks]
@@ -179,7 +175,7 @@ def eval_folder(
                 for im in images
             ]
 
-        with Timer("Inference loop (all dataset)", store=inference_loop_time):
+        with Timer(store=inference_loop_time):
             for i in range(len(image_tensors) // batch_size + 1):
                 img = image_tensors[i * batch_size : (i + 1) * batch_size]
                 if not img:
@@ -269,6 +265,17 @@ def eval_folder(
             print()
 
     print(
+        "[Full procedure (numpy->torch->transforms->device->infer) on"
+        + " {} images] Average time: {:.3f}s (+/- {:.3f}s)".format(
+            len(images), np.mean(full_procedure_time), np.std(full_procedure_time)
+        )
+    )
+    print(
+        "[Inference loop]  Average time (all dataset): {:.3f}s (+/- {:.3f}s)".format(
+            np.mean(inference_loop_time), np.std(inference_loop_time)
+        )
+    )
+    print(
         "[Masker]  Average time (per batch): {:.3f}s (+/- {:.3f}s)".format(
             np.mean(masker_inference_time), np.std(masker_inference_time)
         )
@@ -301,12 +308,7 @@ def eval_folder(
         )
     )
 
-    return (
-        painter_inference_time,
-        masker_inference_time,
-        full_procedure_time[0],
-        inference_loop_time[0],
-    )
+    return
 
 
 if __name__ == "__main__":
@@ -358,6 +360,13 @@ if __name__ == "__main__":
         type=int,
         default=4096,
         help="Will repeat the images to match dataset_size",
+    )
+    parser.add_argument(
+        "-n",
+        "--n_iter",
+        type=int,
+        default=1,
+        help="Benchmarking iterations per batch size",
     )
 
     args = parser.parse_args()
@@ -446,7 +455,7 @@ if __name__ == "__main__":
     # -----------------------
 
     for bs in batch_sizes:
-        times = eval_folder(
+        eval_folder(
             path_to_images,
             path_to_masks,
             output_dir,
