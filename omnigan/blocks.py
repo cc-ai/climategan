@@ -9,6 +9,41 @@ import omnigan.strings as strings
 # TODO: Organise file
 
 
+class InterpolateNearest(nn.Module):
+    """
+    Custom implementation of nn.Upsample because pytroch/xla
+    does not yet support scale_factor and needs to be provided with
+    the output_size
+    """
+
+    def __init__(self, scale_factor=2):
+        """
+        Create an InterpolateNearest module
+
+        Args:
+            scale_factor (int, optional): Output size multiplier. Defaults to 2.
+        """
+        super().__init__()
+        self.scale_factor = scale_factor
+
+    def forward(self, x):
+        """
+        Interpolate x in "nearest" mode on its last 2 dimensions
+
+        Args:
+            x (torch.Tensor): input to interpolate
+
+        Returns:
+            torch.Tensor: upsampled tensor with shape
+                (...x.shape, x.shape[-2] * scale_factor, x.shape[-1] * scale_factor)
+        """
+        return nn.functional.interpolate(
+            x,
+            size=(x.shape[-2] * self.scale_factor, x.shape[-1] * self.scale_factor),
+            mode="nearest",
+        )
+
+
 # -----------------------------------------
 # -----  Generic Convolutional Block  -----
 # -----------------------------------------
@@ -258,7 +293,7 @@ class BaseDecoder(nn.Module):
         # upsampling blocks
         for i in range(n_upsample):
             self.model += [
-                nn.Upsample(scale_factor=2),
+                InterpolateNearest(scale_factor=2),
                 Conv2dBlock(
                     dim,
                     dim // 2,
@@ -488,7 +523,7 @@ class SpadeDecoder(nn.Module):
 
         self.conv_img = nn.Conv2d(self.final_nc, 3, 3, padding=1)
 
-        self.upsample = nn.Upsample(scale_factor=2)
+        self.upsample = InterpolateNearest(scale_factor=2)
 
     def _apply(self, fn):
         # print("Applying SpadeDecoder", fn)

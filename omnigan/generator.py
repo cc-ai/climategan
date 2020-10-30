@@ -5,7 +5,13 @@
 """
 import torch.nn as nn
 from omnigan.tutils import init_weights
-from omnigan.blocks import SpadeDecoder, BaseDecoder, ASPP, DepthDecoder
+from omnigan.blocks import (
+    SpadeDecoder,
+    BaseDecoder,
+    ASPP,
+    DepthDecoder,
+    InterpolateNearest,
+)
 from omnigan.encoder import DeeplabEncoder, BaseEncoder
 import omnigan.strings as strings
 import torch.nn.functional as F
@@ -159,7 +165,7 @@ class SegmentationDecoder(BaseDecoder):
             nn.Dropout(0.1),
         ]
         if opts.gen.s.upsample_featuremaps:
-            conv_modules = [nn.Upsample(scale_factor=2)] + conv_modules
+            conv_modules = [InterpolateNearest(scale_factor=2)] + conv_modules
 
         conv_modules += [
             nn.Conv2d(256, opts.gen.s.output_dim, kernel_size=1, stride=1),
