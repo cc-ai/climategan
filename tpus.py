@@ -321,6 +321,13 @@ if __name__ == "__main__":
         default=[512, 1024, 2048],
         help="List of batch sizes to benchmark",
     )
+    parser.add_argument(
+        "-s",
+        "--dataset_size",
+        type=int,
+        default=4096,
+        help="Will repeat the images to match dataset_size",
+    )
 
     args = parser.parse_args()
     print(args)
@@ -380,9 +387,9 @@ if __name__ == "__main__":
     empty_cuda_cache = True  # faster if False but will give erroneous memory footprint
     loaded_images = None  # will be overloaded with data if preload_images is True
     preload_images = True  # faster if running eval_folder multiple times
-    to_cpu = args.to_cpu  # measure the time to bring tensors back to CPU from device
-    datase_size = 4096  # will repeat the 100 images to match this size
     limit = -1  # limit the number of images loaded, for debugging purposes
+    to_cpu = args.to_cpu  # measure the time to bring tensors back to CPU from device
+    datase_size = args.dataset_size  # will repeat the 100 images to match this size
     batch_sizes = args.batch_sizes  # batch sizes to benchmark
 
     # -----------------------------------
