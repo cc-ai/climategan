@@ -10,7 +10,7 @@ from omnigan.blocks import (
     BaseDecoder,
     ASPP,
     DepthDecoder,
-    InterpolateNearest,
+    InterpolateNearest2d,
 )
 from omnigan.encoder import DeeplabEncoder, BaseEncoder
 import omnigan.strings as strings
@@ -165,7 +165,7 @@ class SegmentationDecoder(BaseDecoder):
             nn.Dropout(0.1),
         ]
         if opts.gen.s.upsample_featuremaps:
-            conv_modules = [InterpolateNearest(scale_factor=2)] + conv_modules
+            conv_modules = [InterpolateNearest2d(scale_factor=2)] + conv_modules
 
         conv_modules += [
             nn.Conv2d(256, opts.gen.s.output_dim, kernel_size=1, stride=1),

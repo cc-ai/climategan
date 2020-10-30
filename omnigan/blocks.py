@@ -9,7 +9,7 @@ import omnigan.strings as strings
 # TODO: Organise file
 
 
-class InterpolateNearest(nn.Module):
+class InterpolateNearest2d(nn.Module):
     """
     Custom implementation of nn.Upsample because pytroch/xla
     does not yet support scale_factor and needs to be provided with
@@ -18,7 +18,7 @@ class InterpolateNearest(nn.Module):
 
     def __init__(self, scale_factor=2):
         """
-        Create an InterpolateNearest module
+        Create an InterpolateNearest2d module
 
         Args:
             scale_factor (int, optional): Output size multiplier. Defaults to 2.
@@ -293,7 +293,7 @@ class BaseDecoder(nn.Module):
         # upsampling blocks
         for i in range(n_upsample):
             self.model += [
-                InterpolateNearest(scale_factor=2),
+                InterpolateNearest2d(scale_factor=2),
                 Conv2dBlock(
                     dim,
                     dim // 2,
@@ -523,7 +523,7 @@ class SpadeDecoder(nn.Module):
 
         self.conv_img = nn.Conv2d(self.final_nc, 3, 3, padding=1)
 
-        self.upsample = InterpolateNearest(scale_factor=2)
+        self.upsample = InterpolateNearest2d(scale_factor=2)
 
     def _apply(self, fn):
         # print("Applying SpadeDecoder", fn)

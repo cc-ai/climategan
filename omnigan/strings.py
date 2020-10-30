@@ -68,7 +68,7 @@ def resblock(rb):
 def basedecoder(bd):
     s = title(bd.__class__.__name__) + "\n"
     for b in bd.model:
-        if isinstance(b, nn.Upsample) or "InterpolateNearest" in b.__class__.__name__:
+        if isinstance(b, nn.Upsample) or "InterpolateNearest2d" in b.__class__.__name__:
             s += "{:20}".format("Upsample") + "x2\n"
         else:
             s += str(b) + "\n"
