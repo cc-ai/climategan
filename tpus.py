@@ -279,12 +279,22 @@ def eval_folder(
         )
     )
     print(
+        "[To Tensor] Average time (per sample): {:.3f}s (+/- {:.3f}s)".format(
+            np.mean(to_tensor_time), np.std(to_tensor_time)
+        )
+    )
+    print(
+        "[Transforms] Average time (per sample): {:.3f}s (+/- {:.3f}s)".format(
+            np.mean(transforms_time), np.std(transforms_time)
+        )
+    )
+    print(
         "[To Device] Average time (per sample): {:.3f}s (+/- {:.3f}s)".format(
             np.mean(to_device_time), np.std(to_device_time)
         )
     )
     print(
-        "[To CPU+Numpy] Average time (per batch): {}".format(
+        "[Back To CPU + Numpy] Average time (per batch): {}".format(
             "{:.3f}s (+/- {:.3f}s)".format(np.mean(to_cpu_time), np.std(to_cpu_time))
             if to_cpu
             else "Not Measured"
