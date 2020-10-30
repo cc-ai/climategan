@@ -155,7 +155,7 @@ def eval_folder(
     print("Using Half:", use_half)
 
     with Timer(
-        "Full procedure (numpy->torch->transforms->device) on {} images".format(
+        "Full procedure (numpy->torch->transforms->device->infer) on {} images".format(
             len(images)
         ),
         store=full_procedure_time,
