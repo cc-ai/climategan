@@ -56,19 +56,31 @@ def isimg(path_file):
 
 
 def prepare_image(
-    img_numpy, new_size, transforms, device, use_half, send_to_device_time=[]
+    img_numpy,
+    new_size,
+    transforms,
+    device,
+    use_half,
+    to_tensor_time=[],
+    transforms_time=[],
+    to_device_time=[],
 ):
-    img_tensor = torch.from_numpy(img_numpy).unsqueeze(0)
-    img_tensor = F.interpolate(img_tensor, (new_size, new_size), mode="nearest")
-    img_tensor = img_tensor.squeeze(0)
-    for tf in transforms:
-        img_tensor = tf(img_tensor)
+    with Timer(store=to_tensor_time):
+        img_tensor = torch.from_numpy(img_numpy).unsqueeze(0)
 
-    img_tensor = img_tensor.unsqueeze(0)
-    with Timer(store=send_to_device_time):
+    with Timer(store=transforms_time):
+        img_tensor = F.interpolate(img_tensor, (new_size, new_size), mode="nearest")
+        img_tensor = img_tensor.squeeze(0)
+        for tf in transforms:
+            img_tensor = tf(img_tensor)
+
+        img_tensor = img_tensor.unsqueeze(0)
+    with Timer(store=to_device_time):
         img_tensor = img_tensor.to(device)
+
     if use_half:
         img_tensor = img_tensor.half()
+
     return img_tensor
 
 
@@ -132,6 +144,8 @@ def eval_folder(
     full_procedure_time = []
     inference_loop_time = []
     to_cpu_time = []
+    to_tensor_time = []
+    transforms_time = []
     to_device_time = []
 
     output_dir = output_dir / f"bs_{batch_size}{'_half' if use_half else ''}"
@@ -153,7 +167,14 @@ def eval_folder(
         with Timer("Data Loading"):
             image_tensors = [
                 prepare_image(
-                    im, new_size, transforms, device, use_half, to_device_time
+                    im,
+                    new_size,
+                    transforms,
+                    device,
+                    use_half,
+                    to_tensor_time,
+                    transforms_time,
+                    to_device_time,
                 )
                 for im in images
             ]
