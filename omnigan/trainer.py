@@ -145,7 +145,7 @@ class Trainer:
 
         losses = flatten_opts(losses)
         self.exp.log_metrics(
-            losses, prefix=f"{model_to_update}_{mode}:", step=self.logger.global_step
+            losses, prefix=f"{model_to_update}_{mode}", step=self.logger.global_step
         )
 
     def batch_to_device(self, b):
@@ -643,12 +643,11 @@ class Trainer:
         nb_per_log = im_per_row * rows_per_log
         for logidx in range(rows_per_log):
             print(
-                "Uploading images for",
-                mode,
-                domain,
-                task,
-                f"{logidx + 1}/{rows_per_log}",
-                end="\r",
+                "Creating images for {} {} {} {}/{}".format(
+                    mode, domain, task, logidx + 1, rows_per_log
+                ),
+                end="...",
+                flush=True,
             )
             ims = image_outputs[logidx * nb_per_log : (logidx + 1) * nb_per_log]
             if not ims:
@@ -660,11 +659,13 @@ class Trainer:
             image_grid = image_grid.permute(1, 2, 0).cpu().numpy()
 
             if comet_exp is not None:
+                print("Uploading...", end="", flush=True)
                 comet_exp.log_image(
                     image_grid,
                     name=f"{mode}_{domain}_{task}_{str(curr_iter)}_#{logidx}",
                     step=curr_iter,
                 )
+                print("Ok", end="\r", flush=True)
 
     def train(self):
         """For each epoch:
