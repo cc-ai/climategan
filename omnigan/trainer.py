@@ -1332,6 +1332,7 @@ class Trainer:
     @torch.no_grad()
     def run_evaluation(self, verbose=0):
         print("******************* Running Evaluation ***********************")
+        start_time = time()
         self.eval_mode()
         val_logger = None
         nb_of_batches = None
@@ -1373,7 +1374,8 @@ class Trainer:
         else:
             print("Validation FID Score", val_fid)
         self.train_mode()
-        print("****************** Done *********************")
+        timing = int(time() - start_time)
+        print("****************** Done in {} *********************".format(timing))
 
     def save(self):
         save_dir = Path(self.opts.output_path) / Path("checkpoints")
