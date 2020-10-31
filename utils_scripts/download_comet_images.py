@@ -13,7 +13,7 @@ def parse_tags(tags_str):
     keep_tags = set()
     remove_tags = set()
     for t in all_tags:
-        if "!" in t:
+        if "!" in t or "~" in t:
             remove_tags.add(t.replace("!", ""))
         else:
             keep_tags.add(t)
@@ -161,7 +161,15 @@ if __name__ == "__main__":
         type=str,
         help="comma separated string list of post processing functions to apply",
     )
+    parser.add_argument(
+        "-r",
+        "--running",
+        default=False,
+        action="store_true",
+        help="only select running exps",
+    )
     args = parser.parse_args()
+    print(args)
 
     # -------------------------------------
     # -----  Create post processings  -----
@@ -214,6 +222,8 @@ if __name__ == "__main__":
             project_name=conf.get("comet.project_name") or "omnigan",
         )
         exps = list(filter(lambda e: has_right_tags(e, keep_tags, remove_tags), exps))
+        if args.running:
+            exps = [e for e in exps if e.get_metadata().get("running")]
 
     # -------------------------
     # -----  Print setup  -----
