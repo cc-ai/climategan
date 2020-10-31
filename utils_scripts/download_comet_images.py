@@ -223,7 +223,7 @@ if __name__ == "__main__":
         )
         exps = list(filter(lambda e: has_right_tags(e, keep_tags, remove_tags), exps))
         if args.running:
-            exps = [e for e in exps if e.get_metadata().get("running")]
+            exps = [e for e in exps if e.alive]
 
     # -------------------------
     # -----  Print setup  -----
