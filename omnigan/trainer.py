@@ -15,6 +15,7 @@ from comet_ml import ExistingExperiment
 warnings.simplefilter("ignore", UserWarning)
 
 import torch
+import torch.nn as nn
 import torchvision.utils as vutils
 from addict import Dict
 from comet_ml import Experiment
@@ -91,6 +92,7 @@ class Trainer:
         self.real_val_fid_stats = None
 
         self.is_setup = False
+        self.current_mode = "train"
 
         self.device = device or torch.device(
             "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -100,6 +102,73 @@ class Trainer:
         if isinstance(comet_exp, Experiment):
             self.exp = comet_exp
         self.domain_labels = {"s": 0, "r": 1}
+
+    @torch.no_grad()
+    def paint(self, image_batch, mask_batch=None, resolution="approx"):
+        """
+        Paints a batch of images (or a single image with a batch dim of 1). If
+        masks are not provided, they are inferred from the masker.
+        Resolution can either be the train-time resolution or the closest
+        multiple of 2 ** spade_n_up
+
+        Operations performed without gradient
+
+        If resolution == "approx" then the output image has the shape:
+            (dim // 2 ** spade_n_up) * 2 ** spade_n_up, for dim in [height, width]
+            eg: (1000, 1300) => (896, 1280) for spade_n_up = 7
+        If resolution == "exact" then the output image has the same shape:
+            we first process in "approx" mode then upsample bilinear
+        Otherwise, image output shape is the train-time's (typically 640x640)
+
+        Args:
+            image_batch (torch.Tensor): 4D batch of images to flood
+            mask_batch (torch.Tensor, optional): Masks for the images.
+                Defaults to None (infer with Masker).
+            resolution (str, optional): "approx", "exact" or False
+
+        Returns:
+            torch.Tensor: N x C x H x W where H and W depend on `resolution`
+        """
+        previous_mode = self.current_mode
+        if previous_mode == "train":
+            self.eval_mode()
+        if mask_batch is None:
+            z = self.G.encode(image_batch)
+            mask_batch = self.G.decoders["m"](z)
+        else:
+            assert len(image_batch) == len(mask_batch)
+            assert image_batch.shape[-2:] == mask_batch.shape[:-2]
+
+        z_painter = None
+        masked_batch = image_batch * (1.0 - mask_batch)
+
+        if resolution not in {"approx", "exact"}:
+            painted = self.G.painter(z_painter, masked_batch)
+        else:
+            # save latent shape
+            zh = self.G.painter.z_h
+            zw = self.G.painter.z_w
+            # adapt latent shape to approximately keep the resolution
+            self.G.painter.z_h = (
+                image_batch.shape[-2] // 2 ** self.opts.gen.p.spade_n_up
+            )
+            self.G.painter.z_w = (
+                image_batch.shape[-1] // 2 ** self.opts.gen.p.spade_n_up
+            )
+
+            painted = self.G.painter(z_painter, masked_batch)
+
+            self.G.painter.z_h = zh
+            self.G.painter.z_w = zw
+            if resolution == "exact":
+                painted = nn.functional.interpolate(
+                    painted, size=image_batch.shape[-2:], mode="bilinear"
+                )
+
+        if previous_mode == "train":
+            self.train_mode()
+
+        return painted
 
     @classmethod
     def resume_from_path(
@@ -158,6 +227,7 @@ class Trainer:
             self.D.eval()
         if self.C is not None:
             self.C.eval()
+        self.current_mode = "eval"
 
     def train_mode(self):
         """
@@ -169,6 +239,7 @@ class Trainer:
             self.D.train()
         if self.C is not None:
             self.C.train()
+        self.current_mode = "train"
 
     def log_losses(self, model_to_update="G", mode="train"):
         """Logs metrics on comet.ml
