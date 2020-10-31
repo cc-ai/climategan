@@ -1367,7 +1367,11 @@ class Trainer:
                 self.eval_images("val", "r")
                 self.eval_images("val", "s")
 
-        compute_val_fid(self)
+        val_fid = compute_val_fid(self)
+        if self.exp is not None:
+            self.exp.log_metric("val_fid", val_fid, step=self.logger.global_step)
+        else:
+            print("Validation FID Score", val_fid)
         self.train_mode()
         print("****************** Done *********************")
 
