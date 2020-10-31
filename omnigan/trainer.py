@@ -559,8 +559,10 @@ class Trainer:
                     comet_exp=self.exp,
                 )
         else:
+            # in the rf domain display_size may be different from fid.n_images
+            limit = self.opts.comet.display_size
             image_outputs = []
-            for im_set in self.display_images[mode][domain]:
+            for im_set in self.display_images[mode][domain][:limit]:
                 x = im_set["data"]["x"].unsqueeze(0).to(self.device)
                 m = im_set["data"]["m"].unsqueeze(0).to(self.device)
 

@@ -386,8 +386,10 @@ def set_real_val_fid_stats(trainer, model, batch_size, dims):
         batch_size (int): inception inference batch size
         dims (int): dimension selected in the model
     """
+    # in the rf domain display_size may be different from fid.n_images
+    limit = trainer.opts.train.fid.n_images
     display_x = torch.stack(
-        [sample["data"]["x"] for sample in trainer.display_images["val"]["rf"]]
+        [sample["data"]["x"] for sample in trainer.display_images["val"]["rf"][:limit]]
     ).to(trainer.device)
     m, s = calculate_activation_statistics(
         display_x, model, batch_size=batch_size, dims=dims, device=trainer.device
@@ -406,6 +408,7 @@ def compute_fakes(trainer, verbose=0):
     Returns:
         torch.Tensor: trainer.opts.train.fid.n_images painted images
     """
+    # in the rf domain display_size may be different from fid.n_images
     n = trainer.opts.train.fid.n_images
     bs = trainer.opts.data.loaders.batch_size
     z = None
