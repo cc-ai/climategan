@@ -132,12 +132,13 @@ class Trainer:
         previous_mode = self.current_mode
         if previous_mode == "train":
             self.eval_mode()
+
         if mask_batch is None:
             z = self.G.encode(image_batch)
             mask_batch = self.G.decoders["m"](z)
         else:
             assert len(image_batch) == len(mask_batch)
-            assert image_batch.shape[-2:] == mask_batch.shape[:-2]
+            assert image_batch.shape[-2:] == mask_batch.shape[-2:]
 
         z_painter = None
         masked_batch = image_batch * (1.0 - mask_batch)
