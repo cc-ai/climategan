@@ -647,7 +647,6 @@ class Trainer:
                     mode, domain, task, logidx + 1, rows_per_log
                 ),
                 end="...",
-                flush=True,
             )
             ims = image_outputs[logidx * nb_per_log : (logidx + 1) * nb_per_log]
             if not ims:
@@ -659,7 +658,7 @@ class Trainer:
             image_grid = image_grid.permute(1, 2, 0).cpu().numpy()
 
             if comet_exp is not None:
-                print("Uploading...", end="", flush=True)
+                print("Uploading...", end="")
                 comet_exp.log_image(
                     image_grid,
                     name=f"{mode}_{domain}_{task}_{str(curr_iter)}_#{logidx}",
@@ -1375,7 +1374,7 @@ class Trainer:
             print("Validation FID Score", val_fid)
         self.train_mode()
         timing = int(time() - start_time)
-        print("****************** Done in {} *********************".format(timing))
+        print("****************** Done in {}s *********************".format(timing))
 
     def save(self):
         save_dir = Path(self.opts.output_path) / Path("checkpoints")

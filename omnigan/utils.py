@@ -555,11 +555,6 @@ def get_display_indices(opts: Dict, domain: str, length: int) -> list:
         assert dsize >= 0, "Display size cannot be < 0"
         with temp_np_seed(123):
             display_indices = list(np.random.permutation(length)[:dsize])
-        # if domain == "s":
-        #     with temp_np_seed(123):
-        #         display_indices = list(np.random.permutation(length)[:dsize])
-        # else:
-        #     display_indices = list(range(dsize))
     elif isinstance(dsize, list):
         display_indices = dsize
 
