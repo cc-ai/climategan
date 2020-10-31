@@ -30,21 +30,27 @@ from omnigan.generator import OmniGenerator, get_gen
 from omnigan.losses import get_losses
 from omnigan.optim import get_optimizer
 from omnigan.tutils import (
-    comet_kwargs,
     divide_pred,
     domains_to_class_tensor,
     fake_domains_to_class_tensor,
-    get_existing_comet_id,
-    get_latest_path,
     get_num_params,
     get_WGAN_gradient,
-    latest_opts,
     norm_tensor,
     shuffle_batch_tuple,
     vgg_preprocess,
     zero_grad,
 )
-from omnigan.utils import div_dict, flatten_opts, get_display_indices, merge, sum_dict
+from omnigan.utils import (
+    comet_kwargs,
+    div_dict,
+    flatten_opts,
+    get_display_indices,
+    get_existing_comet_id,
+    get_latest_path,
+    get_latest_opts,
+    merge,
+    sum_dict,
+)
 
 try:
     import torch_xla.core.xla_model as xm
@@ -122,7 +128,7 @@ class Trainer:
 
         o = get_latest_path(p / "opts.yaml")
         assert o.exists()
-        opts = latest_opts(p / "opts.yaml")
+        opts = get_latest_opts(p / "opts.yaml")
         opts = Dict(merge(overrides, opts))
         opts.train.resume = True
 
