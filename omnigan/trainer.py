@@ -96,7 +96,20 @@ class Trainer:
         self.domain_labels = {"s": 0, "r": 1}
 
     @classmethod
-    def resume_from_path(cls, path, overrides={}):
+    def resume_from_path(cls, path, overrides={}, setup=True, inference=False):
+        """
+        Resume and optionally setup a trainer from a specific path,
+        using the latest opts and checkpoint. Requires path to contain opts.yaml (or increased), url.txt (or increased) and checkpoints/
+
+        Args:
+            path (str | pathlib.Path): Trainer to resume
+            overrides (dict, optional): Override loaded opts with those. Defaults to {}.
+            setup (bool, optional): Wether or not to setup the trainer before returning it. Defaults to True.
+            inference (bool, optional): Setup should be done in inference mode or not. Defaults to False.
+
+        Returns:
+            omnigan.Trainer: Loaded and resumed trainer
+        """
         p = Path(path).expanduser().resolve()
         assert p.exists()
 
@@ -104,13 +117,17 @@ class Trainer:
         assert o.exists()
         opts = latest_opts(p / "opts.yaml")
         opts = Dict(merge(overrides, opts))
+        opts.train.resume = True
 
         c = p / "checkpoints"
         assert c.exists() and c.is_dir()
 
         comet_id = get_existing_comet_id(p)
         exp = ExistingExperiment(previous_experiment=comet_id, **comet_kwargs)
-        return cls(opts, comet_exp=exp)
+        trainer = cls(opts, comet_exp=exp)
+        if setup:
+            trainer.setup(inference=inference)
+        return trainer
 
     def eval_mode(self):
         """
