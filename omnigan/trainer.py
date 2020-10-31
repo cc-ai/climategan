@@ -36,6 +36,7 @@ from omnigan.tutils import (
     divide_pred,
     get_WGAN_gradient,
 )
+from omnigan.fid import compute_val_fid
 from omnigan.utils import div_dict, flatten_opts, sum_dict, merge, get_display_indices
 from omnigan.eval_metrics import iou, accuracy
 from tqdm import tqdm
@@ -76,6 +77,7 @@ class Trainer:
         self.G = self.D = self.C = None
         self.lr_names = {}
         self.no_z = self.opts.gen.p.no_z
+        self.real_val_fid_stats = None
 
         self.is_setup = False
 
@@ -1363,6 +1365,7 @@ class Trainer:
                 self.eval_images("val", "r")
                 self.eval_images("val", "s")
 
+        compute_val_fid(self)
         self.train_mode()
         print("****************** Done *********************")
 
