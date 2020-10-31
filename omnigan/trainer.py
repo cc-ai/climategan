@@ -126,14 +126,12 @@ class Trainer:
         p = Path(path).expanduser().resolve()
         assert p.exists()
 
-        o = get_latest_path(p / "opts.yaml")
-        assert o.exists()
-        opts = get_latest_opts(p / "opts.yaml")
-        opts = Dict(merge(overrides, opts))
-        opts.train.resume = True
-
         c = p / "checkpoints"
         assert c.exists() and c.is_dir()
+
+        opts = get_latest_opts(p)
+        opts = Dict(merge(overrides, opts))
+        opts.train.resume = True
 
         if new_exp:
             exp = Experiment(project_name="omnigan", **comet_kwargs)
