@@ -5,41 +5,46 @@ Main component: the trainer handles everything:
     * saving
 """
 import os
+import warnings
 from copy import deepcopy
 from pathlib import Path
 from time import time
 
-import warnings
+from comet_ml import ExistingExperiment
 
 warnings.simplefilter("ignore", UserWarning)
 
 import torch
 import torchvision.utils as vutils
-from torch import autograd
 from addict import Dict
 from comet_ml import Experiment
+from torch import autograd
+from tqdm import tqdm
 
 from omnigan.classifier import OmniClassifier, get_classifier
-from omnigan.data import get_all_loaders, decode_segmap_merged_labels
+from omnigan.data import decode_segmap_merged_labels, get_all_loaders
 from omnigan.discriminator import OmniDiscriminator, get_dis
+from omnigan.eval_metrics import accuracy, iou
+from omnigan.fid import compute_val_fid
 from omnigan.generator import OmniGenerator, get_gen
 from omnigan.losses import get_losses
 from omnigan.optim import get_optimizer
 from omnigan.tutils import (
+    comet_kwargs,
+    divide_pred,
     domains_to_class_tensor,
     fake_domains_to_class_tensor,
+    get_existing_comet_id,
+    get_latest_path,
     get_num_params,
+    get_WGAN_gradient,
+    latest_opts,
+    norm_tensor,
     shuffle_batch_tuple,
     vgg_preprocess,
-    norm_tensor,
     zero_grad,
-    divide_pred,
-    get_WGAN_gradient,
 )
-from omnigan.fid import compute_val_fid
-from omnigan.utils import div_dict, flatten_opts, sum_dict, merge, get_display_indices
-from omnigan.eval_metrics import iou, accuracy
-from tqdm import tqdm
+from omnigan.utils import div_dict, flatten_opts, get_display_indices, merge, sum_dict
 
 try:
     import torch_xla.core.xla_model as xm
@@ -89,6 +94,23 @@ class Trainer:
         if isinstance(comet_exp, Experiment):
             self.exp = comet_exp
         self.domain_labels = {"s": 0, "r": 1}
+
+    @classmethod
+    def resume_from_path(cls, path, overrides={}):
+        p = Path(path).expanduser().resolve()
+        assert p.exists()
+
+        o = get_latest_path(p / "opts.yaml")
+        assert o.exists()
+        opts = latest_opts(p / "opts.yaml")
+        opts = Dict(merge(overrides, opts))
+
+        c = p / "checkpoints"
+        assert c.exists() and c.is_dir()
+
+        comet_id = get_existing_comet_id(p)
+        exp = ExistingExperiment(previous_experiment=comet_id, **comet_kwargs)
+        return cls(opts, comet_exp=exp)
 
     def eval_mode(self):
         """
