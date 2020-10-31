@@ -96,16 +96,23 @@ class Trainer:
         self.domain_labels = {"s": 0, "r": 1}
 
     @classmethod
-    def resume_from_path(cls, path, overrides={}, setup=True, inference=False):
+    def resume_from_path(
+        cls, path, overrides={}, setup=True, inference=False, new_exp=False
+    ):
         """
         Resume and optionally setup a trainer from a specific path,
-        using the latest opts and checkpoint. Requires path to contain opts.yaml (or increased), url.txt (or increased) and checkpoints/
+        using the latest opts and checkpoint. Requires path to contain opts.yaml
+        (or increased), url.txt (or increased) and checkpoints/
 
         Args:
             path (str | pathlib.Path): Trainer to resume
             overrides (dict, optional): Override loaded opts with those. Defaults to {}.
-            setup (bool, optional): Wether or not to setup the trainer before returning it. Defaults to True.
-            inference (bool, optional): Setup should be done in inference mode or not. Defaults to False.
+            setup (bool, optional): Wether or not to setup the trainer before
+                returning it. Defaults to True.
+            inference (bool, optional): Setup should be done in inference mode or not.
+                Defaults to False.
+            new_exp (bool, optional): Re-use existing comet exp in path or create
+                a new one? Defaults to False.
 
         Returns:
             omnigan.Trainer: Loaded and resumed trainer
@@ -122,8 +129,16 @@ class Trainer:
         c = p / "checkpoints"
         assert c.exists() and c.is_dir()
 
-        comet_id = get_existing_comet_id(p)
-        exp = ExistingExperiment(previous_experiment=comet_id, **comet_kwargs)
+        if new_exp:
+            exp = Experiment(project_name="omnigan", **comet_kwargs)
+            exp.log_asset_folder(
+                str(Path(__file__).parent), recursive=True, log_file_name=True,
+            )
+            exp.log_parameters(flatten_opts(opts))
+        else:
+            comet_id = get_existing_comet_id(p)
+            exp = ExistingExperiment(previous_experiment=comet_id, **comet_kwargs)
+
         trainer = cls(opts, comet_exp=exp)
         if setup:
             trainer.setup(inference=inference)
