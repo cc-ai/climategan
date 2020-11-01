@@ -118,7 +118,10 @@ class Trainer:
             eg: (1000, 1300) => (896, 1280) for spade_n_up = 7
         If resolution == "exact" then the output image has the same shape:
             we first process in "approx" mode then upsample bilinear
-        Otherwise, image output shape is the train-time's (typically 640x640)
+        If resolution == "basic" image output shape is the train-time's
+            (typically 640x640)
+        If resolution == "upsample" image is inferred as "basic" and
+            then upsampled to original size
 
         Args:
             image_batch (torch.Tensor): 4D batch of images to flood
@@ -129,6 +132,7 @@ class Trainer:
         Returns:
             torch.Tensor: N x C x H x W where H and W depend on `resolution`
         """
+        assert resolution in {"approx", "exact", "basic", "upsample"}
         previous_mode = self.current_mode
         if previous_mode == "train":
             self.eval_mode()
@@ -145,6 +149,10 @@ class Trainer:
 
         if resolution not in {"approx", "exact"}:
             painted = self.G.painter(z_painter, masked_batch)
+            if resolution == "upsample":
+                painted = nn.functional.interpolate(
+                    painted, size=image_batch.shape[-2:], mode="bilinear"
+                )
         else:
             # save latent shape
             zh = self.G.painter.z_h
