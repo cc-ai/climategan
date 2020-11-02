@@ -338,6 +338,12 @@ class Trainer:
                 self.display_images[mode][domain] = [
                     Dict(dataset[i]) for i in display_indices if i < len(dataset)
                 ]
+                if self.exp is not None:
+                    for im_id, d in self.display_images[mode][domain]:
+                        self.exp.log_parameter(
+                            "display_image_{}_{}_{}".format(mode, domain, im_id),
+                            d["paths"],
+                        )
 
         print("Setup done.")
         self.is_setup = True

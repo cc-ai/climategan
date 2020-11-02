@@ -218,11 +218,11 @@ train:
         gan: 1 # gan loss
         sm: 1 # semantic matching
         dm: 1 # depth matching
-        tv: 500
+        tv: 100
         vgg: 1
         context: 12
-        reconstruction: 12
-        featmatch: 10
+        reconstruction: 20
+        featmatch: 1
       classifier: 1
     C: 1
     advent:
@@ -233,7 +233,7 @@ train:
       adv_aux: 0.0 # the corresponding coefficient of the AdvEnt loss of second output
       dis_main: 1.0 # the discriminator take care of the first output in the adversarial training
       dis_aux: 0.0 # the discriminator take care of the second output in the adversarial training
-      WGAN_gp: 10 # used in WGAN_gp, it's the hyperparameters for the gradient penalty 
+      WGAN_gp: 10 # used in WGAN_gp, it's the hyperparameters for the gradient penalty
   log_level: 2 # 0: no log, 1: only aggregated losses, >1 detailed losses
   save_n_epochs: 1 # Save model every n epochs
   resume: false # Load latest_ckpt.pth checkpoint from `output_path` #TODO Make this path of checkpoint to load
