@@ -6,7 +6,7 @@
 import torch.nn as nn
 from omnigan.tutils import init_weights
 from omnigan.blocks import (
-    SpadeDecoder,
+    PainterSpadeDecoder,
     BaseDecoder,
     ASPP,
     DepthDecoder,
@@ -80,7 +80,7 @@ class OmniGenerator(nn.Module):
         if "m" in opts.tasks:
             if opts.gen.encoder.architecture == "deeplabv2":
                 self.encoder = DeeplabEncoder(opts, no_init)
-                print("  - Created Pretrained Deeplab Encoder")
+                print("  - Created Deeplab Encoder")
             else:
                 self.encoder = BaseEncoder(opts)
                 print("  - Created Base Encoder")
@@ -103,8 +103,8 @@ class OmniGenerator(nn.Module):
         self.decoders = nn.ModuleDict(self.decoders)
 
         if "p" in self.opts.tasks:
-            self.painter = SpadeDecoder(opts)
-            print("  - Created SpadeDecoder Painter")
+            self.painter = PainterSpadeDecoder(opts)
+            print("  - Created PainterSpadeDecoder Painter")
         else:
             self.painter = nn.Module()
             print("  - Created Empty Painter")
