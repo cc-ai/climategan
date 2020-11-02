@@ -1524,7 +1524,9 @@ class Trainer:
 
                 for metric_key in metrics.keys():
                     metric_score = metrics[metric_key](pred_mask, m)
-                    metric_avg_scores[metric_key] += metric_score
+                    metric_avg_scores[metric_key] += metric_score / len(
+                        self.display_images[mode][domain]
+                    )
 
             if self.exp is not None:
                 self.exp.log_metrics(
