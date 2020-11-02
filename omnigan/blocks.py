@@ -437,7 +437,7 @@ class SPADEResnetBlock(nn.Module):
         return strings.spaderesblock(self)
 
 
-class SpadeDecoder(nn.Module):
+class PainterSpadeDecoder(nn.Module):
     def __init__(self, opts):
         """Create a SPADE-based decoder, which forwards z and the conditioning
         tensors seg (in the original paper, conditioning is on a semantic map only).

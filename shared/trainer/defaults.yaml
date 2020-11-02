@@ -221,11 +221,11 @@ train:
         gan: 1 # gan loss
         sm: 1 # semantic matching
         dm: 1 # depth matching
-        tv: 500
+        tv: 100
         vgg: 1
         context: 12
-        reconstruction: 12
-        featmatch: 10
+        reconstruction: 20
+        featmatch: 1
       classifier: 1
     C: 1
     advent:

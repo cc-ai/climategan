@@ -478,6 +478,12 @@ class Trainer:
                 self.display_images[mode][domain] = [
                     Dict(dataset[i]) for i in display_indices if i < len(dataset)
                 ]
+                if self.exp is not None:
+                    for im_id, d in self.display_images[mode][domain]:
+                        self.exp.log_parameter(
+                            "display_image_{}_{}_{}".format(mode, domain, im_id),
+                            d["paths"],
+                        )
 
         print("Setup done.")
         self.is_setup = True
@@ -1662,7 +1668,9 @@ class Trainer:
 
                 for metric_key in metrics.keys():
                     metric_score = metrics[metric_key](pred_mask, m)
-                    metric_avg_scores[metric_key] += metric_score
+                    metric_avg_scores[metric_key] += metric_score / len(
+                        self.display_images[mode][domain]
+                    )
 
             if self.exp is not None:
                 self.exp.log_metrics(
