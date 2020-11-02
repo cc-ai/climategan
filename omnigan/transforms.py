@@ -17,6 +17,24 @@ def interpolation(task):
 
 class Resize:
     def __init__(self, target_size, keep_aspect_ratio=False):
+        """
+        Resize transform. Target_size can be an int or a tuple of ints,
+        depending on whether both height and width should have the same
+        final size or not.
+
+        If keep_aspect_ratio is specified then target_size must be an int:
+        the smallest dimension of x will be set to target_size and the largest
+        dimension will be computed to the closest int keeping the original
+        aspect ratio. e.g.
+        Resize(640, True)({"x": torch.rand(3, 1200, 1800)})["x"].shape = (3, 640, 960)
+
+
+        Args:
+            target_size (int | tuple(int)): New size for the tensor
+            keep_aspect_ratio (bool, optional): Whether or not to keep aspect ratio
+                when resizing. Requires target_size to be an int. If keeping aspect
+                ratio, smallest dim will be set to target_size. Defaults to False.
+        """
         assert isinstance(target_size, (int, tuple, list))
         if not isinstance(target_size, int) and not keep_aspect_ratio:
             assert len(target_size) == 2
@@ -31,7 +49,17 @@ class Resize:
         self.h = int(self.h)
         self.w = int(self.w)
 
-    def get_size(self, tensor):
+    def compute_new_size(self, tensor):
+        """
+        compute the new size for a tensor depending on target size
+        and keep_aspect_rato
+
+        Args:
+            tensor (torch.Tensor): 4D tensor N x C x H x W.
+
+        Returns:
+            tuple(int): (new_height, new_width)
+        """
         if self.keep_aspect_ratio:
             h, w = tensor.shape[-2:]
             if h < w:
@@ -41,21 +69,31 @@ class Resize:
         return (self.h, self.w)
 
     def __call__(self, data):
-        task = tensor = None
+        """
+        Resize a dict of tensors to the "x" key's new_size
+
+        Args:
+            data (dict[str:torch.Tensor]): The data dict to transform
+
+        Returns:
+            dict[str: torch.Tensor]: dict with all tensors resized to the
+                new size of the data["x"] tensor
+        """
+        task = tensor = new_size = None
         try:
             d = {}
+            new_size = self.compute_new_size(data["x"])
             for task, tensor in data.items():
-                d[task] = F.interpolate(
-                    tensor, size=self.get_size(tensor), mode=interpolation(task)
-                )
+                d[task] = F.interpolate(tensor, size=new_size, mode=interpolation(task))
             return d
         except Exception as e:
             tb = traceback.format_exc()
-            print()
+            print("Debug: task, shape, interpolation, h, w, new_size")
             print(task)
             print(tensor.shape)
             print(interpolation(task))
             print(self.h, self.w)
+            print(new_size)
             print(tb)
             raise Exception(e)
 
