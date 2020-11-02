@@ -14,7 +14,7 @@ def parse_tags(tags_str):
     remove_tags = set()
     for t in all_tags:
         if "!" in t or "~" in t:
-            remove_tags.add(t.replace("!", ""))
+            remove_tags.add(t[1:])
         else:
             keep_tags.add(t)
     return all_tags, keep_tags, remove_tags
@@ -295,7 +295,7 @@ if __name__ == "__main__":
                 )
                 if not args.dev:
                     os.system(
-                        im["curlDownload"] + "{}_{}.png".format(cropped_id, curr_step)
+                        im["curlDownload"] + "_{}_{}.png".format(cropped_id, curr_step)
                     )
         for p in post_processes:
             p(locals())
