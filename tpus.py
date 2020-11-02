@@ -14,12 +14,17 @@ from omnigan.trainer import Trainer
 from omnigan.utils import load_opts
 
 import torch_xla.core.xla_model as xm
+import torch_xla.debug.metrics as met
 
 
 class Timer:
-    def __init__(self, name="", store=None):
+    def __init__(self, name="", store=None, precision=3):
         self.name = name
         self.store = store
+        self.precision = precision
+
+    def format(self, n):
+        return f"{n:.{self.precision}f}"
 
     def __enter__(self):
         """Start a new timer as a context manager"""
@@ -35,7 +40,7 @@ class Timer:
             assert isinstance(self.store, list)
             self.store.append(new_time)
         if self.name:
-            print(f"[{self.name}] Elapsed time: {new_time:.3f}")
+            print(f"[{self.name}] Elapsed time: {self.format(new_time)}")
 
 
 def isimg(path_file):
@@ -50,15 +55,32 @@ def isimg(path_file):
         return False
 
 
-def prepare_image(img_tensor, new_size, transforms, device, use_half):
-    img_tensor = F.interpolate(img_tensor, (new_size, new_size), mode="nearest")
-    img_tensor = img_tensor.squeeze(0)
-    for tf in transforms:
-        img_tensor = tf(img_tensor)
+def prepare_image(
+    img_numpy,
+    new_size,
+    transforms,
+    device,
+    use_half,
+    to_tensor_time=[],
+    transforms_time=[],
+    to_device_time=[],
+):
+    with Timer(store=to_tensor_time):
+        img_tensor = torch.from_numpy(img_numpy).unsqueeze(0)
 
-    img_tensor = img_tensor.unsqueeze(0).to(device)
+    with Timer(store=transforms_time):
+        img_tensor = F.interpolate(img_tensor, (new_size, new_size), mode="nearest")
+        img_tensor = img_tensor.squeeze(0)
+        for tf in transforms:
+            img_tensor = tf(img_tensor)
+
+        img_tensor = img_tensor.unsqueeze(0)
+    with Timer(store=to_device_time):
+        img_tensor = img_tensor.to(device)
+
     if use_half:
         img_tensor = img_tensor.half()
+
     return img_tensor
 
 
@@ -83,6 +105,9 @@ def eval_folder(
     save_images,
     empty_cuda_cache,
     loaded_images,
+    limit=-1,
+    to_cpu=False,
+    n_iter=1,
 ):
     if empty_cuda_cache:
         torch.cuda.empty_cache()
@@ -95,11 +120,13 @@ def eval_folder(
         image_list = os.listdir(path_to_images)
         image_list.sort()
         images = [
-            tensor_loader(path_to_images / Path(i), task="x", domain="val")
+            tensor_loader(path_to_images / Path(i), task="x", domain="val").numpy()[0]
             for i in image_list
         ]
     else:
         images = loaded_images
+    if limit > 0:
+        images = images[:limit]
 
     if not masker:
         mask_list = os.listdir(path_to_masks)
@@ -107,14 +134,20 @@ def eval_folder(
         masks = [
             tensor_loader(
                 path_to_masks / Path(i), task="m", domain="val", binarize=False
-            )
+            ).numpy()[0]
             for i in mask_list
         ]
+        if limit > 0:
+            masks = masks[:limit]
 
     painter_inference_time = []
     masker_inference_time = []
     full_procedure_time = []
     inference_loop_time = []
+    to_cpu_time = []
+    to_tensor_time = []
+    transforms_time = []
+    to_device_time = []
 
     output_dir = output_dir / f"bs_{batch_size}{'_half' if use_half else ''}"
     output_dir.mkdir(exist_ok=True, parents=True)
@@ -122,18 +155,27 @@ def eval_folder(
     print("Batch Size:", batch_size)
     print("Using Half:", use_half)
 
-    with Timer(
-        "Full procedure on {} images".format(len(images)), store=full_procedure_time
-    ):
+    with Timer(store=full_procedure_time):
 
         if not masker:
             mask_tensors = [prepare_mask(m, device, use_half) for m in masks]
 
-        image_tensors = [
-            prepare_image(im, new_size, transforms, device, use_half) for im in images
-        ]
+        with Timer("Data Loading"):
+            image_tensors = [
+                prepare_image(
+                    im,
+                    new_size,
+                    transforms,
+                    device,
+                    use_half,
+                    to_tensor_time,
+                    transforms_time,
+                    to_device_time,
+                )
+                for im in images
+            ]
 
-        with Timer("Inference loop", store=inference_loop_time):
+        with Timer(store=inference_loop_time):
             for i in range(len(image_tensors) // batch_size + 1):
                 img = image_tensors[i * batch_size : (i + 1) * batch_size]
                 if not img:
@@ -194,12 +236,13 @@ def eval_folder(
 
                 if paint:
                     with Timer(store=painter_inference_time):
-                        z_painter = trainer.sample_z(1)
+                        z_painter = None  # trainer.sample_z(1)
                         if use_half:
                             z_painter = z_painter.half()
-
                         fake_flooded = model.painter(z_painter, img * (1.0 - mask))
-                        fake_cpu = fake_flooded.cpu().numpy()
+                    if to_cpu:
+                        with Timer(store=to_cpu_time):
+                            fake_cpu = fake_flooded.cpu().numpy()
 
                     if save_images:
                         for k, ff in enumerate(list(fake_flooded)):
@@ -222,42 +265,121 @@ def eval_folder(
             print()
 
     print(
-        "[Masker]  Average time: {:.3f}s (+/- {:.3f}s)".format(
+        "[Full procedure (numpy->torch->transforms->device->infer) on"
+        + " {} images] Average time: {:.3f}s (+/- {:.3f}s)".format(
+            len(images), np.mean(full_procedure_time), np.std(full_procedure_time)
+        )
+    )
+    print(
+        "[Inference loop]  Average time (all dataset): {:.3f}s (+/- {:.3f}s)".format(
+            np.mean(inference_loop_time), np.std(inference_loop_time)
+        )
+    )
+    print(
+        "[Masker]  Average time (per batch): {:.3f}s (+/- {:.3f}s)".format(
             np.mean(masker_inference_time), np.std(masker_inference_time)
         )
     )
     print(
-        "[Painter] Average time: {:.3f}s (+/- {:.3f}s)".format(
+        "[Painter] Average time (per batch): {:.3f}s (+/- {:.3f}s)".format(
             np.mean(painter_inference_time), np.std(painter_inference_time)
         )
     )
-
-    return (
-        painter_inference_time,
-        masker_inference_time,
-        full_procedure_time[0],
-        inference_loop_time[0],
+    print(
+        "[To Tensor] Average time (per sample): {:.3f}s (+/- {:.3f}s)".format(
+            np.mean(to_tensor_time), np.std(to_tensor_time)
+        )
     )
+    print(
+        "[Transforms] Average time (per sample): {:.3f}s (+/- {:.3f}s)".format(
+            np.mean(transforms_time), np.std(transforms_time)
+        )
+    )
+    print(
+        "[To Device] Average time (per sample): {:.3f}s (+/- {:.3f}s)".format(
+            np.mean(to_device_time), np.std(to_device_time)
+        )
+    )
+    print(
+        "[Back To CPU + Numpy] Average time (per batch): {}".format(
+            "{:.3f}s (+/- {:.3f}s)".format(np.mean(to_cpu_time), np.std(to_cpu_time))
+            if to_cpu
+            else "Not Measured"
+        )
+    )
+
+    return
 
 
 if __name__ == "__main__":
 
     parser = ArgumentParser()
-    parser.add_argument("-m", "--masker_dir", required=True, type=str)
-    parser.add_argument("-p", "--painter_dir", required=True, type=str)
-    parser.add_argument("-d", "--inference_data_dir", required=True, type=str)
-    parser.add_argument("-o", "--output_dir", required=True, type=str)
+    parser.add_argument(
+        "-m",
+        "--masker_dir",
+        default="~/bucket/v1-weights/masker",
+        type=str,
+    )
+    parser.add_argument(
+        "-p",
+        "--painter_dir",
+        default="~/bucket/v1-weights/painter",
+        type=str,
+    )
+    parser.add_argument(
+        "-d",
+        "--inference_data_dir",
+        default="~/bucket/100postalcode",
+        type=str,
+    )
+    parser.add_argument(
+        "-o",
+        "--output_dir",
+        default="~/outputs",
+        type=str,
+    )
+    parser.add_argument(
+        "-c",
+        "--to_cpu",
+        default=False,
+        action="store_true",
+        help="Whether or not to count the time it takes "
+        + "to move data from the device back to the cpu",
+    )
+    parser.add_argument(
+        "-b",
+        "--batch_sizes",
+        nargs="+",
+        type=int,
+        default=[512, 1024, 2048],
+        help="List of batch sizes to benchmark",
+    )
+    parser.add_argument(
+        "-s",
+        "--dataset_size",
+        type=int,
+        default=4096,
+        help="Will repeat the images to match dataset_size",
+    )
+    parser.add_argument(
+        "-n",
+        "--n_iter",
+        type=int,
+        default=1,
+        help="Benchmarking iterations per batch size",
+    )
+
     args = parser.parse_args()
     print(args)
 
     # -----------------------
     # -----  Load opts  -----
     # -----------------------
-    output_dir = Path(args.output_dir)
+    output_dir = Path(args.output_dir).expanduser().resolve()
     output_dir.mkdir(exist_ok=True, parents=True)
 
-    masker_path = Path(args.masker_dir)
-    painter_path = Path(args.painter_dir)
+    masker_path = Path(args.masker_dir).expanduser().resolve()
+    painter_path = Path(args.painter_dir).expanduser().resolve()
 
     assert masker_path.exists() and painter_path.exists()
 
@@ -282,7 +404,6 @@ if __name__ == "__main__":
     # --------------------------------------
     # -----  Define trainer and model  -----
     # --------------------------------------
-
     torch.set_grad_enabled(False)
     device = xm.xla_device()
     trainer = Trainer(opts, device=device)
@@ -293,35 +414,39 @@ if __name__ == "__main__":
     # ------------------------
     # -----  Transforms  -----
     # ------------------------
-
     transforms = [trsfs.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
 
     # --------------------------------
     # -----  eval_folder params  -----
     # --------------------------------
-
-    rootdir = Path(args.inference_data_dir)
+    rootdir = Path(args.inference_data_dir).expanduser().resolve()
     path_to_images = rootdir  # a folder with a list of images
     path_to_masks = rootdir  # not used if using the masker, otherwise a path to matching masks to the images
-    apply_mask = (
-        True  # save images with the mask only, in addition to the painted images
-    )
+    apply_mask = True  # save painted mask only, in addition to the painted images
     save_images = False  # write the outputs to a folder
     empty_cuda_cache = True  # faster if False but will give erroneous memory footprint
-    # USE_RTX8000 = True  # Are you with a machine with 48GB?
     loaded_images = None  # will be overloaded with data if preload_images is True
     preload_images = True  # faster if running eval_folder multiple times
+    limit = -1  # limit the number of images loaded, for debugging purposes
+    to_cpu = args.to_cpu  # measure the time to bring tensors back to CPU from device
+    datase_size = args.dataset_size  # will repeat the 100 images to match this size
+    batch_sizes = args.batch_sizes  # batch sizes to benchmark
 
     # -----------------------------------
     # -----  Load images in memory  -----
     # -----------------------------------
     if preload_images:
+        print("Pre-loading images in memory...", end="", flush=True)
         image_list = os.listdir(path_to_images)
         image_list.sort()
         loaded_images = [
-            tensor_loader(path_to_images / Path(i), task="x", domain="val")
+            tensor_loader(path_to_images / Path(i), task="x", domain="val").numpy()[0]
             for i in image_list
         ]
+        print(f"Total dataset size: {datase_size}...", end="")
+        loaded_images = loaded_images * (datase_size // len(loaded_images) + 1)
+        loaded_images = loaded_images[:datase_size]
+        print(" Ok.")
 
     # -----------------------
     # -----      -      -----
@@ -329,9 +454,8 @@ if __name__ == "__main__":
     # -----      -      -----
     # -----------------------
 
-    print("FP32")
-    for bs in [1, 2, 4, 8, 16, 32]:
-        times = eval_folder(
+    for bs in batch_sizes:
+        eval_folder(
             path_to_images,
             path_to_masks,
             output_dir,
@@ -345,29 +469,10 @@ if __name__ == "__main__":
             save_images,
             empty_cuda_cache,
             loaded_images,
+            limit=limit,
+            to_cpu=to_cpu,
         )
         print()
-
-    # TPUS => set XLA_USE_BF16 before running the script, no .half() call
-
-    # print("FP16 (half)\n")
-    # for bs in [1, 2, 4, 8, 16, 32, 64, 128]:
-    #     if bs > 64 and not USE_RTX8000:
-    #         continue
-    #     times = eval_folder(
-    #         path_to_images,
-    #         path_to_masks,
-    #         output_dir,
-    #         masker,
-    #         paint,
-    #         opts,
-    #         bs,
-    #         True,
-    #         trainer,
-    #         device,
-    #         save_images,
-    #         empty_cuda_cache,
-    #         loaded_images,
-    #     )
-    #     print()
-
+        with open(output_dir / "omnigan_metrics_bs{bs}_lim{limit}.txt", "w") as f:
+            report = met.metrics_report()
+            print(report, file=f)

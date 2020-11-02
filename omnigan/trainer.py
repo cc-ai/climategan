@@ -48,8 +48,7 @@ except ImportError:
 
 
 class Trainer:
-    """Main trainer class
-    """
+    """Main trainer class"""
 
     def __init__(self, opts, comet_exp=None, verbose=0, device=None):
         """Trainer class to gather various model training procedures
@@ -228,9 +227,9 @@ class Trainer:
 
     def setup(self, inference=False):
         """Prepare the trainer before it can be used to train the models:
-            * initialize G and D
-            * compute latent space dims and create classifier accordingly
-            * creates 3 optimizers
+        * initialize G and D
+        * compute latent space dims and create classifier accordingly
+        * creates 3 optimizers
         """
         self.logger.global_step = 0
         start_time = time()
@@ -248,9 +247,7 @@ class Trainer:
         self.G: OmniGenerator = get_gen(self.opts, verbose=verbose, no_init=inference)
         print("Sending to", self.device)
         self.G = self.G.to(self.device)
-        print(
-            f"Generator OK in {time() - __t:.1f}s.", end="", flush=True,
-        )
+        print(f"Generator OK in {time() - __t:.1f}s.", end="", flush=True)
 
         if self.input_shape is None:
             if inference:
@@ -1519,7 +1516,9 @@ class Trainer:
 
                 for metric_key in metrics.keys():
                     metric_score = metrics[metric_key](pred_mask, m)
-                    metric_avg_scores[metric_key] += metric_score
+                    metric_avg_scores[metric_key] += metric_score / len(
+                        self.display_images[mode][domain]
+                    )
 
             if self.exp is not None:
                 self.exp.log_metrics(
