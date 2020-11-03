@@ -69,7 +69,7 @@ def merge(
                 merge(value, node)
             else:
                 destination[key] = value
-        except Exception as e:
+        except TypeError as e:
             print(traceback.format_exc())
             print(">>>", source)
             print(">>>", destination)
