@@ -6,7 +6,6 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn.functional as F
-import torchvision.utils as vutils
 from torchvision import transforms as trsfs
 
 from omnigan.data import tensor_loader
@@ -105,27 +104,19 @@ def prepare_mask(mask_tensor, device, use_half):
     return mask_tensor
 
 
-@torch.no_grad()
+# @torch.no_grad() grad already disabled in __main__
 def eval_folder(
     path_to_images,
-    path_to_masks,
     output_dir,
-    masker,
-    paint,
-    opts,
     batch_size,
     use_half,
     trainer,
     device,
-    save_images,
-    empty_cuda_cache,
     loaded_images,
     limit=-1,
     to_cpu=False,
     n_iter=1,
 ):
-    if empty_cuda_cache:
-        torch.cuda.empty_cache()
     model = trainer.G
     if use_half:
         model = model.half()
@@ -142,18 +133,6 @@ def eval_folder(
         images = loaded_images
     if limit > 0:
         images = images[:limit]
-
-    if not masker:
-        mask_list = os.listdir(path_to_masks)
-        mask_list.sort()
-        masks = [
-            tensor_loader(
-                path_to_masks / Path(i), task="m", domain="val", binarize=False
-            ).numpy()[0]
-            for i in mask_list
-        ]
-        if limit > 0:
-            masks = masks[:limit]
 
     painter_inference_time = []
     masker_inference_time = []
@@ -172,9 +151,6 @@ def eval_folder(
     for it in range(n_iter):
         print(">>> Iteration {} for batch size {}\n".format(it, batch_size))
         with Timer(store=full_procedure_time):
-
-            if not masker:
-                mask_tensors = [prepare_mask(m, device, use_half) for m in masks]
 
             with Timer("Data Loading"):
                 image_tensors = [
@@ -199,89 +175,21 @@ def eval_folder(
                     img = torch.cat(img, axis=0)
                     print("Batch", i, img.shape, img.device, end="\r", flush=True)
 
-                    if not masker:
-                        mask = mask_tensors[i * batch_size : (i + 1) * batch_size]
-                        img = torch.cat(img, axis=0)
+                    with Timer(store=masker_inference_time):
+                        z = model.encode(img)
+                        mask = model.decoders["m"](z)
+                        # xm.mark_step()
 
-                    if masker:
-                        if "m2" in opts.tasks:
-                            z = model.encode(img)
-                            num_masks = 10
-                            label_vals = np.linspace(start=0, stop=1, num=num_masks)
-                            for label_val in label_vals:
-                                z_aug = torch.cat(
-                                    (
-                                        z,
-                                        label_val
-                                        * trainer.label_2[0, :, :, :].unsqueeze(0),
-                                    ),
-                                    dim=1,
-                                )
-                                mask = model.decoders["m"](z_aug)
+                    with Timer(store=painter_inference_time):
+                        z_painter = None  # trainer.sample_z(1)
+                        if use_half:
+                            z_painter = z_painter.half()
+                        fake_flooded = model.painter(z_painter, img * (1.0 - mask))
+                        xm.mark_step()
+                    if to_cpu:
+                        with Timer(store=to_cpu_time):
+                            fake_cpu = fake_flooded.cpu().numpy()
 
-                                vutils.save_image(
-                                    mask,
-                                    output_dir / (f"mask_{label_val}_" + img_path.name),
-                                    normalize=True,
-                                )
-                                for k, (im, m) in enumerate(zip(list(img), list(mask))):
-                                    if apply_mask and save_images:
-                                        vutils.save_image(
-                                            im * (1.0 - m) + m,
-                                            output_dir
-                                            / (
-                                                images[i * batch_size + k].stem
-                                                + f"img_masked_{label_val}"
-                                                + ".jpg"
-                                            ),
-                                            normalize=True,
-                                        )
-
-                        else:
-                            with Timer(store=masker_inference_time):
-                                z = model.encode(img)
-                                mask = model.decoders["m"](z)
-                                # xm.mark_step()
-                            if save_images:
-                                for k, m in enumerate(list(mask)):
-                                    vutils.save_image(
-                                        m,
-                                        output_dir
-                                        / ("mask_" + images[i * batch_size + k].name),
-                                        normalize=True,
-                                    )
-
-                    if paint:
-                        with Timer(store=painter_inference_time):
-                            z_painter = None  # trainer.sample_z(1)
-                            if use_half:
-                                z_painter = z_painter.half()
-                            fake_flooded = model.painter(z_painter, img * (1.0 - mask))
-                            xm.mark_step()
-                        if to_cpu:
-                            with Timer(store=to_cpu_time):
-                                fake_cpu = fake_flooded.cpu().numpy()
-
-                        if save_images:
-                            for k, ff in enumerate(list(fake_flooded)):
-                                vutils.save_image(
-                                    ff,
-                                    output_dir / images[i * batch_size + k].name,
-                                    normalize=True,
-                                )
-
-                        if apply_mask and save_images:
-                            for k, (im, m) in enumerate(zip(list(img), list(mask))):
-                                vutils.save_image(
-                                    im * (1.0 - m) + m,
-                                    output_dir
-                                    / (
-                                        images[i * batch_size + k].stem
-                                        + "_masked"
-                                        + ".jpg"
-                                    ),
-                                    normalize=True,
-                                )
     batch_inference = np.array(masker_inference_time) + np.array(painter_inference_time)
 
     dump_first_n = 20
@@ -312,28 +220,16 @@ if __name__ == "__main__":
 
     parser = ArgumentParser()
     parser.add_argument(
-        "-m",
-        "--masker_dir",
-        default="~/bucket/v1-weights/masker",
-        type=str,
+        "-m", "--masker_dir", default="~/bucket/v1-weights/masker", type=str,
     )
     parser.add_argument(
-        "-p",
-        "--painter_dir",
-        default="~/bucket/v1-weights/painter",
-        type=str,
+        "-p", "--painter_dir", default="~/bucket/v1-weights/painter", type=str,
     )
     parser.add_argument(
-        "-d",
-        "--inference_data_dir",
-        default="~/bucket/100postalcode",
-        type=str,
+        "-d", "--inference_data_dir", default="~/bucket/100postalcode", type=str,
     )
     parser.add_argument(
-        "-o",
-        "--output_dir",
-        default="~/outputs",
-        type=str,
+        "-o", "--output_dir", default="~/outputs", type=str,
     )
     parser.add_argument(
         "-c",
@@ -391,12 +287,8 @@ if __name__ == "__main__":
 
     new_size = 640
 
-    paint = False
-    masker = False
-    if "p" in opts.tasks:
-        paint = True
-    if "m" in opts.tasks:
-        masker = True
+    paint = True
+    masker = True
 
     # --------------------------------------
     # -----  Define trainer and model  -----
@@ -416,17 +308,14 @@ if __name__ == "__main__":
     # --------------------------------
     # -----  eval_folder params  -----
     # --------------------------------
-    rootdir = Path(args.inference_data_dir).expanduser().resolve()
-    path_to_images = rootdir  # a folder with a list of images
-    path_to_masks = rootdir  # not used if using the masker, otherwise a path to matching masks to the images
-    apply_mask = True  # save painted mask only, in addition to the painted images
-    save_images = False  # write the outputs to a folder
-    empty_cuda_cache = True  # faster if False but will give erroneous memory footprint
+    path_to_images = (
+        Path(args.inference_data_dir).expanduser().resolve()
+    )  # a folder with a list of images
     loaded_images = None  # will be overloaded with data if preload_images is True
     preload_images = True  # faster if running eval_folder multiple times
     limit = -1  # limit the number of images loaded, for debugging purposes
     to_cpu = args.to_cpu  # measure the time to bring tensors back to CPU from device
-    datase_size = args.dataset_size  # will repeat the 100 images to match this size
+    dataset_size = args.dataset_size  # will repeat the 100 images to match this size
     batch_sizes = args.batch_sizes  # batch sizes to benchmark
 
     # -----------------------------------
@@ -440,9 +329,9 @@ if __name__ == "__main__":
             tensor_loader(path_to_images / Path(i), task="x", domain="val").numpy()[0]
             for i in image_list
         ]
-        print(f"Total dataset size: {datase_size}...", end="")
-        loaded_images = loaded_images * (datase_size // len(loaded_images) + 1)
-        loaded_images = loaded_images[:datase_size]
+        print(f"Total dataset size: {dataset_size}...", end="")
+        loaded_images = loaded_images * (dataset_size // len(loaded_images) + 1)
+        loaded_images = loaded_images[:dataset_size]
         print(" Ok.")
 
     # -----------------------
@@ -454,17 +343,11 @@ if __name__ == "__main__":
     for bs in batch_sizes:
         eval_folder(
             path_to_images,
-            path_to_masks,
             output_dir,
-            masker,
-            paint,
-            opts,
             bs,
             False,
             trainer,
             device,
-            save_images,
-            empty_cuda_cache,
             loaded_images,
             limit=limit,
             to_cpu=to_cpu,
