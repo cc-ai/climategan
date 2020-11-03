@@ -11,7 +11,7 @@ from addict import Dict
 import contextlib
 import numpy as np
 from typing import Union, Optional, List, Any
-
+import traceback
 
 comet_kwargs = {
     "auto_metric_logging": False,
@@ -62,12 +62,20 @@ def merge(
     True
     """
     for key, value in source.items():
-        if isinstance(value, dict):
-            # get node or create one
-            node = destination.setdefault(key, {})
-            merge(value, node)
-        else:
-            destination[key] = value
+        try:
+            if isinstance(value, dict):
+                # get node or create one
+                node = destination.setdefault(key, {})
+                merge(value, node)
+            else:
+                destination[key] = value
+        except Exception as e:
+            print(traceback.format_exc())
+            print(">>>", source)
+            print(">>>", destination)
+            print(">>>", key)
+            print(">>>", value)
+            raise Exception(e)
 
     return destination
 
