@@ -5,40 +5,53 @@ Main component: the trainer handles everything:
     * saving
 """
 import os
+import warnings
 from copy import deepcopy
 from pathlib import Path
 from time import time
 
-import warnings
+from comet_ml import ExistingExperiment
 
 warnings.simplefilter("ignore", UserWarning)
 
 import torch
+import torch.nn as nn
 import torchvision.utils as vutils
-from torch import autograd
 from addict import Dict
 from comet_ml import Experiment
+from torch import autograd
+from tqdm import tqdm
 
 from omnigan.classifier import OmniClassifier, get_classifier
-from omnigan.data import get_all_loaders, decode_segmap_merged_labels
+from omnigan.data import decode_segmap_merged_labels, get_all_loaders
 from omnigan.discriminator import OmniDiscriminator, get_dis
+from omnigan.eval_metrics import accuracy, iou
+from omnigan.fid import compute_val_fid
 from omnigan.generator import OmniGenerator, get_gen
 from omnigan.losses import get_losses
 from omnigan.optim import get_optimizer
 from omnigan.tutils import (
+    divide_pred,
     domains_to_class_tensor,
     fake_domains_to_class_tensor,
     get_num_params,
+    get_WGAN_gradient,
+    norm_tensor,
     shuffle_batch_tuple,
     vgg_preprocess,
-    norm_tensor,
     zero_grad,
-    divide_pred,
-    get_WGAN_gradient,
 )
-from omnigan.utils import div_dict, flatten_opts, sum_dict, merge, get_display_indices
-from omnigan.eval_metrics import iou, accuracy
-from tqdm import tqdm
+from omnigan.utils import (
+    comet_kwargs,
+    div_dict,
+    flatten_opts,
+    get_display_indices,
+    get_existing_comet_id,
+    get_latest_path,
+    get_latest_opts,
+    merge,
+    sum_dict,
+)
 
 try:
     import torch_xla.core.xla_model as xm
@@ -76,8 +89,10 @@ class Trainer:
         self.G = self.D = self.C = None
         self.lr_names = {}
         self.no_z = self.opts.gen.p.no_z
+        self.real_val_fid_stats = None
 
         self.is_setup = False
+        self.current_mode = "train"
 
         self.device = device or torch.device(
             "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -87,6 +102,129 @@ class Trainer:
         if isinstance(comet_exp, Experiment):
             self.exp = comet_exp
         self.domain_labels = {"s": 0, "r": 1}
+
+    @torch.no_grad()
+    def paint(self, image_batch, mask_batch=None, resolution="approx"):
+        """
+        Paints a batch of images (or a single image with a batch dim of 1). If
+        masks are not provided, they are inferred from the masker.
+        Resolution can either be the train-time resolution or the closest
+        multiple of 2 ** spade_n_up
+
+        Operations performed without gradient
+
+        If resolution == "approx" then the output image has the shape:
+            (dim // 2 ** spade_n_up) * 2 ** spade_n_up, for dim in [height, width]
+            eg: (1000, 1300) => (896, 1280) for spade_n_up = 7
+        If resolution == "exact" then the output image has the same shape:
+            we first process in "approx" mode then upsample bilinear
+        If resolution == "basic" image output shape is the train-time's
+            (typically 640x640)
+        If resolution == "upsample" image is inferred as "basic" and
+            then upsampled to original size
+
+        Args:
+            image_batch (torch.Tensor): 4D batch of images to flood
+            mask_batch (torch.Tensor, optional): Masks for the images.
+                Defaults to None (infer with Masker).
+            resolution (str, optional): "approx", "exact" or False
+
+        Returns:
+            torch.Tensor: N x C x H x W where H and W depend on `resolution`
+        """
+        assert resolution in {"approx", "exact", "basic", "upsample"}
+        previous_mode = self.current_mode
+        if previous_mode == "train":
+            self.eval_mode()
+
+        if mask_batch is None:
+            z = self.G.encode(image_batch)
+            mask_batch = self.G.decoders["m"](z)
+        else:
+            assert len(image_batch) == len(mask_batch)
+            assert image_batch.shape[-2:] == mask_batch.shape[-2:]
+
+        z_painter = None
+        masked_batch = image_batch * (1.0 - mask_batch)
+
+        if resolution not in {"approx", "exact"}:
+            painted = self.G.painter(z_painter, masked_batch)
+            if resolution == "upsample":
+                painted = nn.functional.interpolate(
+                    painted, size=image_batch.shape[-2:], mode="bilinear"
+                )
+        else:
+            # save latent shape
+            zh = self.G.painter.z_h
+            zw = self.G.painter.z_w
+            # adapt latent shape to approximately keep the resolution
+            self.G.painter.z_h = (
+                image_batch.shape[-2] // 2 ** self.opts.gen.p.spade_n_up
+            )
+            self.G.painter.z_w = (
+                image_batch.shape[-1] // 2 ** self.opts.gen.p.spade_n_up
+            )
+
+            painted = self.G.painter(z_painter, masked_batch)
+
+            self.G.painter.z_h = zh
+            self.G.painter.z_w = zw
+            if resolution == "exact":
+                painted = nn.functional.interpolate(
+                    painted, size=image_batch.shape[-2:], mode="bilinear"
+                )
+
+        if previous_mode == "train":
+            self.train_mode()
+
+        return painted
+
+    @classmethod
+    def resume_from_path(
+        cls, path, overrides={}, setup=True, inference=False, new_exp=False
+    ):
+        """
+        Resume and optionally setup a trainer from a specific path,
+        using the latest opts and checkpoint. Requires path to contain opts.yaml
+        (or increased), url.txt (or increased) and checkpoints/
+
+        Args:
+            path (str | pathlib.Path): Trainer to resume
+            overrides (dict, optional): Override loaded opts with those. Defaults to {}.
+            setup (bool, optional): Wether or not to setup the trainer before
+                returning it. Defaults to True.
+            inference (bool, optional): Setup should be done in inference mode or not.
+                Defaults to False.
+            new_exp (bool, optional): Re-use existing comet exp in path or create
+                a new one? Defaults to False.
+
+        Returns:
+            omnigan.Trainer: Loaded and resumed trainer
+        """
+        p = Path(path).expanduser().resolve()
+        assert p.exists()
+
+        c = p / "checkpoints"
+        assert c.exists() and c.is_dir()
+
+        opts = get_latest_opts(p)
+        opts = Dict(merge(overrides, opts))
+        opts.train.resume = True
+
+        if new_exp:
+            exp = Experiment(project_name="omnigan", **comet_kwargs)
+            exp.log_asset_folder(
+                str(Path(__file__).parent), recursive=True, log_file_name=True,
+            )
+            exp.log_parameters(flatten_opts(opts))
+        else:
+            comet_id = get_existing_comet_id(p)
+            exp = ExistingExperiment(previous_experiment=comet_id, **comet_kwargs)
+
+        trainer = cls(opts, comet_exp=exp)
+        if setup:
+            trainer.setup(inference=inference)
+        return trainer
 
     def eval_mode(self):
         """
@@ -98,6 +236,7 @@ class Trainer:
             self.D.eval()
         if self.C is not None:
             self.C.eval()
+        self.current_mode = "eval"
 
     def train_mode(self):
         """
@@ -109,6 +248,7 @@ class Trainer:
             self.D.train()
         if self.C is not None:
             self.C.train()
+        self.current_mode = "train"
 
     def log_losses(self, model_to_update="G", mode="train"):
         """Logs metrics on comet.ml
@@ -143,7 +283,7 @@ class Trainer:
 
         losses = flatten_opts(losses)
         self.exp.log_metrics(
-            losses, prefix=f"{model_to_update}_{mode}:", step=self.logger.global_step
+            losses, prefix=f"{model_to_update}_{mode}", step=self.logger.global_step
         )
 
     def batch_to_device(self, b):
@@ -563,8 +703,10 @@ class Trainer:
                     comet_exp=self.exp,
                 )
         else:
+            # in the rf domain display_size may be different from fid.n_images
+            limit = self.opts.comet.display_size
             image_outputs = []
-            for im_set in self.display_images[mode][domain]:
+            for im_set in self.display_images[mode][domain][:limit]:
                 x = im_set["data"]["x"].unsqueeze(0).to(self.device)
                 m = im_set["data"]["m"].unsqueeze(0).to(self.device)
 
@@ -645,12 +787,10 @@ class Trainer:
         nb_per_log = im_per_row * rows_per_log
         for logidx in range(rows_per_log):
             print(
-                "Uploading images for",
-                mode,
-                domain,
-                task,
-                f"{logidx + 1}/{rows_per_log}",
-                end="\r",
+                "Creating images for {} {} {} {}/{}".format(
+                    mode, domain, task, logidx + 1, rows_per_log
+                ),
+                end="...",
             )
             ims = image_outputs[logidx * nb_per_log : (logidx + 1) * nb_per_log]
             if not ims:
@@ -662,11 +802,13 @@ class Trainer:
             image_grid = image_grid.permute(1, 2, 0).cpu().numpy()
 
             if comet_exp is not None:
+                print("Uploading...", end="")
                 comet_exp.log_image(
                     image_grid,
                     name=f"{mode}_{domain}_{task}_{str(curr_iter)}_#{logidx}",
                     step=curr_iter,
                 )
+                print("Ok", end="\r", flush=True)
 
     def train(self):
         """For each epoch:
@@ -1333,44 +1475,50 @@ class Trainer:
     @torch.no_grad()
     def run_evaluation(self, verbose=0):
         print("******************* Running Evaluation ***********************")
-        with torch.no_grad():
-            self.eval_mode()
-            val_logger = None
-            nb_of_batches = None
-            for i, multi_batch_tuple in enumerate(self.val_loaders):
-                # create a dictionnary (domain => batch) from tuple
-                # (batch_domain_0, ..., batch_domain_i)
-                # and send it to self.device
-                nb_of_batches = i + 1
-                multi_domain_batch = {
-                    batch["domain"][0]: self.batch_to_device(batch)
-                    for batch in multi_batch_tuple
-                }
-                self.get_g_loss(multi_domain_batch, verbose)
+        start_time = time()
+        self.eval_mode()
+        val_logger = None
+        nb_of_batches = None
+        for i, multi_batch_tuple in enumerate(self.val_loaders):
+            # create a dictionnary (domain => batch) from tuple
+            # (batch_domain_0, ..., batch_domain_i)
+            # and send it to self.device
+            nb_of_batches = i + 1
+            multi_domain_batch = {
+                batch["domain"][0]: self.batch_to_device(batch)
+                for batch in multi_batch_tuple
+            }
+            self.get_g_loss(multi_domain_batch, verbose)
 
-                if val_logger is None:
-                    val_logger = deepcopy(self.logger.losses.generator)
-                else:
-                    val_logger = sum_dict(val_logger, self.logger.losses.generator)
+            if val_logger is None:
+                val_logger = deepcopy(self.logger.losses.generator)
+            else:
+                val_logger = sum_dict(val_logger, self.logger.losses.generator)
 
-            val_logger = div_dict(val_logger, nb_of_batches)
-            self.logger.losses.generator = val_logger
-            self.log_losses(model_to_update="G", mode="val")
+        val_logger = div_dict(val_logger, nb_of_batches)
+        self.logger.losses.generator = val_logger
+        self.log_losses(model_to_update="G", mode="val")
 
-            for d in self.opts.domains:
-                self.log_comet_images("train", d)
-                self.log_comet_images("val", d)
+        for d in self.opts.domains:
+            self.log_comet_images("train", d)
+            self.log_comet_images("val", d)
 
-            if "m" in self.opts.tasks and "p" in self.opts.tasks:
-                self.log_comet_combined_images("train", "r")
-                self.log_comet_combined_images("val", "r")
+        if "m" in self.opts.tasks and "p" in self.opts.tasks:
+            self.log_comet_combined_images("train", "r")
+            self.log_comet_combined_images("val", "r")
 
-            if "m" in self.opts.tasks:
-                self.eval_images("val", "r")
-                self.eval_images("val", "s")
+        if "m" in self.opts.tasks:
+            self.eval_images("val", "r")
+            self.eval_images("val", "s")
 
+        val_fid = compute_val_fid(self)
+        if self.exp is not None:
+            self.exp.log_metric("val_fid", val_fid, step=self.logger.global_step)
+        else:
+            print("Validation FID Score", val_fid)
         self.train_mode()
-        print("****************** Done *********************")
+        timing = int(time() - start_time)
+        print("****************** Done in {}s *********************".format(timing))
 
     def save(self):
         save_dir = Path(self.opts.output_path) / Path("checkpoints")

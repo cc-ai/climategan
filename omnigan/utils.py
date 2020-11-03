@@ -546,16 +546,15 @@ def get_display_indices(opts: Dict, domain: str, length: int) -> list:
     Returns:
         list(int): The indices to display
     """
+    if domain == "rf":
+        dsize = max([opts.comet.display_size, opts.train.fid.get("n_images", 0)])
     dsize = opts.comet.display_size
     display_indices = []
+    assert isinstance(dsize, (int, list)), "Unknown display size {}".format(dsize)
     if isinstance(dsize, int):
+        assert dsize >= 0, "Display size cannot be < 0"
         with temp_np_seed(123):
             display_indices = list(np.random.permutation(length)[:dsize])
-        # if domain == "s":
-        #     with temp_np_seed(123):
-        #         display_indices = list(np.random.permutation(length)[:dsize])
-        # else:
-        #     display_indices = list(range(dsize))
     elif isinstance(dsize, list):
         display_indices = dsize
 
@@ -690,3 +689,25 @@ def get_existing_comet_id(path: str) -> Optional[str]:
         with comet_previous_path.open("r") as f:
             url = f.read().strip()
             return comet_id_from_url(url)
+
+
+def get_latest_opts(path):
+    """
+    get latest opts dumped in path if they look like *opts*.yaml
+    and were increased as
+    opts.yaml < opts (1).yaml < opts (2).yaml etc.
+
+    Args:
+        path (str or pathlib.Path): where to look for opts
+
+    Raises:
+        ValueError: If no match for *opts*.yaml is found
+
+    Returns:
+        addict.Dict: loaded opts
+    """
+    path = Path(path)
+    opts = get_latest_path(path / "opts.yaml")
+    assert opts.exists()
+    with opts.open("r") as f:
+        return Dict(yaml.safe_load(f))

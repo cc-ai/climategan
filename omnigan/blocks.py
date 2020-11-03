@@ -520,6 +520,15 @@ class PainterSpadeDecoder(nn.Module):
             spade_param_free_norm,
             spade_kernel_size,
         )
+        self.final_shortcut = None
+        if opts.gen.p.use_final_shortcut:
+            self.final_shortcut = nn.Sequential(
+                *[
+                    SpectralNorm(nn.Conv2d(self.z_nc // 2 ** (spade_n_up - 1), 3, 1)),
+                    nn.BatchNorm2d(3),
+                    nn.LeakyReLU(0.2, True),
+                ]
+            )
 
         self.conv_img = nn.Conv2d(self.final_nc, 3, 3, padding=1)
 
@@ -549,7 +558,8 @@ class PainterSpadeDecoder(nn.Module):
         for i, up in enumerate(self.up_spades):
             y = self.upsample(y)
             y = up(y, cond)
-
+        if self.final_shortcut is not None:
+            cond = self.final_shortcut(y)
         y = self.final_spade(y, cond)
         y = self.conv_img(F.leaky_relu(y, 2e-1))
         y = torch.tanh(y)

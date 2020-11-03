@@ -27,9 +27,7 @@ data:
   loaders:
     batch_size: 6
     num_workers: 8
-  normalization:
-    default # can be "default" or "HRNet" for now.
-    # default: mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]; HRNet: mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+  normalization: default # can be "default" or "HRNet" for now. # default: mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]; HRNet: mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
   transforms:
     - name: hflip
       ignore: false
@@ -118,6 +116,7 @@ gen:
     spade_use_spectral_norm: true
     spade_n_up: 7 # number of upsampling layers in the translation decoder is equal to number of downsamplings in the encoder.  output's h and w are z's h and w x 2^spade_num_upsampling_layers | z:32 and spade_n_up:4 => output 512
     no_z: true # <=> use_vae=False in the SPADE repo
+    use_final_shortcut: False # if true, the last spade block does not get the masked input as conditioning but the prediction of the previous layer (passed through a conv to match dims) in order to lighten the masking restrictions and have smoother edges
 
   m: # specific params for the mask-generation decoder
     <<: *default-gen
@@ -200,6 +199,10 @@ classifier:
 # ------------------------
 train:
   epochs: 300
+  fid:
+    n_images: 100
+    batch_size: 50 # inception inference batch size, not painter's
+    dims: 2048 # what Inception bock to compute the stats from (see BLOCK_INDEX_BY_DIM in fid.py)
   latent_domain_adaptation: False # whether or not to do domain adaptation on the latent vectors # Needs to be turned off if use_advent is True
   lambdas: # scaling factors in the total loss
     G:
