@@ -214,7 +214,9 @@ class Trainer:
         if new_exp:
             exp = Experiment(project_name="omnigan", **comet_kwargs)
             exp.log_asset_folder(
-                str(Path(__file__).parent), recursive=True, log_file_name=True,
+                str(Path(__file__).parent),
+                recursive=True,
+                log_file_name=True,
             )
             exp.log_parameters(flatten_opts(opts))
         else:
@@ -357,9 +359,12 @@ class Trainer:
                     d, get_num_params(self.G.decoders[d])
                 )
             )
-        for d in self.D.keys():
-            print("num params discrim {}: {}".format(d, get_num_params(self.D[d])))
         print("num params painter: ", get_num_params(self.G.painter))
+
+        if self.D is not None:
+            for d in self.D.keys():
+                print("num params discrim {}: {}".format(d, get_num_params(self.D[d])))
+
         if self.C is not None:
             print("num params classif: ", get_num_params(self.C))
         print("---------------------------")
