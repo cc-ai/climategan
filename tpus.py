@@ -17,6 +17,20 @@ import torch_xla.core.xla_model as xm
 import torch_xla.debug.metrics as met
 
 
+def print_time(name, time_series, precision=4):
+    head = f"[{name}] Average time (per batch): "
+    tail = ""
+    if isinstance(time_series, (list, np.ndarray)):
+        tail = (
+            f"{np.mean(time_series):.{precision}f}s "
+            + f"(+/- {np.std(time_series):.{precision}f}s)"
+        )
+    elif isinstance(time_series, str):
+        tail = time_series
+
+    print(head + tail)
+
+
 class Timer:
     def __init__(self, name="", store=None, precision=3):
         self.name = name
@@ -91,6 +105,7 @@ def prepare_mask(mask_tensor, device, use_half):
     return mask_tensor
 
 
+@torch.no_grad()
 def eval_folder(
     path_to_images,
     path_to_masks,
@@ -154,158 +169,140 @@ def eval_folder(
 
     print("Batch Size:", batch_size)
     print("Using Half:", use_half)
+    for it in range(n_iter):
+        print(">>> Iteration {} for batch size {}\n".format(it, batch_size))
+        with Timer(store=full_procedure_time):
 
-    with Timer(store=full_procedure_time):
+            if not masker:
+                mask_tensors = [prepare_mask(m, device, use_half) for m in masks]
 
-        if not masker:
-            mask_tensors = [prepare_mask(m, device, use_half) for m in masks]
+            with Timer("Data Loading"):
+                image_tensors = [
+                    prepare_image(
+                        im,
+                        new_size,
+                        transforms,
+                        device,
+                        use_half,
+                        to_tensor_time,
+                        transforms_time,
+                        to_device_time,
+                    )
+                    for im in images
+                ]
 
-        with Timer("Data Loading"):
-            image_tensors = [
-                prepare_image(
-                    im,
-                    new_size,
-                    transforms,
-                    device,
-                    use_half,
-                    to_tensor_time,
-                    transforms_time,
-                    to_device_time,
-                )
-                for im in images
-            ]
-
-        with Timer(store=inference_loop_time):
-            for i in range(len(image_tensors) // batch_size + 1):
-                img = image_tensors[i * batch_size : (i + 1) * batch_size]
-                if not img:
-                    continue
-                img = torch.cat(img, axis=0)
-                print("Batch", i, img.shape, img.device, end="\r", flush=True)
-
-                if not masker:
-                    mask = mask_tensors[i * batch_size : (i + 1) * batch_size]
+            with Timer(store=inference_loop_time):
+                for i in range(len(image_tensors) // batch_size + 1):
+                    img = image_tensors[i * batch_size : (i + 1) * batch_size]
+                    if not img:
+                        continue
                     img = torch.cat(img, axis=0)
+                    print("Batch", i, img.shape, img.device, end="\r", flush=True)
 
-                if masker:
-                    if "m2" in opts.tasks:
-                        z = model.encode(img)
-                        num_masks = 10
-                        label_vals = np.linspace(start=0, stop=1, num=num_masks)
-                        for label_val in label_vals:
-                            z_aug = torch.cat(
-                                (
-                                    z,
-                                    label_val
-                                    * trainer.label_2[0, :, :, :].unsqueeze(0),
-                                ),
-                                dim=1,
-                            )
-                            mask = model.decoders["m"](z_aug)
+                    if not masker:
+                        mask = mask_tensors[i * batch_size : (i + 1) * batch_size]
+                        img = torch.cat(img, axis=0)
 
-                            vutils.save_image(
-                                mask,
-                                output_dir / (f"mask_{label_val}_" + img_path.name),
-                                normalize=True,
-                            )
-                            for k, (im, m) in enumerate(zip(list(img), list(mask))):
-                                if apply_mask and save_images:
+                    if masker:
+                        if "m2" in opts.tasks:
+                            z = model.encode(img)
+                            num_masks = 10
+                            label_vals = np.linspace(start=0, stop=1, num=num_masks)
+                            for label_val in label_vals:
+                                z_aug = torch.cat(
+                                    (
+                                        z,
+                                        label_val
+                                        * trainer.label_2[0, :, :, :].unsqueeze(0),
+                                    ),
+                                    dim=1,
+                                )
+                                mask = model.decoders["m"](z_aug)
+
+                                vutils.save_image(
+                                    mask,
+                                    output_dir / (f"mask_{label_val}_" + img_path.name),
+                                    normalize=True,
+                                )
+                                for k, (im, m) in enumerate(zip(list(img), list(mask))):
+                                    if apply_mask and save_images:
+                                        vutils.save_image(
+                                            im * (1.0 - m) + m,
+                                            output_dir
+                                            / (
+                                                images[i * batch_size + k].stem
+                                                + f"img_masked_{label_val}"
+                                                + ".jpg"
+                                            ),
+                                            normalize=True,
+                                        )
+
+                        else:
+                            with Timer(store=masker_inference_time):
+                                z = model.encode(img)
+                                mask = model.decoders["m"](z)
+                                # xm.mark_step()
+                            if save_images:
+                                for k, m in enumerate(list(mask)):
                                     vutils.save_image(
-                                        im * (1.0 - m) + m,
+                                        m,
                                         output_dir
-                                        / (
-                                            images[i * batch_size + k].stem
-                                            + f"img_masked_{label_val}"
-                                            + ".jpg"
-                                        ),
+                                        / ("mask_" + images[i * batch_size + k].name),
                                         normalize=True,
                                     )
 
-                    else:
-                        with Timer(store=masker_inference_time):
-                            z = model.encode(img)
-                            mask = model.decoders["m"](z)
+                    if paint:
+                        with Timer(store=painter_inference_time):
+                            z_painter = None  # trainer.sample_z(1)
+                            if use_half:
+                                z_painter = z_painter.half()
+                            fake_flooded = model.painter(z_painter, img * (1.0 - mask))
+                            xm.mark_step()
+                        if to_cpu:
+                            with Timer(store=to_cpu_time):
+                                fake_cpu = fake_flooded.cpu().numpy()
+
                         if save_images:
-                            for k, m in enumerate(list(mask)):
+                            for k, ff in enumerate(list(fake_flooded)):
                                 vutils.save_image(
-                                    m,
-                                    output_dir
-                                    / ("mask_" + images[i * batch_size + k].name),
+                                    ff,
+                                    output_dir / images[i * batch_size + k].name,
                                     normalize=True,
                                 )
 
-                if paint:
-                    with Timer(store=painter_inference_time):
-                        z_painter = None  # trainer.sample_z(1)
-                        if use_half:
-                            z_painter = z_painter.half()
-                        fake_flooded = model.painter(z_painter, img * (1.0 - mask))
-                    if to_cpu:
-                        with Timer(store=to_cpu_time):
-                            fake_cpu = fake_flooded.cpu().numpy()
+                        if apply_mask and save_images:
+                            for k, (im, m) in enumerate(zip(list(img), list(mask))):
+                                vutils.save_image(
+                                    im * (1.0 - m) + m,
+                                    output_dir
+                                    / (
+                                        images[i * batch_size + k].stem
+                                        + "_masked"
+                                        + ".jpg"
+                                    ),
+                                    normalize=True,
+                                )
+    batch_inference = np.array(masker_inference_time) + np.array(painter_inference_time)
 
-                    if save_images:
-                        for k, ff in enumerate(list(fake_flooded)):
-                            vutils.save_image(
-                                ff,
-                                output_dir / images[i * batch_size + k].name,
-                                normalize=True,
-                            )
+    dump_first_n = 20
+    batch_inference = batch_inference[dump_first_n:]
+    masker_inference_time = masker_inference_time[dump_first_n:]
+    painter_inference_time = painter_inference_time[dump_first_n:]
 
-                    if apply_mask and save_images:
-                        for k, (im, m) in enumerate(zip(list(img), list(mask))):
-                            vutils.save_image(
-                                im * (1.0 - m) + m,
-                                output_dir
-                                / (
-                                    images[i * batch_size + k].stem + "_masked" + ".jpg"
-                                ),
-                                normalize=True,
-                            )
-            print()
-
-    print(
-        "[Full procedure (numpy->torch->transforms->device->infer) on"
-        + " {} images] Average time: {:.3f}s (+/- {:.3f}s)".format(
-            len(images), np.mean(full_procedure_time), np.std(full_procedure_time)
-        )
+    print_time(
+        "Full procedure (numpy->torch->transforms->device->infer) on"
+        + f" {len(images)} images",
+        full_procedure_time,
     )
-    print(
-        "[Inference loop]  Average time (all dataset): {:.3f}s (+/- {:.3f}s)".format(
-            np.mean(inference_loop_time), np.std(inference_loop_time)
-        )
-    )
-    print(
-        "[Masker]  Average time (per batch): {:.3f}s (+/- {:.3f}s)".format(
-            np.mean(masker_inference_time), np.std(masker_inference_time)
-        )
-    )
-    print(
-        "[Painter] Average time (per batch): {:.3f}s (+/- {:.3f}s)".format(
-            np.mean(painter_inference_time), np.std(painter_inference_time)
-        )
-    )
-    print(
-        "[To Tensor] Average time (per sample): {:.3f}s (+/- {:.3f}s)".format(
-            np.mean(to_tensor_time), np.std(to_tensor_time)
-        )
-    )
-    print(
-        "[Transforms] Average time (per sample): {:.3f}s (+/- {:.3f}s)".format(
-            np.mean(transforms_time), np.std(transforms_time)
-        )
-    )
-    print(
-        "[To Device] Average time (per sample): {:.3f}s (+/- {:.3f}s)".format(
-            np.mean(to_device_time), np.std(to_device_time)
-        )
-    )
-    print(
-        "[Back To CPU + Numpy] Average time (per batch): {}".format(
-            "{:.3f}s (+/- {:.3f}s)".format(np.mean(to_cpu_time), np.std(to_cpu_time))
-            if to_cpu
-            else "Not Measured"
-        )
+    print_time("Inference loop (all dataset)", inference_loop_time)
+    print_time("Single Batch (per batch)", batch_inference)
+    print_time("Masker (per batch)", masker_inference_time)
+    print_time("Painter (per batch)", painter_inference_time)
+    print_time("To Tensor (per sample)", to_tensor_time)
+    print_time("Transforms (per sample)", transforms_time)
+    print_time("To Device (per sample)", to_device_time)
+    print_time(
+        "Back To CPU + Numpy (per batch)", to_cpu_time if to_cpu else "Not Measured"
     )
 
     return

@@ -406,6 +406,7 @@ class Trainer:
 
         if inference:
             print("Inference mode: no Discriminator, no Classifier, no optimizers")
+            self.print_num_parameters()
             return
 
         # ---------------------------
