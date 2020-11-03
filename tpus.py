@@ -199,7 +199,9 @@ def eval_folder(
     masker_inference_time = masker_inference_time[dump_first_n:]
     painter_inference_time = painter_inference_time[dump_first_n:]
 
-    with open(f"./eval_folder_metrics_bs{batch_size}_iter{n_iter}") as write_file:
+    with open(
+        f"./eval_folder_nIm{len(images)}_bs{batch_size}_iter{n_iter}", "w"
+    ) as write_file:
 
         print_time(
             "Full procedure (numpy->torch->transforms->device->infer) on"
