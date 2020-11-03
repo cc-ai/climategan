@@ -479,7 +479,7 @@ class Trainer:
                     Dict(dataset[i]) for i in display_indices if i < len(dataset)
                 ]
                 if self.exp is not None:
-                    for im_id, d in self.display_images[mode][domain]:
+                    for im_id, d in enumerate(self.display_images[mode][domain]):
                         self.exp.log_parameter(
                             "display_image_{}_{}_{}".format(mode, domain, im_id),
                             d["paths"],
