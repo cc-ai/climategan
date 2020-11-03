@@ -62,7 +62,7 @@ class GANLoss(nn.Module):
             target_tensor = self.fake_label + soft_change
         return target_tensor.expand_as(input)
 
-    def __call__(self, input, target_is_real):
+    def __call__(self, input, target_is_real, *args, **kwargs):
         if rand() < self.flip_prob:
             target_is_real = not target_is_real
             if self.verbose > 0:
@@ -387,7 +387,9 @@ def get_losses(opts, verbose, device=None):
     # ------------------------------
     # painter losses
     if "p" in opts.tasks:
-        losses["G"]["p"]["hinge"] = HingeLoss()
+        losses["G"]["p"]["gan"] = (
+            HingeLoss() if opts.gen.p.loss == "hinge" else GANLoss()
+        )
         losses["G"]["p"]["sm"] = PixelCrossEntropy()
         losses["G"]["p"]["dm"] = MSELoss()
         losses["G"]["p"]["vgg"] = VGGLoss(device)
@@ -463,7 +465,7 @@ def prob_2_entropy(prob):
 
 class CustomBCELoss(nn.Module):
     """
-        The first argument is a tensor and the second arguement is an int.
+        The first argument is a tensor and the second argument is an int.
         There is no need to take sigmoid before calling this function.
     """
 

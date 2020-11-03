@@ -1005,8 +1005,8 @@ class Trainer:
             self.logger.losses.gen.p.gan = 0
 
             update_loss = (
-                self.losses["G"]["p"]["hinge"](fake_d_global, True, False)
-                + self.losses["G"]["p"]["hinge"](fake_d_local, True, False)
+                self.losses["G"]["p"]["gan"](fake_d_global, True, False)
+                + self.losses["G"]["p"]["gan"](fake_d_local, True, False)
             ) * lambdas.G["p"]["gan"]
 
             self.logger.losses.gen.p.gan = update_loss.item()
@@ -1036,7 +1036,7 @@ class Trainer:
                 )
             )
             fake_d, real_d = divide_pred(real_fake_d)
-            update_loss = self.losses["G"]["p"]["hinge"](fake_d, True, False)
+            update_loss = self.losses["G"]["p"]["gan"](fake_d, True, False)
             self.logger.losses.gen.p.gan = update_loss.item()
             step_loss += update_loss
 
@@ -1153,7 +1153,7 @@ class Trainer:
         if self.opts.dis.p.use_local_discriminator:
             disc_loss["p"] = {"global": 0, "local": 0}
         else:
-            disc_loss["p"] = {"hinge": 0}
+            disc_loss["p"] = {"gan": 0}
 
         for batch_domain, batch in multi_domain_batch.items():
             x = batch["data"]["x"]
@@ -1192,8 +1192,8 @@ class Trainer:
                         )
                     )
                     fake_d, real_d = divide_pred(real_fake_d)
-                    disc_loss["p"]["hinge"] = self.losses["D"]["p"](fake_d, False, True)
-                    disc_loss["p"]["hinge"] += self.losses["D"]["p"](real_d, True, True)
+                    disc_loss["p"]["gan"] = self.losses["D"]["p"](fake_d, False, True)
+                    disc_loss["p"]["gan"] += self.losses["D"]["p"](real_d, True, True)
 
                 # Note: discriminator returns [out_1,...,out_num_D] outputs
                 # Each out_i is a list [feat1, feat2, ..., pred_i]
