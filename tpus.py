@@ -16,7 +16,7 @@ import torch_xla.core.xla_model as xm
 import torch_xla.debug.metrics as met
 
 
-def print_time(name, time_series, precision=4):
+def print_time(name, time_series, precision=4, file=None):
     head = f"[{name}] Average time (per batch): "
     tail = ""
     if isinstance(time_series, (list, np.ndarray)):
@@ -28,6 +28,8 @@ def print_time(name, time_series, precision=4):
         tail = time_series
 
     print(head + tail)
+    if file is not None:
+        print(head + tail, file=file)
 
 
 class Timer:
@@ -197,21 +199,28 @@ def eval_folder(
     masker_inference_time = masker_inference_time[dump_first_n:]
     painter_inference_time = painter_inference_time[dump_first_n:]
 
-    print_time(
-        "Full procedure (numpy->torch->transforms->device->infer) on"
-        + f" {len(images)} images",
-        full_procedure_time,
-    )
-    print_time("Inference loop (all dataset)", inference_loop_time)
-    print_time("Single Batch (per batch)", batch_inference)
-    print_time("Masker (per batch)", masker_inference_time)
-    print_time("Painter (per batch)", painter_inference_time)
-    print_time("To Tensor (per sample)", to_tensor_time)
-    print_time("Transforms (per sample)", transforms_time)
-    print_time("To Device (per sample)", to_device_time)
-    print_time(
-        "Back To CPU + Numpy (per batch)", to_cpu_time if to_cpu else "Not Measured"
-    )
+    with open(
+        f"./eval_folder_nIm{len(images)}_bs{batch_size}_iter{n_iter}", "w"
+    ) as write_file:
+
+        print_time(
+            "Full procedure (numpy->torch->transforms->device->infer) on"
+            + f" {len(images)} images",
+            full_procedure_time,
+            file=write_file,
+        )
+        print_time("Inference loop (all dataset)", inference_loop_time, file=write_file)
+        print_time("Single Batch (per batch)", batch_inference, file=write_file)
+        print_time("Masker (per batch)", masker_inference_time, file=write_file)
+        print_time("Painter (per batch)", painter_inference_time, file=write_file)
+        print_time("To Tensor (per sample)", to_tensor_time, file=write_file)
+        print_time("Transforms (per sample)", transforms_time, file=write_file)
+        print_time("To Device (per sample)", to_device_time, file=write_file)
+        print_time(
+            "Back To CPU + Numpy (per batch)",
+            to_cpu_time if to_cpu else "Not Measured",
+            file=write_file,
+        )
 
     return
 
@@ -317,6 +326,7 @@ if __name__ == "__main__":
     to_cpu = args.to_cpu  # measure the time to bring tensors back to CPU from device
     dataset_size = args.dataset_size  # will repeat the 100 images to match this size
     batch_sizes = args.batch_sizes  # batch sizes to benchmark
+    n_iter = args.n_iter
 
     # -----------------------------------
     # -----  Load images in memory  -----
@@ -351,6 +361,7 @@ if __name__ == "__main__":
             loaded_images,
             limit=limit,
             to_cpu=to_cpu,
+            n_iter=n_iter,
         )
         print()
         with open(output_dir / "omnigan_metrics_bs{bs}_lim{limit}.txt", "w") as f:
