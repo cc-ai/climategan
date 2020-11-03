@@ -16,7 +16,7 @@ import torch_xla.core.xla_model as xm
 import torch_xla.debug.metrics as met
 
 
-def print_time(name, time_series, precision=4):
+def print_time(name, time_series, precision=4, file=None):
     head = f"[{name}] Average time (per batch): "
     tail = ""
     if isinstance(time_series, (list, np.ndarray)):
@@ -28,6 +28,8 @@ def print_time(name, time_series, precision=4):
         tail = time_series
 
     print(head + tail)
+    if file is not None:
+        print(head + tail, file=f)
 
 
 class Timer:
@@ -197,21 +199,26 @@ def eval_folder(
     masker_inference_time = masker_inference_time[dump_first_n:]
     painter_inference_time = painter_inference_time[dump_first_n:]
 
-    print_time(
-        "Full procedure (numpy->torch->transforms->device->infer) on"
-        + f" {len(images)} images",
-        full_procedure_time,
-    )
-    print_time("Inference loop (all dataset)", inference_loop_time)
-    print_time("Single Batch (per batch)", batch_inference)
-    print_time("Masker (per batch)", masker_inference_time)
-    print_time("Painter (per batch)", painter_inference_time)
-    print_time("To Tensor (per sample)", to_tensor_time)
-    print_time("Transforms (per sample)", transforms_time)
-    print_time("To Device (per sample)", to_device_time)
-    print_time(
-        "Back To CPU + Numpy (per batch)", to_cpu_time if to_cpu else "Not Measured"
-    )
+    with open(f"./eval_folder_metrics_bs{batch_size}_iter{n_iter}") as write_file:
+
+        print_time(
+            "Full procedure (numpy->torch->transforms->device->infer) on"
+            + f" {len(images)} images",
+            full_procedure_time,
+            file=write_file,
+        )
+        print_time("Inference loop (all dataset)", inference_loop_time, file=write_file)
+        print_time("Single Batch (per batch)", batch_inference, file=write_file)
+        print_time("Masker (per batch)", masker_inference_time, file=write_file)
+        print_time("Painter (per batch)", painter_inference_time, file=write_file)
+        print_time("To Tensor (per sample)", to_tensor_time, file=write_file)
+        print_time("Transforms (per sample)", transforms_time, file=write_file)
+        print_time("To Device (per sample)", to_device_time, file=write_file)
+        print_time(
+            "Back To CPU + Numpy (per batch)",
+            to_cpu_time if to_cpu else "Not Measured",
+            file=write_file,
+        )
 
     return
 
@@ -220,16 +227,28 @@ if __name__ == "__main__":
 
     parser = ArgumentParser()
     parser.add_argument(
-        "-m", "--masker_dir", default="~/bucket/v1-weights/masker", type=str,
+        "-m",
+        "--masker_dir",
+        default="~/bucket/v1-weights/masker",
+        type=str,
     )
     parser.add_argument(
-        "-p", "--painter_dir", default="~/bucket/v1-weights/painter", type=str,
+        "-p",
+        "--painter_dir",
+        default="~/bucket/v1-weights/painter",
+        type=str,
     )
     parser.add_argument(
-        "-d", "--inference_data_dir", default="~/bucket/100postalcode", type=str,
+        "-d",
+        "--inference_data_dir",
+        default="~/bucket/100postalcode",
+        type=str,
     )
     parser.add_argument(
-        "-o", "--output_dir", default="~/outputs", type=str,
+        "-o",
+        "--output_dir",
+        default="~/outputs",
+        type=str,
     )
     parser.add_argument(
         "-c",
