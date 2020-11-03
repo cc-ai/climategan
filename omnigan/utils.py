@@ -68,7 +68,10 @@ def merge(
                 node = destination.setdefault(key, {})
                 merge(value, node)
             else:
-                destination[key] = value
+                if isinstance(destination, dict):
+                    destination[key] = value
+                else:
+                    destination = {key: value}
         except TypeError as e:
             print(traceback.format_exc())
             print(">>>", source)
