@@ -63,12 +63,23 @@ class GANLoss(nn.Module):
         return target_tensor.expand_as(input)
 
     def __call__(self, input, target_is_real, *args, **kwargs):
-        if rand() < self.flip_prob:
-            target_is_real = not target_is_real
-            if self.verbose > 0:
-                print("GANLoss: flipping label")
-        target_tensor = self.get_target_tensor(input, target_is_real)
-        return self.loss(input, target_tensor.to(input.device))
+        r = rand()
+        if isinstance(input, list):
+            loss = 0
+            for pred_i in input:
+                if isinstance(pred_i, list):
+                    pred_i = pred_i[-1]
+                if r < self.flip_prob:
+                    target_is_real = not target_is_real
+                target_tensor = self.get_target_tensor(pred_i, target_is_real)
+                loss_tensor = self.loss(pred_i, target_tensor.to(pred_i.device))
+                loss += loss_tensor
+            return loss / len(input)
+        else:
+            if r < self.flip_prob:
+                target_is_real = not target_is_real
+            target_tensor = self.get_target_tensor(input, target_is_real)
+            return self.loss(input, target_tensor.to(input.device))
 
 
 class FeatMatchLoss(nn.Module):
