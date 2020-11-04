@@ -210,6 +210,7 @@ train:
     G:
       d:
         main: 1
+        dada: 0.001
         gml: 0.5
       s:
         crossent: 1

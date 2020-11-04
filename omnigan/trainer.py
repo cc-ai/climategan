@@ -964,7 +964,7 @@ class Trainer:
                             self.losses["G"]["tasks"]["d"](
                                 depth_prediction, batch["data"]["d"]
                             )
-                            * lambdas.G.d.main
+                            * lambdas.G.d.dada
                         )
 
                         step_loss += update_loss
