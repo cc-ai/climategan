@@ -1532,11 +1532,13 @@ class Trainer:
             self.eval_images("val", "r")
             self.eval_images("val", "s")
 
-        val_fid = compute_val_fid(self)
-        if self.exp is not None:
-            self.exp.log_metric("val_fid", val_fid, step=self.logger.global_step)
-        else:
-            print("Validation FID Score", val_fid)
+        if "p" in self.opts.tasks:
+            val_fid = compute_val_fid(self)
+            if self.exp is not None:
+                self.exp.log_metric("val_fid", val_fid, step=self.logger.global_step)
+            else:
+                print("Validation FID Score", val_fid)
+
         self.train_mode()
         timing = int(time() - start_time)
         print("****************** Done in {}s *********************".format(timing))
