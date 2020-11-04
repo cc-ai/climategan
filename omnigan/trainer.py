@@ -17,7 +17,7 @@ warnings.simplefilter("ignore", UserWarning)
 import torch
 import torch.nn as nn
 import torchvision.utils as vutils
-
+from addict import Dict
 from comet_ml import Experiment
 from torch import autograd
 from tqdm import tqdm
