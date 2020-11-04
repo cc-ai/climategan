@@ -78,6 +78,7 @@ class DeeplabEncoder(nn.Module):
                 if not i_parts[1] in ["layer5", "resblock"]:
                     new_params[".".join(i_parts[1:])] = saved_state_dict[i]
             self.model.load_state_dict(new_params)
+            print("    - Loaded pretrained weights")
 
     def forward(self, x):
         return self.model(x)

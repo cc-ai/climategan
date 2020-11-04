@@ -437,7 +437,7 @@ class SPADEResnetBlock(nn.Module):
         return strings.spaderesblock(self)
 
 
-class SpadeDecoder(nn.Module):
+class PainterSpadeDecoder(nn.Module):
     def __init__(self, opts):
         """Create a SPADE-based decoder, which forwards z and the conditioning
         tensors seg (in the original paper, conditioning is on a semantic map only).
@@ -520,6 +520,15 @@ class SpadeDecoder(nn.Module):
             spade_param_free_norm,
             spade_kernel_size,
         )
+        self.final_shortcut = None
+        if opts.gen.p.use_final_shortcut:
+            self.final_shortcut = nn.Sequential(
+                *[
+                    SpectralNorm(nn.Conv2d(self.final_nc, 3, 1)),
+                    nn.BatchNorm2d(3),
+                    nn.LeakyReLU(0.2, True),
+                ]
+            )
 
         self.conv_img = nn.Conv2d(self.final_nc, 3, 3, padding=1)
 
@@ -550,6 +559,8 @@ class SpadeDecoder(nn.Module):
             y = self.upsample(y)
             y = up(y, cond)
 
+        if self.final_shortcut is not None:
+            cond = self.final_shortcut(y)
         y = self.final_spade(y, cond)
         y = self.conv_img(F.leaky_relu(y, 2e-1))
         y = torch.tanh(y)

@@ -70,6 +70,10 @@ def get_optimizer(net, opt_conf, tasks=None, iterations=-1):
         lr = opt_conf.lr
         params = net.parameters()
         lr_names.append("full")
+    elif isinstance(opt_conf.lr, float):  # Use default for all tasks
+        lr = opt_conf.lr
+        params = net.parameters()
+        lr_names.append("full")
     elif len(opt_conf.lr) == 1:  # Use default for all tasks
         lr = opt_conf.lr.default
         params = net.parameters()

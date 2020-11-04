@@ -10,9 +10,9 @@ import traceback
 
 def interpolation(task):
     if task in ["d", "m", "s"]:
-        return "nearest"
+        return {"mode": "nearest"}
     else:
-        return "bilinear"
+        return {"mode": "bilinear", "align_corners": True}
 
 
 class Resize:
@@ -26,7 +26,12 @@ class Resize:
         the smallest dimension of x will be set to target_size and the largest
         dimension will be computed to the closest int keeping the original
         aspect ratio. e.g.
-        Resize(640, True)({"x": torch.rand(3, 1200, 1800)})["x"].shape = (3, 640, 960)
+        >>> x = torch.rand(1, 3, 1200, 1800)
+        >>> m = torch.rand(1, 1, 600, 600)
+        >>> d = {"x": x, "m": m}
+        >>> {k: v.shape for k, v in Resize(640, True)(d).items()}
+         {"x": (1, 3, 640, 960), "m": (1, 1, 640, 960)}
+
 
 
         Args:
@@ -84,7 +89,7 @@ class Resize:
             d = {}
             new_size = self.compute_new_size(data["x"])
             for task, tensor in data.items():
-                d[task] = F.interpolate(tensor, size=new_size, mode=interpolation(task))
+                d[task] = F.interpolate(tensor, size=new_size, **interpolation(task))
             return d
         except Exception as e:
             tb = traceback.format_exc()
@@ -155,12 +160,12 @@ class ToTensor:
 
 class Normalize:
     def __init__(self, opts):
-        if opts.data.normalization == "default":
-            self.normImage = trsfs.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-        elif opts.data.normalization == "HRNet":
+        if opts.data.normalization == "HRNet":
             self.normImage = trsfs.Normalize(
                 ((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
             )
+        else:
+            self.normImage = trsfs.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         self.normDepth = lambda x: x  # trsfs.Normalize([1 / 255], [1 / 3])
         self.normMask = lambda x: x
         self.normSeg = lambda x: x
