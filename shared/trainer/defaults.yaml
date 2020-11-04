@@ -98,6 +98,7 @@ gen:
     output_dim: 1
     conv_norm: batch
     res_norm: batch
+    use_dada: false
   s: # specific params for the semantic segmentation decoder
     <<: *default-gen
     num_classes: 11

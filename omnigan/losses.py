@@ -516,8 +516,11 @@ class ADVENTAdversarialLoss(nn.Module):
         else:
             raise NotImplementedError
 
-    def __call__(self, prediction, target, discriminator):
-        d_out = discriminator(prob_2_entropy(F.softmax(prediction, dim=1)))
+    def __call__(self, prediction, target, discriminator, depth_pred=None):
+        d_out = prob_2_entropy(F.softmax(prediction, dim=1))
+        if depth_pred is not None:
+            d_out = d_out * depth_pred
+        d_out = discriminator(d_out)
         if self.opts.dis.m.architecture == "OmniDiscriminator":
             d_out = multiDiscriminatorAdapter(d_out, self.opts)
         loss_ = self.loss(d_out, target)

@@ -342,15 +342,21 @@ class DepthDecoder(nn.Module):
         self.enc4_2 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1, bias=True)
         self.enc4_3 = nn.Conv2d(512, 128, kernel_size=1, stride=1, padding=0, bias=True)
         self.output_size = opts.data.transforms[-1].new_size
+        self.use_dada = False
+        if opts.gen.d.use_dada:
+            self.use_dada = True
+            self.dec4 = nn.Conv2d(
+                128, 2048, kernel_size=1, stride=1, padding=0, bias=True
+            )
 
     def forward(self, x):
-        x4_enc = self.enc4_1(x)
-        x4_enc = self.relu(x4_enc)
-        x4_enc = self.enc4_2(x4_enc)
-        x4_enc = self.relu(x4_enc)
-        x4_enc = self.enc4_3(x4_enc)
+        x = self.enc4_1(x)
+        x = self.relu(x)
+        x = self.enc4_2(x)
+        x = self.relu(x)
+        x_enc = self.enc4_3(x)
 
-        depth = torch.mean(x4_enc, dim=1, keepdim=True)  # DADA paper decoder
+        depth = torch.mean(x_enc, dim=1, keepdim=True)
         depth = F.interpolate(
             depth,
             size=(384, 384),  # size used in MiDaS inference
@@ -360,6 +366,12 @@ class DepthDecoder(nn.Module):
         depth = F.interpolate(
             depth, (self.output_size, self.output_size), mode="nearest"
         )  # what we used in the transforms to resize input
+
+        if self.use_dada:
+            z_depth = self.dec4(x_enc)
+            z_depth = self.relu(z_depth)
+            return depth, z_depth
+
         return depth
 
     def __str__(self):

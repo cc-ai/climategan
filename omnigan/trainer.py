@@ -214,9 +214,7 @@ class Trainer:
         if new_exp:
             exp = Experiment(project_name="omnigan", **comet_kwargs)
             exp.log_asset_folder(
-                str(Path(__file__).parent),
-                recursive=True,
-                log_file_name=True,
+                str(Path(__file__).parent), recursive=True, log_file_name=True,
             )
             exp.log_parameters(flatten_opts(opts))
         else:
@@ -664,9 +662,8 @@ class Trainer:
                     if update_task not in save_images:
                         save_images[update_task] = []
 
-                    prediction = self.G.decoders[update_task](self.z)
-
                     if update_task == "s":
+                        prediction = self.G.decoders[update_task](self.z)
                         target = (
                             decode_segmap_merged_labels(target, domain, True)
                             .float()
@@ -680,11 +677,16 @@ class Trainer:
                         task_saves.append(target)
 
                     elif update_task == "m":
+                        prediction = self.G.decoders[update_task](self.z)
                         prediction = prediction.repeat(1, 3, 1, 1)
                         task_saves.append(x * (1.0 - prediction))
                         task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
 
                     elif update_task == "d":
+                        if self.opts.gen.d.use_dada:
+                            prediction, _ = self.G.decoders[update_task](self.z)
+                        else:
+                            prediction = self.G.decoders[update_task](self.z)
                         # prediction is a log depth tensor
                         target = (norm_tensor(target)) * 255
                         prediction = (norm_tensor(prediction)) * 255
@@ -931,8 +933,9 @@ class Trainer:
             # -----  task-specific regression losses (2)  -----
             # -------------------------------------------------
             for update_task, update_target in batch["data"].items():
-                if update_task not in {"m", "p", "x", "s"}:
-
+                if update_task == "d" and self.opts.gen.d.use_dada:
+                    continue
+                elif update_task not in {"m", "p", "x", "s"}:
                     if update_task == "d":
                         scaler = lambdas.G.d.main
                     else:
@@ -951,7 +954,26 @@ class Trainer:
                         batch_domain
                     ] = update_loss.item()
                 elif update_task == "s":
-                    prediction = self.G.decoders[update_task](self.z)
+                    if "d" in self.opts.tasks and self.opts.gen.d.use_dada:
+                        depth_prediction, z_depth = self.G.decoders["d"](self.z)
+                        z_feat_fusion = self.z * z_depth
+                        prediction = self.G.decoders["s"](z_feat_fusion)
+
+                        # Update depth loss
+                        update_loss = (
+                            self.losses["G"]["tasks"]["d"](
+                                depth_prediction, batch["data"]["d"]
+                            )
+                            * lambdas.G.d.main
+                        )
+
+                        step_loss += update_loss
+                        self.logger.losses.gen.task["d"][
+                            batch_domain
+                        ] = update_loss.item()
+                    else:
+                        depth_prediction = None
+                        prediction = self.G.decoders[update_task](self.z)
                     # Supervised segmentation loss: crossent for sim domain,
                     # crossent_pseudo for real ; loss is crossent in any case
                     if batch_domain == "s" or self.opts.gen.s.use_pseudo_labels:
@@ -995,6 +1017,7 @@ class Trainer:
                                     prediction,
                                     self.domain_labels["s"],
                                     self.D["s"]["Advent"],
+                                    depth_prediction,
                                 )
                                 * lambdas.G[update_task]["advent"]
                             )
@@ -1387,13 +1410,21 @@ class Trainer:
                             raise NotImplementedError
                 if "s" in self.opts.tasks:
                     if self.opts.gen.s.use_advent:
-                        preds = self.G.decoders["s"](z)
+                        depth_prediction = None
+                        if "d" in self.opts.tasks and self.opts.gen.d.use_dada:
+                            depth_prediction, z_depth = self.G.decoders["d"](self.z)
+                            depth_prediction = depth_prediction.detach()
+                            z_feat_fusion = self.z * z_depth
+                            preds = self.G.decoders["s"](z_feat_fusion)
+                        else:
+                            preds = self.G.decoders["s"](z)
                         preds = preds.detach()
 
                         loss_main = self.losses["D"]["advent"](
                             preds.to(self.device),
                             self.domain_labels[batch_domain],
                             self.D["s"]["Advent"],
+                            depth_prediction,
                         )
 
                         if self.opts.dis.s.gan_type == "GAN" or "WGAN_norm":
