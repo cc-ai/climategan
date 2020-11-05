@@ -29,7 +29,7 @@ def print_time(name, time_series, precision=4, file=None):
 
     print(head + tail)
     if file is not None:
-        print(head + tail, file=f)
+        print(head + tail, file=file)
 
 
 class Timer:
@@ -338,6 +338,7 @@ if __name__ == "__main__":
     to_cpu = args.to_cpu  # measure the time to bring tensors back to CPU from device
     dataset_size = args.dataset_size  # will repeat the 100 images to match this size
     batch_sizes = args.batch_sizes  # batch sizes to benchmark
+    n_iter = args.n_iter
 
     # -----------------------------------
     # -----  Load images in memory  -----
@@ -372,6 +373,7 @@ if __name__ == "__main__":
             loaded_images,
             limit=limit,
             to_cpu=to_cpu,
+            n_iter=n_iter,
         )
         print()
         with open(output_dir / "omnigan_metrics_bs{bs}_lim{limit}.txt", "w") as f:
