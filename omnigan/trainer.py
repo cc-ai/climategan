@@ -550,16 +550,17 @@ class Trainer:
 
     def log_learning_rates(self):
         lrs = {}
-        if self.g_scheduler is not None:
-            for name, lr in zip(self.lr_names["G"], self.g_scheduler.get_last_lr()):
-                lrs[f"lr_G_{name}"] = lr
-        if self.d_scheduler is not None:
-            for name, lr in zip(self.lr_names["D"], self.d_scheduler.get_last_lr()):
-                lrs[f"lr_D_{name}"] = lr
-        if self.c_scheduler is not None:
-            for name, lr in zip(self.lr_names["C"], self.c_scheduler.get_last_lr()):
-                lrs[f"lr_C_{name}"] = lr
-        self.exp.log_metrics(lrs, step=self.logger.global_step)
+        if self.exp:
+            if self.g_scheduler is not None:
+                for name, lr in zip(self.lr_names["G"], self.g_scheduler.get_last_lr()):
+                    lrs[f"lr_G_{name}"] = lr
+            if self.d_scheduler is not None:
+                for name, lr in zip(self.lr_names["D"], self.d_scheduler.get_last_lr()):
+                    lrs[f"lr_D_{name}"] = lr
+            if self.c_scheduler is not None:
+                for name, lr in zip(self.lr_names["C"], self.c_scheduler.get_last_lr()):
+                    lrs[f"lr_C_{name}"] = lr
+            self.exp.log_metrics(lrs, step=self.logger.global_step)
 
     @property
     def val_loaders(self):
