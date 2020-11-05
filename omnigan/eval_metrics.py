@@ -43,8 +43,8 @@ def iou(pred_im, gt_im):
     IoU for binary masks (0-1 values)
 
     Args:
-        pred_im ([type]): [description]
-        gt_im ([type]): [description]
+        pred_im ([type]): prediction
+        gt_im ([type]): ground truth
     """
     pred = np.array(pred_im)
     gt = np.array(gt_im)
