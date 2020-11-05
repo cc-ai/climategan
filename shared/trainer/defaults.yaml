@@ -127,7 +127,7 @@ gen:
     use_minent_var: True # add variance of entropy map in the measure of entropy for a certain picture
     use_advent: True # minimize the entropy of the image by adversarial training
     use_ground_intersection: True
-    use_dada: false
+    do_feat_fusion: false
     loss: gan # either "hinge" or "gan" loss
 # -------------------------
 # ----- Discriminator -----

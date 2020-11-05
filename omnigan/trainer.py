@@ -911,6 +911,10 @@ class Trainer:
 
             x = batch["data"]["x"]
             self.z = self.G.encode(x)
+
+            if "d" in self.opts.tasks and self.opts.gen.d.use_dada:
+                depth_prediction, z_depth = self.G.decoders["d"](self.z)
+                z_feat_fusion = self.z * z_depth
             # ---------------------------------
             # -----  classifier loss (1)  -----
             # ---------------------------------
@@ -933,47 +937,27 @@ class Trainer:
             # -----  task-specific regression losses (2)  -----
             # -------------------------------------------------
             for update_task, update_target in batch["data"].items():
-                if update_task == "d" and self.opts.gen.d.use_dada:
-                    continue
-                elif update_task not in {"m", "p", "x", "s"}:
-                    if update_task == "d":
-                        scaler = lambdas.G.d.main
+                if update_task == "d":
+                    if self.opts.gen.d.use_dada:
+                        scaler = lambdas.G.d.dada
                     else:
-                        scaler = lambdas.G[update_task]
+                        scaler = lambdas.G.d.main
 
-                    prediction = self.G.decoders[update_task](self.z)
                     update_loss = (
-                        self.losses["G"]["tasks"][update_task](
-                            prediction, update_target
-                        )
+                        self.losses["G"]["tasks"]["d"](depth_prediction, update_target)
                         * scaler
                     )
-
                     step_loss += update_loss
+
                     self.logger.losses.gen.task[update_task][
                         batch_domain
                     ] = update_loss.item()
                 elif update_task == "s":
                     if "d" in self.opts.tasks and self.opts.gen.d.use_dada:
-                        depth_prediction, z_depth = self.G.decoders["d"](self.z)
-                        z_feat_fusion = self.z * z_depth
                         prediction = self.G.decoders[update_task](z_feat_fusion)
-
-                        # Update depth loss
-                        update_loss = (
-                            self.losses["G"]["tasks"]["d"](
-                                depth_prediction, batch["data"]["d"]
-                            )
-                            * lambdas.G.d.dada
-                        )
-
-                        step_loss += update_loss
-                        self.logger.losses.gen.task["d"][
-                            batch_domain
-                        ] = update_loss.item()
                     else:
-                        depth_prediction = None
                         prediction = self.G.decoders[update_task](self.z)
+
                     # Supervised segmentation loss: crossent for sim domain,
                     # crossent_pseudo for real ; loss is crossent in any case
                     if batch_domain == "s" or self.opts.gen.s.use_pseudo_labels:
@@ -993,7 +977,6 @@ class Trainer:
                         self.logger.losses.gen.task["s"][loss_name][
                             batch_domain
                         ] = update_loss.item()
-
                     if batch_domain == "r":
                         # Entropy minimization loss
                         if self.opts.gen.s.use_minent:
@@ -1026,9 +1009,7 @@ class Trainer:
                                 batch_domain
                             ] = update_loss.item()
                 elif update_task == "m":
-                    if "d" in self.opts.tasks and self.opts.gen.m.use_dada:
-                        depth_prediction, z_depth = self.G.decoders["d"](self.z)
-                        z_feat_fusion = self.z * z_depth
+                    if "d" in self.opts.tasks and self.opts.gen.m.do_feat_fusion:
                         prediction = self.G.decoders[update_task](z_feat_fusion)
                     else:
                         prediction = self.G.decoders[update_task](self.z)
@@ -1105,6 +1086,21 @@ class Trainer:
                             self.logger.losses.gen.task["m"]["advent"][
                                 batch_domain
                             ] = update_loss.item()
+                elif update_task not in {"m", "p", "x", "s", "d"}:
+                    prediction = self.G.decoders[update_task](self.z)
+
+                    update_loss = (
+                        self.losses["G"]["tasks"][update_task](
+                            prediction, update_target
+                        )
+                        * lambdas.G[update_task]
+                    )
+
+                    step_loss += update_loss
+                    self.logger.losses.gen.task[update_task][
+                        batch_domain
+                    ] = update_loss.item()
+
         return step_loss
 
     def sample_z(self, batch_size):
