@@ -401,7 +401,6 @@ def get_losses(opts, verbose, device=None):
         losses["G"]["p"]["gan"] = (
             HingeLoss() if opts.gen.p.loss == "hinge" else GANLoss()
         )
-        losses["G"]["p"]["sm"] = PixelCrossEntropy()
         losses["G"]["p"]["dm"] = MSELoss()
         losses["G"]["p"]["vgg"] = VGGLoss(device)
         losses["G"]["p"]["tv"] = TVLoss()
