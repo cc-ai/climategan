@@ -149,6 +149,9 @@ class Trainer:
 
         if resolution not in {"approx", "exact"}:
             painted = self.G.painter(z_painter, masked_batch)
+            if self.opts.gen.p.paste_original_content:
+                painted = mask_batch * painted + masked_batch
+
             if resolution == "upsample":
                 painted = nn.functional.interpolate(
                     painted, size=image_batch.shape[-2:], mode="bilinear"
@@ -166,6 +169,8 @@ class Trainer:
             )
 
             painted = self.G.painter(z_painter, masked_batch)
+            if self.opts.gen.p.paste_original_content:
+                painted = mask_batch * painted + masked_batch
 
             self.G.painter.z_h = zh
             self.G.painter.z_w = zw
@@ -214,9 +219,7 @@ class Trainer:
         if new_exp:
             exp = Experiment(project_name="omnigan", **comet_kwargs)
             exp.log_asset_folder(
-                str(Path(__file__).parent),
-                recursive=True,
-                log_file_name=True,
+                str(Path(__file__).parent), recursive=True, log_file_name=True,
             )
             exp.log_parameters(flatten_opts(opts))
         else:
@@ -718,6 +721,9 @@ class Trainer:
 
                 z = self.sample_z(x.shape[0]) if not self.no_z else None
                 prediction = self.G.painter(z, x * (1.0 - m))
+                if self.opts.gen.p.paste_original_content:
+                    prediction = prediction * m + x * (1.0 - m)
+
                 image_outputs.append(x * (1.0 - m))
                 image_outputs.append(prediction)
                 image_outputs.append(x)
@@ -746,6 +752,9 @@ class Trainer:
             m = self.G.decoders["m"](self.G.encode(x))
 
             prediction = self.G.painter(z, x * (1.0 - m))
+            if self.opts.gen.p.paste_original_content:
+                prediction = prediction * m + x * (1.0 - m)
+
             image_outputs.append(x * (1.0 - m))
             image_outputs.append(prediction)
             image_outputs.append(x)
@@ -975,10 +984,11 @@ class Trainer:
                     if batch_domain == "r":
                         # Entropy minimization loss
                         if self.opts.gen.s.use_minent:
+                            softmax_preds = nn.functional.softmax(prediction, dim=1)
                             # Direct entropy minimization
                             update_loss = (
                                 self.losses["G"]["tasks"][update_task]["minent"](
-                                    prediction
+                                    softmax_preds
                                 )
                                 * lambdas.G[update_task]["minent"]
                             )
@@ -1112,6 +1122,8 @@ class Trainer:
         masked_x = x * (1.0 - m)
 
         fake_flooded = self.G.painter(z, masked_x)
+        if self.opts.gen.p.paste_original_content:
+            fake_flooded = masked_x + m * fake_flooded
 
         update_loss = (
             self.losses["G"]["p"]["vgg"](
@@ -1177,13 +1189,13 @@ class Trainer:
                 step_loss += update_loss
 
         else:
-            real_fake_d = self.D["p"](
-                torch.cat(
-                    [torch.cat([m, x], axis=1), torch.cat([m, fake_flooded], axis=1)],
-                    axis=0,
-                )
-            )
-            fake_d, real_d = divide_pred(real_fake_d)
+            fake_cat = torch.cat([m, fake_flooded], axis=1)
+            real_cat = torch.cat([m, x], axis=1)
+            fake_and_real = torch.cat([fake_cat, real_cat], dim=0)
+
+            fake_and_real_d = self.D["p"](fake_and_real)
+            fake_d, real_d = divide_pred(fake_and_real_d)
+
             update_loss = self.losses["G"]["p"]["gan"](fake_d, True, False)
             self.logger.losses.gen.p.gan = update_loss.item()
             step_loss += update_loss
@@ -1237,6 +1249,8 @@ class Trainer:
             masked_x = x * (1.0 - m)
 
             fake_flooded = self.G.painter(z, masked_x)
+            if self.opts.gen.p.paste_original_content:
+                fake_flooded = fake_flooded * m + masked_x
             # GAN Losses
             fake_d_global = self.D["p"]["global"](fake_flooded)
 
@@ -1313,6 +1327,8 @@ class Trainer:
                     # see spade compute_discriminator_loss
                     z_paint = self.sample_z(x.shape[0]) if not self.no_z else None
                     fake = self.G.painter(z_paint, x * (1.0 - m))
+                    if self.opts.gen.p.paste_original_content:
+                        fake = fake * m + x * (1.0 - m)
                     fake = fake.detach()
                     fake.requires_grad_()
 
@@ -1517,11 +1533,13 @@ class Trainer:
             self.eval_images("val", "r")
             self.eval_images("val", "s")
 
-        val_fid = compute_val_fid(self)
-        if self.exp is not None:
-            self.exp.log_metric("val_fid", val_fid, step=self.logger.global_step)
-        else:
-            print("Validation FID Score", val_fid)
+        if "p" in self.opts.tasks:
+            val_fid = compute_val_fid(self)
+            if self.exp is not None:
+                self.exp.log_metric("val_fid", val_fid, step=self.logger.global_step)
+            else:
+                print("Validation FID Score", val_fid)
+
         self.train_mode()
         timing = int(time() - start_time)
         print("****************** Done in {}s *********************".format(timing))

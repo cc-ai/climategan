@@ -229,28 +229,16 @@ if __name__ == "__main__":
 
     parser = ArgumentParser()
     parser.add_argument(
-        "-m",
-        "--masker_dir",
-        default="~/bucket/v1-weights/masker",
-        type=str,
+        "-m", "--masker_dir", default="~/bucket/v1-weights/masker", type=str,
     )
     parser.add_argument(
-        "-p",
-        "--painter_dir",
-        default="~/bucket/v1-weights/painter",
-        type=str,
+        "-p", "--painter_dir", default="~/bucket/v1-weights/painter", type=str,
     )
     parser.add_argument(
-        "-d",
-        "--inference_data_dir",
-        default="~/bucket/100postalcode",
-        type=str,
+        "-d", "--inference_data_dir", default="~/bucket/100postalcode", type=str,
     )
     parser.add_argument(
-        "-o",
-        "--output_dir",
-        default="~/outputs",
-        type=str,
+        "-o", "--output_dir", default="~/outputs", type=str,
     )
     parser.add_argument(
         "-c",

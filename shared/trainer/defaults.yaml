@@ -103,7 +103,7 @@ gen:
     num_classes: 11
     output_dim: 11
     use_advent: True
-    use_minent: False
+    use_minent: True
     use_pseudo_labels: False
     upsample_featuremaps: False # upsamples from 80x80 to 160x160 intermediate feature maps
   p: # specific params for the SPADE painter
@@ -117,6 +117,7 @@ gen:
     spade_n_up: 7 # number of upsampling layers in the translation decoder is equal to number of downsamplings in the encoder.  output's h and w are z's h and w x 2^spade_num_upsampling_layers | z:32 and spade_n_up:4 => output 512
     no_z: true # <=> use_vae=False in the SPADE repo
     use_final_shortcut: False # if true, the last spade block does not get the masked input as conditioning but the prediction of the previous layer (passed through a conv to match dims) in order to lighten the masking restrictions and have smoother edges
+    paste_original_content: False # only select the water painted to backprop through the network, not the whole generated image: fake_flooded = masked_x + m * fake_flooded
 
   m: # specific params for the mask-generation decoder
     <<: *default-gen
@@ -224,7 +225,7 @@ train:
         sm: 1 # semantic matching
         dm: 1 # depth matching
         tv: 5
-        vgg: 1
+        vgg: 10
         context: 12
         reconstruction: 20
         featmatch: 10
