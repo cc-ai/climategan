@@ -272,7 +272,8 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    print(args)
+    print("Received Arguments:")
+    print("\n".join(f"{k:20}: {v}" for k, v in vars(args).items()))
 
     # -----------------------
     # -----  Load opts  -----
