@@ -312,6 +312,7 @@ class OmniListDataset(Dataset):
 
         self.filter_samples()
         if opts.data.check_samples:
+            print(f"Checking samples ({mode}, {domain})")
             self.check_samples()
         self.file_list_path = str(file_list_path)
         self.transform = transform

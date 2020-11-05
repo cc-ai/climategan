@@ -18,12 +18,13 @@ def get_dis(opts, verbose, no_init=False):
 
     for task, model in disc.items():
         if isinstance(model, nn.ModuleDict):
-            for domain_model in model.values():
+            for domain, domain_model in model.items():
                 init_weights(
                     domain_model,
                     init_type=opts.dis[task].init_type,
                     init_gain=opts.dis[task].init_gain,
                     verbose=verbose,
+                    caller=f"get_dis {task} {domain}"
                 )
         else:
             init_weights(
@@ -31,6 +32,7 @@ def get_dis(opts, verbose, no_init=False):
                 init_type=opts.dis[task].init_type,
                 init_gain=opts.dis[task].init_gain,
                 verbose=verbose,
+                caller=f"get_dis {task}"
             )
     return disc
 
