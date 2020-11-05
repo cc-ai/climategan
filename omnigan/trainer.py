@@ -405,7 +405,7 @@ class Trainer:
         self.G: OmniGenerator = get_gen(self.opts, verbose=verbose, no_init=inference)
         print("Sending to", self.device)
         self.G = self.G.to(self.device)
-        print(f"Generator OK in {time() - __t:.1f}s.", end="", flush=True)
+        print(f"Generator OK in {time() - __t:.1f}s.")
 
         if self.input_shape is None:
             if inference:
@@ -418,8 +418,8 @@ class Trainer:
 
         if "s" in self.opts.tasks:
             self.G.decoders["s"].set_target_size(self.input_shape[-2:])
-
         print("OK.")
+
         self.G.painter.z_h = self.input_shape[-2] // (2 ** self.opts.gen.p.spade_n_up)
         self.G.painter.z_w = self.input_shape[-1] // (2 ** self.opts.gen.p.spade_n_up)
 

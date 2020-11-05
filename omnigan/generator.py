@@ -32,12 +32,13 @@ def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
     for model in G.decoders:
         net = G.decoders[model]
         if isinstance(net, nn.ModuleDict):
-            for domain_model in net.keys():
+            for domain, domain_model in net.items():
                 init_weights(
                     net[domain_model],
                     init_type=opts.gen[model].init_type,
                     init_gain=opts.gen[model].init_gain,
                     verbose=verbose,
+                    caller=f"get_gen decoder {model} {domain}"
                 )
         else:
             init_weights(
@@ -45,6 +46,7 @@ def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
                 init_type=opts.gen[model].init_type,
                 init_gain=opts.gen[model].init_gain,
                 verbose=verbose,
+                caller=f"get_gen decoder {model}"
             )
     if G.encoder is not None and opts.gen.encoder.architecture != "deeplabv2":
         init_weights(
@@ -52,6 +54,7 @@ def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
             init_type=opts.gen.encoder.init_type,
             init_gain=opts.gen.encoder.init_gain,
             verbose=verbose,
+            caller=f"get_gen encoder"
         )
     # Init painter weights
     init_weights(
@@ -59,6 +62,7 @@ def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
         init_type=opts.gen.p.init_type,
         init_gain=opts.gen.p.init_gain,
         verbose=verbose,
+        caller=f"get_gen painter"
     )
     return G
 
