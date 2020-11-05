@@ -9,6 +9,35 @@ from random import random as rand
 from torchvision import models
 
 
+class ReverseHuberLoss(nn.Module):
+    """ Defines the reverse Huber loss from DADA paper for depth prediction
+
+        - Samples with larger residuals are penalized more by l2 term 
+        - Samples with smaller residuals are penalized more by l1 term
+
+        source: https://github.com/valeoai/DADA
+    """
+
+    def init(self):
+        super.__init__()
+
+    def __call__(self, pred, label):
+        n, c, h, w = pred.size()
+        assert c == 1
+
+        pred = pred.squeeze()
+        label = label.squeeze().cuda(pred.device)
+
+        adiff = torch.abs(pred - label)
+        batch_max = 0.2 * torch.max(adiff).item()
+        t1_mask = adiff.le(batch_max).float()
+        t2_mask = adiff.gt(batch_max).float()
+        t1 = adiff * t1_mask
+        t2 = (adiff * adiff + batch_max * batch_max) / (2 * batch_max)
+        t2 = t2 * t2_mask
+        return (torch.sum(t1) + torch.sum(t2)) / torch.numel(pred.data)
+
+
 class GANLoss(nn.Module):
     def __init__(
         self,
@@ -414,7 +443,10 @@ def get_losses(opts, verbose, device=None):
     # ?   instead of noisy label
 
     if "d" in opts.tasks:
-        losses["G"]["tasks"]["d"] = SIGMLoss(opts.train.lambdas.G.d.gml)
+        if "sigm" in opts.gen.d.loss_name.lower():
+            losses["G"]["tasks"]["d"] = SIGMLoss(opts.train.lambdas.G.d.gml)
+        else:
+            losses["G"]["tasks"]["d"] = ReverseHuberLoss()
     if "s" in opts.tasks:
         losses["G"]["tasks"]["s"] = {}
         losses["G"]["tasks"]["s"]["crossent"] = CrossEntropy()
