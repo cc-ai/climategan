@@ -678,16 +678,7 @@ class Trainer:
         ):
             self.run_epoch()
             self.run_evaluation(verbose=1)
-
-            if self.logger.epoch % self.opts.train.save_n_epochs == 0:
-                self.save()
-            if (
-                self.logger.epoch >= self.opts.train.save_barrier
-                and (self.logger.epoch - self.opts.train.save_barrier)
-                % self.opts.train.save_frequency
-                == 0
-            ):
-                self.save(save_path_name="epoch_{}_ckpt.pth".format(self.logger.epoch))
+            self.saves()
 
     def get_g_loss(self, multi_domain_batch, verbose=0):
         m_loss = p_loss = None
@@ -1399,6 +1390,18 @@ class Trainer:
             save_dict["d_opt"] = self.d_opt.state_dict()
 
         torch.save(save_dict, save_path)
+
+    def saves(self):
+        if self.logger.epoch % self.opts.train.save_n_epochs == 0:
+            self.save()
+        if (
+            self.logger.epoch >= self.opts.train.min_save_epoch
+            and (self.logger.epoch - self.opts.train.min_save_epoch)
+            % self.opts.train.save_frequency
+            == 0
+        ):
+            self.save(save_path_name="epoch_{}_ckpt.pth".format(self.logger.epoch))
+        return
 
     def resume(self, inference=False):
         # load_path = self.get_latest_ckpt()
