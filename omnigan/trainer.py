@@ -957,7 +957,7 @@ class Trainer:
                     if "d" in self.opts.tasks and self.opts.gen.d.use_dada:
                         depth_prediction, z_depth = self.G.decoders["d"](self.z)
                         z_feat_fusion = self.z * z_depth
-                        prediction = self.G.decoders["s"](z_feat_fusion)
+                        prediction = self.G.decoders[update_task](z_feat_fusion)
 
                         # Update depth loss
                         update_loss = (
@@ -1026,8 +1026,13 @@ class Trainer:
                                 batch_domain
                             ] = update_loss.item()
                 elif update_task == "m":
-                    # ? output features classifier
-                    prediction = self.G.decoders["m"](self.z)
+                    if "d" in self.opts.tasks and self.opts.gen.m.use_dada:
+                        depth_prediction, z_depth = self.G.decoders["d"](self.z)
+                        z_feat_fusion = self.z * z_depth
+                        prediction = self.G.decoders[update_task](z_feat_fusion)
+                    else:
+                        prediction = self.G.decoders[update_task](self.z)
+
                     if batch_domain == "s":
 
                         # Main loss first:
@@ -1548,11 +1553,12 @@ class Trainer:
             self.eval_images("val", "r")
             self.eval_images("val", "s")
 
-        val_fid = compute_val_fid(self)
-        if self.exp is not None:
-            self.exp.log_metric("val_fid", val_fid, step=self.logger.global_step)
-        else:
-            print("Validation FID Score", val_fid)
+        if "p" in self.opts.tasks:
+            val_fid = compute_val_fid(self)
+            if self.exp is not None:
+                self.exp.log_metric("val_fid", val_fid, step=self.logger.global_step)
+            else:
+                print("Validation FID Score", val_fid)
         self.train_mode()
         timing = int(time() - start_time)
         print("****************** Done in {}s *********************".format(timing))

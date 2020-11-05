@@ -98,6 +98,7 @@ gen:
     output_dim: 1
     conv_norm: batch
     res_norm: batch
+    loss_name: sigm # choice between "sigm" or "berhu" (for reverse Huber loss)
     use_dada: false
   s: # specific params for the semantic segmentation decoder
     <<: *default-gen
@@ -126,6 +127,7 @@ gen:
     use_minent_var: True # add variance of entropy map in the measure of entropy for a certain picture
     use_advent: True # minimize the entropy of the image by adversarial training
     use_ground_intersection: True
+    use_dada: false
     loss: gan # either "hinge" or "gan" loss
 # -------------------------
 # ----- Discriminator -----
@@ -209,8 +211,8 @@ train:
   lambdas: # scaling factors in the total loss
     G:
       d:
-        main: 1
-        dada: 0.001
+        main: 1 # Main loss (sigm or berhu depending of loss_name)
+        dada: 0.001 # Scaler if DADA approach is used
         gml: 0.5
       s:
         crossent: 1
