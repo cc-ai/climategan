@@ -580,7 +580,8 @@ class Trainer:
         """
         assert self.is_setup
         self.train_mode()
-        self.exp.log_parameter("epoch", self.logger.epoch)
+        if self.exp is not None:
+            self.exp.log_parameter("epoch", self.logger.epoch)
         epoch_len = min(len(loader) for loader in self.loaders["train"].values())
         epoch_desc = "Epoch {}".format(self.logger.epoch)
         for multi_batch_tuple in tqdm(
