@@ -984,10 +984,11 @@ class Trainer:
                     if batch_domain == "r":
                         # Entropy minimization loss
                         if self.opts.gen.s.use_minent:
+                            softmax_preds = nn.functional.softmax(prediction, dim=1)
                             # Direct entropy minimization
                             update_loss = (
                                 self.losses["G"]["tasks"][update_task]["minent"](
-                                    prediction
+                                    softmax_preds
                                 )
                                 * lambdas.G[update_task]["minent"]
                             )
