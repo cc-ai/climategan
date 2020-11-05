@@ -678,7 +678,7 @@ class Trainer:
         ):
             self.run_epoch()
             self.run_evaluation(verbose=1)
-            self.saves()
+            self.save()
 
     def get_g_loss(self, multi_domain_batch, verbose=0):
         m_loss = p_loss = None
@@ -1370,8 +1370,7 @@ class Trainer:
     def save(self, save_path_name="latest_ckpt.pth"):
         save_dir = Path(self.opts.output_path) / Path("checkpoints")
         save_dir.mkdir(exist_ok=True)
-        save_path = Path(save_path_name)
-        save_path = save_dir / save_path
+        save_path = save_dir / save_path_name
 
         # Construct relevant state dicts / optims:
         # Save at least G
@@ -1389,19 +1388,13 @@ class Trainer:
             save_dict["D"] = self.D.state_dict()
             save_dict["d_opt"] = self.d_opt.state_dict()
 
-        torch.save(save_dict, save_path)
-
-    def saves(self):
-        if self.logger.epoch % self.opts.train.save_n_epochs == 0:
-            self.save()
         if (
             self.logger.epoch >= self.opts.train.min_save_epoch
-            and (self.logger.epoch - self.opts.train.min_save_epoch)
-            % self.opts.train.save_frequency
-            == 0
+            and self.logger.epoch % self.opts.train.save_n_epochs == 0
         ):
-            self.save(save_path_name="epoch_{}_ckpt.pth".format(self.logger.epoch))
-        return
+            torch.save(save_dict, save_dir / f"epoch_{self.logger.epoch}_ckpt.pth")
+
+        torch.save(save_dict, save_path)
 
     def resume(self, inference=False):
         # load_path = self.get_latest_ckpt()
