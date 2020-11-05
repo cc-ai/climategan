@@ -74,15 +74,6 @@ def get_norm_layer(norm_type="instance"):
     return norm_layer
 
 
-def init_net(net, init_type="normal", init_gain=0.02, gpu_ids=[]):
-    if len(gpu_ids) > 0:
-        assert torch.cuda.is_available()
-        net.to(gpu_ids[0])
-        net = torch.nn.DataParallel(net, gpu_ids)
-    init_weights(net, init_type=init_type, init_gain=init_gain)
-    return net
-
-
 # Defines the PatchGAN discriminator with the specified arguments.
 class NLayerDiscriminator(nn.Module):
     def __init__(
