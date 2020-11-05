@@ -652,6 +652,10 @@ class Trainer:
                 x = im_set["data"]["x"].unsqueeze(0).to(self.device)
                 self.z = self.G.encode(x)
 
+                if "d" in self.opts.tasks and self.opts.gen.d.use_dada:
+                    depth_prediction, z_depth = self.G.decoders["d"](self.z)
+                    z_feat_fusion = self.z * z_depth
+
                 for update_task, update_target in im_set["data"].items():
                     target = im_set["data"][update_task].unsqueeze(0).to(self.device)
                     task_saves = []
@@ -663,7 +667,10 @@ class Trainer:
                         save_images[update_task] = []
 
                     if update_task == "s":
-                        prediction = self.G.decoders[update_task](self.z)
+                        if "d" in self.opts.tasks and self.opts.gen.d.use_dada:
+                            prediction = self.G.decoders[update_task](z_feat_fusion)
+                        else:
+                            prediction = self.G.decoders[update_task](self.z)
                         target = (
                             decode_segmap_merged_labels(target, domain, True)
                             .float()
@@ -677,14 +684,17 @@ class Trainer:
                         task_saves.append(target)
 
                     elif update_task == "m":
-                        prediction = self.G.decoders[update_task](self.z)
+                        if "d" in self.opts.tasks and self.opts.gen.m.do_feat_fusion:
+                            prediction = self.G.decoders[update_task](z_feat_fusion)
+                        else:
+                            prediction = self.G.decoders[update_task](self.z)
                         prediction = prediction.repeat(1, 3, 1, 1)
                         task_saves.append(x * (1.0 - prediction))
                         task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
 
                     elif update_task == "d":
-                        if self.opts.gen.d.use_dada:
-                            prediction, _ = self.G.decoders[update_task](self.z)
+                        if not self.opts.gen.d.use_dada:
+                            prediction = depth_prediction
                         else:
                             prediction = self.G.decoders[update_task](self.z)
                         # prediction is a log depth tensor
@@ -915,6 +925,8 @@ class Trainer:
             if "d" in self.opts.tasks and self.opts.gen.d.use_dada:
                 depth_prediction, z_depth = self.G.decoders["d"](self.z)
                 z_feat_fusion = self.z * z_depth
+            else:
+                depth_prediction = None
             # ---------------------------------
             # -----  classifier loss (1)  -----
             # ---------------------------------
@@ -1372,11 +1384,19 @@ class Trainer:
 
             else:
                 z = self.G.encode(x)
+
+                if "d" in self.opts.tasks and self.opts.gen.d.use_dada:
+                    depth_prediction, z_depth = self.G.decoders["d"](self.z)
+                    z_feat_fusion = z * z_depth
+
                 if "m" in self.opts.tasks:
                     if self.opts.gen.m.use_advent:
                         if verbose > 0:
                             print("Now training the ADVENT discriminator!")
-                        fake_mask = self.G.decoders["m"](z)
+                        if "d" in self.opts.tasks and self.opts.gen.m.do_feat_fusion:
+                            fake_mask = self.G.decoders["m"](z_feat_fusion)
+                        else:
+                            fake_mask = self.G.decoders["m"](z)
                         fake_complementary_mask = 1 - fake_mask
                         prob = torch.cat([fake_mask, fake_complementary_mask], dim=1)
                         prob = prob.detach()
@@ -1411,13 +1431,12 @@ class Trainer:
                             raise NotImplementedError
                 if "s" in self.opts.tasks:
                     if self.opts.gen.s.use_advent:
-                        depth_prediction = None
                         if "d" in self.opts.tasks and self.opts.gen.d.use_dada:
-                            depth_prediction, z_depth = self.G.decoders["d"](self.z)
-                            depth_prediction = depth_prediction.detach()
-                            z_feat_fusion = self.z * z_depth
+                            depth_preds = depth_prediction
+                            depth_preds.detach()
                             preds = self.G.decoders["s"](z_feat_fusion)
                         else:
+                            depth_preds = None
                             preds = self.G.decoders["s"](z)
                         preds = preds.detach()
 
@@ -1425,7 +1444,7 @@ class Trainer:
                             preds.to(self.device),
                             self.domain_labels[batch_domain],
                             self.D["s"]["Advent"],
-                            depth_prediction,
+                            depth_preds,
                         )
 
                         if self.opts.dis.s.gan_type == "GAN" or "WGAN_norm":
