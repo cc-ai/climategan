@@ -364,6 +364,6 @@ if __name__ == "__main__":
             n_iter=n_iter,
         )
         print()
-        with open(output_dir / f"omnigan_metrics_bs{bs}_lim{limit}.txt", "w") as f:
+        with open(output_dir / f"omnigan_xla_metrics_bs{bs}_lim{limit}.txt", "w") as f:
             report = met.metrics_report()
             print(report, file=f)
