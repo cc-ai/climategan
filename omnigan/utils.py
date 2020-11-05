@@ -559,7 +559,8 @@ def get_display_indices(opts: Dict, domain: str, length: int) -> list:
     """
     if domain == "rf":
         dsize = max([opts.comet.display_size, opts.train.fid.get("n_images", 0)])
-    dsize = opts.comet.display_size
+    else:
+        dsize = opts.comet.display_size
     display_indices = []
     assert isinstance(dsize, (int, list)), "Unknown display size {}".format(dsize)
     if isinstance(dsize, int):
