@@ -353,24 +353,35 @@ class Trainer:
         return shape
 
     def print_num_parameters(self):
-        print("---------------------------")
+        print("-" * 35)
         if self.G.encoder is not None:
-            print("num params encoder: ", get_num_params(self.G.encoder))
+            print(
+                "{:21}:".format("num params encoder"),
+                f"{get_num_params(self.G.encoder):12,}",
+            )
         for d in self.G.decoders.keys():
             print(
-                "num params decoder {}: {}".format(
-                    d, get_num_params(self.G.decoders[d])
-                )
+                "{:21}:".format(f"num params decoder {d}"),
+                f"{get_num_params(self.G.decoders[d]):12,}",
             )
-        print("num params painter: ", get_num_params(self.G.painter))
+
+        print(
+            "{:21}:".format("num params painter"),
+            f"{get_num_params(self.G.painter):12,}",
+        )
 
         if self.D is not None:
             for d in self.D.keys():
-                print("num params discrim {}: {}".format(d, get_num_params(self.D[d])))
+                print(
+                    "{:21}:".format(f"num params discrim {d}"),
+                    f"{get_num_params(self.D[d]):12,}",
+                )
 
         if self.C is not None:
-            print("num params classif: ", get_num_params(self.C))
-        print("---------------------------")
+            print(
+                "{:21}:".format("num params classif"), f"{get_num_params(self.C):12,}"
+            )
+        print("-" * 35)
 
     def setup(self, inference=False):
         """Prepare the trainer before it can be used to train the models:
@@ -434,7 +445,7 @@ class Trainer:
             self.C = get_classifier(self.opts, self.latent_shape, verbose=verbose).to(
                 self.device
             )
-        print("Classifier OK.")
+            print("Classifier OK.")
 
         self.print_num_parameters()
 
@@ -477,13 +488,18 @@ class Trainer:
         # ----------------------------
         # -----  Display images  -----
         # ----------------------------
-        print("Creating display images...", end="", flush=True)
         self.display_images = {}
         for mode, mode_dict in self.loaders.items():
             self.display_images[mode] = {}
             for domain, domain_loader in mode_dict.items():
                 dataset = self.loaders[mode][domain].dataset
                 display_indices = get_display_indices(self.opts, domain, len(dataset))
+                ldis = len(display_indices)
+                print(
+                    f"Creating {ldis} {mode} {domain} display images...",
+                    end="\r",
+                    flush=True,
+                )
                 self.display_images[mode][domain] = [
                     Dict(dataset[i]) for i in display_indices if i < len(dataset)
                 ]
@@ -493,7 +509,8 @@ class Trainer:
                             "display_image_{}_{}_{}".format(mode, domain, im_id),
                             d["paths"],
                         )
-
+        print(" " * 50, end="\r")
+        print("Done creating display images")
         print("Setup done.")
         self.is_setup = True
 
