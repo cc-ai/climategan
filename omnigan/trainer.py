@@ -90,7 +90,7 @@ class Trainer:
         self.lr_names = {}
         self.no_z = self.opts.gen.p.no_z
         self.real_val_fid_stats = None
-
+        self.end_to_end = False
         self.is_setup = False
         self.current_mode = "train"
 
@@ -977,27 +977,26 @@ class Trainer:
             # -----  task-specific regression losses (2)  -----
             # -------------------------------------------------
             for update_task, update_target in batch["data"].items():
-                if update_task not in {"m", "p", "x", "s"}:
+                if update_task == "d":
+                    # -------------------
+                    # -----  Depth  -----
+                    # -------------------
+                    prediction = self.G.decoders["d"](self.z)
 
-                    if update_task == "d":
-                        scaler = lambdas.G.d.main
-                    else:
-                        scaler = lambdas.G[update_task]
-
-                    prediction = self.G.decoders[update_task](self.z)
-                    update_loss = (
-                        self.losses["G"]["tasks"][update_task](
-                            prediction, update_target
-                        )
-                        * scaler
+                    update_loss = self.losses["G"]["tasks"]["d"](
+                        prediction, update_target
                     )
-
+                    update_loss *= lambdas.G.d.main
                     step_loss += update_loss
-                    self.logger.losses.gen.task[update_task][
-                        batch_domain
-                    ] = update_loss.item()
+
+                    self.logger.losses.gen.task["d"][batch_domain] = update_loss.item()
+
                 elif update_task == "s":
-                    prediction = self.G.decoders[update_task](self.z)
+                    # --------------------------
+                    # -----  Segmentation  -----
+                    # --------------------------
+                    prediction = self.G.decoders["s"](self.z)
+
                     # Supervised segmentation loss: crossent for sim domain,
                     # crossent_pseudo for real ; loss is crossent in any case
                     if batch_domain == "s" or self.opts.gen.s.use_pseudo_labels:
@@ -1006,12 +1005,10 @@ class Trainer:
                         else:
                             loss_name = "crossent_pseudo"
 
-                        update_loss = (
-                            self.losses["G"]["tasks"]["s"]["crossent"](
-                                prediction, update_target.squeeze(1)
-                            )
-                            * lambdas.G["s"][loss_name]
+                        update_loss = self.losses["G"]["tasks"]["s"]["crossent"](
+                            prediction, update_target.squeeze(1)
                         )
+                        update_loss *= lambdas.G["s"][loss_name]
                         step_loss += update_loss
 
                         self.logger.losses.gen.task["s"][loss_name][
@@ -1022,56 +1019,50 @@ class Trainer:
                         # Entropy minimization loss
                         if self.opts.gen.s.use_minent:
                             softmax_preds = nn.functional.softmax(prediction, dim=1)
+
                             # Direct entropy minimization
-                            update_loss = (
-                                self.losses["G"]["tasks"][update_task]["minent"](
-                                    softmax_preds
-                                )
-                                * lambdas.G[update_task]["minent"]
+                            update_loss = self.losses["G"]["tasks"]["s"]["minent"](
+                                softmax_preds
                             )
+                            update_loss *= lambdas.G["s"]["minent"]
                             step_loss += update_loss
 
-                            self.logger.losses.gen.task[update_task]["minent"][
-                                batch_domain
+                            self.logger.losses.gen.task["s"]["minent"][
+                                "r"
                             ] = update_loss.item()
 
                         # Fool ADVENT discriminator
                         if self.opts.gen.s.use_advent:
-                            update_loss = (
-                                self.losses["G"]["tasks"][update_task]["advent"](
-                                    prediction,
-                                    self.domain_labels["s"],
-                                    self.D["s"]["Advent"],
-                                )
-                                * lambdas.G[update_task]["advent"]
+                            update_loss = self.losses["G"]["tasks"]["s"]["advent"](
+                                prediction,
+                                self.domain_labels["s"],
+                                self.D["s"]["Advent"],
                             )
+                            update_loss *= lambdas.G["s"]["advent"]
                             step_loss += update_loss
+
                             self.logger.losses.gen.task[update_task]["advent"][
                                 batch_domain
                             ] = update_loss.item()
+
                 elif update_task == "m":
                     # ? output features classifier
                     prediction = self.G.decoders["m"](self.z)
                     if batch_domain == "s":
 
                         # Main loss first:
-                        update_loss = (
-                            self.losses["G"]["tasks"]["m"]["bce"](
-                                prediction, update_target
-                            )
-                            * lambdas.G.m.bce
+                        update_loss = self.losses["G"]["tasks"]["m"]["bce"](
+                            prediction, update_target
                         )
+                        update_loss *= lambdas.G.m.bce
                         step_loss += update_loss
-
                         self.logger.losses.gen.task["m"]["bce"][
                             "s"
                         ] = update_loss.item()
 
                     # Then TV loss
-                    update_loss = (
-                        self.losses["G"]["tasks"]["m"]["tv"](prediction)
-                        * self.opts.train.lambdas.G.m.tv
-                    )
+                    update_loss = self.losses["G"]["tasks"]["m"]["tv"](prediction)
+                    update_loss *= lambdas.G.m.tv
                     step_loss += update_loss
 
                     self.logger.losses.gen.task["m"]["tv"][
@@ -1083,28 +1074,29 @@ class Trainer:
                         if self.opts.gen.m.use_ground_intersection:
                             if self.verbose > 0:
                                 print("Using GroundIntersection loss.")
-                            update_loss = (
-                                self.losses["G"]["tasks"][update_task]["gi"](
-                                    prediction, update_target
-                                )
-                                * lambdas.G[update_task]["gi"]
+                            update_loss = self.losses["G"]["tasks"]["m"]["gi"](
+                                prediction, update_target
                             )
+                            update_loss *= lambdas.G["m"]["gi"]
                             step_loss += update_loss
-                            self.logger.losses.gen.task[update_task]["gi"][
-                                batch_domain
+                            self.logger.losses.gen.task["m"]["gi"][
+                                "r"
                             ] = update_loss.item()
 
-                    if batch_domain == "r":
+                        if self.end_to_end:
+                            pl4m_loss = self.get_painter_loss_for_masker(prediction)
+                            pl4m_loss *= lambdas.G.m.pl4m
+                            step_loss += pl4m_loss
+                            self.logger.losses.gen.task.m.pl4m.r = pl4m_loss.item()
+
                         pred_complementary = 1 - prediction
                         prob = torch.cat([prediction, pred_complementary], dim=1)
                         if self.opts.gen.m.use_minent:
                             # Then Minent loss
-                            update_loss = (
-                                self.losses["G"]["tasks"]["m"]["minent"](
-                                    prob.to(self.device)
-                                )
-                                * self.opts.train.lambdas.advent.ent_main
+                            update_loss = self.losses["G"]["tasks"]["m"]["minent"](
+                                prob.to(self.device)
                             )
+                            update_loss *= self.opts.train.lambdas.advent.ent_main
                             step_loss += update_loss
                             self.logger.losses.gen.task["m"]["minent"][
                                 "r"
@@ -1112,19 +1104,54 @@ class Trainer:
 
                         if self.opts.gen.m.use_advent:
                             # Then Advent loss
-                            update_loss = (
-                                self.losses["G"]["tasks"]["m"]["advent"](
-                                    prob.to(self.device),
-                                    self.domain_labels["s"],
-                                    self.D["m"]["Advent"],
-                                )
-                                * self.opts.train.lambdas.advent.adv_main
+                            update_loss = self.losses["G"]["tasks"]["m"]["advent"](
+                                prob.to(self.device),
+                                self.domain_labels["s"],
+                                self.D["m"]["Advent"],
                             )
+                            update_loss *= self.opts.train.lambdas.advent.adv_main
                             step_loss += update_loss
                             self.logger.losses.gen.task["m"]["advent"][
                                 batch_domain
                             ] = update_loss.item()
         return step_loss
+
+    def get_painter_loss_for_masker(self, x, m):
+        # pl4m loss
+        # painter should not be updated
+        for param in self.G.painter.parameters():
+            param.requires_grad = False
+
+        z = self.sample_z(x.shape[0]) if not self.no_z else None
+        masked_x = x * (1.0 - m)
+        fake_flooded = self.G.painter(z, masked_x)
+        if self.opts.gen.p.paste_original_content:
+            fake_flooded = masked_x + m * fake_flooded
+
+        if self.opts.dis.p.use_local_discriminator:
+            fake_d_global = self.D["p"]["global"](fake_flooded)
+            fake_d_local = self.D["p"]["local"](fake_flooded * m)
+
+            # Note: discriminator returns [out_1,...,out_num_D] outputs
+            # Each out_i is a list [feat1, feat2, ..., pred_i]
+
+            pl4m_loss = self.losses["G"]["p"]["gan"](fake_d_global, True, False)
+            pl4m_loss += self.losses["G"]["p"]["gan"](fake_d_local, True, False)
+        else:
+            fake_cat = torch.cat([m, fake_flooded], axis=1)
+            real_cat = torch.cat([m, x], axis=1)
+            fake_and_real = torch.cat([fake_cat, real_cat], dim=0)
+
+            fake_and_real_d = self.D["p"](fake_and_real)
+            fake_d, _ = divide_pred(fake_and_real_d)
+
+            pl4m_loss = self.losses["G"]["p"]["gan"](fake_d, True, False)
+
+        if "p" in self.opts.tasks:
+            for param in self.G.painter.parameters():
+                param.requires_grad = True
+
+        return pl4m_loss
 
     def sample_z(self, batch_size):
         return torch.empty(
@@ -1278,9 +1305,8 @@ class Trainer:
             x = batch["data"]["x"]
             self.z = self.G.encode(x)
 
-            update_task = "m"
             # Get mask from masker
-            m = self.G.decoders[update_task](self.z)
+            m = self.G.decoders["m"](self.z)
 
             z = self.sample_z(x.shape[0]) if not self.no_z else None
             masked_x = x * (1.0 - m)

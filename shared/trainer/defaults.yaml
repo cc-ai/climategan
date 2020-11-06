@@ -221,6 +221,7 @@ train:
         bce: 1 # Main prediction loss, i.e. GAN or BCE
         tv: 1 # Total variational loss (for smoothing)
         gi: 0.05
+        pl4m: 0.1 # painter loss for the masker (end-to-end)
       p:
         gan: 1 # gan loss
         dm: 1 # depth matching
