@@ -877,6 +877,7 @@ class Trainer:
 
         if "m" in self.opts.tasks and "p" in self.opts.tasks:
             mp_loss = self.get_combined_loss(multi_domain_batch)
+            self.logger.losses.gen.combined = mp_loss.item()
             g_loss += mp_loss
 
         assert g_loss != 0 and not isinstance(g_loss, int), "No update in get_g_loss!"
