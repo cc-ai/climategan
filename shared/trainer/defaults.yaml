@@ -241,9 +241,8 @@ train:
       dis_aux: 0.0 # the discriminator take care of the second output in the adversarial training
       WGAN_gp: 10 # used in WGAN_gp, it's the hyperparameters for the gradient penalty
   log_level: 2 # 0: no log, 1: only aggregated losses, >1 detailed losses
-  save_n_epochs: 1 # Save model every n epochs
-  min_save_epoch: 28 # Save extra intermediate checkpoints when epoch > min_save_epoch and (epoch - min_save_epoch) % save_frequency = 0
-  save_frequency: 2
+  save_n_epochs: 2 # Save `latest_ckpt.pth` every epoch, `epoch_{epoch}_ckpt.pth` model every n epochs if epoch >= min_save_epoch
+  min_save_epoch: 28 # Save extra intermediate checkpoints when epoch > min_save_epoch
   resume: false # Load latest_ckpt.pth checkpoint from `output_path` #TODO Make this path of checkpoint to load
   auto_resume: true # automatically looks for similar output paths and exact same jobID to resume training automatically even if resume is false.
   resume_by_pth_path: false # True if you want the output_path is the exact path for the pth model file. Should be set to True when you don't want load the latest_ckpt.pth
