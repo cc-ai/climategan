@@ -202,6 +202,7 @@ classifier:
 # ------------------------
 train:
   epochs: 300
+  end_to_end_epoch: 50
   fid:
     n_images: 57 # val_rf.json has 57 images
     batch_size: 50 # inception inference batch size, not painter's

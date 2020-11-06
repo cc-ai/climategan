@@ -871,6 +871,9 @@ class Trainer:
             if self.logger.epoch % self.opts.train.save_n_epochs == 0:
                 self.save()
 
+            if self.logger.epoch == self.opts.train.end_to_end_epoch:
+                self.end_to_end = True
+
     def get_g_loss(self, multi_domain_batch, verbose=0):
         m_loss = p_loss = None
 
