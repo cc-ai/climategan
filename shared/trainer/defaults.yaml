@@ -1,9 +1,17 @@
 output_path: /network/tmp1/schmidtv/yb_runs/test_v1
-load_paths: # provide both load_paths to .pth files if using p and m.
-# If you only resume m or p and none of those is provided, it will look for checkpoints in output_path/checkpoints/latest_ckpt.pth
-# If you want to resume both m and p from a single end-to-end checkpoint, just use the same path twice
-  p: none # none if using output_path
-  m: none # none if using output_path
+# README on load_path
+# 1/ any path which leads to a dir will be loaded as `path / checkpoints / latest_ckpt.pth`
+# 2/ if you want to specify a specific checkpoint, it MUST be a `.pth` file
+# 3/ resuming a P OR an M model, you may only specify 1 of `load_path.p` OR `load_path.m`.
+#    You may also leave BOTH at none, in which case `output_path / checkpoints / latest_ckpt.pth`
+#    will be used
+# 4/ resuming a P+M model, you may specify (`p` AND `m`) OR `pm` OR leave all at none,
+#    in which case `output_path / checkpoints / latest_ckpt.pth` will be used to load from
+#    a single checkpoint
+load_paths:
+  p: none # Painter weights: none will use `output_path / checkpoints / latest_ckpt.pth`
+  m: none # Masker weights: none will use `output_path / checkpoints / latest_ckpt.pth`
+  pm: none # Painter and Masker weights: none will use `output_path / checkpoints / latest_ckpt.pth`
 
 # -------------------
 # -----  Tasks  -----
