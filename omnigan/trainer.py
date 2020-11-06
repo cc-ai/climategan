@@ -1415,8 +1415,12 @@ class Trainer:
                 p_path = self.opts.output_path
 
             # Merge the dicts
-            m_ckpt_path = Path(m_path) / Path("checkpoints/latest_ckpt.pth")
-            p_ckpt_path = Path(p_path) / Path("checkpoints/latest_ckpt.pth")
+            if self.opts.train.resume_by_pth_path:
+                m_ckpt_path = Path(m_path)
+                p_ckpt_path = Path(p_path)
+            else:
+                m_ckpt_path = Path(m_path) / Path("checkpoints/latest_ckpt.pth")
+                p_ckpt_path = Path(p_path) / Path("checkpoints/latest_ckpt.pth")
 
             m_checkpoint = torch.load(
                 m_ckpt_path, map_location=self.device if not tpu else "cpu"
@@ -1432,9 +1436,12 @@ class Trainer:
         # -----  Single Model Loading  -----
         # ----------------------------------
         else:
-            load_path = Path(self.opts.output_path) / Path(
-                "checkpoints/latest_ckpt.pth"
-            )
+            if self.opts.train.resume_by_pth_path:
+                load_path = Path(self.opts.output_path)
+            else:
+                load_path = Path(self.opts.output_path) / Path(
+                    "checkpoints/latest_ckpt.pth"
+                )
             checkpoint = torch.load(
                 load_path, map_location=self.device if not tpu else "cpu"
             )
