@@ -9,6 +9,41 @@ import omnigan.strings as strings
 # TODO: Organise file
 
 
+class InterpolateNearest2d(nn.Module):
+    """
+    Custom implementation of nn.Upsample because pytroch/xla
+    does not yet support scale_factor and needs to be provided with
+    the output_size
+    """
+
+    def __init__(self, scale_factor=2):
+        """
+        Create an InterpolateNearest2d module
+
+        Args:
+            scale_factor (int, optional): Output size multiplier. Defaults to 2.
+        """
+        super().__init__()
+        self.scale_factor = scale_factor
+
+    def forward(self, x):
+        """
+        Interpolate x in "nearest" mode on its last 2 dimensions
+
+        Args:
+            x (torch.Tensor): input to interpolate
+
+        Returns:
+            torch.Tensor: upsampled tensor with shape
+                (...x.shape, x.shape[-2] * scale_factor, x.shape[-1] * scale_factor)
+        """
+        return nn.functional.interpolate(
+            x,
+            size=(x.shape[-2] * self.scale_factor, x.shape[-1] * self.scale_factor),
+            mode="nearest",
+        )
+
+
 # -----------------------------------------
 # -----  Generic Convolutional Block  -----
 # -----------------------------------------
@@ -258,7 +293,7 @@ class BaseDecoder(nn.Module):
         # upsampling blocks
         for i in range(n_upsample):
             self.model += [
-                nn.Upsample(scale_factor=2),
+                InterpolateNearest2d(scale_factor=2),
                 Conv2dBlock(
                     dim,
                     dim // 2,
@@ -402,7 +437,7 @@ class SPADEResnetBlock(nn.Module):
         return strings.spaderesblock(self)
 
 
-class SpadeDecoder(nn.Module):
+class PainterSpadeDecoder(nn.Module):
     def __init__(self, opts):
         """Create a SPADE-based decoder, which forwards z and the conditioning
         tensors seg (in the original paper, conditioning is on a semantic map only).
@@ -485,10 +520,19 @@ class SpadeDecoder(nn.Module):
             spade_param_free_norm,
             spade_kernel_size,
         )
+        self.final_shortcut = None
+        if opts.gen.p.use_final_shortcut:
+            self.final_shortcut = nn.Sequential(
+                *[
+                    SpectralNorm(nn.Conv2d(self.final_nc, 3, 1)),
+                    nn.BatchNorm2d(3),
+                    nn.LeakyReLU(0.2, True),
+                ]
+            )
 
         self.conv_img = nn.Conv2d(self.final_nc, 3, 3, padding=1)
 
-        self.upsample = nn.Upsample(scale_factor=2)
+        self.upsample = InterpolateNearest2d(scale_factor=2)
 
     def _apply(self, fn):
         # print("Applying SpadeDecoder", fn)
@@ -515,6 +559,8 @@ class SpadeDecoder(nn.Module):
             y = self.upsample(y)
             y = up(y, cond)
 
+        if self.final_shortcut is not None:
+            cond = self.final_shortcut(y)
         y = self.final_spade(y, cond)
         y = self.conv_img(F.leaky_relu(y, 2e-1))
         y = torch.tanh(y)

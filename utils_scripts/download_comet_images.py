@@ -13,8 +13,8 @@ def parse_tags(tags_str):
     keep_tags = set()
     remove_tags = set()
     for t in all_tags:
-        if "!" in t:
-            remove_tags.add(t.replace("!", ""))
+        if "!" in t or "~" in t:
+            remove_tags.add(t[1:])
         else:
             keep_tags.add(t)
     return all_tags, keep_tags, remove_tags
@@ -155,18 +155,33 @@ if __name__ == "__main__":
         help="dry run: no mkdir, no download",
     )
     parser.add_argument(
-        "-p" "--post_processings",
+        "-p",
+        "--post_processings",
         default="",
         type=str,
         help="comma separated string list of post processing functions to apply",
     )
+    parser.add_argument(
+        "-r",
+        "--running",
+        default=False,
+        action="store_true",
+        help="only select running exps",
+    )
     args = parser.parse_args()
+    print(args)
 
     # -------------------------------------
     # -----  Create post processings  -----
     # -------------------------------------
 
     POST_PROCESSINGS = {"select_lambdas": select_lambdas}
+    post_processes = list(
+        filter(
+            lambda p: p is not None,
+            [POST_PROCESSINGS.get(k.strip()) for k in args.post_processings.split(",")],
+        )
+    )
 
     # ------------------------------------------------------
     # -----  Create Download Dir from download_dir or  -----
@@ -207,12 +222,18 @@ if __name__ == "__main__":
             project_name=conf.get("comet.project_name") or "omnigan",
         )
         exps = list(filter(lambda e: has_right_tags(e, keep_tags, remove_tags), exps))
+        if args.running:
+            exps = [e for e in exps if e.alive]
 
     # -------------------------
     # -----  Print setup  -----
     # -------------------------
 
-    print("Processing {} experiments in {}".format(len(exps), str(download_dir)))
+    print(
+        "Processing {} experiments in {} with post processes {}".format(
+            len(exps), str(download_dir), post_processes
+        )
+    )
     assert all(
         [v == 1 for v in Counter([e.id[: args.id_length] for e in exps]).values()]
     ), "Experiment ID conflict, use a larger --id_length"
@@ -274,5 +295,7 @@ if __name__ == "__main__":
                 )
                 if not args.dev:
                     os.system(
-                        im["curlDownload"] + "{}_{}.png".format(cropped_id, curr_step)
+                        im["curlDownload"] + "_{}_{}.png".format(cropped_id, curr_step)
                     )
+        for p in post_processes:
+            p(locals())

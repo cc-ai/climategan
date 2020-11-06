@@ -27,9 +27,7 @@ data:
   loaders:
     batch_size: 6
     num_workers: 8
-  normalization:
-    default # can be "default" or "HRNet" for now.
-    # default: mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]; HRNet: mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+  normalization: default # can be "default" or "HRNet" for now. # default: mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]; HRNet: mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
   transforms:
     - name: hflip
       ignore: false
@@ -105,7 +103,7 @@ gen:
     num_classes: 11
     output_dim: 11
     use_advent: True
-    use_minent: False
+    use_minent: True
     use_pseudo_labels: False
     upsample_featuremaps: False # upsamples from 80x80 to 160x160 intermediate feature maps
   p: # specific params for the SPADE painter
@@ -118,6 +116,8 @@ gen:
     spade_use_spectral_norm: true
     spade_n_up: 7 # number of upsampling layers in the translation decoder is equal to number of downsamplings in the encoder.  output's h and w are z's h and w x 2^spade_num_upsampling_layers | z:32 and spade_n_up:4 => output 512
     no_z: true # <=> use_vae=False in the SPADE repo
+    use_final_shortcut: False # if true, the last spade block does not get the masked input as conditioning but the prediction of the previous layer (passed through a conv to match dims) in order to lighten the masking restrictions and have smoother edges
+    paste_original_content: False # only select the water painted to backprop through the network, not the whole generated image: fake_flooded = masked_x + m * fake_flooded
 
   m: # specific params for the mask-generation decoder
     <<: *default-gen
@@ -126,6 +126,7 @@ gen:
     use_minent_var: True # add variance of entropy map in the measure of entropy for a certain picture
     use_advent: True # minimize the entropy of the image by adversarial training
     use_ground_intersection: True
+    loss: gan # either "hinge" or "gan" loss
 # -------------------------
 # ----- Discriminator -----
 # -------------------------
@@ -173,6 +174,7 @@ dis:
     wgan_clamp_lower: -0.01 # used in WGAN, WGAN clap the params in dis to [wgan_clamp_lower, wgan_clamp_upper] for every updation
     wgan_clamp_upper: 0.01 # used in WGAN
   s:
+    <<: *default-dis
     gan_type: WGAN_norm # can be [GAN | WGAN | WGAN_gp | WGAN_norm]
     wgan_clamp_lower: -0.01 # used in WGAN, WGAN clap the params in dis to [wgan_clamp_lower, wgan_clamp_upper] for every updation
     wgan_clamp_upper: 0.01 # used in WGAN
@@ -183,7 +185,8 @@ classifier:
   opt:
     optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
     beta1: 0.5
-    lr: 0.0005
+    lr:
+      default: 0.0005
     lr_policy: step # constant or step ; if step, specify step_size and gamma
     lr_step_size: 30 # for linear decay
     lr_gamma: 0.5
@@ -199,6 +202,10 @@ classifier:
 # ------------------------
 train:
   epochs: 300
+  fid:
+    n_images: 57 # val_rf.json has 57 images
+    batch_size: 50 # inception inference batch size, not painter's
+    dims: 2048 # what Inception bock to compute the stats from (see BLOCK_INDEX_BY_DIM in fid.py)
   latent_domain_adaptation: False # whether or not to do domain adaptation on the latent vectors # Needs to be turned off if use_advent is True
   lambdas: # scaling factors in the total loss
     G:
@@ -216,12 +223,11 @@ train:
         gi: 0.05
       p:
         gan: 1 # gan loss
-        sm: 1 # semantic matching
         dm: 1 # depth matching
-        tv: 500
-        vgg: 1
-        context: 12
-        reconstruction: 12
+        tv: 0
+        vgg: 10
+        context: 5
+        reconstruction: 5
         featmatch: 10
       classifier: 1
     C: 1

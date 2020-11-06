@@ -62,13 +62,24 @@ class GANLoss(nn.Module):
             target_tensor = self.fake_label + soft_change
         return target_tensor.expand_as(input)
 
-    def __call__(self, input, target_is_real):
-        if rand() < self.flip_prob:
-            target_is_real = not target_is_real
-            if self.verbose > 0:
-                print("GANLoss: flipping label")
-        target_tensor = self.get_target_tensor(input, target_is_real)
-        return self.loss(input, target_tensor.to(input.device))
+    def __call__(self, input, target_is_real, *args, **kwargs):
+        r = rand()
+        if isinstance(input, list):
+            loss = 0
+            for pred_i in input:
+                if isinstance(pred_i, list):
+                    pred_i = pred_i[-1]
+                if r < self.flip_prob:
+                    target_is_real = not target_is_real
+                target_tensor = self.get_target_tensor(pred_i, target_is_real)
+                loss_tensor = self.loss(pred_i, target_tensor.to(pred_i.device))
+                loss += loss_tensor
+            return loss / len(input)
+        else:
+            if r < self.flip_prob:
+                target_is_real = not target_is_real
+            target_tensor = self.get_target_tensor(input, target_is_real)
+            return self.loss(input, target_tensor.to(input.device))
 
 
 class FeatMatchLoss(nn.Module):
@@ -387,8 +398,9 @@ def get_losses(opts, verbose, device=None):
     # ------------------------------
     # painter losses
     if "p" in opts.tasks:
-        losses["G"]["p"]["hinge"] = HingeLoss()
-        losses["G"]["p"]["sm"] = PixelCrossEntropy()
+        losses["G"]["p"]["gan"] = (
+            HingeLoss() if opts.gen.p.loss == "hinge" else GANLoss()
+        )
         losses["G"]["p"]["dm"] = MSELoss()
         losses["G"]["p"]["vgg"] = VGGLoss(device)
         losses["G"]["p"]["tv"] = TVLoss()
@@ -463,7 +475,7 @@ def prob_2_entropy(prob):
 
 class CustomBCELoss(nn.Module):
     """
-        The first argument is a tensor and the second arguement is an int.
+        The first argument is a tensor and the second argument is an int.
         There is no need to take sigmoid before calling this function.
     """
 
