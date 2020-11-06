@@ -1604,14 +1604,16 @@ class Trainer:
 
         if "m" in self.opts.tasks and "p" in self.opts.tasks:
 
-            assert all(
-                [
-                    p.exists() and p.is_file() and p.suffix == ".pth"
-                    for p in [m_path, p_path]
-                ]
-            ), f"One of {m_path} or {p_path} does not exist or is not a .pth checkpoint"
-
             if m_path != p_path:
+                assert all(
+                    [
+                        p.exists() and p.is_file() and p.suffix == ".pth"
+                        for p in [m_path, p_path]
+                    ]
+                ), "One of {} or {} does not exist or is not a .pth checkpoint".format(
+                    m_path, p_path
+                )
+
                 m_checkpoint = torch.load(
                     m_path, map_location=self.device if not tpu else "cpu"
                 )
@@ -1620,6 +1622,8 @@ class Trainer:
                 )
                 checkpoint = merge(m_checkpoint, p_checkpoint)
             else:
+                if m_path.is_dir():
+                    m_path = m_path / "checkpoints/latest_ckpt.pth"
                 checkpoint = torch.load(
                     m_path, map_location=self.device if not tpu else "cpu"
                 )
