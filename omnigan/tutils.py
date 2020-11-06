@@ -4,7 +4,7 @@ from pathlib import Path
 
 # from copy import copy
 from threading import Thread
-
+from torch import autograd
 import numpy as np
 import torch
 from torch.autograd import Variable
@@ -17,7 +17,7 @@ def transforms_string(ts):
     return " -> ".join([t.__class__.__name__ for t in ts.transforms])
 
 
-def init_weights(net, init_type="normal", init_gain=0.02, verbose=0):
+def init_weights(net, init_type="normal", init_gain=0.02, verbose=0, caller=""):
     """Initialize network weights.
         Parameters:
             net (network)     -- network to be initialized
@@ -31,10 +31,18 @@ def init_weights(net, init_type="normal", init_gain=0.02, verbose=0):
         """
 
     if not init_type:
-        print("init_type is {}, defaulting to normal".format(init_type))
+        print(
+            "init_weights({}): init_type is {}, defaulting to normal".format(
+                caller + " " + net.__class__.__name__, init_type
+            )
+        )
         init_type = "normal"
     if not init_gain:
-        print("init_gain is {}, defaulting to 0.02".format(init_gain))
+        print(
+            "init_weights({}): init_gain is {}, defaulting to normal".format(
+                caller + " " + net.__class__.__name__, init_type
+            )
+        )
         init_gain = 0.02
 
     def init_func(m):  # define the initialization function
@@ -212,8 +220,8 @@ def decode_unity_depth_t(unity_depth, log=True, normalize=False, numpy=False, fa
     R = ((247 - R) / 8).type(torch.IntTensor)
     G = ((247 - G) / 8).type(torch.IntTensor)
     B = (255 - B).type(torch.IntTensor)
-    depth = ((R * 256 * 31 + G * 256 + B).type(torch.FloatTensor)) / (256 * 31 * 31 -1)
-    depth = (depth * far)
+    depth = ((R * 256 * 31 + G * 256 + B).type(torch.FloatTensor)) / (256 * 31 * 31 - 1)
+    depth = depth * far
     depth = 1 / depth
     depth = depth.unsqueeze(0)  # (depth * far).unsqueeze(0)
 
@@ -371,3 +379,52 @@ def zero_grad(model: nn.Module):
     """
     for p in model.parameters():
         p.grad = None
+
+
+# Take the prediction of fake and real images from the combined batch
+def divide_pred(pred):
+    # https://github.com/NVlabs/SPADE/blob/master/models/pix2pix_model.py
+    # the prediction contains the intermediate outputs of multiscale GAN,
+    # so it's usually a list
+    if type(pred) == list:
+        fake = []
+        real = []
+        for p in pred:
+            fake.append([tensor[: tensor.size(0) // 2] for tensor in p])
+            real.append([tensor[tensor.size(0) // 2 :] for tensor in p])
+    else:
+        fake = pred[: pred.size(0) // 2]
+        real = pred[pred.size(0) // 2 :]
+
+    return fake, real
+
+
+def is_tpu_available():
+    _torch_tpu_available = False
+    try:
+        import torch_xla.core.xla_model as xm  # noqa: F401
+
+        if "xla" in str(xm.xla_device()):
+            _torch_tpu_available = True  # pylint: disable=
+        else:
+            _torch_tpu_available = False
+    except ImportError:
+        _torch_tpu_available = False
+
+    return _torch_tpu_available
+
+
+def get_WGAN_gradient(input, output):
+    # github code reference: https://github.com/caogang/wgan-gp/blob/master/gan_cifar10.py
+    # Calculate the gradient that WGAN-gp needs
+    grads = autograd.grad(
+        outputs=output,
+        inputs=input,
+        grad_outputs=torch.ones(output.size()).cuda(),
+        create_graph=True,
+        retain_graph=True,
+        only_inputs=True,
+    )[0]
+    grads = grads.view(grads.size(0), -1)
+    gp = ((grads.norm(2, dim=1) - 1) ** 2).mean()
+    return gp

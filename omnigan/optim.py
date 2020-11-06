@@ -2,7 +2,7 @@
 """
 import torch
 import math
-from torch.optim import Optimizer, Adam, lr_scheduler
+from torch.optim import Optimizer, Adam, lr_scheduler, RMSprop
 from torch_optimizer import NovoGrad, RAdam
 
 
@@ -70,6 +70,10 @@ def get_optimizer(net, opt_conf, tasks=None, iterations=-1):
         lr = opt_conf.lr
         params = net.parameters()
         lr_names.append("full")
+    elif isinstance(opt_conf.lr, float):  # Use default for all tasks
+        lr = opt_conf.lr
+        params = net.parameters()
+        lr_names.append("full")
     elif len(opt_conf.lr) == 1:  # Use default for all tasks
         lr = opt_conf.lr.default
         params = net.parameters()
@@ -86,12 +90,14 @@ def get_optimizer(net, opt_conf, tasks=None, iterations=-1):
                 lr_names.append("encoder")
             # Parameters for decoders
             if task == "p":
-                parameters = net.painter.parameters()
-                lr_names.append("painter")
+                if hasattr(net, "painter"):
+                    parameters = net.painter.parameters()
+                    lr_names.append("painter")
             else:
                 parameters = net.decoders[task].parameters()
                 lr_names.append(f"decoder_{task}")
             params.append({"params": parameters, "lr": l_r})
+
     if opt_conf.optimizer.lower() == "extraadam":
         opt = ExtraAdam(params, lr=lr, betas=(opt_conf.beta1, 0.999))
     elif opt_conf.optimizer.lower() == "novograd":
@@ -100,6 +106,8 @@ def get_optimizer(net, opt_conf, tasks=None, iterations=-1):
         )  # default for beta2 is 0
     elif opt_conf.optimizer.lower() == "radam":
         opt = RAdam(params, lr=lr, betas=(opt_conf.beta1, 0.999))
+    elif opt_conf.optimizer.lower() == "rmsprop":
+        opt = RMSprop(params, lr=lr)
     else:
         opt = Adam(params, lr=lr, betas=(opt_conf.beta1, 0.999))
     scheduler = get_scheduler(opt, opt_conf, iterations)

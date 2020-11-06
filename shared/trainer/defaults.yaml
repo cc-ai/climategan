@@ -27,6 +27,7 @@ data:
   loaders:
     batch_size: 6
     num_workers: 8
+  normalization: default # can be "default" or "HRNet" for now. # default: mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]; HRNet: mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
   transforms:
     - name: hflip
       ignore: false
@@ -34,6 +35,7 @@ data:
     - name: resize
       ignore: false
       new_size: 640
+      keep_aspect_ratio: true # smallest dimension will be `new_size` and the other will be computed to keep aspect  ratio
     - name: crop
       ignore: false
       height: 600
@@ -66,7 +68,7 @@ gen:
     &default-gen # default parameters for the generator (encoder and decoders)
     activ: lrelu # activation function [relu/lrelu/prelu/selu/tanh]
     init_gain: 0.2
-    init_type: kaiming
+    init_type: xavier
     n_res: 1 # number of residual blocks before upsampling
     n_downsample: &n_downsample 3 # number of downsampling layers in encoder | dim 32 + down 3 => z = 256 x 32 x 32
     n_upsample: *n_downsample # upsampling in spade decoder ; should match encoder.n_downsample
@@ -101,7 +103,7 @@ gen:
     num_classes: 11
     output_dim: 11
     use_advent: True
-    use_minent: False
+    use_minent: True
     use_pseudo_labels: False
     upsample_featuremaps: False # upsamples from 80x80 to 160x160 intermediate feature maps
   p: # specific params for the SPADE painter
@@ -113,6 +115,9 @@ gen:
     spade_param_free_norm: instance # what param-free normalization to apply in SPADE normalization
     spade_use_spectral_norm: true
     spade_n_up: 7 # number of upsampling layers in the translation decoder is equal to number of downsamplings in the encoder.  output's h and w are z's h and w x 2^spade_num_upsampling_layers | z:32 and spade_n_up:4 => output 512
+    no_z: true # <=> use_vae=False in the SPADE repo
+    use_final_shortcut: False # if true, the last spade block does not get the masked input as conditioning but the prediction of the previous layer (passed through a conv to match dims) in order to lighten the masking restrictions and have smoother edges
+    paste_original_content: False # only select the water painted to backprop through the network, not the whole generated image: fake_flooded = masked_x + m * fake_flooded
 
   m: # specific params for the mask-generation decoder
     <<: *default-gen
@@ -120,7 +125,8 @@ gen:
     use_minent: True # directly minimize the entropy of the image
     use_minent_var: True # add variance of entropy map in the measure of entropy for a certain picture
     use_advent: True # minimize the entropy of the image by adversarial training
-
+    use_ground_intersection: True
+    loss: gan # either "hinge" or "gan" loss
 # -------------------------
 # ----- Discriminator -----
 # -------------------------
@@ -147,7 +153,7 @@ dis:
     &default-dis # default setting for discriminators (there are 4 of them for rn rf sn sf)
     input_nc: 3
     ndf: 64
-    n_layers: 3
+    n_layers: 4
     norm: instance
     init_type: kaiming
     init_gain: 0.2
@@ -158,11 +164,20 @@ dis:
     <<: *default-dis
     num_D: 3
     get_intermediate_features: true
+    use_local_discriminator: false
+    # ttur: false # two time-scale update rule (see SPADE repo)
   m:
     <<: *default-dis
     multi_level: false
     architecture: base # can be [base | OmniDiscriminator]
-
+    gan_type: WGAN_norm # can be [GAN | WGAN | WGAN_gp | WGAN_norm]
+    wgan_clamp_lower: -0.01 # used in WGAN, WGAN clap the params in dis to [wgan_clamp_lower, wgan_clamp_upper] for every updation
+    wgan_clamp_upper: 0.01 # used in WGAN
+  s:
+    <<: *default-dis
+    gan_type: WGAN_norm # can be [GAN | WGAN | WGAN_gp | WGAN_norm]
+    wgan_clamp_lower: -0.01 # used in WGAN, WGAN clap the params in dis to [wgan_clamp_lower, wgan_clamp_upper] for every updation
+    wgan_clamp_upper: 0.01 # used in WGAN
 # -------------------------------
 # -----  Domain Classifier  -----
 # -------------------------------
@@ -170,7 +185,8 @@ classifier:
   opt:
     optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
     beta1: 0.5
-    lr: 0.0005
+    lr:
+      default: 0.0005
     lr_policy: step # constant or step ; if step, specify step_size and gamma
     lr_step_size: 30 # for linear decay
     lr_gamma: 0.5
@@ -186,6 +202,10 @@ classifier:
 # ------------------------
 train:
   epochs: 300
+  fid:
+    n_images: 57 # val_rf.json has 57 images
+    batch_size: 50 # inception inference batch size, not painter's
+    dims: 2048 # what Inception bock to compute the stats from (see BLOCK_INDEX_BY_DIM in fid.py)
   latent_domain_adaptation: False # whether or not to do domain adaptation on the latent vectors # Needs to be turned off if use_advent is True
   lambdas: # scaling factors in the total loss
     G:
@@ -200,13 +220,14 @@ train:
       m:
         bce: 1 # Main prediction loss, i.e. GAN or BCE
         tv: 1 # Total variational loss (for smoothing)
+        gi: 0.05
       p:
         gan: 1 # gan loss
-        sm: 1 # semantic matching
         dm: 1 # depth matching
-        tv: 500
-        vgg: 1
-        context: 12
+        tv: 0
+        vgg: 10
+        context: 5
+        reconstruction: 5
         featmatch: 10
       classifier: 1
     C: 1
@@ -216,8 +237,9 @@ train:
       ent_var: 0.1 # the proportion of variance of entropy map in the entropy measure for a certain picture
       adv_main: 1.0 # the coefficient of the AdvEnt loss that minimize the entropy of the image by adversarial training
       adv_aux: 0.0 # the corresponding coefficient of the AdvEnt loss of second output
-      dis_main: 0.5 # the discriminator take care of the first output in the adversarial training
-      dis_aux: 0.5 # the discriminator take care of the second output in the adversarial training
+      dis_main: 1.0 # the discriminator take care of the first output in the adversarial training
+      dis_aux: 0.0 # the discriminator take care of the second output in the adversarial training
+      WGAN_gp: 10 # used in WGAN_gp, it's the hyperparameters for the gradient penalty
   log_level: 2 # 0: no log, 1: only aggregated losses, >1 detailed losses
   save_n_epochs: 1 # Save model every n epochs
   resume: false # Load latest_ckpt.pth checkpoint from `output_path` #TODO Make this path of checkpoint to load

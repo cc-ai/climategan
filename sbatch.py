@@ -11,6 +11,24 @@ import numpy as np
 import yaml
 
 
+def env_to_path(path):
+    """Transorms an environment variable mention in a json
+    into its actual value. E.g. $HOME/clouds -> /home/vsch/clouds
+
+    Args:
+        path (str): path potentially containing the env variable
+
+    """
+    path_elements = path.split("/")
+    new_path = []
+    for el in path_elements:
+        if "$" in el:
+            new_path.append(os.environ[el.replace("$", "")])
+        else:
+            new_path.append(el)
+    return "/".join(new_path)
+
+
 class C:
     HEADER = "\033[95m"
     OKBLUE = "\033[94m"
@@ -133,7 +151,7 @@ def search_summary_table(summary, summary_dir=None):
 
     # if everything is constant: no summary
     if not summary:
-        return
+        return None, None
 
     # find number of searches
     n_searches = len(list(summary.values())[0])
@@ -154,7 +172,8 @@ def search_summary_table(summary, summary_dir=None):
         ],  # list of values to print
     }
 
-    columns = [[first_col]]
+    print_columns = [[first_col]]
+    file_columns = [first_col]
     for k in sorted(summary.keys()):
         v = summary[k]
         col_title = f" {k} |"
@@ -174,32 +193,42 @@ def search_summary_table(summary, summary_dir=None):
 
         # if adding a new column would overflow the terminal and mess up printing, start
         # new set of columns
-        if sum(c["len"] for c in columns[-1]) + col["len"] >= cols():
-            columns.append([first_col])
+        if sum(c["len"] for c in print_columns[-1]) + col["len"] >= cols():
+            print_columns.append([first_col])
 
         # store current column to latest group of columns
-        columns[-1].append(col)
+        print_columns[-1].append(col)
+        file_columns.append(col)
 
-    s = ""
+    print_table = ""
     # print each column group individually
-    for colgroup in columns:
+    for colgroup in print_columns:
         # print columns line by line
         for i in range(n_searches + 2):
             # get value of column for current line i
             for col in colgroup:
-                s += col["str"][i]
+                print_table += col["str"][i]
             # next line for current columns
-            s += "\n"
+            print_table += "\n"
 
         # new lines for new column group
-        s += "\n"
+        print_table += "\n"
 
+    file_table = ""
+    for i in range(n_searches + 2):
+        # get value of column for current line i
+        for col in file_columns:
+            file_table += col["str"][i]
+        # next line for current columns
+        file_table += "\n"
+
+    summary_path = None
     if summary_dir is not None:
         summary_path = summary_dir / (now() + ".md")
         with summary_path.open("w") as f:
-            f.write(s.strip())
+            f.write(file_table.strip())
 
-    return s
+    return print_table, summary_path
 
 
 def clean_arg(v):
@@ -212,7 +241,31 @@ def clean_arg(v):
     Returns:
         str: parsed value to string
     """
-    return stringify_list(crop_float(quote_string(v)))
+    return stringify_list(crop_float(quote_string(resolve_env(v))))
+
+
+def resolve_env(v):
+    """
+    resolve env variables in paths
+
+    Args:
+        v (any): arg to pass to train.py
+
+    Returns:
+        str: try and resolve an env variable
+    """
+    if isinstance(v, str):
+        try:
+            if "$" in v:
+                if "/" in v:
+                    v = env_to_path(v)
+                else:
+                    _v = os.environ.get(v)
+                    if _v is not None:
+                        v = _v
+        except Exception:
+            pass
+    return v
 
 
 def stringify_list(v):
@@ -566,6 +619,7 @@ if __name__ == "__main__":
     template_name = None
     hp_search_name = None
     hp_search_nb = None
+    exp_path = None
     resume = None
     summary_dir = Path(home) / "omnigan_exp_summaries"
 
@@ -789,12 +843,16 @@ if __name__ == "__main__":
         )
         print_footer()
 
-    print(f"\nRan a total of {hp_idx + 1} jobs{' in dev mode.' if dev else '.'}\n")
+    print(f"\nRan a total of {len(hps)} jobs{' in dev mode.' if dev else '.'}\n")
 
-    table = search_summary_table(summary, summary_dir if not dev else None)
-    print(table)
-    print(
-        "Add `[i]: https://...` at the end of a markdown document",
-        "to fill in the comet links",
-    )
-
+    table, sum_path = search_summary_table(summary, summary_dir if not dev else None)
+    if table is not None:
+        print(table)
+        print(
+            "Add `[i]: https://...` at the end of a markdown document",
+            "to fill in the comet links.\n",
+        )
+        if summary_dir is None:
+            print("Add summary_dir=path to store the printed markdown table ⇪")
+        else:
+            print("Saved table in", str(sum_path))

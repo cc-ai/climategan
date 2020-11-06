@@ -19,7 +19,7 @@ from omnigan.utils import (
 )
 
 
-def latest_opts(path):
+def get_latest_opts(path):
     """
     get latest opts dumped in path if they look like *opts*.yaml
     and were increased as
@@ -86,7 +86,7 @@ def main():
     # -----  Load opts  -----
     # -----------------------
 
-    opts = latest_opts(resume_path)
+    opts = get_latest_opts(resume_path)
     opts.train.resume = True
     opts.output_path = str(env_to_path(opts.output_path))
     pprint("Continuing model in", opts.output_path)

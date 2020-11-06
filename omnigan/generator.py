@@ -5,30 +5,40 @@
 """
 import torch.nn as nn
 from omnigan.tutils import init_weights
-from omnigan.blocks import SpadeDecoder, BaseDecoder, ASPP, DepthDecoder
+from omnigan.blocks import (
+    PainterSpadeDecoder,
+    BaseDecoder,
+    ASPP,
+    DepthDecoder,
+    InterpolateNearest2d,
+)
 from omnigan.encoder import DeeplabEncoder, BaseEncoder
 import omnigan.strings as strings
 import torch.nn.functional as F
 
 # --------------------------------------------------------------------------
 # -----  For now no network structure, just project in a 64 x 32 x 32  -----
-# -----   latent space and decode to (3 or 1) x 256 x 256              -----
+# -----  latent space and decode to (3 or 1) x 256 x 256               -----
 # --------------------------------------------------------------------------
 
 # TODO think about how to use the classifier probs at inference
 
 
-def get_gen(opts, latent_shape=None, verbose=0):
-    G = OmniGenerator(opts, latent_shape, verbose)
+def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
+    G = OmniGenerator(opts, latent_shape, verbose, no_init)
+    if no_init:
+        return G
+
     for model in G.decoders:
         net = G.decoders[model]
         if isinstance(net, nn.ModuleDict):
-            for domain_model in net.keys():
+            for domain, domain_model in net.items():
                 init_weights(
                     net[domain_model],
                     init_type=opts.gen[model].init_type,
                     init_gain=opts.gen[model].init_gain,
                     verbose=verbose,
+                    caller=f"get_gen decoder {model} {domain}"
                 )
         else:
             init_weights(
@@ -36,6 +46,7 @@ def get_gen(opts, latent_shape=None, verbose=0):
                 init_type=opts.gen[model].init_type,
                 init_gain=opts.gen[model].init_gain,
                 verbose=verbose,
+                caller=f"get_gen decoder {model}"
             )
     if G.encoder is not None and opts.gen.encoder.architecture != "deeplabv2":
         init_weights(
@@ -43,6 +54,7 @@ def get_gen(opts, latent_shape=None, verbose=0):
             init_type=opts.gen.encoder.init_type,
             init_gain=opts.gen.encoder.init_gain,
             verbose=verbose,
+            caller=f"get_gen encoder"
         )
     # Init painter weights
     init_weights(
@@ -50,12 +62,13 @@ def get_gen(opts, latent_shape=None, verbose=0):
         init_type=opts.gen.p.init_type,
         init_gain=opts.gen.p.init_gain,
         verbose=verbose,
+        caller=f"get_gen painter"
     )
     return G
 
 
 class OmniGenerator(nn.Module):
-    def __init__(self, opts, latent_shape=None, verbose=None):
+    def __init__(self, opts, latent_shape=None, verbose=None, no_init=False):
         """Creates the generator. All decoders listed in opts.gen will be added
         to the Generator.decoders ModuleDict if opts.gen.DecoderInitial is not True.
         Then can be accessed as G.decoders.T or G.decoders["T"] for instance,
@@ -70,28 +83,35 @@ class OmniGenerator(nn.Module):
         self.encoder = None
         if "m" in opts.tasks:
             if opts.gen.encoder.architecture == "deeplabv2":
-                self.encoder = DeeplabEncoder(opts)
+                self.encoder = DeeplabEncoder(opts, no_init)
+                print("  - Created Deeplab Encoder")
             else:
                 self.encoder = BaseEncoder(opts)
+                print("  - Created Base Encoder")
 
         self.verbose = verbose
         self.decoders = {}
 
         if "d" in opts.tasks and not opts.gen.d.ignore:
             self.decoders["d"] = DepthDecoder(opts)
+            print("  - Created Depth Decoder")
 
         if "s" in opts.tasks and not opts.gen.s.ignore:
+            print("  - Created Segmentation Decoder")
             self.decoders["s"] = SegmentationDecoder(opts)
 
         if "m" in opts.tasks and not opts.gen.m.ignore:
+            print("  - Created Mask Decoder")
             self.decoders["m"] = MaskDecoder(opts)
 
         self.decoders = nn.ModuleDict(self.decoders)
 
         if "p" in self.opts.tasks:
-            self.painter = FullSpadeGen(opts)
+            self.painter = PainterSpadeDecoder(opts)
+            print("  - Created PainterSpadeDecoder Painter")
         else:
             self.painter = nn.Module()
+            print("  - Created Empty Painter")
 
     def encode(self, x):
         assert self.encoder is not None
@@ -149,7 +169,7 @@ class SegmentationDecoder(BaseDecoder):
             nn.Dropout(0.1),
         ]
         if opts.gen.s.upsample_featuremaps:
-            conv_modules = [nn.Upsample(scale_factor=2)] + conv_modules
+            conv_modules = [InterpolateNearest2d(scale_factor=2)] + conv_modules
 
         conv_modules += [
             nn.Conv2d(256, opts.gen.s.output_dim, kernel_size=1, stride=1),
@@ -181,26 +201,3 @@ class SegmentationDecoder(BaseDecoder):
         y = self.aspp(z)
         y = self.conv(y)
         return F.interpolate(y, self._target_size, mode="bilinear", align_corners=True)
-
-
-class FullSpadeGen(nn.Module):
-    def __init__(self, opts):
-        super(FullSpadeGen, self).__init__()
-
-        n_upsample = opts.gen.p.spade_n_up
-
-        self.latent_dim = opts.gen.p.latent_dim
-        self.batch_size = opts.data.loaders.batch_size
-
-        # Get size of latent vector based on downsampling:
-        self.dec = SpadeDecoder(
-            latent_dim=self.latent_dim,
-            cond_nc=3,
-            spade_n_up=n_upsample,
-            spade_use_spectral_norm=opts.gen.p.spade_use_spectral_norm,
-            spade_param_free_norm="instance",
-            spade_kernel_size=3,
-        )
-
-    def forward(self, z, cond):
-        return self.dec(z, cond)

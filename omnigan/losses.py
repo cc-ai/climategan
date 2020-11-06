@@ -4,7 +4,6 @@ To send predictions to target.device
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.autograd import Variable
 import torch.nn as nn
 from random import random as rand
 from torchvision import models
@@ -64,13 +63,24 @@ class GANLoss(nn.Module):
             target_tensor = self.fake_label + soft_change
         return target_tensor.expand_as(input)
 
-    def __call__(self, input, target_is_real):
-        if rand() < self.flip_prob:
-            target_is_real = not target_is_real
-            if self.verbose > 0:
-                print("GANLoss: flipping label")
-        target_tensor = self.get_target_tensor(input, target_is_real)
-        return self.loss(input, target_tensor.to(input.device))
+    def __call__(self, input, target_is_real, *args, **kwargs):
+        r = rand()
+        if isinstance(input, list):
+            loss = 0
+            for pred_i in input:
+                if isinstance(pred_i, list):
+                    pred_i = pred_i[-1]
+                if r < self.flip_prob:
+                    target_is_real = not target_is_real
+                target_tensor = self.get_target_tensor(pred_i, target_is_real)
+                loss_tensor = self.loss(pred_i, target_tensor.to(pred_i.device))
+                loss += loss_tensor
+            return loss / len(input)
+        else:
+            if r < self.flip_prob:
+                target_is_real = not target_is_real
+            target_tensor = self.get_target_tensor(input, target_is_real)
+            return self.loss(input, target_tensor.to(input.device))
 
 
 class FeatMatchLoss(nn.Module):
@@ -154,7 +164,8 @@ class TVLoss(nn.Module):
     """Total Variational Regularization: Penalizes differences in
         neighboring pixel values
 
-        source: https://github.com/jxgu1016/Total_Variation_Loss.pytorch/blob/master/TVLoss.py
+        source:
+        https://github.com/jxgu1016/Total_Variation_Loss.pytorch/blob/master/TVLoss.py
     """
 
     def __init__(self, tvloss_weight=1):
@@ -247,8 +258,8 @@ class SIMSELoss(nn.Module):
 
 class SIGMLoss(nn.Module):
     """loss from MiDaS paper
-    MiDaS did not specify how the gradients were computed but we use Sobel filters which approximate
-    the derivative of an image.
+    MiDaS did not specify how the gradients were computed but we use Sobel
+    filters which approximate the derivative of an image.
     """
 
     def __init__(self, gmweight=0.5, scale=4, device="cuda"):
@@ -291,11 +302,20 @@ class SIGMLoss(nn.Module):
 
 class ContextLoss(nn.Module):
     """
-    Masked L1 loss
+    Masked L1 loss on non-water
     """
 
     def __call__(self, input, target, mask):
         return torch.mean(torch.abs(torch.mul((input - target), 1 - mask)))
+
+
+class ReconstructionLoss(nn.Module):
+    """
+    Masked L1 loss on water
+    """
+
+    def __call__(self, input, target, mask):
+        return torch.mean(torch.abs(torch.mul((input - target), mask)))
 
 
 ##################################################################################
@@ -379,12 +399,14 @@ def get_losses(opts, verbose, device=None):
     # ------------------------------
     # painter losses
     if "p" in opts.tasks:
-        losses["G"]["p"]["gan"] = GANLoss()
-        losses["G"]["p"]["sm"] = PixelCrossEntropy()
+        losses["G"]["p"]["gan"] = (
+            HingeLoss() if opts.gen.p.loss == "hinge" else GANLoss()
+        )
         losses["G"]["p"]["dm"] = MSELoss()
         losses["G"]["p"]["vgg"] = VGGLoss(device)
         losses["G"]["p"]["tv"] = TVLoss()
         losses["G"]["p"]["context"] = ContextLoss()
+        losses["G"]["p"]["reconstruction"] = ReconstructionLoss()
         losses["G"]["p"]["featmatch"] = FeatMatchLoss()
 
     # task losses
@@ -397,7 +419,9 @@ def get_losses(opts, verbose, device=None):
         losses["G"]["tasks"]["s"] = {}
         losses["G"]["tasks"]["s"]["crossent"] = CrossEntropy()
         losses["G"]["tasks"]["s"]["minent"] = MinentLoss()
-        losses["G"]["tasks"]["s"]["advent"] = ADVENTAdversarialLoss(opts)
+        losses["G"]["tasks"]["s"]["advent"] = ADVENTAdversarialLoss(
+            opts, gan_type=opts.dis.s.gan_type
+        )
     if "m" in opts.tasks:
         losses["G"]["tasks"]["m"] = {}
         losses["G"]["tasks"]["m"]["bce"] = nn.BCELoss()
@@ -408,8 +432,10 @@ def get_losses(opts, verbose, device=None):
         else:
             losses["G"]["tasks"]["m"]["minent"] = MinentLoss()
         losses["G"]["tasks"]["m"]["tv"] = TVLoss()
-        losses["G"]["tasks"]["m"]["advent"] = ADVENTAdversarialLoss(opts)
-
+        losses["G"]["tasks"]["m"]["advent"] = ADVENTAdversarialLoss(
+            opts, gan_type=opts.dis.m.gan_type
+        )
+        losses["G"]["tasks"]["m"]["gi"] = GroundIntersectionLoss()
     # undistinguishable features loss
     # TODO setup a get_losses func to assign the right loss according to the yaml
     if opts.classifier.loss == "l1":
@@ -426,11 +452,18 @@ def get_losses(opts, verbose, device=None):
     # ----------------------------------
     # -----  Discriminator Losses  -----
     # ----------------------------------
-    losses["D"]["default"] = GANLoss(
-        soft_shift=opts.dis.soft_shift, flip_prob=opts.dis.flip_prob, verbose=verbose
-    )
+    losses["D"]["p"] = HingeLoss()
     losses["D"]["advent"] = ADVENTAdversarialLoss(opts)
     return losses
+
+
+class GroundIntersectionLoss(nn.Module):
+    """
+    Penalize areas in ground seg but not in flood mask
+    """
+
+    def __call__(self, pred, pseudo_ground):
+        return torch.mean(1.0 * ((pseudo_ground - pred) > 0.5))
 
 
 def prob_2_entropy(prob):
@@ -443,8 +476,8 @@ def prob_2_entropy(prob):
 
 class CustomBCELoss(nn.Module):
     """
-        The first argument is a tensor and the second arguement is an int.
-        There is no need to take simoid before calling this function.
+        The first argument is a tensor and the second argument is an int.
+        There is no need to take sigmoid before calling this function.
     """
 
     def __init__(self):
@@ -462,13 +495,26 @@ class CustomBCELoss(nn.Module):
 
 class ADVENTAdversarialLoss(nn.Module):
     """
-        TODO
+    The class is for calculating the advent loss.
+    It is used to indirectly shrink the domain gap between sim and real
+
+    _call_ function:
+    prediction: torch.tensor with shape of [bs,c,h,w]
+    target: int; domain label: 0 (sim) or 1 (real)
+    discriminator: the discriminator model tells if a tensor is from sim or real
+
+    output: the loss value of GANLoss
     """
 
-    def __init__(self, opts):
+    def __init__(self, opts, gan_type="GAN"):
         super().__init__()
         self.opts = opts
-        self.loss = CustomBCELoss()
+        if gan_type == "GAN":
+            self.loss = CustomBCELoss()
+        elif gan_type == "WGAN" or "WGAN_gp" or "WGAN_norm":
+            self.loss = lambda x, y: -torch.mean(y * x + (1 - y) * (1 - x))
+        else:
+            raise NotImplementedError
 
     def __call__(self, prediction, target, discriminator):
         d_out = checkpoint(discriminator, prob_2_entropy(F.softmax(prediction, dim=1)))
@@ -478,16 +524,70 @@ class ADVENTAdversarialLoss(nn.Module):
         return loss_
 
 
-def multiDiscriminatorAdapter(d_out, opts):
+def multiDiscriminatorAdapter(d_out: list, opts: dict) -> torch.tensor:
+    """
+    Because the OmniDiscriminator does not directly return a tensor
+    (but a list of tensor).
+    Since there is no multilevel masker, the 0th tensor in the list is all we want.
+    This Adapter returns the first element(tensor) of the list that OmniDiscriminator
+    returns.
+    """
     if (
         isinstance(d_out, list) and len(d_out) == 1
-    ):  # adapt the multi-scale Omnidiscriminator
+    ):  # adapt the multi-scale OmniDiscriminator
         if not opts.dis.p.get_intermediate_features:
             d_out = d_out[0][0]
         else:
             d_out = d_out[0]
     else:
         raise Exception(
-            "Check the setting of OmniDiscriminator! For now, we don't support multi-scale Omnidiscriminator."
+            "Check the setting of OmniDiscriminator! "
+            + "For now, we don't support multi-scale OmniDiscriminator."
         )
     return d_out
+
+
+class HingeLoss(nn.Module):
+    """
+    Adapted from https://github.com/NVlabs/SPADE/blob/master/models/networks/loss.py
+    for  the painter
+    """
+
+    def __init__(self, tensor=torch.FloatTensor):
+        super().__init__()
+        self.zero_tensor = None
+        self.Tensor = tensor
+
+    def get_zero_tensor(self, input):
+        if self.zero_tensor is None:
+            self.zero_tensor = self.Tensor(1).fill_(0)
+            self.zero_tensor.requires_grad_(False)
+            self.zero_tensor = self.zero_tensor.to(input.device)
+        return self.zero_tensor.expand_as(input)
+
+    def loss(self, input, target_is_real, for_discriminator=True):
+        if for_discriminator:
+            if target_is_real:
+                minval = torch.min(input - 1, self.get_zero_tensor(input))
+                loss = -torch.mean(minval)
+            else:
+                minval = torch.min(-input - 1, self.get_zero_tensor(input))
+                loss = -torch.mean(minval)
+        else:
+            assert target_is_real, "The generator's hinge loss must be aiming for real"
+            loss = -torch.mean(input)
+        return loss
+
+    def __call__(self, input, target_is_real, for_discriminator=True):
+        # computing loss is a bit complicated because |input| may not be
+        # a tensor, but list of tensors in case of multiscale discriminator
+        if isinstance(input, list):
+            loss = 0
+            for pred_i in input:
+                if isinstance(pred_i, list):
+                    pred_i = pred_i[-1]
+                loss_tensor = self.loss(pred_i, target_is_real, for_discriminator)
+                loss += loss_tensor
+            return loss / len(input)
+        else:
+            return self.loss(input, target_is_real, for_discriminator)

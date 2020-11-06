@@ -5,7 +5,7 @@ from pathlib import Path
 from argparse import ArgumentParser
 from omnigan.trainer import Trainer
 from torchvision import transforms as trsfs
-from omnigan.losses import entropy_loss_v2
+from omnigan.losses import MinentLoss
 import json
 from omnigan.utils import load_opts, flatten_opts
 
@@ -119,7 +119,9 @@ if __name__ == "__main__":
     transforms = [trsfs.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
+    entropy_loss_v2 = MinentLoss(
+        version=2, lambda_var=opts.train.lambdas.advent.ent_var
+    )
     # ----------------------------
     # -----  Iterate images  -----
     # ----------------------------

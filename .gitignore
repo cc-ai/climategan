@@ -7,6 +7,7 @@ config/
 tests/not_committed/
 *.hydra
 outputs/
+eval_folder*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

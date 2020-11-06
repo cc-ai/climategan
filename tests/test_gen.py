@@ -8,7 +8,7 @@ import torch
 
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
 from omnigan.generator import get_gen
-from omnigan.generator import FullSpadeGen
+from omnigan.generator import SpadeDecoder
 from omnigan.utils import load_test_opts
 from omnigan.tutils import get_num_params
 from run import print_header
@@ -107,7 +107,7 @@ if __name__ == "__main__":
     mask = torch.Tensor(batch_size, 3, size, size).uniform_(0, 1).to(device)
     latent_size = size // (2 ** opts.gen.p.spade_n_up)
 
-    painter = FullSpadeGen(opts).to(device)
+    painter = SpadeDecoder(opts).to(device)
 
     # Sample latent vector
     z = (
