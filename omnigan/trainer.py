@@ -1560,10 +1560,10 @@ class Trainer:
         timing = int(time() - start_time)
         print("****************** Done in {}s *********************".format(timing))
 
-    def save(self, save_path_name="latest_ckpt.pth"):
+    def save(self):
         save_dir = Path(self.opts.output_path) / Path("checkpoints")
         save_dir.mkdir(exist_ok=True)
-        save_path = save_dir / save_path_name
+        save_path = save_dir / "latest_ckpt.pth"
 
         # Construct relevant state dicts / optims:
         # Save at least G
