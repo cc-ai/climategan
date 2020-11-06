@@ -51,12 +51,12 @@ load_paths:
   pm: none # Painter + Masker weights (single ckpt for both)
 ```
 
-1/ any path which leads to a dir will be loaded as `path / checkpoints / latest_ckpt.pth`
-2/ if you want to specify a specific checkpoint (not the latest), it MUST be a `.pth` file
-3/ resuming a `P` **OR** an `M` model, you may only specify 1 of `load_path.p` **OR** `load_path.m`.
+1. any path which leads to a dir will be loaded as `path / checkpoints / latest_ckpt.pth`
+2. if you want to specify a specific checkpoint (not the latest), it MUST be a `.pth` file
+3. resuming a `P` **OR** an `M` model, you may only specify 1 of `load_path.p` **OR** `load_path.m`.
    You may also leave **BOTH** at `none`, in which case `output_path / checkpoints / latest_ckpt.pth`
    will be used
-4/ resuming a P+M model, you may specify (`p` AND `m`) **OR** `pm` **OR** leave all at `none`,
+4. resuming a P+M model, you may specify (`p` AND `m`) **OR** `pm` **OR** leave all at `none`,
    in which case `output_path / checkpoints / latest_ckpt.pth` will be used to load from
    a single checkpoint
 
