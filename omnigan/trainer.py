@@ -855,9 +855,7 @@ class Trainer:
         ):
             self.run_epoch()
             self.run_evaluation(verbose=1)
-
-            if self.logger.epoch % self.opts.train.save_n_epochs == 0:
-                self.save()
+            self.save()
 
     def get_g_loss(self, multi_domain_batch, verbose=0):
         m_loss = p_loss = None
@@ -1565,8 +1563,7 @@ class Trainer:
     def save(self):
         save_dir = Path(self.opts.output_path) / Path("checkpoints")
         save_dir.mkdir(exist_ok=True)
-        save_path = Path("latest_ckpt.pth")
-        save_path = save_dir / save_path
+        save_path = save_dir / "latest_ckpt.pth"
 
         # Construct relevant state dicts / optims:
         # Save at least G
@@ -1584,6 +1581,12 @@ class Trainer:
             save_dict["D"] = self.D.state_dict()
             save_dict["d_opt"] = self.d_opt.state_dict()
 
+        if (
+            self.logger.epoch >= self.opts.train.min_save_epoch
+            and self.logger.epoch % self.opts.train.save_n_epochs == 0
+        ):
+            torch.save(save_dict, save_dir / f"epoch_{self.logger.epoch}_ckpt.pth")
+
         torch.save(save_dict, save_path)
 
     def resume(self, inference=False):
@@ -1595,42 +1598,99 @@ class Trainer:
         tpu = "xla" in str(self.device)
         if tpu:
             print("Resuming on TPU:", self.device)
+
+        m_path = Path(self.opts.load_paths.m)
+        p_path = Path(self.opts.load_paths.p)
+        pm_path = Path(self.opts.load_paths.pm)
+        output_path = Path(self.opts.output_path)
+
+        map_loc = self.device if not tpu else "cpu"
+
         if "m" in self.opts.tasks and "p" in self.opts.tasks:
-            m_path = self.opts.load_paths.m
-            p_path = self.opts.load_paths.p
 
-            if m_path == "none":
-                m_path = self.opts.output_path
-            if p_path == "none":
-                p_path = self.opts.output_path
+            # want to resume a pm model but no path was provided:
+            # resume a single pm model from output_path
+            if all([str(p) == "none" for p in [m_path, p_path, pm_path]]):
+                checkpoint_path = output_path / "checkpoints/latest_ckpt.pth"
+                print("Resuming P+M model from", str(checkpoint_path))
+                checkpoint = torch.load(checkpoint_path, map_location=map_loc)
+            # want to resume a pm model with a pm_path provided:
+            # resume a single pm model from load_paths.pm
+            # depending on whether a dir or a file is specified
+            elif str(pm_path) != "none":
+                assert pm_path.exists()
 
-            # Merge the dicts
-            m_ckpt_path = Path(m_path) / Path("checkpoints/latest_ckpt.pth")
-            p_ckpt_path = Path(p_path) / Path("checkpoints/latest_ckpt.pth")
+                if pm_path.is_dir():
+                    checkpoint_path = pm_path / "checkpoints/latest_ckpt.pth"
+                else:
+                    assert pm_path.suffix == ".pth"
+                    checkpoint_path = pm_path
 
-            m_checkpoint = torch.load(
-                m_ckpt_path, map_location=self.device if not tpu else "cpu"
-            )
-            p_checkpoint = torch.load(
-                p_ckpt_path, map_location=self.device if not tpu else "cpu"
-            )
-            checkpoint = merge(m_checkpoint, p_checkpoint)
+                print("Resuming P+M model from", str(checkpoint_path))
+                checkpoint = torch.load(checkpoint_path, map_location=map_loc)
+            # want to resume a pm model, pm_path not provided:
+            # m_path and p_path must be provided as dirs or pth files
+            elif m_path != p_path:
+                assert m_path.exists()
+                assert p_path.exists()
+
+                if m_path.is_dir():
+                    m_path = m_path / "checkpoints/latest_ckpt.pth"
+
+                if p_path.is_dir():
+                    p_path = p_path / "checkpoints/latest_ckpt.pth"
+
+                assert m_path.suffix == ".pth"
+                assert p_path.suffix == ".pth"
+
+                m_checkpoint = torch.load(m_path, map_location=map_loc)
+                p_checkpoint = torch.load(p_path, map_location=map_loc)
+                checkpoint = merge(m_checkpoint, p_checkpoint)
+                print(f"Resuming P+M model from \n  -{p_path} \nand \n  -{m_path}")
+            else:
+                raise ValueError(
+                    "Cannot resume a P+M model with provided load_paths:\n{}".format(
+                        self.opts.load_paths
+                    )
+                )
+
             if tpu:
                 checkpoint = xm.send_cpu_data_to_device(checkpoint, self.device)
-            print(f"Resuming model from \n  -{m_ckpt_path} \nand \n  -{p_ckpt_path}")
         # ----------------------------------
         # -----  Single Model Loading  -----
         # ----------------------------------
         else:
-            load_path = Path(self.opts.output_path) / Path(
-                "checkpoints/latest_ckpt.pth"
-            )
-            checkpoint = torch.load(
-                load_path, map_location=self.device if not tpu else "cpu"
-            )
+            if str(m_path) != "none" and str(p_path) != "none":
+                raise ValueError(
+                    "Opts tasks are {} but received 2 values for the load_paths".format(
+                        self.opts.tasks
+                    )
+                )
+
+            elif str(m_path) != "none":
+                assert m_path.exists()
+                assert "m" in self.opts.tasks
+                model = "M"
+                if m_path.is_dir():
+                    m_path = m_path / "checkpoints/latest_ckpt.pth"
+                checkpoint_path = m_path
+
+            elif str(p_path) != "none":
+                assert p_path.exists()
+                assert "p" in self.opts.tasks
+                model = "P"
+                if p_path.is_dir():
+                    p_path = p_path / "checkpoints/latest_ckpt.pth"
+                checkpoint_path = p_path
+
+            else:
+                model = "P" if "p" in self.opts.tasks else "M"
+                checkpoint_path = output_path / "checkpoints/latest_ckpt.pth"
+
+            checkpoint = torch.load(checkpoint_path, map_location=map_loc)
             if tpu:
                 checkpoint = xm.send_cpu_data_to_device(checkpoint, self.device)
-            print(f"Resuming model from {load_path}")
+            print(f"Resuming {model} model from {checkpoint_path}")
 
         # -----------------------
         # -----  Restore G  -----
