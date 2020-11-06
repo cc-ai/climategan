@@ -7,7 +7,6 @@ import torch.nn.functional as F
 import torch.nn as nn
 from random import random as rand
 from torchvision import models
-from torch.utils.checkpoint import checkpoint
 
 
 class GANLoss(nn.Module):
@@ -365,7 +364,7 @@ class VGGLoss(nn.Module):
         self.weights = [1.0 / 32, 1.0 / 16, 1.0 / 8, 1.0 / 4, 1.0]
 
     def forward(self, x, y):
-        x_vgg, y_vgg = checkpoint(self.vgg, x), checkpoint(self.vgg, y)
+        x_vgg, y_vgg = self.vgg(x), self.vgg(y)
         loss = 0
         for i in range(len(x_vgg)):
             loss += self.weights[i] * self.criterion(x_vgg[i], y_vgg[i].detach())
@@ -517,7 +516,7 @@ class ADVENTAdversarialLoss(nn.Module):
             raise NotImplementedError
 
     def __call__(self, prediction, target, discriminator):
-        d_out = checkpoint(discriminator, prob_2_entropy(F.softmax(prediction, dim=1)))
+        d_out = discriminator(prob_2_entropy(F.softmax(prediction, dim=1)))
         if self.opts.dis.m.architecture == "OmniDiscriminator":
             d_out = multiDiscriminatorAdapter(d_out, self.opts)
         loss_ = self.loss(d_out, target)
