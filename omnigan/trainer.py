@@ -1598,56 +1598,68 @@ class Trainer:
         tpu = "xla" in str(self.device)
         if tpu:
             print("Resuming on TPU:", self.device)
+
+        m_path = Path(self.opts.load_paths.m)
+        p_path = Path(self.opts.load_paths.p)
+
         if "m" in self.opts.tasks and "p" in self.opts.tasks:
-            m_path = self.opts.load_paths.m
-            p_path = self.opts.load_paths.p
 
-            if m_path == "none":
-                m_path = self.opts.output_path
-            if p_path == "none":
-                p_path = self.opts.output_path
+            assert all(
+                [
+                    p.exists() and p.is_file() and p.suffix == ".pth"
+                    for p in [m_path, p_path]
+                ]
+            ), f"One of {m_path} or {p_path} does not exist or is not a .pth checkpoint"
 
-            # Merge the dicts
-            if self.opts.train.resume_by_pth_path:
-                m_ckpt_path = Path(m_path)
-                p_ckpt_path = Path(p_path)
-                assert (
-                    os.path.splitext(m_ckpt_path)[-1] == ".pth"
-                    and os.path.splitext(p_ckpt_path)[-1] == ".pth"
-                ), "The path is not a pth checkpoint file."
+            if m_path != p_path:
+                m_checkpoint = torch.load(
+                    m_path, map_location=self.device if not tpu else "cpu"
+                )
+                p_checkpoint = torch.load(
+                    p_path, map_location=self.device if not tpu else "cpu"
+                )
+                checkpoint = merge(m_checkpoint, p_checkpoint)
             else:
-                m_ckpt_path = Path(m_path) / Path("checkpoints/latest_ckpt.pth")
-                p_ckpt_path = Path(p_path) / Path("checkpoints/latest_ckpt.pth")
-
-            m_checkpoint = torch.load(
-                m_ckpt_path, map_location=self.device if not tpu else "cpu"
-            )
-            p_checkpoint = torch.load(
-                p_ckpt_path, map_location=self.device if not tpu else "cpu"
-            )
-            checkpoint = merge(m_checkpoint, p_checkpoint)
+                checkpoint = torch.load(
+                    m_path, map_location=self.device if not tpu else "cpu"
+                )
             if tpu:
                 checkpoint = xm.send_cpu_data_to_device(checkpoint, self.device)
-            print(f"Resuming model from \n  -{m_ckpt_path} \nand \n  -{p_ckpt_path}")
+            print(f"Resuming model from \n  -{p_path} \nand \n  -{m_path}")
         # ----------------------------------
         # -----  Single Model Loading  -----
         # ----------------------------------
         else:
-            if self.opts.train.resume_by_pth_path:
-                load_path = Path(self.opts.output_path)
-                assert (
-                    os.path.splitext(load_path)[-1] == ".pth"
-                ), "The path is not a pth checkpoint file."
-            else:
-                load_path = Path(self.opts.output_path) / Path(
-                    "checkpoints/latest_ckpt.pth"
+            if str(m_path) != "none" and str(p_path) != "none":
+                raise ValueError(
+                    "Opts tasks are {} but received 2 values for the load_paths".format(
+                        self.opts.tasks
+                    )
                 )
+
+            elif str(m_path) != "none":
+                assert m_path.exists()
+                if m_path.is_dir():
+                    m_path = m_path / "checkpoints/latest_ckpt.pth"
+                checkpoint_path = m_path
+
+            elif str(p_path) != "none":
+                assert p_path.exists()
+                if p_path.is_dir():
+                    p_path = p_path / "checkpoints/latest_ckpt.pth"
+                checkpoint_path = p_path
+
+            else:
+                checkpoint_path = (
+                    Path(self.opts.output_path) / "checkpoints/latest_ckpt.pth"
+                )
+
             checkpoint = torch.load(
-                load_path, map_location=self.device if not tpu else "cpu"
+                checkpoint_path, map_location=self.device if not tpu else "cpu"
             )
             if tpu:
                 checkpoint = xm.send_cpu_data_to_device(checkpoint, self.device)
-            print(f"Resuming model from {load_path}")
+            print(f"Resuming model from {checkpoint_path}")
 
         # -----------------------
         # -----  Restore G  -----
