@@ -1590,11 +1590,6 @@ class Trainer:
         torch.save(save_dict, save_path)
 
     def resume(self, inference=False):
-        # load_path = self.get_latest_ckpt()
-
-        # ----------------------------------------
-        # -----  Masker and Painter Loading  -----
-        # ----------------------------------------
         tpu = "xla" in str(self.device)
         if tpu:
             print("Resuming on TPU:", self.device)
@@ -1607,6 +1602,9 @@ class Trainer:
         map_loc = self.device if not tpu else "cpu"
 
         if "m" in self.opts.tasks and "p" in self.opts.tasks:
+            # ----------------------------------------
+            # -----  Masker and Painter Loading  -----
+            # ----------------------------------------
 
             # want to resume a pm model but no path was provided:
             # resume a single pm model from output_path
@@ -1614,6 +1612,7 @@ class Trainer:
                 checkpoint_path = output_path / "checkpoints/latest_ckpt.pth"
                 print("Resuming P+M model from", str(checkpoint_path))
                 checkpoint = torch.load(checkpoint_path, map_location=map_loc)
+
             # want to resume a pm model with a pm_path provided:
             # resume a single pm model from load_paths.pm
             # depending on whether a dir or a file is specified
@@ -1628,6 +1627,7 @@ class Trainer:
 
                 print("Resuming P+M model from", str(checkpoint_path))
                 checkpoint = torch.load(checkpoint_path, map_location=map_loc)
+
             # want to resume a pm model, pm_path not provided:
             # m_path and p_path must be provided as dirs or pth files
             elif m_path != p_path:
@@ -1647,6 +1647,7 @@ class Trainer:
                 p_checkpoint = torch.load(p_path, map_location=map_loc)
                 checkpoint = merge(m_checkpoint, p_checkpoint)
                 print(f"Resuming P+M model from \n  -{p_path} \nand \n  -{m_path}")
+
             else:
                 raise ValueError(
                     "Cannot resume a P+M model with provided load_paths:\n{}".format(
@@ -1654,12 +1655,12 @@ class Trainer:
                     )
                 )
 
-            if tpu:
-                checkpoint = xm.send_cpu_data_to_device(checkpoint, self.device)
-        # ----------------------------------
-        # -----  Single Model Loading  -----
-        # ----------------------------------
         else:
+            # ----------------------------------
+            # -----  Single Model Loading  -----
+            # ----------------------------------
+
+            # cannot specify both paths
             if str(m_path) != "none" and str(p_path) != "none":
                 raise ValueError(
                     "Opts tasks are {} but received 2 values for the load_paths".format(
@@ -1667,6 +1668,7 @@ class Trainer:
                     )
                 )
 
+            # specified m
             elif str(m_path) != "none":
                 assert m_path.exists()
                 assert "m" in self.opts.tasks
@@ -1675,6 +1677,7 @@ class Trainer:
                     m_path = m_path / "checkpoints/latest_ckpt.pth"
                 checkpoint_path = m_path
 
+            # specified m
             elif str(p_path) != "none":
                 assert p_path.exists()
                 assert "p" in self.opts.tasks
@@ -1683,14 +1686,18 @@ class Trainer:
                     p_path = p_path / "checkpoints/latest_ckpt.pth"
                 checkpoint_path = p_path
 
+            # specified neither p nor m: resume from output_path
             else:
                 model = "P" if "p" in self.opts.tasks else "M"
                 checkpoint_path = output_path / "checkpoints/latest_ckpt.pth"
 
             checkpoint = torch.load(checkpoint_path, map_location=map_loc)
-            if tpu:
-                checkpoint = xm.send_cpu_data_to_device(checkpoint, self.device)
             print(f"Resuming {model} model from {checkpoint_path}")
+
+        # On TPUs must send the data to the xla device as it cannot be mapped
+        # there directly from torch.load
+        if tpu:
+            checkpoint = xm.send_cpu_data_to_device(checkpoint, self.device)
 
         # -----------------------
         # -----  Restore G  -----
@@ -1702,12 +1709,11 @@ class Trainer:
             print("Done loading checkpoints.")
             return
 
-        if not ("m" in self.opts.tasks and "p" in self.opts.tasks):
-            self.g_opt.load_state_dict(checkpoint["g_opt"])
-        self.logger.epoch = checkpoint["epoch"] + 1
-        self.logger.global_step = checkpoint["step"]
+        self.g_opt.load_state_dict(checkpoint["g_opt"])
 
-        # resume scheduler:
+        # ------------------------------
+        # -----  Resume scheduler  -----
+        # ------------------------------
         # https://discuss.pytorch.org/t/a-problem-occured-when-resuming-an-optimizer/28822
         for _ in range(self.logger.epoch + 1):
             self.update_learning_rates()
@@ -1721,16 +1727,14 @@ class Trainer:
         # -----------------------
         if self.D is not None and get_num_params(self.D) > 0:
             self.D.load_state_dict(checkpoint["D"])
-            if not ("m" in self.opts.tasks and "p" in self.opts.tasks):
-                self.d_opt.load_state_dict(checkpoint["d_opt"])
+            self.d_opt.load_state_dict(checkpoint["d_opt"])
 
         # -----------------------
         # -----  Restore C  -----
         # -----------------------
         if self.C is not None and get_num_params(self.C) > 0:
             self.C.load_state_dict(checkpoint["C"])
-            if not ("m" in self.opts.tasks and "p" in self.opts.tasks):
-                self.c_opt.load_state_dict(checkpoint["c_opt"])
+            self.c_opt.load_state_dict(checkpoint["c_opt"])
 
         # ---------------------------
         # -----  Resore logger  -----
@@ -1740,19 +1744,6 @@ class Trainer:
         # Round step to even number for extraGradient
         if self.logger.global_step % 2 != 0:
             self.logger.global_step += 1
-
-    def get_latest_ckpt(self):
-        load_dir = Path(self.opts.output_path) / Path("checkpoints")
-        ckpts = os.listdir(str(load_dir.resolve()))
-        max_epoch = 0
-        max_ckpt = ""
-        for ckpt in ckpts:
-            ckpt = Path(ckpt)
-            epoch = int(ckpt.stem.split("_")[-1])
-            if epoch > max_epoch:
-                max_epoch = epoch
-                max_ckpt = ckpt
-        return Path(self.opts.output_path) / Path("checkpoints") / max_ckpt
 
     def eval_images(self, mode, domain):
         metrics = {"accuracy": accuracy, "iou": iou}
