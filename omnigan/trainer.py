@@ -1084,7 +1084,7 @@ class Trainer:
                             ] = update_loss.item()
 
                         if self.end_to_end:
-                            pl4m_loss = self.get_painter_loss_for_masker(prediction)
+                            pl4m_loss = self.get_painter_loss_for_masker(x, prediction)
                             pl4m_loss *= lambdas.G.m.pl4m
                             step_loss += pl4m_loss
                             self.logger.losses.gen.task.m.pl4m.r = pl4m_loss.item()
