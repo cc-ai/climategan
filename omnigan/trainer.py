@@ -1611,6 +1611,10 @@ class Trainer:
             if self.opts.train.resume_by_pth_path:
                 m_ckpt_path = Path(m_path)
                 p_ckpt_path = Path(p_path)
+                assert (
+                    os.path.splitext(m_ckpt_path)[-1] == ".pth"
+                    and os.path.splitext(p_ckpt_path)[-1] == ".pth"
+                ), "The path is not a pth checkpoint file."
             else:
                 m_ckpt_path = Path(m_path) / Path("checkpoints/latest_ckpt.pth")
                 p_ckpt_path = Path(p_path) / Path("checkpoints/latest_ckpt.pth")
@@ -1631,6 +1635,9 @@ class Trainer:
         else:
             if self.opts.train.resume_by_pth_path:
                 load_path = Path(self.opts.output_path)
+                assert (
+                    os.path.splitext(load_path)[-1] == ".pth"
+                ), "The path is not a pth checkpoint file."
             else:
                 load_path = Path(self.opts.output_path) / Path(
                     "checkpoints/latest_ckpt.pth"
