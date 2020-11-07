@@ -947,174 +947,40 @@ class Trainer:
             torch.Tensor: scalar loss tensor, weighted according to opts.train.lambdas
         """
         step_loss = 0
-        lambdas = self.opts.train.lambdas
-        one_hot = self.opts.classifier.loss != "cross_entropy"
-        for batch_domain, batch in multi_domain_batch.items():
+        for domain, batch in multi_domain_batch.items():
             # We don't care about the flooded domain here
-            if batch_domain == "rf":
+            if domain == "rf":
                 continue
 
             x = batch["data"]["x"]
-            self.z = self.G.encode(x)
+            z = self.G.encode(x)
             # ---------------------------------
             # -----  classifier loss (1)  -----
             # ---------------------------------
             if self.opts.train.latent_domain_adaptation:
-                output_classifier = self.C(self.z)
-
-                # Cross entropy loss (with sigmoid) with fake labels to fool C
-                update_loss = (
-                    self.losses["G"]["classifier"](
-                        output_classifier,
-                        fake_domains_to_class_tensor(batch["domain"], one_hot),
-                    )
-                    * lambdas.G.classifier
-                )
-
+                update_loss = self.compute_c_loss(z, batch["domain"])
                 step_loss += update_loss
-                self.logger.losses.gen.classifier[batch_domain] = update_loss.item()
+                self.logger.losses.gen.classifier[domain] = update_loss.item()
 
-            # -------------------------------------------------
-            # -----  task-specific regression losses (2)  -----
-            # -------------------------------------------------
-            for update_task, update_target in batch["data"].items():
-                if update_task == "d":
-                    # -------------------
-                    # -----  Depth  -----
-                    # -------------------
-                    prediction = self.G.decoders["d"](self.z)
-
-                    update_loss = self.losses["G"]["tasks"]["d"](
-                        prediction, update_target
-                    )
-                    update_loss *= lambdas.G.d.main
+            # --------------------------------------
+            # -----  task-specific losses (2)  -----
+            # --------------------------------------
+            for task, target in batch["data"].items():
+                if task == "d":
+                    update_loss = self.compute_d_loss(x, z, target, "G")
                     step_loss += update_loss
+                    self.logger.losses.gen.task["d"][domain] = update_loss.item()
 
-                    self.logger.losses.gen.task["d"][batch_domain] = update_loss.item()
-
-                elif update_task == "s":
-                    # --------------------------
-                    # -----  Segmentation  -----
-                    # --------------------------
-                    prediction = self.G.decoders["s"](self.z)
-
-                    # Supervised segmentation loss: crossent for sim domain,
-                    # crossent_pseudo for real ; loss is crossent in any case
-                    if batch_domain == "s" or self.opts.gen.s.use_pseudo_labels:
-                        if batch_domain == "s":
-                            loss_name = "crossent"
-                        else:
-                            loss_name = "crossent_pseudo"
-
-                        update_loss = self.losses["G"]["tasks"]["s"]["crossent"](
-                            prediction, update_target.squeeze(1)
-                        )
-                        update_loss *= lambdas.G["s"][loss_name]
-                        step_loss += update_loss
-
-                        self.logger.losses.gen.task["s"][loss_name][
-                            batch_domain
-                        ] = update_loss.item()
-
-                    if batch_domain == "r":
-                        # Entropy minimization loss
-                        if self.opts.gen.s.use_minent:
-                            softmax_preds = nn.functional.softmax(prediction, dim=1)
-
-                            # Direct entropy minimization
-                            update_loss = self.losses["G"]["tasks"]["s"]["minent"](
-                                softmax_preds
-                            )
-                            update_loss *= lambdas.G["s"]["minent"]
-                            step_loss += update_loss
-
-                            self.logger.losses.gen.task["s"]["minent"][
-                                "r"
-                            ] = update_loss.item()
-
-                        # Fool ADVENT discriminator
-                        if self.opts.gen.s.use_advent:
-                            update_loss = self.losses["G"]["tasks"]["s"]["advent"](
-                                prediction,
-                                self.domain_labels["s"],
-                                self.D["s"]["Advent"],
-                            )
-                            update_loss *= lambdas.G["s"]["advent"]
-                            step_loss += update_loss
-
-                            self.logger.losses.gen.task[update_task]["advent"][
-                                batch_domain
-                            ] = update_loss.item()
-
-                elif update_task == "m":
-                    # ? output features classifier
-                    prediction = self.G.decoders["m"](self.z)
-                    if batch_domain == "s":
-
-                        # Main loss first:
-                        update_loss = self.losses["G"]["tasks"]["m"]["bce"](
-                            prediction, update_target
-                        )
-                        update_loss *= lambdas.G.m.bce
-                        step_loss += update_loss
-                        self.logger.losses.gen.task["m"]["bce"][
-                            "s"
-                        ] = update_loss.item()
-
-                    # Then TV loss
-                    update_loss = self.losses["G"]["tasks"]["m"]["tv"](prediction)
-                    update_loss *= lambdas.G.m.tv
+                elif task == "s":
+                    update_loss = self.compute_s_loss(x, z, target, domain, "G")
                     step_loss += update_loss
+                    self.logger.losses.gen.task["s"][domain] = update_loss.item()
 
-                    self.logger.losses.gen.task["m"]["tv"][
-                        batch_domain
-                    ] = update_loss.item()
+                elif task == "m":
+                    update_loss = self.compute_m_loss(x, z, target, domain, "G")
+                    step_loss += update_loss
+                    self.logger.losses.gen.task["m"][domain] = update_loss.item()
 
-                    # Then GroundIntersection loss
-                    if batch_domain == "r":
-                        if self.opts.gen.m.use_ground_intersection:
-                            if self.verbose > 0:
-                                print("Using GroundIntersection loss.")
-                            update_loss = self.losses["G"]["tasks"]["m"]["gi"](
-                                prediction, update_target
-                            )
-                            update_loss *= lambdas.G["m"]["gi"]
-                            step_loss += update_loss
-                            self.logger.losses.gen.task["m"]["gi"][
-                                "r"
-                            ] = update_loss.item()
-
-                        if self.end_to_end:
-                            pl4m_loss = self.get_painter_loss_for_masker(x, prediction)
-                            pl4m_loss *= lambdas.G.m.pl4m
-                            step_loss += pl4m_loss
-                            self.logger.losses.gen.task.m.pl4m.r = pl4m_loss.item()
-
-                        pred_complementary = 1 - prediction
-                        prob = torch.cat([prediction, pred_complementary], dim=1)
-                        if self.opts.gen.m.use_minent:
-                            # Then Minent loss
-                            update_loss = self.losses["G"]["tasks"]["m"]["minent"](
-                                prob.to(self.device)
-                            )
-                            update_loss *= self.opts.train.lambdas.advent.ent_main
-                            step_loss += update_loss
-                            self.logger.losses.gen.task["m"]["minent"][
-                                "r"
-                            ] = update_loss.item()
-
-                        if self.opts.gen.m.use_advent:
-                            # Then Advent loss
-                            update_loss = self.losses["G"]["tasks"]["m"]["advent"](
-                                prob.to(self.device),
-                                self.domain_labels["s"],
-                                self.D["m"]["Advent"],
-                            )
-                            update_loss *= self.opts.train.lambdas.advent.adv_main
-                            step_loss += update_loss
-                            self.logger.losses.gen.task["m"]["advent"][
-                                batch_domain
-                            ] = update_loss.item()
         return step_loss
 
     def get_painter_loss_for_masker(self, x, m):
@@ -1836,3 +1702,146 @@ class Trainer:
                 )
 
         return 0
+
+    def compute_c_loss(self, z, target, for_="G"):
+        assert for_ in {"G", "D"}
+        full_loss = 0
+        # -------------------
+        # -----  Depth  -----
+        # -------------------
+        one_hot = self.opts.classifier.loss != "cross_entropy"
+        output_classifier = self.C(z)
+        # Cross entropy loss (with sigmoid) with fake labels to fool C
+        loss = self.losses["G"]["classifier"](
+            output_classifier, fake_domains_to_class_tensor(target, one_hot),
+        )
+        loss *= self.opts.train.lambdas.G.classifier
+        full_loss += loss
+
+        return full_loss
+
+    def compute_d_loss(self, x, z, target, for_="G"):
+        assert for_ in {"G", "D"}
+        assert x.shape[0] == z.shape[0]
+        assert x.shape[0] == target.shape[0]
+        full_loss = 0
+        # -------------------
+        # -----  Depth  -----
+        # -------------------
+
+        prediction = self.G.decoders["d"](self.z)
+        loss = self.losses["G"]["tasks"]["d"](prediction, target)
+        loss *= self.opts.train.lambdas.G.d.main
+
+        full_loss += loss
+
+        return full_loss
+
+    def compute_s_loss(self, x, z, target, domain, for_="G"):
+        assert for_ in {"G", "D"}
+        assert domain in {"r", "s"}
+        assert x.shape[0] == z.shape[0]
+        assert x.shape[0] == target.shape[0]
+        full_loss = 0
+        # --------------------------
+        # -----  Segmentation  -----
+        # --------------------------
+        prediction = self.G.decoders["s"](z)
+
+        # Supervised segmentation loss: crossent for sim domain,
+        # crossent_pseudo for real ; loss is crossent in any case
+        if domain == "s" or self.opts.gen.s.use_pseudo_labels:
+            if domain == "s":
+                loss_name = "crossent"
+            else:
+                loss_name = "crossent_pseudo"
+
+            loss = self.losses["G"]["tasks"]["s"]["crossent"](
+                prediction, target.squeeze(1)
+            )
+            loss *= self.opts.train.lambdas.G["s"][loss_name]
+            full_loss += loss
+            self.logger.losses.gen.task["s"][loss_name][domain] = loss.item()
+
+        if domain == "r":
+            # Entropy minimization loss
+            if self.opts.gen.s.use_minent:
+                softmax_preds = nn.functional.softmax(prediction, dim=1)
+                # Direct entropy minimization
+                loss = self.losses["G"]["tasks"]["s"]["minent"](softmax_preds)
+                loss *= self.opts.train.lambdas.G["s"]["minent"]
+                full_loss += loss
+
+                self.logger.losses.gen.task["s"]["minent"]["r"] = loss.item()
+
+            # Fool ADVENT discriminator
+            if self.opts.gen.s.use_advent:
+                loss = self.losses["G"]["tasks"]["s"]["advent"](
+                    prediction, self.domain_labels["s"], self.D["s"]["Advent"],
+                )
+                loss *= self.opts.train.lambdas.G["s"]["advent"]
+                full_loss += loss
+                self.logger.losses.gen.task["s"]["advent"][domain] = loss.item()
+
+        return full_loss
+
+    def compute_m_loss(self, x, z, target, domain, for_="G"):
+        assert for_ in {"G", "D"}
+        assert domain in {"r", "s"}
+        assert x.shape[0] == z.shape[0]
+        assert x.shape[0] == target.shape[0]
+        full_loss = 0
+        # ? output features classifier
+        prediction = self.G.decoders["m"](z)
+        if domain == "s":
+            # CrossEnt Loss
+            loss = self.losses["G"]["tasks"]["m"]["bce"](prediction, target)
+            loss *= self.opts.train.lambdas.G.m.bce
+            full_loss += loss
+            self.logger.losses.gen.task["m"]["bce"]["s"] = loss.item()
+
+        # TV loss
+        loss = self.losses["G"]["tasks"]["m"]["tv"](prediction)
+        loss *= self.opts.train.lambdas.G.m.tv
+        full_loss += loss
+
+        self.logger.losses.gen.task["m"]["tv"][domain] = loss.item()
+
+        if domain == "r":
+            # GroundIntersection loss
+            if self.opts.gen.m.use_ground_intersection:
+                if self.verbose > 0:
+                    print("Using GroundIntersection loss.")
+                loss = self.losses["G"]["tasks"]["m"]["gi"](prediction, target)
+                loss *= self.opts.train.lambdas.G["m"]["gi"]
+                full_loss += loss
+                self.logger.losses.gen.task["m"]["gi"]["r"] = loss.item()
+
+            # Painter loss
+            if self.end_to_end:
+                pl4m_loss = self.get_painter_loss_for_masker(x, prediction)
+                pl4m_loss *= self.opts.train.lambdas.G.m.pl4m
+                full_loss += pl4m_loss
+                self.logger.losses.gen.task.m.pl4m.r = pl4m_loss.item()
+
+            pred_complementary = 1 - prediction
+            prob = torch.cat([prediction, pred_complementary], dim=1)
+            if self.opts.gen.m.use_minent:
+                # MinEnt loss
+                loss = self.losses["G"]["tasks"]["m"]["minent"](prob.to(self.device))
+                loss *= self.opts.train.lambdas.advent.ent_main
+                full_loss += loss
+                self.logger.losses.gen.task["m"]["minent"]["r"] = loss.item()
+
+            if self.opts.gen.m.use_advent:
+                # AdvEnt loss
+                loss = self.losses["G"]["tasks"]["m"]["advent"](
+                    prob.to(self.device),
+                    self.domain_labels["s"],
+                    self.D["m"]["Advent"],
+                )
+                loss *= self.opts.train.lambdas.advent.adv_main
+                full_loss += loss
+                self.logger.losses.gen.task["m"]["advent"][domain] = loss.item()
+
+        return full_loss
