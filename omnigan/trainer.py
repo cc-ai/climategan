@@ -155,7 +155,7 @@ class Trainer:
 
         if mask_batch is None:
             z = self.G.encode(image_batch)
-            mask_batch = sigmoidself.G.decoders["m"](z))
+            mask_batch = sigmoid(self.G.decoders["m"](z))
         else:
             assert len(image_batch) == len(mask_batch)
             assert image_batch.shape[-2:] == mask_batch.shape[-2:]
