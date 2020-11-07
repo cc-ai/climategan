@@ -983,43 +983,6 @@ class Trainer:
 
         return step_loss
 
-    def get_painter_loss_for_masker(self, x, m):
-        # pl4m loss
-        # painter should not be updated
-        for param in self.G.painter.parameters():
-            param.requires_grad = False
-
-        z = self.sample_z(x.shape[0]) if not self.no_z else None
-        masked_x = x * (1.0 - m)
-        fake_flooded = self.G.painter(z, masked_x)
-        if self.opts.gen.p.paste_original_content:
-            fake_flooded = masked_x + m * fake_flooded
-
-        if self.opts.dis.p.use_local_discriminator:
-            fake_d_global = self.D["p"]["global"](fake_flooded)
-            fake_d_local = self.D["p"]["local"](fake_flooded * m)
-
-            # Note: discriminator returns [out_1,...,out_num_D] outputs
-            # Each out_i is a list [feat1, feat2, ..., pred_i]
-
-            pl4m_loss = self.losses["G"]["p"]["gan"](fake_d_global, True, False)
-            pl4m_loss += self.losses["G"]["p"]["gan"](fake_d_local, True, False)
-        else:
-            fake_cat = torch.cat([m, fake_flooded], axis=1)
-            real_cat = torch.cat([m, x], axis=1)
-            fake_and_real = torch.cat([fake_cat, real_cat], dim=0)
-
-            fake_and_real_d = self.D["p"](fake_and_real)
-            fake_d, _ = divide_pred(fake_and_real_d)
-
-            pl4m_loss = self.losses["G"]["p"]["gan"](fake_d, True, False)
-
-        if "p" in self.opts.tasks:
-            for param in self.G.painter.parameters():
-                param.requires_grad = True
-
-        return pl4m_loss
-
     def sample_z(self, batch_size):
         return torch.empty(
             batch_size,
@@ -1253,11 +1216,14 @@ class Trainer:
         else:
             disc_loss["p"] = {"gan": 0}
 
-        for batch_domain, batch in multi_domain_batch.items():
+        for domain, batch in multi_domain_batch.items():
             x = batch["data"]["x"]
             m = batch["data"]["m"]
 
-            if batch_domain == "rf":
+            # ---------------------
+            # -----  Painter  -----
+            # ---------------------
+            if domain == "rf":
                 # sample vector
                 with torch.no_grad():
                     # see spade compute_discriminator_loss
@@ -1295,82 +1261,21 @@ class Trainer:
                     disc_loss["p"]["gan"] = self.losses["D"]["p"](fake_d, False, True)
                     disc_loss["p"]["gan"] += self.losses["D"]["p"](real_d, True, True)
 
-                # Note: discriminator returns [out_1,...,out_num_D] outputs
-                # Each out_i is a list [feat1, feat2, ..., pred_i]
-
+            # --------------------
+            # -----  Masker  -----
+            # --------------------
             else:
                 z = self.G.encode(x)
-                if "m" in self.opts.tasks:
-                    if self.opts.gen.m.use_advent:
-                        if verbose > 0:
-                            print("Now training the ADVENT discriminator!")
-                        fake_mask = self.G.decoders["m"](z)
-                        fake_complementary_mask = 1 - fake_mask
-                        prob = torch.cat([fake_mask, fake_complementary_mask], dim=1)
-                        prob = prob.detach()
+                for task, _ in batch["data"].items():
+                    if task == "m":
+                        step_loss = self.compute_m_loss(x, z, None, domain, for_="D")
+                        step_loss *= self.opts.train.lambdas.advent.adv_main
+                        disc_loss["m"]["Advent"] += step_loss
 
-                        loss_main = self.losses["D"]["advent"](
-                            prob.to(self.device),
-                            self.domain_labels[batch_domain],
-                            self.D["m"]["Advent"],
-                        )
-                        if self.opts.dis.m.gan_type == "GAN" or "WGAN_norm":
-                            disc_loss["m"]["Advent"] += (
-                                self.opts.train.lambdas.advent.adv_main * loss_main
-                            )
-                        elif self.opts.dis.m.gan_type == "WGAN":
-                            for p in self.D["m"]["Advent"].parameters():
-                                p.data.clamp_(
-                                    self.opts.dis.m.wgan_clamp_lower,
-                                    self.opts.dis.m.wgan_clamp_upper,
-                                )
-                            disc_loss["m"]["Advent"] += (
-                                self.opts.train.lambdas.advent.adv_main * loss_main
-                            )
-                        elif self.opts.dis.m.gan_type == "WGAN_gp":
-                            prob_need_grad = autograd.Variable(prob, requires_grad=True)
-                            d_out = self.D["m"]["Advent"](prob_need_grad)
-                            gp = get_WGAN_gradient(prob_need_grad, d_out)
-                            disc_loss["m"]["Advent"] += (
-                                self.opts.train.lambdas.advent.adv_main * loss_main
-                                + self.opts.train.lambdas.advent.WGAN_gp * gp
-                            )
-                        else:
-                            raise NotImplementedError
-                if "s" in self.opts.tasks:
-                    if self.opts.gen.s.use_advent:
-                        preds = self.G.decoders["s"](z)
-                        preds = preds.detach()
-
-                        loss_main = self.losses["D"]["advent"](
-                            preds.to(self.device),
-                            self.domain_labels[batch_domain],
-                            self.D["s"]["Advent"],
-                        )
-
-                        if self.opts.dis.s.gan_type == "GAN" or "WGAN_norm":
-                            disc_loss["s"]["Advent"] += (
-                                self.opts.train.lambdas.advent.adv_main * loss_main
-                            )
-                        elif self.opts.dis.s.gan_type == "WGAN":
-                            for p in self.D["s"]["Advent"].parameters():
-                                p.data.clamp_(
-                                    self.opts.dis.s.wgan_clamp_lower,
-                                    self.opts.dis.s.wgan_clamp_upper,
-                                )
-                            disc_loss["s"]["Advent"] += (
-                                self.opts.train.lambdas.advent.adv_main * loss_main
-                            )
-                        elif self.opts.dis.s.gan_type == "WGAN_gp":
-                            prob_need_grad = autograd.Variable(prob, requires_grad=True)
-                            d_out = self.D["s"]["Advent"](prob_need_grad)
-                            gp = get_WGAN_gradient(prob_need_grad, d_out)
-                            disc_loss["s"]["Advent"] += (
-                                self.opts.train.lambdas.advent.adv_main * loss_main
-                                + self.opts.train.lambdas.advent.WGAN_gp * gp
-                            )
-                        else:
-                            raise NotImplementedError
+                    if task == "s":
+                        step_loss = self.compute_s_loss(x, z, None, domain, for_="D")
+                        step_loss *= self.opts.train.lambdas.advent.adv_main
+                        disc_loss["s"]["Advent"] += step_loss
 
         self.logger.losses.disc.update(
             {
@@ -1741,32 +1646,32 @@ class Trainer:
         assert for_ in {"G", "D"}
         assert domain in {"r", "s"}
         assert x.shape[0] == z.shape[0]
-        assert x.shape[0] == target.shape[0]
+        assert x.shape[0] == target.shape[0] if target is not None else True
         full_loss = 0
         # --------------------------
         # -----  Segmentation  -----
         # --------------------------
-        prediction = self.G.decoders["s"](z)
+        pred = None
+        if for_ == "G" or self.opts.gen.s.use_advent:
+            pred = self.G.decoders["s"](z)
 
         # Supervised segmentation loss: crossent for sim domain,
         # crossent_pseudo for real ; loss is crossent in any case
-        if domain == "s" or self.opts.gen.s.use_pseudo_labels:
+        if for_ == "G" and (domain == "s" or self.opts.gen.s.use_pseudo_labels):
             if domain == "s":
                 loss_name = "crossent"
             else:
                 loss_name = "crossent_pseudo"
 
-            loss = self.losses["G"]["tasks"]["s"]["crossent"](
-                prediction, target.squeeze(1)
-            )
+            loss = self.losses["G"]["tasks"]["s"]["crossent"](pred, target.squeeze(1))
             loss *= self.opts.train.lambdas.G["s"][loss_name]
             full_loss += loss
             self.logger.losses.gen.task["s"][loss_name][domain] = loss.item()
 
-        if domain == "r":
+        if domain == "r" and for_ == "G":
             # Entropy minimization loss
             if self.opts.gen.s.use_minent:
-                softmax_preds = nn.functional.softmax(prediction, dim=1)
+                softmax_preds = nn.functional.softmax(pred, dim=1)
                 # Direct entropy minimization
                 loss = self.losses["G"]["tasks"]["s"]["minent"](softmax_preds)
                 loss *= self.opts.train.lambdas.G["s"]["minent"]
@@ -1774,14 +1679,45 @@ class Trainer:
 
                 self.logger.losses.gen.task["s"]["minent"]["r"] = loss.item()
 
-            # Fool ADVENT discriminator
-            if self.opts.gen.s.use_advent:
-                loss = self.losses["G"]["tasks"]["s"]["advent"](
-                    prediction, self.domain_labels["s"], self.D["s"]["Advent"],
+        # Fool ADVENT discriminator
+        if self.opts.gen.s.use_advent:
+            if for_ == "D":
+                domain_label = domain
+                logger = {}
+                loss_func = self.losses["D"]["advent"]
+                pred = pred.detach()
+                weight = self.opts.train.lambdas.advent.adv_main
+            else:
+                domain_label = "s"
+                logger = self.logger.losses.gen.task["s"]["advent"]
+                loss_func = self.losses["G"]["tasks"]["s"]["advent"]
+                weight = self.opts.train.lambdas.G["s"]["advent"]
+
+            if for_ == "D" or domain == "r":
+                loss = loss_func(
+                    pred, self.domain_labels[domain_label], self.D["s"]["Advent"]
                 )
-                loss *= self.opts.train.lambdas.G["s"]["advent"]
+                loss *= weight
                 full_loss += loss
-                self.logger.losses.gen.task["s"]["advent"][domain] = loss.item()
+                logger[domain] = loss.item()
+
+                if for_ == "D":
+                    if self.opts.dis.s.gan_type == "GAN" or "WGAN_norm":
+                        pass
+                    elif self.opts.dis.s.gan_type == "WGAN":
+                        for p in self.D["s"]["Advent"].parameters():
+                            p.data.clamp_(
+                                self.opts.dis.s.wgan_clamp_lower,
+                                self.opts.dis.s.wgan_clamp_upper,
+                            )
+                    elif self.opts.dis.s.gan_type == "WGAN_gp":
+                        prob_need_grad = autograd.Variable(pred, requires_grad=True)
+                        d_out = self.D["s"]["Advent"](prob_need_grad)
+                        gp = get_WGAN_gradient(prob_need_grad, d_out)
+                        gp_loss = gp * self.opts.train.lambdas.advent.WGAN_gp
+                        full_loss += gp_loss
+                    else:
+                        raise NotImplementedError
 
         return full_loss
 
@@ -1789,43 +1725,44 @@ class Trainer:
         assert for_ in {"G", "D"}
         assert domain in {"r", "s"}
         assert x.shape[0] == z.shape[0]
-        assert x.shape[0] == target.shape[0]
+        assert x.shape[0] == target.shape[0] if target is not None else True
         full_loss = 0
         # ? output features classifier
-        prediction = self.G.decoders["m"](z)
-        if domain == "s":
+        pred = self.G.decoders["m"](z)
+        pred_complementary = 1 - pred
+        prob = torch.cat([pred, pred_complementary], dim=1)
+        if domain == "s" and for_ == "G":
             # CrossEnt Loss
-            loss = self.losses["G"]["tasks"]["m"]["bce"](prediction, target)
+            loss = self.losses["G"]["tasks"]["m"]["bce"](pred, target)
             loss *= self.opts.train.lambdas.G.m.bce
             full_loss += loss
             self.logger.losses.gen.task["m"]["bce"]["s"] = loss.item()
 
-        # TV loss
-        loss = self.losses["G"]["tasks"]["m"]["tv"](prediction)
-        loss *= self.opts.train.lambdas.G.m.tv
-        full_loss += loss
+        if for_ == "G":
+            # TV loss
+            loss = self.losses["G"]["tasks"]["m"]["tv"](pred)
+            loss *= self.opts.train.lambdas.G.m.tv
+            full_loss += loss
 
-        self.logger.losses.gen.task["m"]["tv"][domain] = loss.item()
+            self.logger.losses.gen.task["m"]["tv"][domain] = loss.item()
 
         if domain == "r":
             # GroundIntersection loss
-            if self.opts.gen.m.use_ground_intersection:
+            if self.opts.gen.m.use_ground_intersection and for_ == "G":
                 if self.verbose > 0:
                     print("Using GroundIntersection loss.")
-                loss = self.losses["G"]["tasks"]["m"]["gi"](prediction, target)
+                loss = self.losses["G"]["tasks"]["m"]["gi"](pred, target)
                 loss *= self.opts.train.lambdas.G["m"]["gi"]
                 full_loss += loss
                 self.logger.losses.gen.task["m"]["gi"]["r"] = loss.item()
 
             # Painter loss
-            if self.end_to_end:
-                pl4m_loss = self.get_painter_loss_for_masker(x, prediction)
+            if self.end_to_end and for_ == "G":
+                pl4m_loss = self.get_painter_loss_for_masker(x, pred)
                 pl4m_loss *= self.opts.train.lambdas.G.m.pl4m
                 full_loss += pl4m_loss
                 self.logger.losses.gen.task.m.pl4m.r = pl4m_loss.item()
 
-            pred_complementary = 1 - prediction
-            prob = torch.cat([prediction, pred_complementary], dim=1)
             if self.opts.gen.m.use_minent:
                 # MinEnt loss
                 loss = self.losses["G"]["tasks"]["m"]["minent"](prob.to(self.device))
@@ -1833,15 +1770,83 @@ class Trainer:
                 full_loss += loss
                 self.logger.losses.gen.task["m"]["minent"]["r"] = loss.item()
 
-            if self.opts.gen.m.use_advent:
-                # AdvEnt loss
-                loss = self.losses["G"]["tasks"]["m"]["advent"](
+        if self.opts.gen.m.use_advent:
+            # AdvEnt loss
+            if for_ == "D":
+                domain_label = domain
+                logger = {}
+                loss_func = self.losses["D"]["advent"]
+                prob = prob.detach()
+                weight = self.opts.train.lambdas.advent.adv_main
+            else:
+                domain_label = "r"
+                logger = self.logger.losses.gen.task["m"]["advent"]
+                loss_func = self.losses["G"]["tasks"]["m"]["advent"]
+                weight = self.opts.train.lambdas.advent.adv_main
+
+            if for_ == "D" or domain == "r":
+                loss = loss_func(
                     prob.to(self.device),
-                    self.domain_labels["s"],
+                    self.domain_labels[domain_label],
                     self.D["m"]["Advent"],
                 )
-                loss *= self.opts.train.lambdas.advent.adv_main
+                loss *= weight
                 full_loss += loss
-                self.logger.losses.gen.task["m"]["advent"][domain] = loss.item()
+                logger[domain] = loss.item()
+
+            if for_ == "D":
+                if self.opts.dis.s.gan_type == "GAN" or "WGAN_norm":
+                    pass
+                elif self.opts.dis.s.gan_type == "WGAN":
+                    for p in self.D["s"]["Advent"].parameters():
+                        p.data.clamp_(
+                            self.opts.dis.s.wgan_clamp_lower,
+                            self.opts.dis.s.wgan_clamp_upper,
+                        )
+                elif self.opts.dis.s.gan_type == "WGAN_gp":
+                    prob_need_grad = autograd.Variable(prob, requires_grad=True)
+                    d_out = self.D["s"]["Advent"](prob_need_grad)
+                    gp = get_WGAN_gradient(prob_need_grad, d_out)
+                    gp_loss = self.opts.train.lambdas.advent.WGAN_gp * gp
+                    full_loss += gp_loss
+                else:
+                    raise NotImplementedError
 
         return full_loss
+
+    def get_painter_loss_for_masker(self, x, m):
+        # pl4m loss
+        # painter should not be updated
+        for param in self.G.painter.parameters():
+            param.requires_grad = False
+
+        z = self.sample_z(x.shape[0]) if not self.no_z else None
+        masked_x = x * (1.0 - m)  # 0s where water should be painted
+        fake_flooded = self.G.painter(z, masked_x)
+        if self.opts.gen.p.paste_original_content:
+            fake_flooded = masked_x + m * fake_flooded
+
+        if self.opts.dis.p.use_local_discriminator:
+            fake_d_global = self.D["p"]["global"](fake_flooded)
+            fake_d_local = self.D["p"]["local"](fake_flooded * m)
+
+            # Note: discriminator returns [out_1,...,out_num_D] outputs
+            # Each out_i is a list [feat1, feat2, ..., pred_i]
+
+            pl4m_loss = self.losses["G"]["p"]["gan"](fake_d_global, True, False)
+            pl4m_loss += self.losses["G"]["p"]["gan"](fake_d_local, True, False)
+        else:
+            fake_cat = torch.cat([m, fake_flooded], axis=1)
+            real_cat = torch.cat([m, x], axis=1)
+            fake_and_real = torch.cat([fake_cat, real_cat], dim=0)
+
+            fake_and_real_d = self.D["p"](fake_and_real)
+            fake_d, _ = divide_pred(fake_and_real_d)
+
+            pl4m_loss = self.losses["G"]["p"]["gan"](fake_d, True, False)
+
+        if "p" in self.opts.tasks:
+            for param in self.G.painter.parameters():
+                param.requires_grad = True
+
+        return pl4m_loss
