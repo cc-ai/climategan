@@ -4,7 +4,6 @@ Main component: the trainer handles everything:
     * training
     * saving
 """
-import os
 import warnings
 from copy import deepcopy
 from pathlib import Path
@@ -37,7 +36,7 @@ from omnigan.tutils import (
     fake_domains_to_class_tensor,
     get_num_params,
     get_WGAN_gradient,
-    norm_tensor,
+    normalize_tensor,
     shuffle_batch_tuple,
     vgg_preprocess,
     zero_grad,
@@ -112,7 +111,9 @@ class Trainer:
                 raise ValueError(
                     "AMP does not work with ExtraAdam ({})".format(optimizers)
                 )
-            self.scaler = GradScaler()
+            self.grad_scaler_d = GradScaler()
+            self.grad_scaler_g = GradScaler()
+            self.grad_scaler_c = GradScaler()
 
     @torch.no_grad()
     def paint(self, image_batch, mask_batch=None, resolution="approx"):
@@ -611,6 +612,7 @@ class Trainer:
         self.exp.log_parameter("epoch", self.logger.epoch)
         epoch_len = min(len(loader) for loader in self.loaders["train"].values())
         epoch_desc = "Epoch {}".format(self.logger.epoch)
+
         for multi_batch_tuple in tqdm(
             self.train_loaders,
             desc=epoch_desc,
@@ -618,49 +620,47 @@ class Trainer:
             mininterval=0.5,
             unit="batch",
         ):
-            # create a dictionnay (domain => batch) from tuple
-            # (batch_domain_0, ..., batch_domain_i)
-            # and send it to self.device
 
             step_start_time = time()
             multi_batch_tuple = shuffle_batch_tuple(multi_batch_tuple)
 
             # The `[0]` is because the domain is contained in a list
-            # i.e. domain "r" is ["r"]
             multi_domain_batch = {
                 batch["domain"][0]: self.batch_to_device(batch)
                 for batch in multi_batch_tuple
             }
 
-            if self.d_opt is not None:
-                # freeze params of the discriminator
-                for param in self.D.parameters():
-                    param.requires_grad = False
-
             # ------------------------------
             # -----  Update Generator  -----
             # ------------------------------
-            self.update_g(multi_domain_batch)
+
+            # freeze params of the discriminator
+            if self.d_opt is not None:
+                for param in self.D.parameters():
+                    param.requires_grad = False
+
+            self.update_G(multi_domain_batch)
 
             # ----------------------------------
             # -----  Update Discriminator  -----
             # ----------------------------------
+
+            # unfreeze params of the discriminator
             if self.d_opt is not None:
-                # unfreeze params of advent discriminator
                 for param in self.D.parameters():
                     param.requires_grad = True
 
-                self.update_d(multi_domain_batch)
+                self.update_D(multi_domain_batch)
 
             # -------------------------------
             # -----  Update Classifier  -----
             # -------------------------------
             if self.opts.train.latent_domain_adaptation and self.C is not None:
-                self.update_c(multi_domain_batch)
+                self.update_C(multi_domain_batch)
 
-            # -----------------
-            # -----  Log  -----
-            # -----------------
+            # -------------------------
+            # -----  Log Metrics  -----
+            # -------------------------
             self.logger.global_step += 1
             step_time = time() - step_start_time
             self.log_step_time(step_time)
@@ -679,25 +679,28 @@ class Trainer:
 
     def log_comet_images(self, mode, domain):
         save_images = {}
+        # --------------------
+        # -----  Masker  -----
+        # --------------------
         if domain != "rf":
-            for j, im_set in enumerate(self.display_images[mode][domain]):
+            for j, display_dict in enumerate(self.display_images[mode][domain]):
                 print(j, end="\r")
-                x = im_set["data"]["x"].unsqueeze(0).to(self.device)
+                x = display_dict["data"]["x"].unsqueeze(0).to(self.device)
                 self.z = self.G.encode(x)
 
-                for update_task, update_target in im_set["data"].items():
-                    target = im_set["data"][update_task].unsqueeze(0).to(self.device)
+                for task, target in display_dict["data"].items():
+                    target = target.unsqueeze(0).to(self.device)
                     task_saves = []
 
-                    if update_task == "x":
+                    if task == "x":
                         continue
 
-                    if update_task not in save_images:
-                        save_images[update_task] = []
+                    if task not in save_images:
+                        save_images[task] = []
 
-                    prediction = self.G.decoders[update_task](self.z)
+                    prediction = self.G.decoders[task](self.z)
 
-                    if update_task == "s":
+                    if task == "s":
                         target = (
                             decode_segmap_merged_labels(target, domain, True)
                             .float()
@@ -710,23 +713,23 @@ class Trainer:
                         )
                         task_saves.append(target)
 
-                    elif update_task == "m":
+                    elif task == "m":
                         prediction = prediction.repeat(1, 3, 1, 1)
                         task_saves.append(x * (1.0 - prediction))
                         task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
 
-                    elif update_task == "d":
+                    elif task == "d":
                         # prediction is a log depth tensor
-                        target = (norm_tensor(target)) * 255
-                        prediction = (norm_tensor(prediction)) * 255
+                        target = normalize_tensor(target) * 255
+                        prediction = normalize_tensor(prediction) * 255
                         prediction = prediction.repeat(1, 3, 1, 1)
                         task_saves.append(target.repeat(1, 3, 1, 1))
 
                     task_saves.append(prediction)
-                    save_images[update_task].append(x.cpu().detach())
+                    save_images[task].append(x.cpu().detach())
 
                     for im in task_saves:
-                        save_images[update_task].append(im.cpu().detach())
+                        save_images[task].append(im.cpu().detach())
 
             for task in save_images.keys():
                 # Write images:
@@ -739,6 +742,9 @@ class Trainer:
                     rows_per_log=self.opts.comet.get("rows_per_log", 5),
                     comet_exp=self.exp,
                 )
+        # ---------------------
+        # -----  Painter  -----
+        # ---------------------
         else:
             # in the rf domain display_size may be different from fid.n_images
             limit = self.opts.comet.display_size
@@ -887,26 +893,18 @@ class Trainer:
             self.logger.losses.gen.painter = p_loss.item()
             g_loss += p_loss
 
-        if "m" in self.opts.tasks and "p" in self.opts.tasks:
-            mp_loss = self.get_combined_loss(multi_domain_batch)
-            self.logger.losses.gen.combined = mp_loss.item()
-            g_loss += mp_loss
-
         assert g_loss != 0 and not isinstance(g_loss, int), "No update in get_g_loss!"
 
         self.logger.losses.gen.total_loss = g_loss.item()
 
         return g_loss
 
-    def update_g(self, multi_domain_batch, verbose=0):
+    def update_G(self, multi_domain_batch, verbose=0):
         """Perform an update on g from multi_domain_batch which is a dictionary
         domain => batch
 
-        * compute loss
-            * if using Sam Lavoie's representational_training:
-                * compute either representation_loss or translation_loss
-                  depending on the current step vs opts.train.representation_steps
-            * otherwise compute both
+        * automatic mixed precision according to self.opts.train.amp
+        * compute loss for each task
         * loss.backward()
         * g_opt_step()
             * g_opt.step() or .extrapolation() depending on self.logger.global_step
@@ -919,8 +917,9 @@ class Trainer:
         if self.opts.amp:
             with autocast():
                 g_loss = self.get_g_loss(multi_domain_batch, verbose)
-            self.scaler.scale(g_loss).backward()
-            self.scaler.step(self.g_opt)
+            self.grad_scaler_g.scale(g_loss).backward()
+            self.grad_scaler_g.step(self.g_opt)
+            self.grad_scaler_g.update()
         else:
             g_loss = self.get_g_loss(multi_domain_batch, verbose)
             g_loss.backward()
@@ -1106,6 +1105,9 @@ class Trainer:
             self.logger.losses.gen.p.gan = loss.item()
             step_loss += loss
 
+            # -----------------------------------
+            # -----  Feature Matching Loss  -----
+            # -----------------------------------
             if self.opts.dis.p.get_intermediate_features:
                 loss = self.losses["G"]["p"]["featmatch"](real_d, fake_d)
                 loss *= lambdas.G["p"]["featmatch"]
@@ -1119,73 +1121,15 @@ class Trainer:
 
         return step_loss
 
-    def get_combined_loss(self, multi_domain_batch):  # TODO update docstrings
-        """Only update the representation part of the model, meaning everything
-        but the translation part
-
-        * for each batch in available domains:
-            * compute latent classifier loss with fake labels(1)
-            * compute task-specific losses (2)
-            * compute the adaptation and translation decoders' auto-encoding losses (3)
-            * compute the adaptation decoder's translation losses (GAN and Cycle) (4)
-
-        Args:
-            multi_domain_batch (dict): dictionnary mapping domain names to batches from
-            the trainer's loaders
-
-        Returns:
-            torch.Tensor: scalar loss tensor, weighted according to opts.train.lambdas
-        """
-        step_loss = 0
-        lambdas = self.opts.train.lambdas
-        for batch_domain, batch in multi_domain_batch.items():
-            # We don't care about the flooded domain here
-            if batch_domain == "rf" or batch_domain == "s":
-                continue
-
-            x = batch["data"]["x"]
-            self.z = self.G.encode(x)
-
-            # Get mask from masker
-            m = self.G.decoders["m"](self.z)
-
-            z = self.sample_painter_z(x.shape[0])
-            masked_x = x * (1.0 - m)
-
-            fake_flooded = self.G.painter(z, masked_x)
-            if self.opts.gen.p.paste_original_content:
-                fake_flooded = fake_flooded * m + masked_x
-            # GAN Losses
-            fake_d_global = self.D["p"]["global"](fake_flooded)
-
-            # Note: discriminator returns [out_1,...,out_num_D] outputs
-            # Each out_i is a list [feat1, feat2, ..., pred_i]
-
-            self.logger.losses.gen.p.endtoend = 0
-
-            num_D = len(fake_d_global)
-            for i in range(num_D):
-                # Take last element for GAN loss on discrim prediction
-                update_loss = (
-                    (self.losses["G"]["p"]["gan"](fake_d_global[i][-1], True))
-                    * lambdas.G["p"]["gan"]
-                    / num_D
-                )
-
-                self.logger.losses.gen.p.endtoend += update_loss.item()
-
-        return step_loss
-
-    def update_d(self, multi_domain_batch, verbose=0):
-        # ? split representational as in update_g
-        # ? repr: domain-adaptation traduction
+    def update_D(self, multi_domain_batch, verbose=0):
         zero_grad(self.D)
 
         if self.opts.amp:
             with autocast():
                 d_loss = self.get_d_loss(multi_domain_batch, verbose)
-            self.scaler.scale(d_loss).backward()
-            self.scaler.step(self.d_opt)
+            self.grad_scaler_d.scale(d_loss).backward()
+            self.grad_scaler_d.step(self.d_opt)
+            self.grad_scaler_d.update()
         else:
             d_loss = self.get_d_loss(multi_domain_batch, verbose)
             d_loss.backward()
@@ -1298,7 +1242,7 @@ class Trainer:
         loss = sum(v for d in disc_loss.values() for k, v in d.items())
         return loss
 
-    def update_c(self, multi_domain_batch):
+    def update_C(self, multi_domain_batch):
         """
         Update the classifier using normal labels
 
@@ -1311,12 +1255,11 @@ class Trainer:
         if self.opts.amp:
             with autocast():
                 c_loss = self.get_classifier_loss(multi_domain_batch)
-            # ? Log policy
-            self.scaler.scale(c_loss).backward()
-            self.scaler.step(self.c_opt)
+            self.grad_scaler_c.scale(c_loss).backward()
+            self.grad_scaler_c.step(self.c_opt)
+            self.grad_scaler_c.update()
         else:
             c_loss = self.get_classifier_loss(multi_domain_batch)
-            # ? Log policy
             self.logger.losses.classifier = c_loss.item()
             c_loss.backward()
             self.c_opt_step()
@@ -1766,7 +1709,7 @@ class Trainer:
 
             # Painter loss
             if self.end_to_end and for_ == "G":
-                pl4m_loss = self.get_painter_loss_for_masker(x, pred)
+                pl4m_loss = self.compute_painter_loss_for_masker(x, pred)
                 pl4m_loss *= self.opts.train.lambdas.G.m.pl4m
                 full_loss += pl4m_loss
                 self.logger.losses.gen.task.m.pl4m.r = pl4m_loss.item()
@@ -1822,7 +1765,7 @@ class Trainer:
 
         return full_loss
 
-    def get_painter_loss_for_masker(self, x, m):
+    def compute_painter_loss_for_masker(self, x, m):
         # pl4m loss
         # painter should not be updated
         for param in self.G.painter.parameters():
@@ -1844,12 +1787,12 @@ class Trainer:
             pl4m_loss = self.losses["G"]["p"]["gan"](fake_d_global, True, False)
             pl4m_loss += self.losses["G"]["p"]["gan"](fake_d_local, True, False)
         else:
-            fake_cat = torch.cat([m, fake_flooded], axis=1)
             real_cat = torch.cat([m, x], axis=1)
-            fake_and_real = torch.cat([fake_cat, real_cat], dim=0)
+            fake_cat = torch.cat([m, fake_flooded], axis=1)
+            real_fake_cat = torch.cat([real_cat, fake_cat], dim=0)
 
-            fake_and_real_d = self.D["p"](fake_and_real)
-            fake_d, _ = divide_pred(fake_and_real_d)
+            real_fake_d = self.D["p"](real_fake_cat)
+            _, fake_d = divide_pred(real_fake_d)
 
             pl4m_loss = self.losses["G"]["p"]["gan"](fake_d, True, False)
 

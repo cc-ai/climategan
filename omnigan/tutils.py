@@ -166,9 +166,18 @@ def show_tanh_tensor(tensor):
     skimage.io.imshow(image)
 
 
-def norm_tensor(t):
+def normalize_tensor(t):
+    """
+    Brings any tensor to the [0; 1] range.
+
+    Args:
+        t (torch.Tensor): input to normalize
+
+    Returns:
+        torch.Tensor: t projected to [0; 1]
+    """
     t = t - torch.min(t)
-    t /= torch.max(t)
+    t = t / torch.max(t)
     return t
 
 
