@@ -1701,7 +1701,7 @@ class Trainer:
 
             self.logger.losses.gen.task["m"]["tv"][domain] = loss.item()
 
-        if domain == "r":
+        if domain == "r" and for_ == "G":
             # GroundIntersection loss
             if self.opts.gen.m.use_ground_intersection and for_ == "G":
                 if self.verbose > 0:
