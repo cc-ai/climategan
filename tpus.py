@@ -179,7 +179,7 @@ def eval_folder(
 
                     with Timer(store=masker_inference_time):
                         z = model.encode(img)
-                        mask = model.decoders["m"](z)
+                        mask = F.sigmoid(model.decoders["m"](z))
                         # xm.mark_step()
 
                     with Timer(store=painter_inference_time):

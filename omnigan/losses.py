@@ -49,7 +49,7 @@ class GANLoss(nn.Module):
         if use_lsgan:
             self.loss = nn.MSELoss()
         else:
-            self.loss = nn.BCELoss()
+            self.loss = nn.BCEWithLogitsLoss()
         self.flip_prob = flip_prob
 
     def get_target_tensor(self, input, target_is_real):
@@ -85,7 +85,7 @@ class GANLoss(nn.Module):
 class FeatMatchLoss(nn.Module):
     def __init__(self):
         super().__init__()
-        self.criterionFeat = torch.nn.L1Loss()
+        self.criterionFeat = nn.L1Loss()
 
     def __call__(self, pred_real, pred_fake):
         # pred_{real, fake} are lists of features
@@ -105,19 +105,10 @@ class FeatMatchLoss(nn.Module):
 class CrossEntropy(nn.Module):
     def __init__(self):
         super().__init__()
-        self.loss = torch.nn.CrossEntropyLoss()
+        self.loss = nn.CrossEntropyLoss()
 
     def __call__(self, logits, target):
         return self.loss(logits, target.to(logits.device).long())
-
-
-class BinaryCrossEntropy(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.loss = torch.nn.BCELoss()
-
-    def __call__(self, logits, target):
-        return self.loss(logits, target.to(logits.device))
 
 
 class PixelCrossEntropy(CrossEntropy):
@@ -129,7 +120,7 @@ class PixelCrossEntropy(CrossEntropy):
 
     def __init__(self):
         super().__init__()
-        self.loss = torch.nn.CrossEntropyLoss(reduction="none")
+        self.loss = nn.CrossEntropyLoss(reduction="none")
 
 
 class TravelLoss(nn.Module):
@@ -224,7 +215,7 @@ class MSELoss(nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.loss = torch.nn.MSELoss()
+        self.loss = nn.MSELoss()
 
     def __call__(self, prediction, target):
         return self.loss(prediction, target.to(prediction.device))
@@ -238,7 +229,7 @@ class L1Loss(MSELoss):
 
     def __init__(self):
         super().__init__()
-        self.loss = torch.nn.L1Loss()
+        self.loss = nn.L1Loss()
 
 
 class SIMSELoss(nn.Module):
@@ -322,15 +313,15 @@ class ReconstructionLoss(nn.Module):
 ##################################################################################
 
 # Source: https://github.com/NVIDIA/pix2pixHD
-class Vgg19(torch.nn.Module):
+class Vgg19(nn.Module):
     def __init__(self, requires_grad=False):
         super(Vgg19, self).__init__()
         vgg_pretrained_features = models.vgg19(pretrained=True).features
-        self.slice1 = torch.nn.Sequential()
-        self.slice2 = torch.nn.Sequential()
-        self.slice3 = torch.nn.Sequential()
-        self.slice4 = torch.nn.Sequential()
-        self.slice5 = torch.nn.Sequential()
+        self.slice1 = nn.Sequential()
+        self.slice2 = nn.Sequential()
+        self.slice3 = nn.Sequential()
+        self.slice4 = nn.Sequential()
+        self.slice5 = nn.Sequential()
         for x in range(2):
             self.slice1.add_module(str(x), vgg_pretrained_features[x])
         for x in range(2, 7):
@@ -423,7 +414,7 @@ def get_losses(opts, verbose, device=None):
         )
     if "m" in opts.tasks:
         losses["G"]["tasks"]["m"] = {}
-        losses["G"]["tasks"]["m"]["bce"] = nn.BCELoss()
+        losses["G"]["tasks"]["m"]["bce"] = nn.BCEWithLogitsLoss()
         if opts.gen.m.use_minent_var:
             losses["G"]["tasks"]["m"]["minent"] = MinentLoss(
                 version=2, lambda_var=opts.train.lambdas.advent.ent_var
@@ -481,7 +472,7 @@ class CustomBCELoss(nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.loss = torch.nn.BCEWithLogitsLoss()
+        self.loss = nn.BCEWithLogitsLoss()
 
     def __call__(self, prediction, target):
         return self.loss(

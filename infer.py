@@ -11,6 +11,7 @@ import torch.nn.functional as F
 import os
 from tqdm import tqdm
 from PIL import ImageFile
+from torch.nn.functional import sigmoid
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
@@ -117,7 +118,7 @@ def eval_folder(
                         (z, label_val * trainer.label_2[0, :, :, :].unsqueeze(0)),
                         dim=1,
                     )
-                    mask = model.decoders["m"](z_aug)
+                    mask = sigmoid(model.decoders["m"](z_aug))
 
                     vutils.save_image(
                         mask,
@@ -134,7 +135,7 @@ def eval_folder(
 
             else:
                 z = model.encode(img)
-                mask = model.decoders["m"](z)
+                mask = sigmoid(model.decoders["m"](z))
                 vutils.save_image(
                     mask, output_dir / ("mask_" + img_path.name), normalize=True
                 )

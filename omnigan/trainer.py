@@ -21,6 +21,7 @@ from comet_ml import Experiment
 from torch import autograd
 from torch.cuda.amp import GradScaler, autocast
 from tqdm import tqdm
+from torch.nn.functional import sigmoid
 
 from omnigan.classifier import OmniClassifier, get_classifier
 from omnigan.data import decode_segmap_merged_labels, get_all_loaders
@@ -115,6 +116,9 @@ class Trainer:
             self.grad_scaler_g = GradScaler()
             self.grad_scaler_c = GradScaler()
 
+    def mask(self, z):
+        return sigmoid(self.G.decoders["m"](z))
+
     @torch.no_grad()
     def paint(self, image_batch, mask_batch=None, resolution="approx"):
         """
@@ -151,7 +155,7 @@ class Trainer:
 
         if mask_batch is None:
             z = self.G.encode(image_batch)
-            mask_batch = self.G.decoders["m"](z)
+            mask_batch = sigmoidself.G.decoders["m"](z))
         else:
             assert len(image_batch) == len(mask_batch)
             assert image_batch.shape[-2:] == mask_batch.shape[-2:]
@@ -782,10 +786,10 @@ class Trainer:
             x = im_set["data"]["x"].unsqueeze(0).to(self.device)
             # m = im_set["data"]["m"].unsqueeze(0).to(self.device)
 
-            z = self.sample_painter_z(x.shape[0])
-            m = self.G.decoders["m"](self.G.encode(x))
+            zp = self.sample_painter_z(x.shape[0])
+            m = sigmoid(self.G.decoders["m"](self.G.encode(x)))
 
-            prediction = self.G.painter(z, x * (1.0 - m))
+            prediction = self.G.painter(zp, x * (1.0 - m))
             if self.opts.gen.p.paste_original_content:
                 prediction = prediction * m + x * (1.0 - m)
 
@@ -1126,19 +1130,19 @@ class Trainer:
 
         if self.opts.train.amp:
             with autocast():
-                d_loss = self.get_d_loss(multi_domain_batch, verbose)
+                d_loss = self.get_D_loss(multi_domain_batch, verbose)
             self.grad_scaler_d.scale(d_loss).backward()
             self.grad_scaler_d.step(self.d_opt)
             self.grad_scaler_d.update()
         else:
-            d_loss = self.get_d_loss(multi_domain_batch, verbose)
+            d_loss = self.get_D_loss(multi_domain_batch, verbose)
             d_loss.backward()
             self.d_opt_step()
 
         self.logger.losses.disc.total_loss = d_loss.item()
         self.log_losses(model_to_update="D", mode="train")
 
-    def get_d_loss(self, multi_domain_batch, verbose=0):
+    def get_D_loss(self, multi_domain_batch, verbose=0):
         """Compute the discriminators' losses:
 
         * for each domain-specific batch:
@@ -1540,7 +1544,7 @@ class Trainer:
                 x = im_set["data"]["x"].unsqueeze(0).to(self.device)
                 m = im_set["data"]["m"].unsqueeze(0).detach().cpu().numpy()
                 z = self.G.encode(x)
-                pred_mask = self.G.decoders["m"](z).detach().cpu().numpy()
+                pred_mask = sigmoid(self.G.decoders["m"](z)).detach().cpu().numpy()
                 # Binarize mask
                 pred_mask[pred_mask > 0.5] = 1.0
 
@@ -1679,19 +1683,19 @@ class Trainer:
         assert x.shape[0] == target.shape[0] if target is not None else True
         full_loss = 0
         # ? output features classifier
-        pred = self.G.decoders["m"](z)
-        pred_complementary = 1 - pred
-        prob = torch.cat([pred, pred_complementary], dim=1)
+        pred_logits = self.G.decoders["m"](z)
+        pred_complementary = 1 - sigmoid(pred_logits)
+        prob = torch.cat([sigmoid(pred_logits), pred_complementary], dim=1)
         if domain == "s" and for_ == "G":
             # CrossEnt Loss
-            loss = self.losses["G"]["tasks"]["m"]["bce"](pred, target)
+            loss = self.losses["G"]["tasks"]["m"]["bce"](pred_logits, target)
             loss *= self.opts.train.lambdas.G.m.bce
             full_loss += loss
             self.logger.losses.gen.task["m"]["bce"]["s"] = loss.item()
 
         if for_ == "G":
             # TV loss
-            loss = self.losses["G"]["tasks"]["m"]["tv"](pred)
+            loss = self.losses["G"]["tasks"]["m"]["tv"](pred_logits)
             loss *= self.opts.train.lambdas.G.m.tv
             full_loss += loss
 
@@ -1702,14 +1706,14 @@ class Trainer:
             if self.opts.gen.m.use_ground_intersection and for_ == "G":
                 if self.verbose > 0:
                     print("Using GroundIntersection loss.")
-                loss = self.losses["G"]["tasks"]["m"]["gi"](pred, target)
+                loss = self.losses["G"]["tasks"]["m"]["gi"](pred_logits, target)
                 loss *= self.opts.train.lambdas.G["m"]["gi"]
                 full_loss += loss
                 self.logger.losses.gen.task["m"]["gi"]["r"] = loss.item()
 
             # Painter loss
             if self.end_to_end and for_ == "G":
-                pl4m_loss = self.compute_painter_loss_for_masker(x, pred)
+                pl4m_loss = self.compute_painter_loss_for_masker(x, pred_logits)
                 pl4m_loss *= self.opts.train.lambdas.G.m.pl4m
                 full_loss += pl4m_loss
                 self.logger.losses.gen.task.m.pl4m.r = pl4m_loss.item()
