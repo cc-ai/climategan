@@ -1,7 +1,17 @@
 output_path: /network/tmp1/schmidtv/yb_runs/test_v1
+# README on load_path
+# 1/ any path which leads to a dir will be loaded as `path / checkpoints / latest_ckpt.pth`
+# 2/ if you want to specify a specific checkpoint, it MUST be a `.pth` file
+# 3/ resuming a P OR an M model, you may only specify 1 of `load_path.p` OR `load_path.m`.
+#    You may also leave BOTH at none, in which case `output_path / checkpoints / latest_ckpt.pth`
+#    will be used
+# 4/ resuming a P+M model, you may specify (`p` AND `m`) OR `pm` OR leave all at none,
+#    in which case `output_path / checkpoints / latest_ckpt.pth` will be used to load from
+#    a single checkpoint
 load_paths:
-  p: none # none if using output_path
-  m: none # none if using output_path
+  p: none # Painter weights: none will use `output_path / checkpoints / latest_ckpt.pth`
+  m: none # Masker weights: none will use `output_path / checkpoints / latest_ckpt.pth`
+  pm: none # Painter and Masker weights: none will use `output_path / checkpoints / latest_ckpt.pth`
 
 # -------------------
 # -----  Tasks  -----
@@ -243,7 +253,8 @@ train:
       dis_aux: 0.0 # the discriminator take care of the second output in the adversarial training
       WGAN_gp: 10 # used in WGAN_gp, it's the hyperparameters for the gradient penalty
   log_level: 2 # 0: no log, 1: only aggregated losses, >1 detailed losses
-  save_n_epochs: 1 # Save model every n epochs
+  save_n_epochs: 2 # Save `latest_ckpt.pth` every epoch, `epoch_{epoch}_ckpt.pth` model every n epochs if epoch >= min_save_epoch
+  min_save_epoch: 28 # Save extra intermediate checkpoints when epoch > min_save_epoch
   resume: false # Load latest_ckpt.pth checkpoint from `output_path` #TODO Make this path of checkpoint to load
   auto_resume: true # automatically looks for similar output paths and exact same jobID to resume training automatically even if resume is false.
 
