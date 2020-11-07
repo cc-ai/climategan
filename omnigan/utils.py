@@ -103,7 +103,9 @@ def load_opts(
     Returns:
         addict.Dict: options dictionnary, with overwritten default values
     """
-    assert default or path
+
+    if path is None and default is None:
+        path = Path(__file__).parent.parent / "shared" / "trainer" / "defaults.yaml"
 
     if path:
         path = Path(path).resolve()
