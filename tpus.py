@@ -183,7 +183,7 @@ def eval_folder(
                         # xm.mark_step()
 
                     with Timer(store=painter_inference_time):
-                        z_painter = None  # trainer.sample_z(1)
+                        z_painter = None
                         if use_half:
                             z_painter = z_painter.half()
                         fake_flooded = model.painter(z_painter, img * (1.0 - mask))

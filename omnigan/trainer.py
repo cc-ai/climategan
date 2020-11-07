@@ -88,7 +88,6 @@ class Trainer:
         self.input_shape = None
         self.G = self.D = self.C = None
         self.lr_names = {}
-        self.no_z = self.opts.gen.p.no_z
         self.real_val_fid_stats = None
         self.end_to_end = False
         self.is_setup = False
@@ -748,7 +747,7 @@ class Trainer:
                 x = im_set["data"]["x"].unsqueeze(0).to(self.device)
                 m = im_set["data"]["m"].unsqueeze(0).to(self.device)
 
-                z = self.sample_z(x.shape[0]) if not self.no_z else None
+                z = self.sample_painter_z(x.shape[0])
                 prediction = self.G.painter(z, x * (1.0 - m))
                 if self.opts.gen.p.paste_original_content:
                     prediction = prediction * m + x * (1.0 - m)
@@ -777,7 +776,7 @@ class Trainer:
             x = im_set["data"]["x"].unsqueeze(0).to(self.device)
             # m = im_set["data"]["m"].unsqueeze(0).to(self.device)
 
-            z = self.sample_z(x.shape[0]) if not self.no_z else None
+            z = self.sample_painter_z(x.shape[0])
             m = self.G.decoders["m"](self.G.encode(x))
 
             prediction = self.G.painter(z, x * (1.0 - m))
@@ -966,24 +965,25 @@ class Trainer:
             # -----  task-specific losses (2)  -----
             # --------------------------------------
             for task, target in batch["data"].items():
-                if task == "d":
-                    update_loss = self.compute_d_loss(x, z, target, "G")
+                if task == "m":
+                    update_loss = self.compute_m_loss(x, z, target, domain, "G")
                     step_loss += update_loss
-                    self.logger.losses.gen.task["d"][domain] = update_loss.item()
-
+                    self.logger.losses.gen.task["m"][domain] = update_loss.item()
                 elif task == "s":
                     update_loss = self.compute_s_loss(x, z, target, domain, "G")
                     step_loss += update_loss
                     self.logger.losses.gen.task["s"][domain] = update_loss.item()
-
-                elif task == "m":
-                    update_loss = self.compute_m_loss(x, z, target, domain, "G")
+                elif task == "d":
+                    update_loss = self.compute_d_loss(x, z, target, "G")
                     step_loss += update_loss
-                    self.logger.losses.gen.task["m"][domain] = update_loss.item()
+                    self.logger.losses.gen.task["d"][domain] = update_loss.item()
 
         return step_loss
 
-    def sample_z(self, batch_size):
+    def sample_painter_z(self, batch_size):
+        if self.opts.gen.p.no_z:
+            return None
+
         return torch.empty(
             batch_size,
             self.opts.gen.p.latent_dim,
@@ -1012,7 +1012,7 @@ class Trainer:
         # ! different mask: hides water to be reconstructed
         # ! 1 for water, 0 otherwise
         m = batch["data"]["m"]
-        z = self.sample_z(x.shape[0]) if not self.no_z else None
+        z = self.sample_painter_z(x.shape[0])
         masked_x = x * (1.0 - m)
 
         fake_flooded = self.G.painter(z, masked_x)
@@ -1138,7 +1138,7 @@ class Trainer:
             # Get mask from masker
             m = self.G.decoders["m"](self.z)
 
-            z = self.sample_z(x.shape[0]) if not self.no_z else None
+            z = self.sample_painter_z(x.shape[0])
             masked_x = x * (1.0 - m)
 
             fake_flooded = self.G.painter(z, masked_x)
@@ -1227,7 +1227,7 @@ class Trainer:
                 # sample vector
                 with torch.no_grad():
                     # see spade compute_discriminator_loss
-                    z_paint = self.sample_z(x.shape[0]) if not self.no_z else None
+                    z_paint = self.sample_painter_z(x.shape[0])
                     fake = self.G.painter(z_paint, x * (1.0 - m))
                     if self.opts.gen.p.paste_original_content:
                         fake = fake * m + x * (1.0 - m)
@@ -1820,7 +1820,7 @@ class Trainer:
         for param in self.G.painter.parameters():
             param.requires_grad = False
 
-        z = self.sample_z(x.shape[0]) if not self.no_z else None
+        z = self.sample_painter_z(x.shape[0])
         masked_x = x * (1.0 - m)  # 0s where water should be painted
         fake_flooded = self.G.painter(z, masked_x)
         if self.opts.gen.p.paste_original_content:

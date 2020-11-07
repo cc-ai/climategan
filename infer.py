@@ -140,7 +140,7 @@ def eval_folder(
                 )
 
         if paint:
-            z_painter = trainer.sample_z(1) if not trainer.no_z else None
+            z_painter = trainer.sample_painter_z(1)
             fake_flooded = model.painter(z_painter, img * (1.0 - mask))
             vutils.save_image(fake_flooded, output_dir / img_path.name, normalize=True)
             if apply_mask:
