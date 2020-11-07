@@ -686,7 +686,7 @@ class Trainer:
             for j, display_dict in enumerate(self.display_images[mode][domain]):
                 print(j, end="\r")
                 x = display_dict["data"]["x"].unsqueeze(0).to(self.device)
-                self.z = self.G.encode(x)
+                z = self.G.encode(x)
 
                 for task, target in display_dict["data"].items():
                     target = target.unsqueeze(0).to(self.device)
@@ -698,7 +698,7 @@ class Trainer:
                     if task not in save_images:
                         save_images[task] = []
 
-                    prediction = self.G.decoders[task](self.z)
+                    prediction = self.G.decoders[task](z)
 
                     if task == "s":
                         target = (
@@ -944,7 +944,7 @@ class Trainer:
         Returns:
             torch.Tensor: scalar loss tensor, weighted according to opts.train.lambdas
         """
-        step_loss = 0
+        m_loss = 0
         for domain, batch in multi_domain_batch.items():
             # We don't care about the flooded domain here
             if domain == "rf":
@@ -956,28 +956,28 @@ class Trainer:
             # -----  classifier loss (1)  -----
             # ---------------------------------
             if self.opts.train.latent_domain_adaptation:
-                update_loss = self.compute_c_loss(z, batch["domain"])
-                step_loss += update_loss
-                self.logger.losses.gen.classifier[domain] = update_loss.item()
+                loss = self.compute_c_loss(z, batch["domain"])
+                m_loss += loss
+                self.logger.losses.gen.classifier[domain] = loss.item()
 
             # --------------------------------------
             # -----  task-specific losses (2)  -----
             # --------------------------------------
             for task, target in batch["data"].items():
                 if task == "m":
-                    update_loss = self.compute_m_loss(x, z, target, domain, "G")
-                    step_loss += update_loss
-                    self.logger.losses.gen.task["m"][domain] = update_loss.item()
+                    loss = self.compute_m_loss(x, z, target, domain, "G")
+                    m_loss += loss
+                    self.logger.losses.gen.task["m"][domain] = loss.item()
                 elif task == "s":
-                    update_loss = self.compute_s_loss(x, z, target, domain, "G")
-                    step_loss += update_loss
-                    self.logger.losses.gen.task["s"][domain] = update_loss.item()
+                    loss = self.compute_s_loss(x, z, target, domain, "G")
+                    m_loss += loss
+                    self.logger.losses.gen.task["s"][domain] = loss.item()
                 elif task == "d":
-                    update_loss = self.compute_d_loss(x, z, target, "G")
-                    step_loss += update_loss
-                    self.logger.losses.gen.task["d"][domain] = update_loss.item()
+                    loss = self.compute_d_loss(x, z, target, "G")
+                    m_loss += loss
+                    self.logger.losses.gen.task["d"][domain] = loss.item()
 
-        return step_loss
+        return m_loss
 
     def sample_painter_z(self, batch_size):
         if self.opts.gen.p.no_z:
@@ -1283,9 +1283,9 @@ class Trainer:
             # We don't care about the flooded domain here
             if batch_domain == "rf":
                 continue
-            self.z = self.G.encode(batch["data"]["x"])
+            z = self.G.encode(batch["data"]["x"])
             # Forward through classifier, output classifier = (batch_size, 4)
-            output_classifier = self.C(self.z)
+            output_classifier = self.C(z)
             # Cross entropy loss (with sigmoid)
             update_loss = self.losses["C"](
                 output_classifier,
@@ -1585,7 +1585,7 @@ class Trainer:
         # -----  Depth  -----
         # -------------------
 
-        prediction = self.G.decoders["d"](self.z)
+        prediction = self.G.decoders["d"](z)
         loss = self.losses["G"]["tasks"]["d"](prediction, target)
         loss *= self.opts.train.lambdas.G.d.main
 
