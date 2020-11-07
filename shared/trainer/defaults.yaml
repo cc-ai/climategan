@@ -211,6 +211,7 @@ classifier:
 # ----- Train Params -----
 # ------------------------
 train:
+  amp: False
   epochs: 300
   end_to_end_epoch: 50
   fid:

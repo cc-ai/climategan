@@ -101,7 +101,7 @@ class Trainer:
             self.exp = comet_exp
         self.domain_labels = {"s": 0, "r": 1}
 
-        if self.opts.amp:
+        if self.opts.train.amp:
             optimizers = [
                 self.opts.gen.opt.optimizer.lower(),
                 self.opts.dis.opt.optimizer.lower(),
@@ -914,7 +914,7 @@ class Trainer:
             multi_domain_batch (dict): dictionnary of domain batches
         """
         zero_grad(self.G)
-        if self.opts.amp:
+        if self.opts.train.amp:
             with autocast():
                 g_loss = self.get_g_loss(multi_domain_batch, verbose)
             self.grad_scaler_g.scale(g_loss).backward()
@@ -1124,7 +1124,7 @@ class Trainer:
     def update_D(self, multi_domain_batch, verbose=0):
         zero_grad(self.D)
 
-        if self.opts.amp:
+        if self.opts.train.amp:
             with autocast():
                 d_loss = self.get_d_loss(multi_domain_batch, verbose)
             self.grad_scaler_d.scale(d_loss).backward()
@@ -1252,7 +1252,7 @@ class Trainer:
 
         """
         zero_grad(self.C)
-        if self.opts.amp:
+        if self.opts.train.amp:
             with autocast():
                 c_loss = self.get_classifier_loss(multi_domain_batch)
             self.grad_scaler_c.scale(c_loss).backward()
