@@ -88,7 +88,7 @@ class Trainer:
         self.G = self.D = self.C = None
         self.lr_names = {}
         self.real_val_fid_stats = None
-        self.end_to_end = False
+        self.use_pm4l = False
         self.is_setup = False
         self.current_mode = "train"
 
@@ -608,8 +608,8 @@ class Trainer:
             self.run_evaluation(verbose=1)
             self.save()
 
-            if self.logger.epoch == self.opts.train.end_to_end_epoch:
-                self.end_to_end = True
+            if self.logger.epoch == self.gen.p.pm4l_epoch:
+                self.use_pm4l = True
 
     def get_G_loss(self, multi_domain_batch, verbose=0):
         m_loss = p_loss = None
@@ -1442,7 +1442,7 @@ class Trainer:
                 self.logger.losses.gen.task["m"]["gi"]["r"] = loss.item()
 
             # Painter loss
-            if self.end_to_end and for_ == "G":
+            if self.use_pm4l and for_ == "G":
                 pl4m_loss = self.painter_loss_for_masker(x, pred_logits)
                 pl4m_loss *= self.opts.train.lambdas.G.m.pl4m
                 full_loss += pl4m_loss

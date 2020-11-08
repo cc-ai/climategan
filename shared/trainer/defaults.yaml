@@ -128,6 +128,7 @@ gen:
     no_z: true # <=> use_vae=False in the SPADE repo
     use_final_shortcut: False # if true, the last spade block does not get the masked input as conditioning but the prediction of the previous layer (passed through a conv to match dims) in order to lighten the masking restrictions and have smoother edges
     paste_original_content: False # only select the water painted to backprop through the network, not the whole generated image: fake_flooded = masked_x + m * fake_flooded
+    pl4m_epoch: 50 # epoch from which we introduce a new loss to the masker: the painter's discriminator's loss
 
   m: # specific params for the mask-generation decoder
     <<: *default-gen
@@ -213,7 +214,6 @@ classifier:
 train:
   amp: False
   epochs: 300
-  end_to_end_epoch: 50
   fid:
     n_images: 57 # val_rf.json has 57 images
     batch_size: 50 # inception inference batch size, not painter's
