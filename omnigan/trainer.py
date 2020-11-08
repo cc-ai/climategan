@@ -882,7 +882,7 @@ class Trainer:
             if self.logger.epoch == self.opts.train.end_to_end_epoch:
                 self.end_to_end = True
 
-    def get_g_loss(self, multi_domain_batch, verbose=0):
+    def get_G_loss(self, multi_domain_batch, verbose=0):
         m_loss = p_loss = None
 
         # For now, always compute "representation loss"
@@ -898,7 +898,7 @@ class Trainer:
             self.logger.losses.gen.painter = p_loss.item()
             g_loss += p_loss
 
-        assert g_loss != 0 and not isinstance(g_loss, int), "No update in get_g_loss!"
+        assert g_loss != 0 and not isinstance(g_loss, int), "No update in get_G_loss!"
 
         self.logger.losses.gen.total_loss = g_loss.item()
 
@@ -921,12 +921,12 @@ class Trainer:
         zero_grad(self.G)
         if self.opts.train.amp:
             with autocast():
-                g_loss = self.get_g_loss(multi_domain_batch, verbose)
+                g_loss = self.get_G_loss(multi_domain_batch, verbose)
             self.grad_scaler_g.scale(g_loss).backward()
             self.grad_scaler_g.step(self.g_opt)
             self.grad_scaler_g.update()
         else:
-            g_loss = self.get_g_loss(multi_domain_batch, verbose)
+            g_loss = self.get_G_loss(multi_domain_batch, verbose)
             g_loss.backward()
             self.g_opt_step()
 
@@ -961,7 +961,7 @@ class Trainer:
             # -----  classifier loss (1)  -----
             # ---------------------------------
             if self.opts.train.latent_domain_adaptation:
-                loss = self.compute_c_loss(z, batch["domain"])
+                loss = self.masker_c_loss(z, batch["domain"])
                 m_loss += loss
                 self.logger.losses.gen.classifier[domain] = loss.item()
 
@@ -970,15 +970,15 @@ class Trainer:
             # --------------------------------------
             for task, target in batch["data"].items():
                 if task == "m":
-                    loss = self.compute_m_loss(x, z, target, domain, "G")
+                    loss = self.masker_m_loss(x, z, target, domain, "G")
                     m_loss += loss
                     self.logger.losses.gen.task["m"][domain] = loss.item()
                 elif task == "s":
-                    loss = self.compute_s_loss(x, z, target, domain, "G")
+                    loss = self.masker_s_loss(x, z, target, domain, "G")
                     m_loss += loss
                     self.logger.losses.gen.task["s"][domain] = loss.item()
                 elif task == "d":
-                    loss = self.compute_d_loss(x, z, target, "G")
+                    loss = self.masker_d_loss(x, z, target, "G")
                     m_loss += loss
                     self.logger.losses.gen.task["d"][domain] = loss.item()
 
@@ -1225,12 +1225,12 @@ class Trainer:
                 z = self.G.encode(x)
                 for task, _ in batch["data"].items():
                     if task == "m":
-                        step_loss = self.compute_m_loss(x, z, None, domain, for_="D")
+                        step_loss = self.masker_m_loss(x, z, None, domain, for_="D")
                         step_loss *= self.opts.train.lambdas.advent.adv_main
                         disc_loss["m"]["Advent"] += step_loss
 
                     if task == "s":
-                        step_loss = self.compute_s_loss(x, z, None, domain, for_="D")
+                        step_loss = self.masker_s_loss(x, z, None, domain, for_="D")
                         step_loss *= self.opts.train.lambdas.advent.adv_main
                         disc_loss["s"]["Advent"] += step_loss
 
@@ -1316,7 +1316,7 @@ class Trainer:
                 batch["domain"][0]: self.batch_to_device(batch)
                 for batch in multi_batch_tuple
             }
-            self.get_g_loss(multi_domain_batch, verbose)
+            self.get_G_loss(multi_domain_batch, verbose)
 
             if val_logger is None:
                 val_logger = deepcopy(self.logger.losses.generator)
@@ -1564,7 +1564,7 @@ class Trainer:
 
         return 0
 
-    def compute_c_loss(self, z, target, for_="G"):
+    def masker_c_loss(self, z, target, for_="G"):
         assert for_ in {"G", "D"}
         full_loss = 0
         # -------------------
@@ -1581,7 +1581,7 @@ class Trainer:
 
         return full_loss
 
-    def compute_d_loss(self, x, z, target, for_="G"):
+    def masker_d_loss(self, x, z, target, for_="G"):
         assert for_ in {"G", "D"}
         assert x.shape[0] == z.shape[0]
         assert x.shape[0] == target.shape[0]
@@ -1598,7 +1598,7 @@ class Trainer:
 
         return full_loss
 
-    def compute_s_loss(self, x, z, target, domain, for_="G"):
+    def masker_s_loss(self, x, z, target, domain, for_="G"):
         assert for_ in {"G", "D"}
         assert domain in {"r", "s"}
         assert x.shape[0] == z.shape[0]
@@ -1677,7 +1677,7 @@ class Trainer:
 
         return full_loss
 
-    def compute_m_loss(self, x, z, target, domain, for_="G"):
+    def masker_m_loss(self, x, z, target, domain, for_="G"):
         assert for_ in {"G", "D"}
         assert domain in {"r", "s"}
         assert x.shape[0] == z.shape[0]
@@ -1714,7 +1714,7 @@ class Trainer:
 
             # Painter loss
             if self.end_to_end and for_ == "G":
-                pl4m_loss = self.compute_painter_loss_for_masker(x, pred_logits)
+                pl4m_loss = self.painter_loss_for_masker(x, pred_logits)
                 pl4m_loss *= self.opts.train.lambdas.G.m.pl4m
                 full_loss += pl4m_loss
                 self.logger.losses.gen.task.m.pl4m.r = pl4m_loss.item()
@@ -1770,7 +1770,7 @@ class Trainer:
 
         return full_loss
 
-    def compute_painter_loss_for_masker(self, x, m):
+    def painter_loss_for_masker(self, x, m):
         # pl4m loss
         # painter should not be updated
         for param in self.G.painter.parameters():
