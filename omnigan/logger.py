@@ -6,6 +6,7 @@ from torch.nn.functional import sigmoid
 from omnigan.data import decode_segmap_merged_labels
 from omnigan.tutils import normalize_tensor
 from omnigan.utils import flatten_opts
+from PIL import Image
 
 
 class Logger:
@@ -248,6 +249,7 @@ class Logger:
         curr_iter = self.global_step
         nb_per_log = im_per_row * rows_per_log
         for logidx in range(rows_per_log):
+            print(" " * 100, end="\r")
             print(
                 "Creating images for {} {} {} {}/{}".format(
                     mode, domain, task, logidx + 1, rows_per_log
@@ -265,7 +267,7 @@ class Logger:
 
             print("Uploading...", end="")
             trainer.exp.log_image(
-                image_grid,
+                Image.fromarray(image_grid),
                 name=f"{mode}_{domain}_{task}_{str(curr_iter)}_#{logidx}",
                 step=curr_iter,
             )
