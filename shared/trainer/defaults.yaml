@@ -108,7 +108,7 @@ gen:
     upsample_featuremaps: False # upsamples from 80x80 to 160x160 intermediate feature maps
   p: # specific params for the SPADE painter
     <<: *default-gen
-    latent_dim: 512
+    latent_dim: 1024
     output_dim: 3 # output dimension
     pad_type: zero # padding type [zero/reflect]
     spade_kernel_size: 3 # kernel size within SPADE norm layers
@@ -118,8 +118,10 @@ gen:
     no_z: true # <=> use_vae=False in the SPADE repo
     use_final_shortcut: False # if true, the last spade block does not get the masked input as conditioning but the prediction of the previous layer (passed through a conv to match dims) in order to lighten the masking restrictions and have smoother edges
     paste_original_content: False # only select the water painted to backprop through the network, not the whole generated image: fake_flooded = masked_x + m * fake_flooded
-
-  m: # specific params for the mask-generation decoder
+    use_pretrained: True
+    path_G_pretrained: /miniscratch/_groups/ccai/data/pretrained_gaugan/latest_net_G.pth
+  
+    m: # specific params for the mask-generation decoder
     <<: *default-gen
     output_dim: 1
     use_minent: True # directly minimize the entropy of the image

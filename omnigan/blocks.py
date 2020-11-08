@@ -329,9 +329,7 @@ class BaseDecoder(nn.Module):
 
 
 class DepthDecoder(nn.Module):
-    """#Depth decoder based on depth auxiliary task in DADA paper
-
-    """
+    """#Depth decoder based on depth auxiliary task in DADA paper"""
 
     def __init__(self, opts):
         super().__init__()

@@ -4,6 +4,7 @@
     * Decoders
 """
 import torch.nn as nn
+import torch
 from omnigan.tutils import init_weights
 from omnigan.blocks import (
     PainterSpadeDecoder,
@@ -60,7 +61,53 @@ def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
         init_gain=opts.gen.p.init_gain,
         verbose=verbose,
     )
+
+    if opts.gen.p.use_pretrained:
+        weights = torch.load(opts.gen.p.path_G_pretrained)
+        new_params = G.painter.state_dict().copy()
+        for elem in new_params:
+            if match_up_spade_v2(elem) in weights.keys() and not elem.startswith(
+                "conv_img"
+            ):
+                if new_params[elem].size() == weights[match_up_spade_v2(elem)].size():
+                    new_params[elem] = weights[match_up_spade_v2(elem)]
+            # If we only want to match the upsampling layers (that have the  right dimentsion)
+            #  if elem.startswith("up"):
+            #     print(elem)
+            #     if match_up_spade(elem)!= "":
+            #         if new_params[elem].size()==weights[match_up_spade(elem)].size():
+            #             new_params[elem] = weights[match_up_spade(elem)]
+        G.painter.load_state_dict(new_params)
     return G
+
+
+def match_name(name):
+    if name == "weight_bar":
+        return "weight_orig"
+    else:
+        return name
+
+
+def match_up_spade(s):
+    s_ = s.split(".")
+    if "module" in s_:
+        s_.remove("module")
+    if int(s_[1]) in range(3):
+        return (".").join(["up_" + str(int(s_[1]) + 1), *s_[2:-1], match_name(s_[-1])])
+    else:
+        return ""
+
+
+def match_up_spade_v2(s):
+    s_ = s.split(".")
+    if "module" in s_:
+        s_.remove("module")
+    if (s_[1]) in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]:
+        return (".").join(["up_" + str(int(s_[1])), *s_[2:-1], match_name(s_[-1])])
+    else:
+        s_ = s.split(".")
+        s_[-1] = match_name(s_[-1])
+        return (".").join(s_)
 
 
 class OmniGenerator(nn.Module):
