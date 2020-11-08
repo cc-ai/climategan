@@ -73,7 +73,7 @@ class Logger:
 
             for task in save_images.keys():
                 # Write images:
-                trainer.write_images(
+                self.write_images(
                     image_outputs=save_images[task],
                     mode=mode,
                     domain=domain,
@@ -103,7 +103,7 @@ class Logger:
                 image_outputs.append(x)
                 image_outputs.append(prediction * m)
             # Write images
-            trainer.write_images(
+            self.write_images(
                 image_outputs=image_outputs,
                 mode=mode,
                 domain=domain,
