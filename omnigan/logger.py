@@ -80,7 +80,6 @@ class Logger:
                     task=task,
                     im_per_row=trainer.opts.comet.im_per_row.get(task, 4),
                     rows_per_log=trainer.opts.comet.get("rows_per_log", 5),
-                    comet_exp=trainer.exp,
                 )
         # ---------------------
         # -----  Painter  -----
@@ -110,7 +109,6 @@ class Logger:
                 task="painter",
                 im_per_row=trainer.opts.comet.im_per_row.get("p", 4),
                 rows_per_log=trainer.opts.comet.get("rows_per_log", 5),
-                comet_exp=trainer.exp,
             )
 
         return 0
@@ -221,7 +219,6 @@ class Logger:
             task="combined",
             im_per_row=trainer.opts.comet.im_per_row.get("p", 4),
             rows_per_log=trainer.opts.comet.get("rows_per_log", 5),
-            comet_exp=trainer.exp,
         )
 
         return 0
