@@ -437,3 +437,34 @@ def get_WGAN_gradient(input, output):
     grads = grads.view(grads.size(0), -1)
     gp = ((grads.norm(2, dim=1) - 1) ** 2).mean()
     return gp
+
+
+def print_num_parameters(trainer):
+    print("-" * 35)
+    if trainer.G.encoder is not None:
+        print(
+            "{:21}:".format("num params encoder"),
+            f"{get_num_params(trainer.G.encoder):12,}",
+        )
+    for d in trainer.G.decoders.keys():
+        print(
+            "{:21}:".format(f"num params decoder {d}"),
+            f"{get_num_params(trainer.G.decoders[d]):12,}",
+        )
+
+    print(
+        "{:21}:".format("num params painter"),
+        f"{get_num_params(trainer.G.painter):12,}",
+    )
+
+    if trainer.D is not None:
+        for d in trainer.D.keys():
+            print(
+                "{:21}:".format(f"num params discrim {d}"),
+                f"{get_num_params(trainer.D[d]):12,}",
+            )
+
+    if trainer.C is not None:
+        print("{:21}:".format("num params classif"), f"{get_num_params(trainer.C):12,}")
+    print("-" * 35)
+

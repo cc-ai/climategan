@@ -15,7 +15,6 @@ warnings.simplefilter("ignore", UserWarning)
 
 import torch
 import torch.nn as nn
-import torchvision.utils as vutils
 from addict import Dict
 from comet_ml import Experiment
 from torch import autograd
@@ -24,7 +23,7 @@ from tqdm import tqdm
 from torch.nn.functional import sigmoid
 
 from omnigan.classifier import OmniClassifier, get_classifier
-from omnigan.data import decode_segmap_merged_labels, get_all_loaders
+from omnigan.data import get_all_loaders
 from omnigan.discriminator import OmniDiscriminator, get_dis
 from omnigan.eval_metrics import accuracy, iou
 from omnigan.fid import compute_val_fid
@@ -37,10 +36,10 @@ from omnigan.tutils import (
     fake_domains_to_class_tensor,
     get_num_params,
     get_WGAN_gradient,
-    normalize_tensor,
     shuffle_batch_tuple,
     vgg_preprocess,
     zero_grad,
+    print_num_parameters,
 )
 from omnigan.utils import (
     comet_kwargs,
@@ -52,6 +51,7 @@ from omnigan.utils import (
     merge,
     sum_dict,
 )
+from omnigan.logger import Logger
 
 try:
     import torch_xla.core.xla_model as xm
@@ -81,8 +81,7 @@ class Trainer:
 
         self.opts = opts
         self.verbose = verbose
-        self.logger = Dict()
-        self.logger.epoch = 0
+        self.logger = Logger(self)
         self.loaders = None
         self.losses = None
         self.input_shape = None
@@ -271,42 +270,6 @@ class Trainer:
             self.C.train()
         self.current_mode = "train"
 
-    def log_losses(self, model_to_update="G", mode="train"):
-        """Logs metrics on comet.ml
-
-        Args:
-            model_to_update (str, optional): One of "G", "D" or "C". Defaults to "G".
-        """
-        loss_names = {"G": "gen", "D": "disc", "C": "classifier"}
-
-        if self.opts.train.log_level < 1:
-            return
-
-        if self.exp is None:
-            return
-
-        assert model_to_update in {
-            "G",
-            "D",
-            "C",
-        }, "unknown model to log losses {}".format(model_to_update)
-
-        loss_to_update = self.logger.losses[loss_names[model_to_update]]
-
-        losses = loss_to_update.copy()
-
-        if self.opts.train.log_level == 1:
-            # Only log aggregated losses: delete other keys in losses
-            for k in loss_to_update:
-                if k not in {"masker", "total_loss", "painter"}:
-                    del losses[k]
-        # convert losses into a single-level dictionnary
-
-        losses = flatten_opts(losses)
-        self.exp.log_metrics(
-            losses, prefix=f"{model_to_update}_{mode}", step=self.logger.global_step
-        )
-
     def batch_to_device(self, b):
         """sends the data in b to self.device
 
@@ -368,37 +331,6 @@ class Trainer:
 
         return shape
 
-    def print_num_parameters(self):
-        print("-" * 35)
-        if self.G.encoder is not None:
-            print(
-                "{:21}:".format("num params encoder"),
-                f"{get_num_params(self.G.encoder):12,}",
-            )
-        for d in self.G.decoders.keys():
-            print(
-                "{:21}:".format(f"num params decoder {d}"),
-                f"{get_num_params(self.G.decoders[d]):12,}",
-            )
-
-        print(
-            "{:21}:".format("num params painter"),
-            f"{get_num_params(self.G.painter):12,}",
-        )
-
-        if self.D is not None:
-            for d in self.D.keys():
-                print(
-                    "{:21}:".format(f"num params discrim {d}"),
-                    f"{get_num_params(self.D[d]):12,}",
-                )
-
-        if self.C is not None:
-            print(
-                "{:21}:".format("num params classif"), f"{get_num_params(self.C):12,}"
-            )
-        print("-" * 35)
-
     def setup(self, inference=False):
         """Prepare the trainer before it can be used to train the models:
         * initialize G and D
@@ -441,7 +373,7 @@ class Trainer:
 
         if inference:
             print("Inference mode: no Discriminator, no Classifier, no optimizers")
-            self.print_num_parameters()
+            print_num_parameters(self)
             return
 
         # ---------------------------
@@ -463,7 +395,7 @@ class Trainer:
             )
             print("Classifier OK.")
 
-        self.print_num_parameters()
+        print_num_parameters(self)
 
         # --------------------------
         # -----  Optimization  -----
@@ -581,19 +513,6 @@ class Trainer:
         if self.c_scheduler is not None:
             self.c_scheduler.step()
 
-    def log_learning_rates(self):
-        lrs = {}
-        if self.g_scheduler is not None:
-            for name, lr in zip(self.lr_names["G"], self.g_scheduler.get_last_lr()):
-                lrs[f"lr_G_{name}"] = lr
-        if self.d_scheduler is not None:
-            for name, lr in zip(self.lr_names["D"], self.d_scheduler.get_last_lr()):
-                lrs[f"lr_D_{name}"] = lr
-        if self.c_scheduler is not None:
-            for name, lr in zip(self.lr_names["C"], self.c_scheduler.get_last_lr()):
-                lrs[f"lr_C_{name}"] = lr
-        self.exp.log_metrics(lrs, step=self.logger.global_step)
-
     @property
     def val_loaders(self):
         """Get a zip of all validation loaders
@@ -668,201 +587,10 @@ class Trainer:
             # -------------------------
             self.logger.global_step += 1
             step_time = time() - step_start_time
-            self.log_step_time(step_time)
+            self.logger.log_step_time(step_time)
 
         self.update_learning_rates()
-        self.log_learning_rates()
-
-    def log_step_time(self, step_time):
-        """Logs step-time on comet.ml
-
-        Args:
-            step_time (float): step-time in seconds
-        """
-        if self.exp:
-            self.exp.log_metric("Step-time", step_time, step=self.logger.global_step)
-
-    def log_comet_images(self, mode, domain):
-        save_images = {}
-        # --------------------
-        # -----  Masker  -----
-        # --------------------
-        if domain != "rf":
-            for j, display_dict in enumerate(self.display_images[mode][domain]):
-                print(j, end="\r")
-                x = display_dict["data"]["x"].unsqueeze(0).to(self.device)
-                z = self.G.encode(x)
-
-                for task, target in display_dict["data"].items():
-                    target = target.unsqueeze(0).to(self.device)
-                    task_saves = []
-
-                    if task == "x":
-                        continue
-
-                    if task not in save_images:
-                        save_images[task] = []
-
-                    prediction = self.G.decoders[task](z)
-
-                    if task == "s":
-                        target = (
-                            decode_segmap_merged_labels(target, domain, True)
-                            .float()
-                            .to(self.device)
-                        )
-                        prediction = (
-                            decode_segmap_merged_labels(prediction, domain, False)
-                            .float()
-                            .to(self.device)
-                        )
-                        task_saves.append(target)
-
-                    elif task == "m":
-                        prediction = prediction.repeat(1, 3, 1, 1)
-                        task_saves.append(x * (1.0 - prediction))
-                        task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
-
-                    elif task == "d":
-                        # prediction is a log depth tensor
-                        target = normalize_tensor(target) * 255
-                        prediction = normalize_tensor(prediction) * 255
-                        prediction = prediction.repeat(1, 3, 1, 1)
-                        task_saves.append(target.repeat(1, 3, 1, 1))
-
-                    task_saves.append(prediction)
-                    save_images[task].append(x.cpu().detach())
-
-                    for im in task_saves:
-                        save_images[task].append(im.cpu().detach())
-
-            for task in save_images.keys():
-                # Write images:
-                self.write_images(
-                    image_outputs=save_images[task],
-                    mode=mode,
-                    domain=domain,
-                    task=task,
-                    im_per_row=self.opts.comet.im_per_row.get(task, 4),
-                    rows_per_log=self.opts.comet.get("rows_per_log", 5),
-                    comet_exp=self.exp,
-                )
-        # ---------------------
-        # -----  Painter  -----
-        # ---------------------
-        else:
-            # in the rf domain display_size may be different from fid.n_images
-            limit = self.opts.comet.display_size
-            image_outputs = []
-            for im_set in self.display_images[mode][domain][:limit]:
-                x = im_set["data"]["x"].unsqueeze(0).to(self.device)
-                m = im_set["data"]["m"].unsqueeze(0).to(self.device)
-
-                z = self.sample_painter_z(x.shape[0])
-                prediction = self.G.painter(z, x * (1.0 - m))
-                if self.opts.gen.p.paste_original_content:
-                    prediction = prediction * m + x * (1.0 - m)
-
-                image_outputs.append(x * (1.0 - m))
-                image_outputs.append(prediction)
-                image_outputs.append(x)
-                image_outputs.append(prediction * m)
-            # Write images
-            self.write_images(
-                image_outputs=image_outputs,
-                mode=mode,
-                domain=domain,
-                task="painter",
-                im_per_row=self.opts.comet.im_per_row.get("p", 4),
-                rows_per_log=self.opts.comet.get("rows_per_log", 5),
-                comet_exp=self.exp,
-            )
-
-        return 0
-
-    def log_comet_combined_images(self, mode, domain):
-
-        image_outputs = []
-        for im_set in self.display_images[mode][domain]:
-            x = im_set["data"]["x"].unsqueeze(0).to(self.device)
-            # m = im_set["data"]["m"].unsqueeze(0).to(self.device)
-
-            zp = self.sample_painter_z(x.shape[0])
-            m = sigmoid(self.G.decoders["m"](self.G.encode(x)))
-
-            prediction = self.G.painter(zp, x * (1.0 - m))
-            if self.opts.gen.p.paste_original_content:
-                prediction = prediction * m + x * (1.0 - m)
-
-            image_outputs.append(x * (1.0 - m))
-            image_outputs.append(prediction)
-            image_outputs.append(x)
-            image_outputs.append(prediction * m)
-        # Write images
-        self.write_images(
-            image_outputs=image_outputs,
-            mode=mode,
-            domain=domain,
-            task="combined",
-            im_per_row=self.opts.comet.im_per_row.get("p", 4),
-            rows_per_log=self.opts.comet.get("rows_per_log", 5),
-            comet_exp=self.exp,
-        )
-
-        return 0
-
-    def write_images(
-        self,
-        image_outputs,
-        mode,
-        domain,
-        task,
-        im_per_row=3,
-        rows_per_log=5,
-        comet_exp=None,
-    ):
-        """
-        Save output image
-
-        Args:
-            image_outputs (list(torch.Tensor)): all the images to log
-            mode (str): train or val
-            domain (str): current domain
-            task (str): current task
-            im_per_row (int, optional): umber of images to be displayed per row.
-                Typically, for a given task: 3 because [input prediction, target].
-                Defaults to 3.
-            rows_per_log (int, optional): Number of rows (=samples) per uploaded image.
-                Defaults to 5.
-            comet_exp (comet_ml.Experiment, optional): experiment to use.
-                Defaults to None.
-        """
-        curr_iter = self.logger.global_step
-        nb_per_log = im_per_row * rows_per_log
-        for logidx in range(rows_per_log):
-            print(
-                "Creating images for {} {} {} {}/{}".format(
-                    mode, domain, task, logidx + 1, rows_per_log
-                ),
-                end="...",
-            )
-            ims = image_outputs[logidx * nb_per_log : (logidx + 1) * nb_per_log]
-            if not ims:
-                continue
-            ims = torch.stack(ims).squeeze()
-            image_grid = vutils.make_grid(
-                ims, nrow=im_per_row, normalize=True, scale_each=True
-            )
-            image_grid = image_grid.permute(1, 2, 0).cpu().numpy()
-
-            if comet_exp is not None:
-                print("Uploading...", end="")
-                comet_exp.log_image(
-                    image_grid,
-                    name=f"{mode}_{domain}_{task}_{str(curr_iter)}_#{logidx}",
-                    step=curr_iter,
-                )
-                print("Ok", end="\r", flush=True)
+        self.logger.log_learning_rates()
 
     def train(self):
         """For each epoch:
@@ -913,7 +641,7 @@ class Trainer:
         * loss.backward()
         * g_opt_step()
             * g_opt.step() or .extrapolation() depending on self.logger.global_step
-        * logs losses on comet.ml with self.log_losses(model_to_update="G")
+        * logs losses on comet.ml with self.logger.log_losses(model_to_update="G")
 
         Args:
             multi_domain_batch (dict): dictionnary of domain batches
@@ -930,7 +658,7 @@ class Trainer:
             g_loss.backward()
             self.g_opt_step()
 
-        self.log_losses(model_to_update="G", mode="train")
+        self.logger.log_losses(model_to_update="G", mode="train")
 
     def get_masker_loss(self, multi_domain_batch):  # TODO update docstrings
         """Only update the representation part of the model, meaning everything
@@ -1141,7 +869,7 @@ class Trainer:
             self.d_opt_step()
 
         self.logger.losses.disc.total_loss = d_loss.item()
-        self.log_losses(model_to_update="D", mode="train")
+        self.logger.log_losses(model_to_update="D", mode="train")
 
     def get_D_loss(self, multi_domain_batch, verbose=0):
         """Compute the discriminators' losses:
@@ -1325,15 +1053,15 @@ class Trainer:
 
         val_logger = div_dict(val_logger, nb_of_batches)
         self.logger.losses.generator = val_logger
-        self.log_losses(model_to_update="G", mode="val")
+        self.logger.log_losses(model_to_update="G", mode="val")
 
         for d in self.opts.domains:
-            self.log_comet_images("train", d)
-            self.log_comet_images("val", d)
+            self.logger.log_comet_images("train", d)
+            self.logger.log_comet_images("val", d)
 
         if "m" in self.opts.tasks and "p" in self.opts.tasks:
-            self.log_comet_combined_images("train", "r")
-            self.log_comet_combined_images("val", "r")
+            self.logger.log_comet_combined_images("train", "r")
+            self.logger.log_comet_combined_images("val", "r")
 
         if "m" in self.opts.tasks:
             self.eval_images("val", "r")
