@@ -486,6 +486,8 @@ def get_activations(images, model, batch_size=50, dims=2048, device="cpu"):
 
     for b in range(nbs):
         batch = images[b * batch_size : (b + 1) * batch_size].to(device)
+        if not batch.nelement():
+            continue
 
         with torch.no_grad():
             pred = model(batch)[0]
