@@ -56,8 +56,10 @@ class Logger:
                         task_saves.append(target)
 
                     elif task == "m":
-                        prediction = prediction.repeat(1, 3, 1, 1)
+                        prediction = sigmoid(prediction).repeat(1, 3, 1, 1)
                         task_saves.append(x * (1.0 - prediction))
+                        task_saves.append(x * (1.0 - (prediction > 0.1).to(torch.int)))
+                        task_saves.append(x * (1.0 - (prediction > 0.5).to(torch.int)))
                         task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
 
                     elif task == "d":

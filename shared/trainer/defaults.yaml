@@ -272,6 +272,6 @@ comet:
   rows_per_log: 5 # number of samples (rows) in a logged grid image. Number of total logged images: display_size // rows_per_log
   im_per_row: # how many columns (3 = x, target, pred)
     p: 4
-    m: 4
+    m: 6
     s: 3
     d: 3
