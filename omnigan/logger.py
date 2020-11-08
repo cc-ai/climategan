@@ -11,6 +11,7 @@ from omnigan.utils import flatten_opts
 class Logger:
     def __init__(self, trainer):
         self.losses = Dict()
+        self.time = Dict()
         self.trainer = trainer
         self.global_step = 0
         self.epoch = 0
@@ -171,14 +172,27 @@ class Logger:
                 lrs[f"lr_C_{name}"] = lr
         trainer.exp.log_metrics(lrs, step=self.global_step)
 
-    def log_step_time(self, step_time):
+    def log_step_time(self, time):
         """Logs step-time on comet.ml
 
         Args:
             step_time (float): step-time in seconds
         """
         if self.trainer.exp:
-            self.trainer.exp.log_metric("Step-time", step_time, step=self.global_step)
+            self.trainer.exp.log_metric(
+                "step-time", time - self.time.step_start, step=self.global_step
+            )
+
+    def log_epoch_time(self, time):
+        """Logs step-time on comet.ml
+
+        Args:
+            step_time (float): step-time in seconds
+        """
+        if self.trainer.exp:
+            self.trainer.exp.log_metric(
+                "epoch-time", time - self.time.epoch_start, step=self.global_step
+            )
 
     def log_comet_combined_images(self, mode, domain):
 

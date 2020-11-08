@@ -536,6 +536,7 @@ class Trainer:
             self.exp.log_parameter("epoch", self.logger.epoch)
         epoch_len = min(len(loader) for loader in self.loaders["train"].values())
         epoch_desc = "Epoch {}".format(self.logger.epoch)
+        self.logger.time.epoch_start = time()
 
         for multi_batch_tuple in tqdm(
             self.train_loaders,
@@ -545,7 +546,7 @@ class Trainer:
             unit="batch",
         ):
 
-            step_start_time = time()
+            self.logger.time.step_start = time()
             multi_batch_tuple = shuffle_batch_tuple(multi_batch_tuple)
 
             # The `[0]` is because the domain is contained in a list
@@ -586,11 +587,11 @@ class Trainer:
             # -----  Log Metrics  -----
             # -------------------------
             self.logger.global_step += 1
-            step_time = time() - step_start_time
-            self.logger.log_step_time(step_time)
+            self.logger.log_step_time(time())
 
         self.update_learning_rates()
         self.logger.log_learning_rates()
+        self.logger.log_epoch_time(time())
 
     def train(self):
         """For each epoch:
