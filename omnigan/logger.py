@@ -1,6 +1,7 @@
 from addict import Dict
 import torchvision.utils as vutils
 
+import numpy as np
 import torch
 from torch.nn.functional import sigmoid
 from omnigan.data import decode_segmap_merged_labels
@@ -267,7 +268,7 @@ class Logger:
 
             print("Uploading...", end="")
             trainer.exp.log_image(
-                Image.fromarray(image_grid),
+                Image.fromarray((image_grid * 255).astype(np.uint8)),
                 name=f"{mode}_{domain}_{task}_{str(curr_iter)}_#{logidx}",
                 step=curr_iter,
             )
