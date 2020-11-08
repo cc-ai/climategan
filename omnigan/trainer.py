@@ -608,7 +608,7 @@ class Trainer:
             self.run_evaluation(verbose=1)
             self.save()
 
-            if self.logger.epoch == self.gen.p.pm4l_epoch:
+            if self.logger.epoch == self.opts.gen.p.pm4l_epoch:
                 self.use_pm4l = True
 
     def get_G_loss(self, multi_domain_batch, verbose=0):
