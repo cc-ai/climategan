@@ -80,7 +80,7 @@ class OmniGenerator(nn.Module):
         self.opts = opts
 
         self.encoder = None
-        if "m" in opts.tasks:
+        if any(t in opts.tasks for t in "msd"):
             if opts.gen.encoder.architecture == "deeplabv2":
                 self.encoder = DeeplabV2Encoder(opts, no_init)
                 print("  - Created Deeplab Encoder")
