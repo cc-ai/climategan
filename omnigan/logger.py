@@ -155,6 +155,8 @@ class Logger:
         )
 
     def log_learning_rates(self):
+        if self.trainer.exp is None:
+            return
         lrs = {}
         trainer = self.trainer
         if trainer.g_scheduler is not None:
