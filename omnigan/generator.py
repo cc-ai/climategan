@@ -98,11 +98,11 @@ class OmniGenerator(nn.Module):
         self.verbose = verbose
         self.decoders = {}
 
-        if "d" in opts.tasks and not opts.gen.d.ignore:
+        if "d" in opts.tasks:
             self.decoders["d"] = DepthDecoder(opts)
             print("  - Created Depth Decoder")
 
-        if "s" in opts.tasks and not opts.gen.s.ignore:
+        if "s" in opts.tasks:
             if opts.gen.s.architecture == "deeplabv2":
                 self.decoders["s"] = DeepLabV2Decoder(opts)
                 print("  - Created DeepLabV2Decoder")
@@ -114,7 +114,7 @@ class OmniGenerator(nn.Module):
                     "Unknown architecture {}".format(opts.gen.s.architecture)
                 )
 
-        if "m" in opts.tasks and not opts.gen.m.ignore:
+        if "m" in opts.tasks:
             print("  - Created Mask Decoder")
             self.decoders["m"] = MaskDecoder(opts)
 
