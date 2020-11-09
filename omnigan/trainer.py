@@ -1310,8 +1310,7 @@ class Trainer:
 
         return full_loss
 
-    @classmethod
-    def assert_z_matches_x(x, z):
+    def assert_z_matches_x(self, x, z):
         assert x.shape[0] == (
             z.shape[0] if not isinstance(z, (list, tuple)) else z[-1].shape
         ), "x-> {}, z->{}".format(
