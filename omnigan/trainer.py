@@ -1312,7 +1312,7 @@ class Trainer:
 
     def assert_z_matches_x(self, x, z):
         assert x.shape[0] == (
-            z.shape[0] if not isinstance(z, (list, tuple)) else z[-1].shape
+            z.shape[0] if not isinstance(z, (list, tuple)) else z[-1].shape[0]
         ), "x-> {}, z->{}".format(
             x.shape, z.shape if not isinstance(z, (list, tuple)) else z[-1].shape
         )
