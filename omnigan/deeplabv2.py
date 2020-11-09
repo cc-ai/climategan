@@ -193,7 +193,7 @@ class DeepLabV2Decoder(BaseDecoder):
             error += "to interpolate logits to the target seg map's size"
             raise Exception(error)
         if isinstance(z, (list, tuple)):
-            z = z[-1]
+            z = z[0]
         if z.shape[1] != 2048:
             raise Exception(
                 "Segmentation decoder will only work with 2048 channels for z"

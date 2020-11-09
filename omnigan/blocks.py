@@ -323,7 +323,7 @@ class BaseDecoder(nn.Module):
 
     def forward(self, z):
         if isinstance(z, (list, tuple)):
-            z = z[-1]
+            z = z[0]
         return self.model(z)
 
     def __str__(self):
@@ -357,7 +357,7 @@ class DepthDecoder(nn.Module):
 
     def forward(self, z):
         if isinstance(z, (list, tuple)):
-            z = z[-1]
+            z = z[0]
         z4_enc = self.enc4_1(z)
         z4_enc = self.relu(z4_enc)
         z4_enc = self.enc4_2(z4_enc)
