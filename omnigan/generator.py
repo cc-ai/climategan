@@ -15,13 +15,6 @@ from omnigan.blocks import (
 from omnigan.encoder import DeeplabV2Encoder, BaseEncoder
 import omnigan.strings as strings
 
-# --------------------------------------------------------------------------
-# -----  For now no network structure, just project in a 64 x 32 x 32  -----
-# -----  latent space and decode to (3 or 1) x 256 x 256               -----
-# --------------------------------------------------------------------------
-
-# TODO think about how to use the classifier probs at inference
-
 
 def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
     G = OmniGenerator(opts, latent_shape, verbose, no_init)
@@ -148,20 +141,3 @@ class MaskDecoder(BaseDecoder):
             pad_type=opts.gen.m.pad_type,
             output_activ="none",
         )
-
-
-# class DepthDecoder(BaseDecoder):
-#     def __init__(self, opts):
-#         super().__init__(
-#             n_upsample=opts.gen.d.n_upsample,
-#             n_res=opts.gen.d.n_res,
-#             input_dim=opts.gen.encoder.res_dim,
-#             proj_dim=opts.gen.d.proj_dim,
-#             output_dim=opts.gen.d.output_dim,
-#             res_norm=opts.gen.d.res_norm,
-#             activ=opts.gen.d.activ,
-#             pad_type=opts.gen.d.pad_type,
-#             output_activ="sigmoid",
-#             conv_norm=opts.gen.d.conv_norm,
-#         )
-

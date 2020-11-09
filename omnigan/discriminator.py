@@ -24,7 +24,7 @@ def get_dis(opts, verbose, no_init=False):
                     init_type=opts.dis[task].init_type,
                     init_gain=opts.dis[task].init_gain,
                     verbose=verbose,
-                    caller=f"get_dis {task} {domain}"
+                    caller=f"get_dis {task} {domain}",
                 )
         else:
             init_weights(
@@ -32,7 +32,7 @@ def get_dis(opts, verbose, no_init=False):
                 init_type=opts.dis[task].init_type,
                 init_gain=opts.dis[task].init_gain,
                 verbose=verbose,
-                caller=f"get_dis {task}"
+                caller=f"get_dis {task}",
             )
     return disc
 
