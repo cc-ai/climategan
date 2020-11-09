@@ -1423,8 +1423,9 @@ class Trainer:
         full_loss = 0
         # ? output features classifier
         pred_logits = self.G.decoders["m"](z)
-        pred_complementary = 1 - sigmoid(pred_logits)
-        prob = torch.cat([sigmoid(pred_logits), pred_complementary], dim=1)
+        pred_prob = sigmoid(pred_logits)
+        pred_prob_complementary = 1 - pred_prob
+        prob = torch.cat([pred_prob, pred_prob_complementary], dim=1)
         if domain == "s" and for_ == "G":
             # CrossEnt Loss
             loss = self.losses["G"]["tasks"]["m"]["bce"](pred_logits, target)
@@ -1434,7 +1435,7 @@ class Trainer:
 
         if for_ == "G":
             # TV loss
-            loss = self.losses["G"]["tasks"]["m"]["tv"](pred_logits)
+            loss = self.losses["G"]["tasks"]["m"]["tv"](pred_prob)
             loss *= self.opts.train.lambdas.G.m.tv
             full_loss += loss
 
@@ -1445,14 +1446,14 @@ class Trainer:
             if self.opts.gen.m.use_ground_intersection and for_ == "G":
                 if self.verbose > 0:
                     print("Using GroundIntersection loss.")
-                loss = self.losses["G"]["tasks"]["m"]["gi"](pred_logits, target)
+                loss = self.losses["G"]["tasks"]["m"]["gi"](pred_prob, target)
                 loss *= self.opts.train.lambdas.G["m"]["gi"]
                 full_loss += loss
                 self.logger.losses.gen.task["m"]["gi"]["r"] = loss.item()
 
             # Painter loss
             if self.use_pm4l and for_ == "G":
-                pl4m_loss = self.painter_loss_for_masker(x, pred_logits)
+                pl4m_loss = self.painter_loss_for_masker(x, pred_prob)
                 pl4m_loss *= self.opts.train.lambdas.G.m.pl4m
                 full_loss += pl4m_loss
                 self.logger.losses.gen.task.m.pl4m.r = pl4m_loss.item()
@@ -1473,7 +1474,7 @@ class Trainer:
                 prob = prob.detach()
                 weight = self.opts.train.lambdas.advent.adv_main
             else:
-                domain_label = "r"
+                domain_label = "s"
                 logger = self.logger.losses.gen.task["m"]["advent"]
                 loss_func = self.losses["G"]["tasks"]["m"]["advent"]
                 weight = self.opts.train.lambdas.advent.adv_main
@@ -1547,6 +1548,7 @@ class Trainer:
 
     def functional_test_mode(self):
         import atexit
+
         if self.exp is not None:
             self.exp.log_parameter("is_functional_test", True)
         atexit.register(self.del_output_path)
