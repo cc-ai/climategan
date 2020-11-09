@@ -14,13 +14,13 @@ from comet_ml import ExistingExperiment
 warnings.simplefilter("ignore", UserWarning)
 
 import torch
+from torch import sigmoid, softmax
 import torch.nn as nn
 from addict import Dict
 from comet_ml import Experiment
 from torch import autograd
 from torch.cuda.amp import GradScaler, autocast
 from tqdm import tqdm
-from torch.nn.functional import sigmoid
 
 from omnigan.classifier import OmniClassifier, get_classifier
 from omnigan.data import get_all_loaders
@@ -1340,6 +1340,7 @@ class Trainer:
         self.assert_z_matches_x(x, z)
         assert x.shape[0] == target.shape[0] if target is not None else True
         full_loss = 0
+        softmax_preds = None
         # --------------------------
         # -----  Segmentation  -----
         # --------------------------
@@ -1365,7 +1366,7 @@ class Trainer:
         if domain == "r" and for_ == "G":
             # Entropy minimization loss
             if self.opts.gen.s.use_minent:
-                softmax_preds = nn.functional.softmax(pred, dim=1)
+                softmax_preds = softmax(pred, dim=1)
                 # Direct entropy minimization
                 loss = self.losses["G"]["tasks"]["s"]["minent"](softmax_preds)
                 loss *= self.opts.train.lambdas.G["s"]["minent"]
@@ -1388,8 +1389,12 @@ class Trainer:
                 weight = self.opts.train.lambdas.G["s"]["advent"]
 
             if for_ == "D" or domain == "r":
+                if softmax_preds is None:
+                    softmax_preds = softmax(pred, dim=1)
                 loss = loss_func(
-                    pred, self.domain_labels[domain_label], self.D["s"]["Advent"]
+                    softmax_preds,
+                    self.domain_labels[domain_label],
+                    self.D["s"]["Advent"],
                 )
                 loss *= weight
                 full_loss += loss

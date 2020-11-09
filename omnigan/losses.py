@@ -495,7 +495,20 @@ class ADVENTAdversarialLoss(nn.Module):
             raise NotImplementedError
 
     def __call__(self, prediction, target, discriminator):
-        d_out = discriminator(prob_2_entropy(F.softmax(prediction, dim=1)))
+        """
+        Compute the GAN loss from the Advent Discriminator given
+        normalized (softmaxed) predictions (=pixel-wise class probabilities),
+        and int labels (target).
+
+        Args:
+            prediction (torch.Tensor): pixel-wise probability distribution over classes
+            target (torch.Tensor): pixel wise int target labels
+            discriminator (torch.nn.Module): Discriminator to get the loss
+
+        Returns:
+            torch.Tensor: float 0-D loss
+        """
+        d_out = discriminator(prob_2_entropy(prediction))
         if self.opts.dis.m.architecture == "OmniDiscriminator":
             d_out = multiDiscriminatorAdapter(d_out, self.opts)
         loss_ = self.loss(d_out, target)
