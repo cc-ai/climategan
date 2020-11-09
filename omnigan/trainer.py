@@ -1312,7 +1312,9 @@ class Trainer:
 
     def masker_d_loss(self, x, z, target, for_="G"):
         assert for_ in {"G", "D"}
-        assert x.shape[0] == z.shape[0]
+        assert x.shape[0] == (
+            z.shape[0] if not isinstance(z, (list, tuple)) else z[-1].shape
+        )
         assert x.shape[0] == target.shape[0]
         full_loss = 0
         # -------------------
@@ -1330,7 +1332,9 @@ class Trainer:
     def masker_s_loss(self, x, z, target, domain, for_="G"):
         assert for_ in {"G", "D"}
         assert domain in {"r", "s"}
-        assert x.shape[0] == z.shape[0]
+        assert x.shape[0] == (
+            z.shape[0] if not isinstance(z, (list, tuple)) else z[-1].shape
+        )
         assert x.shape[0] == target.shape[0] if target is not None else True
         full_loss = 0
         # --------------------------
@@ -1409,7 +1413,9 @@ class Trainer:
     def masker_m_loss(self, x, z, target, domain, for_="G"):
         assert for_ in {"G", "D"}
         assert domain in {"r", "s"}
-        assert x.shape[0] == z.shape[0]
+        assert x.shape[0] == (
+            z.shape[0] if not isinstance(z, (list, tuple)) else z[-1].shape
+        )
         assert x.shape[0] == target.shape[0] if target is not None else True
         full_loss = 0
         # ? output features classifier
