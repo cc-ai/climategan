@@ -306,7 +306,7 @@ class Trainer:
 
         x = x.unsqueeze(0)
         z = self.G.encode(x)
-        return z.shape[1:]
+        return z.shape[1:] if not isinstance(z, (list, tuple)) else z[-1].shape[1:]
 
     def compute_input_shape(self):
         """Compute the latent shape, i.e. the Encoder's output shape,
@@ -1310,11 +1310,17 @@ class Trainer:
 
         return full_loss
 
-    def masker_d_loss(self, x, z, target, for_="G"):
-        assert for_ in {"G", "D"}
+    @classmethod
+    def assert_z_matches_x(x, z):
         assert x.shape[0] == (
             z.shape[0] if not isinstance(z, (list, tuple)) else z[-1].shape
+        ), "x-> {}, z->{}".format(
+            x.shape, z.shape if not isinstance(z, (list, tuple)) else z[-1].shape
         )
+
+    def masker_d_loss(self, x, z, target, for_="G"):
+        assert for_ in {"G", "D"}
+        self.assert_z_matches_x(x, z)
         assert x.shape[0] == target.shape[0]
         full_loss = 0
         # -------------------
@@ -1332,9 +1338,7 @@ class Trainer:
     def masker_s_loss(self, x, z, target, domain, for_="G"):
         assert for_ in {"G", "D"}
         assert domain in {"r", "s"}
-        assert x.shape[0] == (
-            z.shape[0] if not isinstance(z, (list, tuple)) else z[-1].shape
-        )
+        self.assert_z_matches_x(x, z)
         assert x.shape[0] == target.shape[0] if target is not None else True
         full_loss = 0
         # --------------------------
@@ -1413,9 +1417,7 @@ class Trainer:
     def masker_m_loss(self, x, z, target, domain, for_="G"):
         assert for_ in {"G", "D"}
         assert domain in {"r", "s"}
-        assert x.shape[0] == (
-            z.shape[0] if not isinstance(z, (list, tuple)) else z[-1].shape
-        )
+        self.assert_z_matches_x(x, z)
         assert x.shape[0] == target.shape[0] if target is not None else True
         full_loss = 0
         # ? output features classifier
