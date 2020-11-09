@@ -13,7 +13,7 @@ from run import bcolors, print_header
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-c", "--config",  default="config/trainer/local_tests.yaml")
+parser.add_argument("-c", "--config", default="config/trainer/local_tests.yaml")
 args = parser.parse_args()
 root = Path(__file__).parent.parent
 opts = load_test_opts(args.config)
@@ -98,7 +98,7 @@ if __name__ == "__main__":
         step_time = time() - start_time
         trainer.log_step_time(step_time)
         trainer.logger.global_step += 1
-        print("Logged step-time {} on comet-ml.".format(i+1))
+        print("Logged step-time {} on comet-ml.".format(i + 1))
 
     trainer.exp.end()
 
