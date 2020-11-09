@@ -907,12 +907,12 @@ class Trainer:
 
         for domain, batch in multi_domain_batch.items():
             x = batch["data"]["x"]
-            m = batch["data"]["m"]
 
             # ---------------------
             # -----  Painter  -----
             # ---------------------
             if domain == "rf":
+                m = batch["data"]["m"]
                 # sample vector
                 with torch.no_grad():
                     # see spade compute_discriminator_loss
