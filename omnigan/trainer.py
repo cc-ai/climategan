@@ -1542,3 +1542,18 @@ class Trainer:
                 param.requires_grad = True
 
         return pl4m_loss
+
+    def functional_test_mode(self):
+        import atexit
+        if self.exp is not None:
+            self.exp.log_parameter("is_functional_test", True)
+        atexit.register(self.del_output_path)
+
+    def del_output_path(self, force=False):
+        import shutil
+
+        if not Path(self.opts.output_path).exists():
+            return
+
+        if (Path(self.opts.output_path) / "is_functional.test").exists() or force:
+            shutil.rmtree(self.opts.output_path)
