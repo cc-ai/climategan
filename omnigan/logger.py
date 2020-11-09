@@ -261,6 +261,7 @@ class Logger:
             )
             ims = image_outputs[logidx * nb_per_log : (logidx + 1) * nb_per_log]
             if not ims:
+                print("", end="\r")
                 continue
             ims = torch.stack(ims).squeeze()
             image_grid = vutils.make_grid(
