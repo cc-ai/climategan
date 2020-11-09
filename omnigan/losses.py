@@ -111,18 +111,6 @@ class CrossEntropy(nn.Module):
         return self.loss(logits, target.to(logits.device).long())
 
 
-class PixelCrossEntropy(CrossEntropy):
-    """
-    Computes the cross entropy per pixel
-        in  > pred: b x c x h x w | label: b x h x w (int)
-        out > b x h x w
-    """
-
-    def __init__(self):
-        super().__init__()
-        self.loss = nn.CrossEntropyLoss(reduction="none")
-
-
 class TravelLoss(nn.Module):
     def __init__(self, eps=1e-12):
         super().__init__()

@@ -1351,14 +1351,16 @@ class Trainer:
         # crossent_pseudo for real ; loss is crossent in any case
         if for_ == "G" and (domain == "s" or self.opts.gen.s.use_pseudo_labels):
             if domain == "s":
-                loss_name = "crossent"
+                logger = self.logger.losses.gen.task["s"]["crossent"]
+                weight = self.opts.train.lambdas.G["s"]["crossent"]
             else:
-                loss_name = "crossent_pseudo"
+                logger = self.logger.losses.gen.task["s"]["crossent_pseudo"]
+                weight = self.opts.train.lambdas.G["s"]["crossent_pseudo"]
 
             loss = self.losses["G"]["tasks"]["s"]["crossent"](pred, target.squeeze(1))
-            loss *= self.opts.train.lambdas.G["s"][loss_name]
+            loss *= weight
             full_loss += loss
-            self.logger.losses.gen.task["s"][loss_name][domain] = loss.item()
+            logger[domain] = loss.item()
 
         if domain == "r" and for_ == "G":
             # Entropy minimization loss
