@@ -564,7 +564,7 @@ class DeepLabV3Decoder(nn.Module):
         x = self.aspp(x)
         x = self.decoder(x, low_level_feat)
         x = F.interpolate(
-            x, size=self.input.size()[2:], mode="bilinear", align_corners=True
+            x, size=self._target_size, mode="bilinear", align_corners=True
         )
 
         return x
