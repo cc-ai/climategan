@@ -449,6 +449,7 @@ class MobileNetV2(nn.Module):
                     )
                 input_channel = output_channel
         self.features = nn.Sequential(*self.features)
+        self.loaded_pre_trained = False
 
         if not no_init:
             self._initialize_weights()
@@ -475,6 +476,7 @@ class MobileNetV2(nn.Module):
                 model_dict[k] = v
         state_dict.update(model_dict)
         self.load_state_dict(state_dict)
+        self.loaded_pre_trained = True
 
     def _initialize_weights(self):
         for m in self.modules():
