@@ -224,6 +224,7 @@ class ResNet(nn.Module):
                 model_dict[k] = v
         state_dict.update(model_dict)
         self.load_state_dict(state_dict)
+        print("    - Loaded pre-trained ResNet101")
 
 
 def ResNet101(
@@ -477,6 +478,7 @@ class MobileNetV2(nn.Module):
         state_dict.update(model_dict)
         self.load_state_dict(state_dict)
         self.loaded_pre_trained = True
+        print("    - Loaded pre-trained MobileNetV2")
 
     def _initialize_weights(self):
         for m in self.modules():
