@@ -252,16 +252,17 @@ class Logger:
         curr_iter = self.global_step
         nb_per_log = im_per_row * rows_per_log
         for logidx in range(rows_per_log):
-            print(" " * 100, end="\r")
+            print(" " * 100, end="\r", flush=True)
             print(
                 "Creating images for {} {} {} {}/{}".format(
                     mode, domain, task, logidx + 1, rows_per_log
                 ),
                 end="...",
+                flush=True,
             )
             ims = image_outputs[logidx * nb_per_log : (logidx + 1) * nb_per_log]
             if not ims:
-                print("", end="\r")
+                print("", end="\r", flush=True)
                 continue
             ims = torch.stack(ims).squeeze()
             image_grid = vutils.make_grid(
@@ -269,7 +270,7 @@ class Logger:
             )
             image_grid = image_grid.permute(1, 2, 0).cpu().numpy()
 
-            print("Uploading...", end="")
+            print("Uploading...", end="", flush=True)
             trainer.exp.log_image(
                 Image.fromarray((image_grid * 255).astype(np.uint8)),
                 name=f"{mode}_{domain}_{task}_{str(curr_iter)}_#{logidx}",
