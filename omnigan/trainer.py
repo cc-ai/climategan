@@ -693,7 +693,7 @@ class Trainer:
                         task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
 
                     elif update_task == "d":
-                        if not self.opts.gen.d.use_dada:
+                        if self.opts.gen.d.use_dada:
                             prediction = depth_prediction
                         else:
                             prediction = self.G.decoders[update_task](self.z)
@@ -1386,7 +1386,8 @@ class Trainer:
                 z = self.G.encode(x)
 
                 if "d" in self.opts.tasks and self.opts.gen.d.use_dada:
-                    depth_prediction, z_depth = self.G.decoders["d"](self.z)
+                    depth_prediction, z_depth = self.G.decoders["d"](z)
+                    depth_prediction.detach()
                     z_feat_fusion = z * z_depth
 
                 if "m" in self.opts.tasks:
@@ -1433,7 +1434,6 @@ class Trainer:
                     if self.opts.gen.s.use_advent:
                         if "d" in self.opts.tasks and self.opts.gen.d.use_dada:
                             depth_preds = depth_prediction
-                            depth_preds.detach()
                             preds = self.G.decoders["s"](z_feat_fusion)
                         else:
                             depth_preds = None

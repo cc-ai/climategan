@@ -3,13 +3,13 @@
     * Encoder
     * Decoders
 """
+import torch
 import torch.nn as nn
 from omnigan.tutils import init_weights
 from omnigan.blocks import (
     PainterSpadeDecoder,
     BaseDecoder,
     ASPP,
-    DepthDecoder,
     InterpolateNearest2d,
 )
 from omnigan.encoder import DeeplabEncoder, BaseEncoder
@@ -20,8 +20,6 @@ import torch.nn.functional as F
 # -----  For now no network structure, just project in a 64 x 32 x 32  -----
 # -----  latent space and decode to (3 or 1) x 256 x 256               -----
 # --------------------------------------------------------------------------
-
-# TODO think about how to use the classifier probs at inference
 
 
 def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
@@ -132,20 +130,54 @@ class MaskDecoder(BaseDecoder):
         )
 
 
-# class DepthDecoder(BaseDecoder):
-#     def __init__(self, opts):
-#         super().__init__(
-#             n_upsample=opts.gen.d.n_upsample,
-#             n_res=opts.gen.d.n_res,
-#             input_dim=opts.gen.encoder.res_dim,
-#             proj_dim=opts.gen.d.proj_dim,
-#             output_dim=opts.gen.d.output_dim,
-#             res_norm=opts.gen.d.res_norm,
-#             activ=opts.gen.d.activ,
-#             pad_type=opts.gen.d.pad_type,
-#             output_activ="sigmoid",
-#             conv_norm=opts.gen.d.conv_norm,
-#         )
+class DepthDecoder(nn.Module):
+    """ Depth decoder based on depth auxiliary task in DADA paper
+        Source: https://github.com/valeoai/DADA
+    """
+
+    def __init__(self, opts):
+        super().__init__()
+        self.relu = nn.ReLU(inplace=True)
+        self.enc4_1 = nn.Conv2d(
+            2048, 512, kernel_size=1, stride=1, padding=0, bias=True
+        )
+        self.enc4_2 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1, bias=True)
+        self.enc4_3 = nn.Conv2d(512, 128, kernel_size=1, stride=1, padding=0, bias=True)
+        self.output_size = opts.data.transforms[-1].new_size
+        self.use_dada = False
+        if opts.gen.d.use_dada:
+            self.use_dada = True
+            self.dec4 = nn.Conv2d(
+                128, 2048, kernel_size=1, stride=1, padding=0, bias=True
+            )
+
+    def forward(self, x):
+        x = self.enc4_1(x)
+        x = self.relu(x)
+        x = self.enc4_2(x)
+        x = self.relu(x)
+        x_enc = self.enc4_3(x)
+
+        depth = torch.mean(x_enc, dim=1, keepdim=True)
+        depth = F.interpolate(
+            depth,
+            size=(384, 384),  # size used in MiDaS inference
+            mode="bicubic",  # what MiDaS uses
+            align_corners=False,
+        )
+        depth = F.interpolate(
+            depth, (self.output_size, self.output_size), mode="nearest"
+        )  # what we used in the transforms to resize input
+
+        if self.use_dada:
+            z_depth = self.dec4(x_enc)
+            z_depth = self.relu(z_depth)
+            return depth, z_depth
+
+        return depth
+
+    def __str__(self):
+        return strings.basedecoder(self)
 
 
 class SegmentationDecoder(BaseDecoder):
