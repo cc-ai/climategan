@@ -137,13 +137,60 @@ def load_opts(
         opts.domains.append("rf")
     opts.domains = list(set(opts.domains))
 
-    if "s" in opts.tasks and opts.gen.encoder.architecture != opts.gen.s.architecture:
-        print("WARNING: segmentation encoder and decoder architectures do not match")
-        print(
-            "Encoder: {} <> Decoder: {}".format(
-                opts.gen.encoder.architecture, opts.gen.s.architecture
+    if "s" in opts.tasks:
+        if opts.gen.encoder.architecture != opts.gen.s.architecture:
+            print(
+                "WARNING: segmentation encoder and decoder architectures do not match"
             )
-        )
+            print(
+                "Encoder: {} <> Decoder: {}".format(
+                    opts.gen.encoder.architecture, opts.gen.s.architecture
+                )
+            )
+        if opts.gen.encoder.architecture == "deeplabv2" or (
+            opts.gen.encoder.architecture == "deeplabv3"
+            and opts.gen.deeplabv3.backbone == "resnet"
+        ):
+            if opts.gen.m.res_dim != 2048:
+                print(
+                    "WARNING: overriding config's gen.m.res_dim",
+                    "to match encoder architecture {}".format(
+                        opts.gen.encoder.architecture
+                    ),
+                    "(res_dim was {} now is 2048".format(opts.gen.m.res_dim),
+                )
+                opts.gen.m.res_dim = 2048
+            if opts.gen.d.res_dim != 2048:
+                print(
+                    "WARNING: overriding config's gen.m.res_dim",
+                    "to match encoder architecture {}".format(
+                        opts.gen.encoder.architecture
+                    ),
+                    "(res_dim was {} now is 2048".format(opts.gen.m.res_dim),
+                )
+                opts.gen.d.res_dim = 2048
+        if (
+            opts.gen.encoder.architecture == "deeplabv3"
+            and opts.gen.deeplabv3.backbone == "mobilenet"
+        ):
+            if opts.gen.m.res_dim != 320:
+                print(
+                    "WARNING: overriding config's gen.m.res_dim",
+                    "to match encoder architecture {}".format(
+                        opts.gen.encoder.architecture
+                    ),
+                    "(res_dim was {} now is 320".format(opts.gen.m.res_dim),
+                )
+                opts.gen.m.res_dim = 320
+            if opts.gen.d.res_dim != 320:
+                print(
+                    "WARNING: overriding config's gen.m.res_dim",
+                    "to match encoder architecture {}".format(
+                        opts.gen.encoder.architecture
+                    ),
+                    "(res_dim was {} now is 320".format(opts.gen.m.res_dim),
+                )
+                opts.gen.d.res_dim = 320
 
     return set_data_paths(opts)
 

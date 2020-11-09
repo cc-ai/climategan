@@ -337,12 +337,22 @@ class DepthDecoder(nn.Module):
 
     def __init__(self, opts):
         super().__init__()
+        res_dim = opts.gen.d.res_dim
+        if res_dim == 2048:
+            mid_dim = 512
+        else:
+            mid_dim = 256
+
         self.relu = nn.ReLU(inplace=True)
         self.enc4_1 = nn.Conv2d(
-            2048, 512, kernel_size=1, stride=1, padding=0, bias=True
+            res_dim, mid_dim, kernel_size=1, stride=1, padding=0, bias=True
         )
-        self.enc4_2 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1, bias=True)
-        self.enc4_3 = nn.Conv2d(512, 128, kernel_size=1, stride=1, padding=0, bias=True)
+        self.enc4_2 = nn.Conv2d(
+            mid_dim, mid_dim, kernel_size=3, stride=1, padding=1, bias=True
+        )
+        self.enc4_3 = nn.Conv2d(
+            mid_dim, 128, kernel_size=1, stride=1, padding=0, bias=True
+        )
         self.output_size = opts.data.transforms[-1].new_size
 
     def forward(self, z):
@@ -611,10 +621,13 @@ class _ASPPModule(nn.Module):
 
 class ASPP(nn.Module):
     # https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/aspp.py
-    def __init__(self, output_stride, BatchNorm, no_init):
+    def __init__(self, backbone, output_stride, BatchNorm, no_init):
         super().__init__()
 
-        inplanes = 2048
+        if backbone == "mobilenet":
+            inplanes = 320
+        else:
+            inplanes = 2048
 
         if output_stride == 16:
             dilations = [1, 6, 12, 18]

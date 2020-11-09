@@ -1,4 +1,5 @@
 import torch.nn as nn
+import torch
 from omnigan.blocks import ResBlocks, InterpolateNearest2d, BaseDecoder, ASPP
 import torch.nn.functional as F
 
@@ -140,9 +141,9 @@ class ResNetMulti(nn.Module):
 class DeepLabV2Decoder(BaseDecoder):
     # https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/decoder.py
     # https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/deeplab.py
-    def __init__(self, opts):
+    def __init__(self, opts, no_init):
         super().__init__()
-        self.aspp = ASPP(16, nn.BatchNorm2d)
+        self.aspp = ASPP("resnet", 16, nn.BatchNorm2d, no_init)
         conv_modules = [
             nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(256),
@@ -161,6 +162,18 @@ class DeepLabV2Decoder(BaseDecoder):
         ]
         self.conv = nn.Sequential(*conv_modules)
         self._target_size = None
+        if not no_init:
+            self._init_weight()
+
+    def _init_weight(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                # n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                # m.weight.data.normal_(0, math.sqrt(2. / n))
+                torch.nn.init.kaiming_normal_(m.weight)
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
 
     def set_target_size(self, size):
         """
