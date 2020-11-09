@@ -617,7 +617,7 @@ class Trainer:
         # For now, always compute "representation loss"
         g_loss = 0
 
-        if "m" in self.opts.tasks:
+        if "m" in self.opts.tasks or "s" in self.opts.tasks or "d" in self.opts.tasks:
             m_loss = self.get_masker_loss(multi_domain_batch)
             self.logger.losses.gen.masker = m_loss.item()
             g_loss += m_loss
