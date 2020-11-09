@@ -84,7 +84,7 @@ if __name__ == "__main__":
     parser.add_argument("--no_end_to_end", action="store_true", default=False)
     args = parser.parse_args()
 
-    exp = Experiment(workspace="omnigan-test")
+    exp = Experiment(project_name="omnigan-test")
     if not args.no_delete:
         delete_on_exit(exp)
 
