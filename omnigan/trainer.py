@@ -1554,6 +1554,9 @@ class Trainer:
     def functional_test_mode(self):
         import atexit
 
+        with open(Path(self.opts.output_path) / "is_functional.test", "w") as f:
+            f.write("trainer functional test - delete this dir")
+
         if self.exp is not None:
             self.exp.log_parameter("is_functional_test", True)
         atexit.register(self.del_output_path)
