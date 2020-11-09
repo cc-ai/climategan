@@ -1,4 +1,5 @@
 from comet_ml import Experiment
+import torch
 import omnigan
 
 if __name__ == "__main__":
@@ -17,6 +18,9 @@ if __name__ == "__main__":
     trainer = omnigan.trainer.Trainer(opts=opts, comet_exp=None,)
     trainer.setup()
     trainer.train()
+
+    del trainer
+    torch.cuda.empty_cache()
 
     trainer = omnigan.trainer.Trainer(opts=opts, comet_exp=Experiment())
     trainer.setup()
