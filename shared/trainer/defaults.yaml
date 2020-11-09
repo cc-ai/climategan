@@ -148,7 +148,7 @@ gen:
     use_advent: True # minimize the entropy of the image by adversarial training
     use_ground_intersection: True
     loss: gan # either "hinge" or "gan" loss
-    proj_dim: 256
+    proj_dim: 128
     n_res: 3
 # -------------------------
 # ----- Discriminator -----
