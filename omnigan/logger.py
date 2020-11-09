@@ -252,7 +252,7 @@ class Logger:
         curr_iter = self.global_step
         nb_per_log = im_per_row * rows_per_log
         for logidx in range(rows_per_log):
-            print(" " * 150, end="\r")
+            print(" " * 100, end="\r")
             print(
                 "Creating images for {} {} {} {}/{}".format(
                     mode, domain, task, logidx + 1, rows_per_log
