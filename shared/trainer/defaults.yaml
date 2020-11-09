@@ -90,7 +90,7 @@ gen:
   encoder: # specific params for the encoder
     <<: *default-gen
     dim: 32
-    architecture: deeplabv2 # [deeplabv2 (res_dim = 2048) | base (res_dim = 256)]
+    architecture: deeplabv3 # [deeplabv2/3 (res_dim = 2048) | base (res_dim = 256)]
     input_dim: 3 # input number of channels
     n_res: 0 # number of residual blocks in content encoder/decoder
     norm: spectral # ConvBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
@@ -100,6 +100,11 @@ gen:
     nblocks: [3, 4, 23, 3]
     use_pretrained: True
     pretrained_model: "/network/tmp1/ccai/data/omnigan/pretrained_models/DeepLab_resnet_pretrained_imagenet.pth"
+
+  deeplabv3:
+    backbone: "mobilenet" # mobilenet or resnet
+    output_stride: 8 # 8 or 16
+    use_pretrained: true
 
   d: # specific params for the depth estimation decoder
     <<: *default-gen
@@ -115,6 +120,7 @@ gen:
     use_advent: True
     use_minent: True
     use_pseudo_labels: False
+    architecture: "deeplabv3"
     upsample_featuremaps: False # upsamples from 80x80 to 160x160 intermediate feature maps
   p: # specific params for the SPADE painter
     <<: *default-gen

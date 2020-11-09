@@ -137,6 +137,14 @@ def load_opts(
         opts.domains.append("rf")
     opts.domains = list(set(opts.domains))
 
+    if "s" in opts.tasks and opts.gen.encoder.architecture != opts.gen.s.architecture:
+        print("WARNING: segmentation encoder and decoder architectures do not match")
+        print(
+            "Encoder: {} <> Decoder: {}".format(
+                opts.gen.encoder.architecture, opts.gen.s.architecture
+            )
+        )
+
     return set_data_paths(opts)
 
 

@@ -1,5 +1,6 @@
 import torch.nn as nn
-from omnigan.blocks import Conv2dBlock, ResBlocks
+from omnigan.blocks import ResBlocks, InterpolateNearest2d, BaseDecoder, ASPP
+import torch.nn.functional as F
 
 affine_par = True
 
@@ -134,3 +135,56 @@ class ResNetMulti(nn.Module):
         x = self.layer4(x)
         x = self.layer_res(x)
         return x
+
+
+class DeepLabV2Decoder(BaseDecoder):
+    # https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/decoder.py
+    # https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/deeplab.py
+    def __init__(self, opts):
+        super().__init__()
+        self.aspp = ASPP(16, nn.BatchNorm2d)
+        conv_modules = [
+            nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+        ]
+        if opts.gen.s.upsample_featuremaps:
+            conv_modules = [InterpolateNearest2d(scale_factor=2)] + conv_modules
+
+        conv_modules += [
+            nn.Conv2d(256, opts.gen.s.output_dim, kernel_size=1, stride=1),
+        ]
+        self.conv = nn.Sequential(*conv_modules)
+        self._target_size = None
+
+    def set_target_size(self, size):
+        """
+        Set final interpolation's target size
+
+        Args:
+            size (int, list, tuple): target size (h, w). If int, target will be (i, i)
+        """
+        if isinstance(size, (list, tuple)):
+            self._target_size = size[:2]
+        else:
+            self._target_size = (size, size)
+
+    def forward(self, z):
+        if self._target_size is None:
+            error = "self._target_size should be set with self.set_target_size()"
+            error += "to interpolate logits to the target seg map's size"
+            raise Exception(error)
+        if isinstance(z, (list, tuple)):
+            z = z[-1]
+        if z.shape[1] != 2048:
+            raise Exception(
+                "Segmentation decoder will only work with 2048 channels for z"
+            )
+        y = self.aspp(z)
+        y = self.conv(y)
+        return F.interpolate(y, self._target_size, mode="bilinear", align_corners=True)

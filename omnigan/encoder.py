@@ -60,10 +60,9 @@ class BaseEncoder(nn.Module):
         return self.model(x)
 
 
-class DeeplabEncoder(nn.Module):
+class DeeplabV2Encoder(nn.Module):
     def __init__(self, opts, no_init=False):
         """Deeplab architecture encoder
-
         """
         super().__init__()
 

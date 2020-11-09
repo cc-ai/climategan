@@ -321,8 +321,10 @@ class BaseDecoder(nn.Module):
         ]
         self.model = nn.Sequential(*self.model)
 
-    def forward(self, x):
-        return self.model(x)
+    def forward(self, z):
+        if isinstance(z, (list, tuple)):
+            z = z[-1]
+        return self.model(z)
 
     def __str__(self):
         return strings.basedecoder(self)
@@ -343,14 +345,16 @@ class DepthDecoder(nn.Module):
         self.enc4_3 = nn.Conv2d(512, 128, kernel_size=1, stride=1, padding=0, bias=True)
         self.output_size = opts.data.transforms[-1].new_size
 
-    def forward(self, x):
-        x4_enc = self.enc4_1(x)
-        x4_enc = self.relu(x4_enc)
-        x4_enc = self.enc4_2(x4_enc)
-        x4_enc = self.relu(x4_enc)
-        x4_enc = self.enc4_3(x4_enc)
+    def forward(self, z):
+        if isinstance(z, (list, tuple)):
+            z = z[-1]
+        z4_enc = self.enc4_1(z)
+        z4_enc = self.relu(z4_enc)
+        z4_enc = self.enc4_2(z4_enc)
+        z4_enc = self.relu(z4_enc)
+        z4_enc = self.enc4_3(z4_enc)
 
-        depth = torch.mean(x4_enc, dim=1, keepdim=True)  # DADA paper decoder
+        depth = torch.mean(z4_enc, dim=1, keepdim=True)  # DADA paper decoder
         depth = F.interpolate(
             depth,
             size=(384, 384),  # size used in MiDaS inference
@@ -572,7 +576,9 @@ class PainterSpadeDecoder(nn.Module):
 
 class _ASPPModule(nn.Module):
     # https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/aspp.py
-    def __init__(self, inplanes, planes, kernel_size, padding, dilation, BatchNorm):
+    def __init__(
+        self, inplanes, planes, kernel_size, padding, dilation, BatchNorm, no_init
+    ):
         super(_ASPPModule, self).__init__()
         self.atrous_conv = nn.Conv2d(
             inplanes,
@@ -585,8 +591,8 @@ class _ASPPModule(nn.Module):
         )
         self.bn = BatchNorm(planes)
         self.relu = nn.ReLU()
-
-        self._init_weight()
+        if not no_init:
+            self._init_weight()
 
     def forward(self, x):
         x = self.atrous_conv(x)
@@ -605,7 +611,7 @@ class _ASPPModule(nn.Module):
 
 class ASPP(nn.Module):
     # https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/aspp.py
-    def __init__(self, output_stride, BatchNorm):
+    def __init__(self, output_stride, BatchNorm, no_init):
         super().__init__()
 
         inplanes = 2048
@@ -618,7 +624,13 @@ class ASPP(nn.Module):
             raise NotImplementedError
 
         self.aspp1 = _ASPPModule(
-            inplanes, 256, 1, padding=0, dilation=dilations[0], BatchNorm=BatchNorm
+            inplanes,
+            256,
+            1,
+            padding=0,
+            dilation=dilations[0],
+            BatchNorm=BatchNorm,
+            no_init=no_init,
         )
         self.aspp2 = _ASPPModule(
             inplanes,
@@ -627,6 +639,7 @@ class ASPP(nn.Module):
             padding=dilations[1],
             dilation=dilations[1],
             BatchNorm=BatchNorm,
+            no_init=no_init,
         )
         self.aspp3 = _ASPPModule(
             inplanes,
@@ -635,6 +648,7 @@ class ASPP(nn.Module):
             padding=dilations[2],
             dilation=dilations[2],
             BatchNorm=BatchNorm,
+            no_init=no_init,
         )
         self.aspp4 = _ASPPModule(
             inplanes,
@@ -643,6 +657,7 @@ class ASPP(nn.Module):
             padding=dilations[3],
             dilation=dilations[3],
             BatchNorm=BatchNorm,
+            no_init=no_init,
         )
 
         self.global_avg_pool = nn.Sequential(
@@ -655,6 +670,8 @@ class ASPP(nn.Module):
         self.bn1 = BatchNorm(256)
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout(0.5)
+        if not no_init:
+            self._init_weight()
 
     def forward(self, x):
         x1 = self.aspp1(x)
@@ -670,3 +687,13 @@ class ASPP(nn.Module):
         x = self.relu(x)
 
         return self.dropout(x)
+
+    def _init_weight(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                # n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                # m.weight.data.normal_(0, math.sqrt(2. / n))
+                torch.nn.init.kaiming_normal_(m.weight)
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()

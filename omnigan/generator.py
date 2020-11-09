@@ -3,18 +3,17 @@
     * Encoder
     * Decoders
 """
+from omnigan.deeplabv3 import build_backbone, DeepLabV3Decoder
+from omnigan.deeplabv2 import DeepLabV2Decoder
 import torch.nn as nn
 from omnigan.tutils import init_weights
 from omnigan.blocks import (
     PainterSpadeDecoder,
     BaseDecoder,
-    ASPP,
     DepthDecoder,
-    InterpolateNearest2d,
 )
-from omnigan.encoder import DeeplabEncoder, BaseEncoder
+from omnigan.encoder import DeeplabV2Encoder, BaseEncoder
 import omnigan.strings as strings
-import torch.nn.functional as F
 
 # --------------------------------------------------------------------------
 # -----  For now no network structure, just project in a 64 x 32 x 32  -----
@@ -38,7 +37,7 @@ def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
                     init_type=opts.gen[model].init_type,
                     init_gain=opts.gen[model].init_gain,
                     verbose=verbose,
-                    caller=f"get_gen decoder {model} {domain}"
+                    caller=f"get_gen decoder {model} {domain}",
                 )
         else:
             init_weights(
@@ -46,7 +45,7 @@ def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
                 init_type=opts.gen[model].init_type,
                 init_gain=opts.gen[model].init_gain,
                 verbose=verbose,
-                caller=f"get_gen decoder {model}"
+                caller=f"get_gen decoder {model}",
             )
     if G.encoder is not None and opts.gen.encoder.architecture != "deeplabv2":
         init_weights(
@@ -54,7 +53,7 @@ def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
             init_type=opts.gen.encoder.init_type,
             init_gain=opts.gen.encoder.init_gain,
             verbose=verbose,
-            caller=f"get_gen encoder"
+            caller=f"get_gen encoder",
         )
     # Init painter weights
     init_weights(
@@ -62,7 +61,7 @@ def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
         init_type=opts.gen.p.init_type,
         init_gain=opts.gen.p.init_gain,
         verbose=verbose,
-        caller=f"get_gen painter"
+        caller=f"get_gen painter",
     )
     return G
 
@@ -83,8 +82,15 @@ class OmniGenerator(nn.Module):
         self.encoder = None
         if "m" in opts.tasks:
             if opts.gen.encoder.architecture == "deeplabv2":
-                self.encoder = DeeplabEncoder(opts, no_init)
+                self.encoder = DeeplabV2Encoder(opts, no_init)
                 print("  - Created Deeplab Encoder")
+            if opts.gen.encoder.architecture == "deeplabv3":
+                self.encoder = build_backbone(opts, no_init)
+                print(
+                    "  - Created Deeplabv3 ({}) Encoder".format(
+                        opts.gen.deeplabv3.backbone
+                    )
+                )
             else:
                 self.encoder = BaseEncoder(opts)
                 print("  - Created Base Encoder")
@@ -97,8 +103,16 @@ class OmniGenerator(nn.Module):
             print("  - Created Depth Decoder")
 
         if "s" in opts.tasks and not opts.gen.s.ignore:
-            print("  - Created Segmentation Decoder")
-            self.decoders["s"] = SegmentationDecoder(opts)
+            if opts.gen.s.architecture == "deeplabv2":
+                self.decoders["s"] = DeepLabV2Decoder(opts)
+                print("  - Created DeepLabV2Decoder")
+            elif opts.gen.s.architecture == "deeplabv3":
+                self.decoders["s"] = DeepLabV3Decoder(opts)
+                print("  - Created DeepLabV3Decoder")
+            else:
+                raise NotImplementedError(
+                    "Unknown architecture {}".format(opts.gen.s.architecture)
+                )
 
         if "m" in opts.tasks and not opts.gen.m.ignore:
             print("  - Created Mask Decoder")
@@ -151,53 +165,3 @@ class MaskDecoder(BaseDecoder):
 #             conv_norm=opts.gen.d.conv_norm,
 #         )
 
-
-class SegmentationDecoder(BaseDecoder):
-    # https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/decoder.py
-    # https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/deeplab.py
-    def __init__(self, opts):
-        super().__init__()
-        self.aspp = ASPP(16, nn.BatchNorm2d)
-        conv_modules = [
-            nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.BatchNorm2d(256),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.BatchNorm2d(256),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-        ]
-        if opts.gen.s.upsample_featuremaps:
-            conv_modules = [InterpolateNearest2d(scale_factor=2)] + conv_modules
-
-        conv_modules += [
-            nn.Conv2d(256, opts.gen.s.output_dim, kernel_size=1, stride=1),
-        ]
-        self.conv = nn.Sequential(*conv_modules)
-        self._target_size = None
-
-    def set_target_size(self, size):
-        """
-        Set final interpolation's target size
-
-        Args:
-            size (int, list, tuple): target size (h, w). If int, target will be (i, i)
-        """
-        if isinstance(size, (list, tuple)):
-            self._target_size = size[:2]
-        else:
-            self._target_size = (size, size)
-
-    def forward(self, z):
-        if self._target_size is None:
-            error = "self._target_size should be set with self.set_target_size()"
-            error += "to interpolate logits to the target seg map's size"
-            raise Exception(error)
-        if z.shape[1] != 2048:
-            raise Exception(
-                "Segmentation decoder will only work with 2048 channels for z"
-            )
-        y = self.aspp(z)
-        y = self.conv(y)
-        return F.interpolate(y, self._target_size, mode="bilinear", align_corners=True)
