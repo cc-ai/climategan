@@ -1,7 +1,17 @@
 output_path: /network/tmp1/schmidtv/yb_runs/test_v1
+# README on load_path
+# 1/ any path which leads to a dir will be loaded as `path / checkpoints / latest_ckpt.pth`
+# 2/ if you want to specify a specific checkpoint, it MUST be a `.pth` file
+# 3/ resuming a P OR an M model, you may only specify 1 of `load_path.p` OR `load_path.m`.
+#    You may also leave BOTH at none, in which case `output_path / checkpoints / latest_ckpt.pth`
+#    will be used
+# 4/ resuming a P+M model, you may specify (`p` AND `m`) OR `pm` OR leave all at none,
+#    in which case `output_path / checkpoints / latest_ckpt.pth` will be used to load from
+#    a single checkpoint
 load_paths:
-  p: none # none if using output_path
-  m: none # none if using output_path
+  p: none # Painter weights: none will use `output_path / checkpoints / latest_ckpt.pth`
+  m: none # Masker weights: none will use `output_path / checkpoints / latest_ckpt.pth`
+  pm: none # Painter and Masker weights: none will use `output_path / checkpoints / latest_ckpt.pth`
 
 # -------------------
 # -----  Tasks  -----
@@ -105,7 +115,7 @@ gen:
     num_classes: 11
     output_dim: 11
     use_advent: True
-    use_minent: False
+    use_minent: True
     use_pseudo_labels: False
     upsample_featuremaps: False # upsamples from 80x80 to 160x160 intermediate feature maps
   p: # specific params for the SPADE painter
@@ -119,6 +129,7 @@ gen:
     spade_n_up: 7 # number of upsampling layers in the translation decoder is equal to number of downsamplings in the encoder.  output's h and w are z's h and w x 2^spade_num_upsampling_layers | z:32 and spade_n_up:4 => output 512
     no_z: true # <=> use_vae=False in the SPADE repo
     use_final_shortcut: False # if true, the last spade block does not get the masked input as conditioning but the prediction of the previous layer (passed through a conv to match dims) in order to lighten the masking restrictions and have smoother edges
+    paste_original_content: False # only select the water painted to backprop through the network, not the whole generated image: fake_flooded = masked_x + m * fake_flooded
 
   m: # specific params for the mask-generation decoder
     <<: *default-gen
@@ -176,6 +187,7 @@ dis:
     wgan_clamp_lower: -0.01 # used in WGAN, WGAN clap the params in dis to [wgan_clamp_lower, wgan_clamp_upper] for every updation
     wgan_clamp_upper: 0.01 # used in WGAN
   s:
+    <<: *default-dis
     gan_type: WGAN_norm # can be [GAN | WGAN | WGAN_gp | WGAN_norm]
     wgan_clamp_lower: -0.01 # used in WGAN, WGAN clap the params in dis to [wgan_clamp_lower, wgan_clamp_upper] for every updation
     wgan_clamp_upper: 0.01 # used in WGAN
@@ -204,7 +216,7 @@ classifier:
 train:
   epochs: 300
   fid:
-    n_images: 100
+    n_images: 57 # val_rf.json has 57 images
     batch_size: 50 # inception inference batch size, not painter's
     dims: 2048 # what Inception bock to compute the stats from (see BLOCK_INDEX_BY_DIM in fid.py)
   latent_domain_adaptation: False # whether or not to do domain adaptation on the latent vectors # Needs to be turned off if use_advent is True
@@ -225,12 +237,11 @@ train:
         gi: 0.05
       p:
         gan: 1 # gan loss
-        sm: 1 # semantic matching
         dm: 1 # depth matching
-        tv: 5
-        vgg: 1
-        context: 12
-        reconstruction: 20
+        tv: 0
+        vgg: 10
+        context: 5
+        reconstruction: 5
         featmatch: 10
       classifier: 1
     C: 1
@@ -244,7 +255,8 @@ train:
       dis_aux: 0.0 # the discriminator take care of the second output in the adversarial training
       WGAN_gp: 10 # used in WGAN_gp, it's the hyperparameters for the gradient penalty
   log_level: 2 # 0: no log, 1: only aggregated losses, >1 detailed losses
-  save_n_epochs: 1 # Save model every n epochs
+  save_n_epochs: 2 # Save `latest_ckpt.pth` every epoch, `epoch_{epoch}_ckpt.pth` model every n epochs if epoch >= min_save_epoch
+  min_save_epoch: 28 # Save extra intermediate checkpoints when epoch > min_save_epoch
   resume: false # Load latest_ckpt.pth checkpoint from `output_path` #TODO Make this path of checkpoint to load
   auto_resume: true # automatically looks for similar output paths and exact same jobID to resume training automatically even if resume is false.
 

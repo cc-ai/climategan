@@ -17,7 +17,7 @@ def transforms_string(ts):
     return " -> ".join([t.__class__.__name__ for t in ts.transforms])
 
 
-def init_weights(net, init_type="normal", init_gain=0.02, verbose=0):
+def init_weights(net, init_type="normal", init_gain=0.02, verbose=0, caller=""):
     """Initialize network weights.
         Parameters:
             net (network)     -- network to be initialized
@@ -31,10 +31,18 @@ def init_weights(net, init_type="normal", init_gain=0.02, verbose=0):
         """
 
     if not init_type:
-        print("init_type is {}, defaulting to normal".format(init_type))
+        print(
+            "init_weights({}): init_type is {}, defaulting to normal".format(
+                caller + " " + net.__class__.__name__, init_type
+            )
+        )
         init_type = "normal"
     if not init_gain:
-        print("init_gain is {}, defaulting to 0.02".format(init_gain))
+        print(
+            "init_weights({}): init_gain is {}, defaulting to normal".format(
+                caller + " " + net.__class__.__name__, init_type
+            )
+        )
         init_gain = 0.02
 
     def init_func(m):  # define the initialization function

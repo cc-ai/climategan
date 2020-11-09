@@ -1,6 +1,7 @@
 # omnigan
 - [omnigan](#omnigan)
   - [Setup](#setup)
+    - [Resuming](#resuming)
 - [⚠️ Deprecated](#️-deprecated)
   - [Current Model](#current-model)
     - [Summary](#summary)
@@ -38,6 +39,26 @@ Configuration files use the **YAML** syntax. If you don't know what `&` and `<<`
 ```
 $ pip install comet_ml scipy opencv-python torch torchvision omegaconf==1.4.1 hydra-core==0.11.3 scikit-image imageio addict tqdm torch_optimizer
 ```
+
+### Resuming
+
+Use a config's `load_path` namespace. It should have sub-keys `m`, `p` and `pm`:
+
+```yaml
+load_paths:
+  p: none # Painter weights
+  m: none # Masker weights
+  pm: none # Painter + Masker weights (single ckpt for both)
+```
+
+1. any path which leads to a dir will be loaded as `path / checkpoints / latest_ckpt.pth`
+2. if you want to specify a specific checkpoint (not the latest), it MUST be a `.pth` file
+3. resuming a `P` **OR** an `M` model, you may only specify 1 of `load_path.p` **OR** `load_path.m`.
+   You may also leave **BOTH** at `none`, in which case `output_path / checkpoints / latest_ckpt.pth`
+   will be used
+4. resuming a P+M model, you may specify (`p` AND `m`) **OR** `pm` **OR** leave all at `none`,
+   in which case `output_path / checkpoints / latest_ckpt.pth` will be used to load from
+   a single checkpoint
 
 # ⚠️ Deprecated
 
@@ -147,6 +168,7 @@ batch = Dict({
 | train_r_full_pl.json, val_r_full_pl.json       |   r    | MegaDepth + Segmentation pseudo-labels .pt (HRNet + Cityscapes)            |  Alexia   |
 | train_r_full_midas.json, val_r_full_midas.json |   r    | MiDaS+ Segmentation (HRNet + Cityscapes)                                   | Mélisande |
 | train_r_full_old.json, val_r_full_old.json     |   r    | MegaDepth+ Segmentation (HRNet + Cityscapes)                               |    ***    |
+| train_r_nopeople.json, val_r_nopeople.json     |   r    | Same training data as above with people removed                            |   Sasha   |
 
 We provide the script `process_data.py` for the preprocessing task. Given a source folder the script will create the appropriate JSON. In the default mode, only one JSON for the whole data folder will be created. If you want to split the dataset into train and validation you can use the `--train_size` argument and specify the percentage, therefore two JSONs (train and val) will be created.
 

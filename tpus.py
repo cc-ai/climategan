@@ -272,7 +272,8 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    print(args)
+    print("Received Arguments:")
+    print("\n".join(f"{k:20}: {v}" for k, v in vars(args).items()))
 
     # -----------------------
     # -----  Load opts  -----
@@ -364,6 +365,6 @@ if __name__ == "__main__":
             n_iter=n_iter,
         )
         print()
-        with open(output_dir / "omnigan_metrics_bs{bs}_lim{limit}.txt", "w") as f:
+        with open(output_dir / f"omnigan_xla_metrics_bs{bs}_lim{limit}.txt", "w") as f:
             report = met.metrics_report()
             print(report, file=f)

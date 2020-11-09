@@ -18,12 +18,13 @@ def get_dis(opts, verbose, no_init=False):
 
     for task, model in disc.items():
         if isinstance(model, nn.ModuleDict):
-            for domain_model in model.values():
+            for domain, domain_model in model.items():
                 init_weights(
                     domain_model,
                     init_type=opts.dis[task].init_type,
                     init_gain=opts.dis[task].init_gain,
                     verbose=verbose,
+                    caller=f"get_dis {task} {domain}"
                 )
         else:
             init_weights(
@@ -31,6 +32,7 @@ def get_dis(opts, verbose, no_init=False):
                 init_type=opts.dis[task].init_type,
                 init_gain=opts.dis[task].init_gain,
                 verbose=verbose,
+                caller=f"get_dis {task}"
             )
     return disc
 
@@ -72,15 +74,6 @@ def get_norm_layer(norm_type="instance"):
     else:
         raise NotImplementedError("normalization layer [%s] is not found" % norm_type)
     return norm_layer
-
-
-def init_net(net, init_type="normal", init_gain=0.02, gpu_ids=[]):
-    if len(gpu_ids) > 0:
-        assert torch.cuda.is_available()
-        net.to(gpu_ids[0])
-        net = torch.nn.DataParallel(net, gpu_ids)
-    init_weights(net, init_type=init_type, init_gain=init_gain)
-    return net
 
 
 # Defines the PatchGAN discriminator with the specified arguments.

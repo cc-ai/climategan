@@ -149,6 +149,9 @@ class Trainer:
 
         if resolution not in {"approx", "exact"}:
             painted = self.G.painter(z_painter, masked_batch)
+            if self.opts.gen.p.paste_original_content:
+                painted = mask_batch * painted + masked_batch
+
             if resolution == "upsample":
                 painted = nn.functional.interpolate(
                     painted, size=image_batch.shape[-2:], mode="bilinear"
@@ -166,6 +169,8 @@ class Trainer:
             )
 
             painted = self.G.painter(z_painter, masked_batch)
+            if self.opts.gen.p.paste_original_content:
+                painted = mask_batch * painted + masked_batch
 
             self.G.painter.z_h = zh
             self.G.painter.z_w = zw
@@ -348,24 +353,35 @@ class Trainer:
         return shape
 
     def print_num_parameters(self):
-        print("---------------------------")
+        print("-" * 35)
         if self.G.encoder is not None:
-            print("num params encoder: ", get_num_params(self.G.encoder))
+            print(
+                "{:21}:".format("num params encoder"),
+                f"{get_num_params(self.G.encoder):12,}",
+            )
         for d in self.G.decoders.keys():
             print(
-                "num params decoder {}: {}".format(
-                    d, get_num_params(self.G.decoders[d])
-                )
+                "{:21}:".format(f"num params decoder {d}"),
+                f"{get_num_params(self.G.decoders[d]):12,}",
             )
-        print("num params painter: ", get_num_params(self.G.painter))
+
+        print(
+            "{:21}:".format("num params painter"),
+            f"{get_num_params(self.G.painter):12,}",
+        )
 
         if self.D is not None:
             for d in self.D.keys():
-                print("num params discrim {}: {}".format(d, get_num_params(self.D[d])))
+                print(
+                    "{:21}:".format(f"num params discrim {d}"),
+                    f"{get_num_params(self.D[d]):12,}",
+                )
 
         if self.C is not None:
-            print("num params classif: ", get_num_params(self.C))
-        print("---------------------------")
+            print(
+                "{:21}:".format("num params classif"), f"{get_num_params(self.C):12,}"
+            )
+        print("-" * 35)
 
     def setup(self, inference=False):
         """Prepare the trainer before it can be used to train the models:
@@ -389,7 +405,7 @@ class Trainer:
         self.G: OmniGenerator = get_gen(self.opts, verbose=verbose, no_init=inference)
         print("Sending to", self.device)
         self.G = self.G.to(self.device)
-        print(f"Generator OK in {time() - __t:.1f}s.", end="", flush=True)
+        print(f"Generator OK in {time() - __t:.1f}s.")
 
         if self.input_shape is None:
             if inference:
@@ -402,8 +418,8 @@ class Trainer:
 
         if "s" in self.opts.tasks:
             self.G.decoders["s"].set_target_size(self.input_shape[-2:])
-
         print("OK.")
+
         self.G.painter.z_h = self.input_shape[-2] // (2 ** self.opts.gen.p.spade_n_up)
         self.G.painter.z_w = self.input_shape[-1] // (2 ** self.opts.gen.p.spade_n_up)
 
@@ -429,7 +445,7 @@ class Trainer:
             self.C = get_classifier(self.opts, self.latent_shape, verbose=verbose).to(
                 self.device
             )
-        print("Classifier OK.")
+            print("Classifier OK.")
 
         self.print_num_parameters()
 
@@ -472,13 +488,18 @@ class Trainer:
         # ----------------------------
         # -----  Display images  -----
         # ----------------------------
-        print("Creating display images...", end="", flush=True)
         self.display_images = {}
         for mode, mode_dict in self.loaders.items():
             self.display_images[mode] = {}
             for domain, domain_loader in mode_dict.items():
                 dataset = self.loaders[mode][domain].dataset
                 display_indices = get_display_indices(self.opts, domain, len(dataset))
+                ldis = len(display_indices)
+                print(
+                    f"Creating {ldis} {mode} {domain} display images...",
+                    end="\r",
+                    flush=True,
+                )
                 self.display_images[mode][domain] = [
                     Dict(dataset[i]) for i in display_indices if i < len(dataset)
                 ]
@@ -488,7 +509,8 @@ class Trainer:
                             "display_image_{}_{}_{}".format(mode, domain, im_id),
                             d["paths"],
                         )
-
+        print(" " * 50, end="\r")
+        print("Done creating display images")
         print("Setup done.")
         self.is_setup = True
 
@@ -730,6 +752,9 @@ class Trainer:
 
                 z = self.sample_z(x.shape[0]) if not self.no_z else None
                 prediction = self.G.painter(z, x * (1.0 - m))
+                if self.opts.gen.p.paste_original_content:
+                    prediction = prediction * m + x * (1.0 - m)
+
                 image_outputs.append(x * (1.0 - m))
                 image_outputs.append(prediction)
                 image_outputs.append(x)
@@ -758,6 +783,9 @@ class Trainer:
             m = self.G.decoders["m"](self.G.encode(x))
 
             prediction = self.G.painter(z, x * (1.0 - m))
+            if self.opts.gen.p.paste_original_content:
+                prediction = prediction * m + x * (1.0 - m)
+
             image_outputs.append(x * (1.0 - m))
             image_outputs.append(prediction)
             image_outputs.append(x)
@@ -841,9 +869,7 @@ class Trainer:
         ):
             self.run_epoch()
             self.run_evaluation(verbose=1)
-
-            if self.logger.epoch % self.opts.train.save_n_epochs == 0:
-                self.save()
+            self.save()
 
     def get_g_loss(self, multi_domain_batch, verbose=0):
         m_loss = p_loss = None
@@ -863,6 +889,7 @@ class Trainer:
 
         if "m" in self.opts.tasks and "p" in self.opts.tasks:
             mp_loss = self.get_combined_loss(multi_domain_batch)
+            self.logger.losses.gen.combined = mp_loss.item()
             g_loss += mp_loss
 
         assert g_loss != 0 and not isinstance(g_loss, int), "No update in get_g_loss!"
@@ -992,10 +1019,11 @@ class Trainer:
                     if batch_domain == "r":
                         # Entropy minimization loss
                         if self.opts.gen.s.use_minent:
+                            softmax_preds = nn.functional.softmax(prediction, dim=1)
                             # Direct entropy minimization
                             update_loss = (
                                 self.losses["G"]["tasks"][update_task]["minent"](
-                                    prediction
+                                    softmax_preds
                                 )
                                 * lambdas.G[update_task]["minent"]
                             )
@@ -1148,6 +1176,8 @@ class Trainer:
         masked_x = x * (1.0 - m)
 
         fake_flooded = self.G.painter(z, masked_x)
+        if self.opts.gen.p.paste_original_content:
+            fake_flooded = masked_x + m * fake_flooded
 
         update_loss = (
             self.losses["G"]["p"]["vgg"](
@@ -1213,13 +1243,13 @@ class Trainer:
                 step_loss += update_loss
 
         else:
-            real_fake_d = self.D["p"](
-                torch.cat(
-                    [torch.cat([m, x], axis=1), torch.cat([m, fake_flooded], axis=1)],
-                    axis=0,
-                )
-            )
-            fake_d, real_d = divide_pred(real_fake_d)
+            fake_cat = torch.cat([m, fake_flooded], axis=1)
+            real_cat = torch.cat([m, x], axis=1)
+            fake_and_real = torch.cat([fake_cat, real_cat], dim=0)
+
+            fake_and_real_d = self.D["p"](fake_and_real)
+            fake_d, real_d = divide_pred(fake_and_real_d)
+
             update_loss = self.losses["G"]["p"]["gan"](fake_d, True, False)
             self.logger.losses.gen.p.gan = update_loss.item()
             step_loss += update_loss
@@ -1273,6 +1303,8 @@ class Trainer:
             masked_x = x * (1.0 - m)
 
             fake_flooded = self.G.painter(z, masked_x)
+            if self.opts.gen.p.paste_original_content:
+                fake_flooded = fake_flooded * m + masked_x
             # GAN Losses
             fake_d_global = self.D["p"]["global"](fake_flooded)
 
@@ -1349,6 +1381,8 @@ class Trainer:
                     # see spade compute_discriminator_loss
                     z_paint = self.sample_z(x.shape[0]) if not self.no_z else None
                     fake = self.G.painter(z_paint, x * (1.0 - m))
+                    if self.opts.gen.p.paste_original_content:
+                        fake = fake * m + x * (1.0 - m)
                     fake = fake.detach()
                     fake.requires_grad_()
 
@@ -1581,8 +1615,7 @@ class Trainer:
     def save(self):
         save_dir = Path(self.opts.output_path) / Path("checkpoints")
         save_dir.mkdir(exist_ok=True)
-        save_path = Path("latest_ckpt.pth")
-        save_path = save_dir / save_path
+        save_path = save_dir / "latest_ckpt.pth"
 
         # Construct relevant state dicts / optims:
         # Save at least G
@@ -1600,53 +1633,123 @@ class Trainer:
             save_dict["D"] = self.D.state_dict()
             save_dict["d_opt"] = self.d_opt.state_dict()
 
+        if (
+            self.logger.epoch >= self.opts.train.min_save_epoch
+            and self.logger.epoch % self.opts.train.save_n_epochs == 0
+        ):
+            torch.save(save_dict, save_dir / f"epoch_{self.logger.epoch}_ckpt.pth")
+
         torch.save(save_dict, save_path)
 
     def resume(self, inference=False):
-        # load_path = self.get_latest_ckpt()
-
-        # ----------------------------------------
-        # -----  Masker and Painter Loading  -----
-        # ----------------------------------------
         tpu = "xla" in str(self.device)
         if tpu:
             print("Resuming on TPU:", self.device)
+
+        m_path = Path(self.opts.load_paths.m)
+        p_path = Path(self.opts.load_paths.p)
+        pm_path = Path(self.opts.load_paths.pm)
+        output_path = Path(self.opts.output_path)
+
+        map_loc = self.device if not tpu else "cpu"
+
         if "m" in self.opts.tasks and "p" in self.opts.tasks:
-            m_path = self.opts.load_paths.m
-            p_path = self.opts.load_paths.p
+            # ----------------------------------------
+            # -----  Masker and Painter Loading  -----
+            # ----------------------------------------
 
-            if m_path == "none":
-                m_path = self.opts.output_path
-            if p_path == "none":
-                p_path = self.opts.output_path
+            # want to resume a pm model but no path was provided:
+            # resume a single pm model from output_path
+            if all([str(p) == "none" for p in [m_path, p_path, pm_path]]):
+                checkpoint_path = output_path / "checkpoints/latest_ckpt.pth"
+                print("Resuming P+M model from", str(checkpoint_path))
+                checkpoint = torch.load(checkpoint_path, map_location=map_loc)
 
-            # Merge the dicts
-            m_ckpt_path = Path(m_path) / Path("checkpoints/latest_ckpt.pth")
-            p_ckpt_path = Path(p_path) / Path("checkpoints/latest_ckpt.pth")
+            # want to resume a pm model with a pm_path provided:
+            # resume a single pm model from load_paths.pm
+            # depending on whether a dir or a file is specified
+            elif str(pm_path) != "none":
+                assert pm_path.exists()
 
-            m_checkpoint = torch.load(
-                m_ckpt_path, map_location=self.device if not tpu else "cpu"
-            )
-            p_checkpoint = torch.load(
-                p_ckpt_path, map_location=self.device if not tpu else "cpu"
-            )
-            checkpoint = merge(m_checkpoint, p_checkpoint)
-            if tpu:
-                checkpoint = xm.send_cpu_data_to_device(checkpoint, self.device)
-            print(f"Resuming model from \n  -{m_ckpt_path} \nand \n  -{p_ckpt_path}")
-        # ----------------------------------
-        # -----  Single Model Loading  -----
-        # ----------------------------------
+                if pm_path.is_dir():
+                    checkpoint_path = pm_path / "checkpoints/latest_ckpt.pth"
+                else:
+                    assert pm_path.suffix == ".pth"
+                    checkpoint_path = pm_path
+
+                print("Resuming P+M model from", str(checkpoint_path))
+                checkpoint = torch.load(checkpoint_path, map_location=map_loc)
+
+            # want to resume a pm model, pm_path not provided:
+            # m_path and p_path must be provided as dirs or pth files
+            elif m_path != p_path:
+                assert m_path.exists()
+                assert p_path.exists()
+
+                if m_path.is_dir():
+                    m_path = m_path / "checkpoints/latest_ckpt.pth"
+
+                if p_path.is_dir():
+                    p_path = p_path / "checkpoints/latest_ckpt.pth"
+
+                assert m_path.suffix == ".pth"
+                assert p_path.suffix == ".pth"
+
+                m_checkpoint = torch.load(m_path, map_location=map_loc)
+                p_checkpoint = torch.load(p_path, map_location=map_loc)
+                checkpoint = merge(m_checkpoint, p_checkpoint)
+                print(f"Resuming P+M model from \n  -{p_path} \nand \n  -{m_path}")
+
+            else:
+                raise ValueError(
+                    "Cannot resume a P+M model with provided load_paths:\n{}".format(
+                        self.opts.load_paths
+                    )
+                )
+
         else:
-            load_path = Path(self.opts.output_path) / Path(
-                "checkpoints/latest_ckpt.pth"
-            )
-            checkpoint = torch.load(
-                load_path, map_location=self.device if not tpu else "cpu"
-            )
-            if tpu:
-                checkpoint = xm.send_cpu_data_to_device(checkpoint, self.device)
-            print(f"Resuming model from {load_path}")
+            # ----------------------------------
+            # -----  Single Model Loading  -----
+            # ----------------------------------
+
+            # cannot specify both paths
+            if str(m_path) != "none" and str(p_path) != "none":
+                raise ValueError(
+                    "Opts tasks are {} but received 2 values for the load_paths".format(
+                        self.opts.tasks
+                    )
+                )
+
+            # specified m
+            elif str(m_path) != "none":
+                assert m_path.exists()
+                assert "m" in self.opts.tasks
+                model = "M"
+                if m_path.is_dir():
+                    m_path = m_path / "checkpoints/latest_ckpt.pth"
+                checkpoint_path = m_path
+
+            # specified m
+            elif str(p_path) != "none":
+                assert p_path.exists()
+                assert "p" in self.opts.tasks
+                model = "P"
+                if p_path.is_dir():
+                    p_path = p_path / "checkpoints/latest_ckpt.pth"
+                checkpoint_path = p_path
+
+            # specified neither p nor m: resume from output_path
+            else:
+                model = "P" if "p" in self.opts.tasks else "M"
+                checkpoint_path = output_path / "checkpoints/latest_ckpt.pth"
+
+            checkpoint = torch.load(checkpoint_path, map_location=map_loc)
+            print(f"Resuming {model} model from {checkpoint_path}")
+
+        # On TPUs must send the data to the xla device as it cannot be mapped
+        # there directly from torch.load
+        if tpu:
+            checkpoint = xm.send_cpu_data_to_device(checkpoint, self.device)
 
         # -----------------------
         # -----  Restore G  -----
@@ -1658,12 +1761,11 @@ class Trainer:
             print("Done loading checkpoints.")
             return
 
-        if not ("m" in self.opts.tasks and "p" in self.opts.tasks):
-            self.g_opt.load_state_dict(checkpoint["g_opt"])
-        self.logger.epoch = checkpoint["epoch"] + 1
-        self.logger.global_step = checkpoint["step"]
+        self.g_opt.load_state_dict(checkpoint["g_opt"])
 
-        # resume scheduler:
+        # ------------------------------
+        # -----  Resume scheduler  -----
+        # ------------------------------
         # https://discuss.pytorch.org/t/a-problem-occured-when-resuming-an-optimizer/28822
         for _ in range(self.logger.epoch + 1):
             self.update_learning_rates()
@@ -1677,16 +1779,14 @@ class Trainer:
         # -----------------------
         if self.D is not None and get_num_params(self.D) > 0:
             self.D.load_state_dict(checkpoint["D"])
-            if not ("m" in self.opts.tasks and "p" in self.opts.tasks):
-                self.d_opt.load_state_dict(checkpoint["d_opt"])
+            self.d_opt.load_state_dict(checkpoint["d_opt"])
 
         # -----------------------
         # -----  Restore C  -----
         # -----------------------
         if self.C is not None and get_num_params(self.C) > 0:
             self.C.load_state_dict(checkpoint["C"])
-            if not ("m" in self.opts.tasks and "p" in self.opts.tasks):
-                self.c_opt.load_state_dict(checkpoint["c_opt"])
+            self.c_opt.load_state_dict(checkpoint["c_opt"])
 
         # ---------------------------
         # -----  Resore logger  -----
@@ -1696,19 +1796,6 @@ class Trainer:
         # Round step to even number for extraGradient
         if self.logger.global_step % 2 != 0:
             self.logger.global_step += 1
-
-    def get_latest_ckpt(self):
-        load_dir = Path(self.opts.output_path) / Path("checkpoints")
-        ckpts = os.listdir(str(load_dir.resolve()))
-        max_epoch = 0
-        max_ckpt = ""
-        for ckpt in ckpts:
-            ckpt = Path(ckpt)
-            epoch = int(ckpt.stem.split("_")[-1])
-            if epoch > max_epoch:
-                max_epoch = epoch
-                max_ckpt = ckpt
-        return Path(self.opts.output_path) / Path("checkpoints") / max_ckpt
 
     def eval_images(self, mode, domain):
         metrics = {"accuracy": accuracy, "iou": iou}
