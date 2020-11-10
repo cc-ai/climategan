@@ -246,839 +246,6 @@ class Trainer:
             trainer.setup(inference=inference)
         return trainer
 
-    def eval_mode(self):
-        """
-        Set trainer's models in eval mode
-        """
-        if self.G is not None:
-            self.G.eval()
-        if self.D is not None:
-            self.D.eval()
-        if self.C is not None:
-            self.C.eval()
-        self.current_mode = "eval"
-
-    def train_mode(self):
-        """
-        Set trainer's models in train mode
-        """
-        if self.G is not None:
-            self.G.train()
-        if self.D is not None:
-            self.D.train()
-        if self.C is not None:
-            self.C.train()
-        self.current_mode = "train"
-
-    def batch_to_device(self, b):
-        """sends the data in b to self.device
-
-        Args:
-            b (dict): the batch dictionnay
-
-        Returns:
-            dict: the batch dictionnary with its "data" field sent to self.device
-        """
-        for task, tensor in b["data"].items():
-            b["data"][task] = tensor.to(self.device)
-        return b
-
-    def compute_latent_shape(self):
-        """Compute the latent shape, i.e. the Encoder's output shape,
-        from a batch.
-
-        Raises:
-            ValueError: If no loader, the latent_shape cannot be inferred
-
-        Returns:
-            tuple: (c, h, w)
-        """
-        x = None
-        for mode in self.loaders:
-            for domain in self.loaders[mode]:
-                x = self.loaders[mode][domain].dataset[0]["data"]["x"].to(self.device)
-                break
-            if x is not None:
-                break
-
-        if x is None:
-            raise ValueError("No batch found to compute_latent_shape")
-
-        x = x.unsqueeze(0)
-        z = self.G.encode(x)
-        return z.shape[1:] if not isinstance(z, (list, tuple)) else z[0].shape[1:]
-
-    def compute_input_shape(self):
-        """Compute the latent shape, i.e. the Encoder's output shape,
-        from a batch.
-
-        Raises:
-            ValueError: If no loader, the latent_shape cannot be inferred
-
-        Returns:
-            tuple: (c, h, w)
-        """
-        shape = None
-        for mode in self.loaders:
-            for domain in self.loaders[mode]:
-                shape = self.loaders[mode][domain].dataset[0]["data"]["x"].shape
-                break
-            if shape is not None:
-                break
-
-        if shape is None:
-            raise ValueError("No batch found to compute_latent_shape")
-
-        return shape
-
-    def setup(self, inference=False):
-        """Prepare the trainer before it can be used to train the models:
-        * initialize G and D
-        * compute latent space dims and create classifier accordingly
-        * creates 3 optimizers
-        """
-        self.logger.global_step = 0
-        start_time = time()
-        self.logger.time.start_time = start_time
-        verbose = self.verbose
-
-        if not inference:
-            self.loaders = get_all_loaders(self.opts)
-
-        # -----------------------
-        # -----  Generator  -----
-        # -----------------------
-        __t = time()
-        print("Creating generator:")
-        self.G: OmniGenerator = get_gen(self.opts, verbose=verbose, no_init=inference)
-        print("Sending to", self.device)
-        self.G = self.G.to(self.device)
-        print(f"Generator OK in {time() - __t:.1f}s.")
-
-        if self.input_shape is None:
-            if inference:
-                raise ValueError(
-                    "Cannot auto-set input_shape from loaders in inference mode."
-                    + " It  has to  be set prior to setup()."
-                )
-            print("Computing latent & input shapes...", end="", flush=True)
-            self.input_shape = self.compute_input_shape()
-
-        if "s" in self.opts.tasks:
-            self.G.decoders["s"].set_target_size(self.input_shape[-2:])
-        print("OK.")
-
-        self.G.painter.z_h = self.input_shape[-2] // (2 ** self.opts.gen.p.spade_n_up)
-        self.G.painter.z_w = self.input_shape[-1] // (2 ** self.opts.gen.p.spade_n_up)
-
-        if inference:
-            print("Inference mode: no Discriminator, no Classifier, no optimizers")
-            print_num_parameters(self)
-            return
-
-        # ---------------------------
-        # -----  Discriminator  -----
-        # ---------------------------
-
-        self.D: OmniDiscriminator = get_dis(self.opts, verbose=verbose).to(self.device)
-        print("Discriminator OK.")
-
-        # ------------------------
-        # -----  Classifier  -----
-        # ------------------------
-
-        self.C: OmniClassifier = None
-        if self.G.encoder is not None and self.opts.train.latent_domain_adaptation:
-            self.latent_shape = self.compute_latent_shape()
-            self.C = get_classifier(self.opts, self.latent_shape, verbose=verbose).to(
-                self.device
-            )
-            print("Classifier OK.")
-
-        print_num_parameters(self)
-
-        # --------------------------
-        # -----  Optimization  -----
-        # --------------------------
-        # Get different optimizers for each task (different learning rates)
-        self.g_opt, self.g_scheduler, self.lr_names["G"] = get_optimizer(
-            self.G, self.opts.gen.opt, self.opts.tasks
-        )
-
-        if get_num_params(self.D) > 0:
-            self.d_opt, self.d_scheduler, self.lr_names["D"] = get_optimizer(
-                self.D, self.opts.dis.opt, self.opts.tasks
-            )
-        else:
-            self.d_opt, self.d_scheduler = None, None
-
-        if self.C is not None:
-            self.c_opt, self.c_scheduler, self.lr_names["C"] = get_optimizer(
-                self.C, self.opts.classifier.opt, None
-            )
-        else:
-            self.c_opt, self.c_scheduler = None, None
-
-        if self.opts.train.resume:
-            self.resume()
-
-        self.losses = get_losses(self.opts, verbose, device=self.device)
-
-        if verbose > 0:
-            for mode, mode_dict in self.loaders.items():
-                for domain, domain_loader in mode_dict.items():
-                    print(
-                        "Loader {} {} : {}".format(
-                            mode, domain, len(domain_loader.dataset)
-                        )
-                    )
-
-        # ----------------------------
-        # -----  Display images  -----
-        # ----------------------------
-        self.display_images = {}
-        for mode, mode_dict in self.loaders.items():
-            self.display_images[mode] = {}
-            for domain, domain_loader in mode_dict.items():
-                dataset = self.loaders[mode][domain].dataset
-                display_indices = get_display_indices(self.opts, domain, len(dataset))
-                ldis = len(display_indices)
-                print(
-                    f"Creating {ldis} {mode} {domain} display images...",
-                    end="\r",
-                    flush=True,
-                )
-                self.display_images[mode][domain] = [
-                    Dict(dataset[i]) for i in display_indices if i < len(dataset)
-                ]
-                if self.exp is not None:
-                    for im_id, d in enumerate(self.display_images[mode][domain]):
-                        self.exp.log_parameter(
-                            "display_image_{}_{}_{}".format(mode, domain, im_id),
-                            d["paths"],
-                        )
-        print(" " * 50, end="\r")
-        print("Done creating display images")
-        print("Setup done.")
-        self.is_setup = True
-
-    def g_opt_step(self):
-        """Run an optimizing step ; if using ExtraAdam, there needs to be an extrapolation
-        step every other step
-        """
-        if "extra" in self.opts.gen.opt.optimizer.lower() and (
-            self.logger.global_step % 2 == 0
-        ):
-            self.g_opt.extrapolation()
-        else:
-            self.g_opt.step()
-
-    def d_opt_step(self):
-        """Run an optimizing step ; if using ExtraAdam, there needs to be an extrapolation
-        step every other step
-        """
-        if "extra" in self.opts.dis.opt.optimizer.lower() and (
-            self.logger.global_step % 2 == 0
-        ):
-            self.d_opt.extrapolation()
-        else:
-            self.d_opt.step()
-
-    def c_opt_step(self):
-        """Run an optimizing step ; if using ExtraAdam, there needs to be an extrapolation
-        step every other step
-        """
-        if "extra" in self.opts.classifier.opt.optimizer.lower() and (
-            self.logger.global_step % 2 == 0
-        ):
-            self.c_opt.extrapolation()
-        else:
-            self.c_opt.step()
-
-    @property
-    def train_loaders(self):
-        """Get a zip of all training loaders
-
-        Returns:
-            generator: zip generator yielding tuples:
-                (batch_rf, batch_rn, batch_sf, batch_sn)
-        """
-        return zip(*list(self.loaders["train"].values()))
-
-    def update_learning_rates(self):
-        if self.g_scheduler is not None:
-            self.g_scheduler.step()
-        if self.d_scheduler is not None:
-            self.d_scheduler.step()
-        if self.c_scheduler is not None:
-            self.c_scheduler.step()
-
-    @property
-    def val_loaders(self):
-        """Get a zip of all validation loaders
-
-        Returns:
-            generator: zip generator yielding tuples:
-                (batch_rf, batch_rn, batch_sf, batch_sn)
-        """
-        return zip(*list(self.loaders["val"].values()))
-
-    def run_epoch(self):
-        """Runs an epoch:
-        * checks trainer is setup
-        * gets a tuple of batches per domain
-        * sends batches to device
-        * updates sequentially G, D, C
-        """
-        assert self.is_setup
-        self.train_mode()
-        if self.exp is not None:
-            self.exp.log_parameter("epoch", self.logger.epoch)
-        epoch_len = min(len(loader) for loader in self.loaders["train"].values())
-        epoch_desc = "Epoch {}".format(self.logger.epoch)
-        self.logger.time.epoch_start = time()
-
-        for multi_batch_tuple in tqdm(
-            self.train_loaders,
-            desc=epoch_desc,
-            total=epoch_len,
-            mininterval=0.5,
-            unit="batch",
-        ):
-
-            self.logger.time.step_start = time()
-            multi_batch_tuple = shuffle_batch_tuple(multi_batch_tuple)
-
-            # The `[0]` is because the domain is contained in a list
-            multi_domain_batch = {
-                batch["domain"][0]: self.batch_to_device(batch)
-                for batch in multi_batch_tuple
-            }
-
-            # ------------------------------
-            # -----  Update Generator  -----
-            # ------------------------------
-
-            # freeze params of the discriminator
-            if self.d_opt is not None:
-                for param in self.D.parameters():
-                    param.requires_grad = False
-
-            self.update_G(multi_domain_batch)
-
-            # ----------------------------------
-            # -----  Update Discriminator  -----
-            # ----------------------------------
-
-            # unfreeze params of the discriminator
-            if self.d_opt is not None:
-                for param in self.D.parameters():
-                    param.requires_grad = True
-
-                self.update_D(multi_domain_batch)
-
-            # -------------------------------
-            # -----  Update Classifier  -----
-            # -------------------------------
-            if self.opts.train.latent_domain_adaptation and self.C is not None:
-                self.update_C(multi_domain_batch)
-
-            # -------------------------
-            # -----  Log Metrics  -----
-            # -------------------------
-            self.logger.global_step += 1
-            self.logger.log_step_time(time())
-
-        self.update_learning_rates()
-        self.logger.log_learning_rates()
-        self.logger.log_epoch_time(time())
-
-    def train(self):
-        """For each epoch:
-        * train
-        * eval
-        * save
-        """
-        assert self.is_setup
-
-        for self.logger.epoch in range(
-            self.logger.epoch, self.logger.epoch + self.opts.train.epochs
-        ):
-            self.run_epoch()
-            self.run_evaluation(verbose=1)
-            self.save()
-
-            if self.logger.epoch == self.opts.gen.p.pm4l_epoch:
-                self.use_pl4m = True
-
-    def get_G_loss(self, multi_domain_batch, verbose=0):
-        m_loss = p_loss = None
-
-        # For now, always compute "representation loss"
-        g_loss = 0
-
-        if any(t in self.opts.tasks for t in "msd"):
-            m_loss = self.get_masker_loss(multi_domain_batch)
-            self.logger.losses.gen.masker = m_loss.item()
-            g_loss += m_loss
-
-        if "p" in self.opts.tasks:
-            p_loss = self.get_painter_loss(multi_domain_batch)
-            self.logger.losses.gen.painter = p_loss.item()
-            g_loss += p_loss
-
-        assert g_loss != 0 and not isinstance(g_loss, int), "No update in get_G_loss!"
-
-        self.logger.losses.gen.total_loss = g_loss.item()
-
-        return g_loss
-
-    def update_G(self, multi_domain_batch, verbose=0):
-        """Perform an update on g from multi_domain_batch which is a dictionary
-        domain => batch
-
-        * automatic mixed precision according to self.opts.train.amp
-        * compute loss for each task
-        * loss.backward()
-        * g_opt_step()
-            * g_opt.step() or .extrapolation() depending on self.logger.global_step
-        * logs losses on comet.ml with self.logger.log_losses(model_to_update="G")
-
-        Args:
-            multi_domain_batch (dict): dictionnary of domain batches
-        """
-        zero_grad(self.G)
-        if self.opts.train.amp:
-            with autocast():
-                g_loss = self.get_G_loss(multi_domain_batch, verbose)
-            self.grad_scaler_g.scale(g_loss).backward()
-            self.grad_scaler_g.step(self.g_opt)
-            self.grad_scaler_g.update()
-        else:
-            g_loss = self.get_G_loss(multi_domain_batch, verbose)
-            g_loss.backward()
-            self.g_opt_step()
-
-        self.logger.log_losses(model_to_update="G", mode="train")
-
-    def get_masker_loss(self, multi_domain_batch):  # TODO update docstrings
-        """Only update the representation part of the model, meaning everything
-        but the translation part
-
-        * for each batch in available domains:
-            * compute latent classifier loss with fake labels(1)
-            * compute task-specific losses (2)
-            * compute the adaptation and translation decoders' auto-encoding losses (3)
-            * compute the adaptation decoder's translation losses (GAN and Cycle) (4)
-
-        Args:
-            multi_domain_batch (dict): dictionnary mapping domain names to batches from
-            the trainer's loaders
-
-        Returns:
-            torch.Tensor: scalar loss tensor, weighted according to opts.train.lambdas
-        """
-        m_loss = 0
-        for domain, batch in multi_domain_batch.items():
-            # We don't care about the flooded domain here
-            if domain == "rf":
-                continue
-
-            x = batch["data"]["x"]
-            z = self.G.encode(x)
-            # ---------------------------------
-            # -----  classifier loss (1)  -----
-            # ---------------------------------
-            if self.opts.train.latent_domain_adaptation:
-                loss = self.masker_c_loss(z, batch["domain"])
-                m_loss += loss
-                self.logger.losses.gen.classifier[domain] = loss.item()
-
-            # --------------------------------------
-            # -----  task-specific losses (2)  -----
-            # --------------------------------------
-            for task, target in batch["data"].items():
-                if task == "m":
-                    loss = self.masker_m_loss(x, z, target, domain, "G")
-                    m_loss += loss
-                    self.logger.losses.gen.task["m"][domain] = loss.item()
-                elif task == "s":
-                    loss = self.masker_s_loss(x, z, target, domain, "G")
-                    m_loss += loss
-                    self.logger.losses.gen.task["s"][domain] = loss.item()
-                elif task == "d":
-                    loss = self.masker_d_loss(x, z, target, "G")
-                    m_loss += loss
-                    self.logger.losses.gen.task["d"][domain] = loss.item()
-
-        return m_loss
-
-    def sample_painter_z(self, batch_size):
-        if self.opts.gen.p.no_z:
-            return None
-
-        return torch.empty(
-            batch_size,
-            self.opts.gen.p.latent_dim,
-            self.G.painter.z_h,
-            self.G.painter.z_w,
-            device=self.device,
-        ).normal_(mean=0, std=1.0)
-
-    def get_painter_loss(self, multi_domain_batch):
-        """Computes the translation loss when flooding/deflooding images
-
-        Args:
-            multi_domain_batch (dict): dictionnary mapping domain names to batches from
-            the trainer's loaders
-
-        Returns:
-            torch.Tensor: scalar loss tensor, weighted according to opts.train.lambdas
-        """
-        step_loss = 0
-        # self.g_opt.zero_grad()
-        lambdas = self.opts.train.lambdas
-        batch_domain = "rf"
-        batch = multi_domain_batch[batch_domain]
-
-        x = batch["data"]["x"]
-        # ! different mask: hides water to be reconstructed
-        # ! 1 for water, 0 otherwise
-        m = batch["data"]["m"]
-        z = self.sample_painter_z(x.shape[0])
-        masked_x = x * (1.0 - m)
-
-        fake_flooded = self.G.painter(z, masked_x)
-        if self.opts.gen.p.paste_original_content:
-            fake_flooded = masked_x + m * fake_flooded
-
-        # ----------------------
-        # -----  VGG Loss  -----
-        # ----------------------
-        loss = self.losses["G"]["p"]["vgg"](
-            vgg_preprocess(fake_flooded * m), vgg_preprocess(x * m)
-        )
-        loss *= lambdas.G.p.vgg
-        self.logger.losses.gen.p.vgg = loss.item()
-        step_loss += loss
-
-        # ---------------------
-        # -----  TV Loss  -----
-        # ---------------------
-        loss = self.losses["G"]["p"]["tv"](fake_flooded * m)
-        loss *= lambdas.G.p.tv
-        self.logger.losses.gen.p.tv = loss.item()
-        step_loss += loss
-
-        # --------------------------
-        # -----  Context Loss  -----
-        # --------------------------
-        loss = self.losses["G"]["p"]["context"](fake_flooded, x, m)
-        loss *= lambdas.G.p.context
-        self.logger.losses.gen.p.context = loss.item()
-        step_loss += loss
-
-        # ---------------------------------
-        # -----  Reconstruction Loss  -----
-        # ---------------------------------
-        loss = self.losses["G"]["p"]["reconstruction"](fake_flooded, x, m)
-        loss *= lambdas.G.p.reconstruction
-        self.logger.losses.gen.p.reconstruction = loss.item()
-        step_loss += loss
-
-        # -------------------------------------
-        # -----  Local & Global GAN Loss  -----
-        # -------------------------------------
-        if self.opts.dis.p.use_local_discriminator:
-            fake_d_global = self.D["p"]["global"](fake_flooded)
-            fake_d_local = self.D["p"]["local"](fake_flooded * m)
-
-            real_d_global = self.D["p"]["global"](x)
-
-            # Note: discriminator returns [out_1,...,out_num_D] outputs
-            # Each out_i is a list [feat1, feat2, ..., pred_i]
-
-            self.logger.losses.gen.p.gan = 0
-
-            loss = self.losses["G"]["p"]["gan"](fake_d_global, True, False)
-            loss += self.losses["G"]["p"]["gan"](fake_d_local, True, False)
-            loss *= lambdas.G["p"]["gan"]
-
-            self.logger.losses.gen.p.gan = loss.item()
-
-            step_loss += loss
-
-            # -----------------------------------
-            # -----  Feature Matching Loss  -----
-            # -----------------------------------
-            # (only on global discriminator)
-            # Order must be real, fake
-            if self.opts.dis.p.get_intermediate_features:
-                loss = self.losses["G"]["p"]["featmatch"](real_d_global, fake_d_global)
-                loss *= lambdas.G["p"]["featmatch"]
-
-                if isinstance(loss, float):
-                    self.logger.losses.gen.p.featmatch = loss
-                else:
-                    self.logger.losses.gen.p.featmatch = loss.item()
-
-                step_loss += loss
-
-        # -------------------------------------------
-        # -----  Single Discriminator GAN Loss  -----
-        # -------------------------------------------
-        else:
-            real_cat = torch.cat([m, x], axis=1)
-            fake_cat = torch.cat([m, fake_flooded], axis=1)
-            real_fake_cat = torch.cat([real_cat, fake_cat], dim=0)
-
-            real_fake_d = self.D["p"](real_fake_cat)
-            real_d, fake_d = divide_pred(real_fake_d)
-
-            loss = self.losses["G"]["p"]["gan"](fake_d, True, False)
-            self.logger.losses.gen.p.gan = loss.item()
-            step_loss += loss
-
-            # -----------------------------------
-            # -----  Feature Matching Loss  -----
-            # -----------------------------------
-            if self.opts.dis.p.get_intermediate_features:
-                loss = self.losses["G"]["p"]["featmatch"](real_d, fake_d)
-                loss *= lambdas.G["p"]["featmatch"]
-
-                if isinstance(loss, float):
-                    self.logger.losses.gen.p.featmatch = loss
-                else:
-                    self.logger.losses.gen.p.featmatch = loss.item()
-
-            step_loss += loss
-
-        return step_loss
-
-    def update_D(self, multi_domain_batch, verbose=0):
-        zero_grad(self.D)
-
-        if self.opts.train.amp:
-            with autocast():
-                d_loss = self.get_D_loss(multi_domain_batch, verbose)
-            self.grad_scaler_d.scale(d_loss).backward()
-            self.grad_scaler_d.step(self.d_opt)
-            self.grad_scaler_d.update()
-        else:
-            d_loss = self.get_D_loss(multi_domain_batch, verbose)
-            d_loss.backward()
-            self.d_opt_step()
-
-        self.logger.losses.disc.total_loss = d_loss.item()
-        self.logger.log_losses(model_to_update="D", mode="train")
-
-    def get_D_loss(self, multi_domain_batch, verbose=0):
-        """Compute the discriminators' losses:
-
-        * for each domain-specific batch:
-        * encode the image
-        * get the conditioning tensor if using spade
-        * source domain is the data's domain, sequentially r|s then f|n
-        * get the target domain accordingly
-        * compute the translated image from the data
-        * compute the source domain discriminator's loss on the data
-        * compute the target domain discriminator's loss on the translated image
-
-        # ? In this setting, each D[decoder][domain] is updated twice towards
-        # real or fake data
-
-        See readme's update d section for details
-
-        Args:
-            multi_domain_batch ([type]): [description]
-
-        Returns:
-            [type]: [description]
-        """
-
-        disc_loss = {
-            "m": {"Advent": 0},
-            "s": {"Advent": 0},
-        }
-        if self.opts.dis.p.use_local_discriminator:
-            disc_loss["p"] = {"global": 0, "local": 0}
-        else:
-            disc_loss["p"] = {"gan": 0}
-
-        for domain, batch in multi_domain_batch.items():
-            x = batch["data"]["x"]
-
-            # ---------------------
-            # -----  Painter  -----
-            # ---------------------
-            if domain == "rf":
-                m = batch["data"]["m"]
-                # sample vector
-                with torch.no_grad():
-                    # see spade compute_discriminator_loss
-                    z_paint = self.sample_painter_z(x.shape[0])
-                    fake = self.G.painter(z_paint, x * (1.0 - m))
-                    if self.opts.gen.p.paste_original_content:
-                        fake = fake * m + x * (1.0 - m)
-                    fake = fake.detach()
-                    fake.requires_grad_()
-
-                if self.opts.dis.p.use_local_discriminator:
-                    fake_d_global = self.D["p"]["global"](fake)
-                    real_d_global = self.D["p"]["global"](x)
-
-                    fake_d_local = self.D["p"]["local"](fake * m)
-                    real_d_local = self.D["p"]["local"](x * m)
-
-                    global_loss = self.losses["D"]["p"](fake_d_global, False, True)
-                    global_loss += self.losses["D"]["p"](real_d_global, True, True)
-
-                    local_loss = self.losses["D"]["p"](fake_d_local, False, True)
-                    local_loss += self.losses["D"]["p"](real_d_local, True, True)
-
-                    disc_loss["p"]["global"] += global_loss
-                    disc_loss["p"]["local"] += local_loss
-                else:
-                    real_cat = torch.cat([m, x], axis=1)
-                    fake_cat = torch.cat([m, fake], axis=1)
-                    real_fake_cat = torch.cat([real_cat, fake_cat], dim=0)
-                    real_fake_d = self.D["p"](real_fake_cat)
-                    real_d, fake_d = divide_pred(real_fake_d)
-                    disc_loss["p"]["gan"] = self.losses["D"]["p"](fake_d, False, True)
-                    disc_loss["p"]["gan"] += self.losses["D"]["p"](real_d, True, True)
-
-            # --------------------
-            # -----  Masker  -----
-            # --------------------
-            else:
-                z = self.G.encode(x)
-                for task, _ in batch["data"].items():
-                    if task == "m":
-                        step_loss = self.masker_m_loss(x, z, None, domain, for_="D")
-                        step_loss *= self.opts.train.lambdas.advent.adv_main
-                        disc_loss["m"]["Advent"] += step_loss
-
-                    if task == "s":
-                        step_loss = self.masker_s_loss(x, z, None, domain, for_="D")
-                        step_loss *= self.opts.train.lambdas.advent.adv_main
-                        disc_loss["s"]["Advent"] += step_loss
-
-        self.logger.losses.disc.update(
-            {
-                dom: {
-                    k: v.item() if isinstance(v, torch.Tensor) else v
-                    for k, v in d.items()
-                }
-                for dom, d in disc_loss.items()
-            }
-        )
-
-        loss = sum(v for d in disc_loss.values() for k, v in d.items())
-        return loss
-
-    def update_C(self, multi_domain_batch):
-        """
-        Update the classifier using normal labels
-
-        Args:
-            multi_domain_batch (dict): dictionnary mapping domain names to batches from
-                the trainer's loaders
-
-        """
-        zero_grad(self.C)
-        if self.opts.train.amp:
-            with autocast():
-                c_loss = self.get_classifier_loss(multi_domain_batch)
-            self.grad_scaler_c.scale(c_loss).backward()
-            self.grad_scaler_c.step(self.c_opt)
-            self.grad_scaler_c.update()
-        else:
-            c_loss = self.get_classifier_loss(multi_domain_batch)
-            self.logger.losses.classifier = c_loss.item()
-            c_loss.backward()
-            self.c_opt_step()
-
-        self.logger.losses.classifier = c_loss.item()
-
-    def get_classifier_loss(self, multi_domain_batch):
-        """Compute the loss of the domain classifier with real labels
-
-        Args:
-            multi_domain_batch (dict): dictionnary mapping domain names to batches from
-            the trainer's loaders
-
-        Returns:
-            torch.Tensor: scalar loss tensor, weighted according to opts.train.lambdas.C
-        """
-        loss = 0
-        lambdas = self.opts.train.lambdas
-        one_hot = self.opts.classifier.loss != "cross_entropy"
-        for batch_domain, batch in multi_domain_batch.items():
-            # We don't care about the flooded domain here
-            if batch_domain == "rf":
-                continue
-            z = self.G.encode(batch["data"]["x"])
-            # Forward through classifier, output classifier = (batch_size, 4)
-            output_classifier = self.C(z)
-            # Cross entropy loss (with sigmoid)
-            update_loss = self.losses["C"](
-                output_classifier,
-                domains_to_class_tensor(batch["domain"], one_hot).to(self.device),
-            )
-            loss += update_loss
-
-        return lambdas.C * loss
-
-    @torch.no_grad()
-    def run_evaluation(self, verbose=0):
-        print("******************* Running Evaluation ***********************")
-        start_time = time()
-        self.eval_mode()
-        val_logger = None
-        nb_of_batches = None
-        for i, multi_batch_tuple in enumerate(self.val_loaders):
-            # create a dictionnary (domain => batch) from tuple
-            # (batch_domain_0, ..., batch_domain_i)
-            # and send it to self.device
-            nb_of_batches = i + 1
-            multi_domain_batch = {
-                batch["domain"][0]: self.batch_to_device(batch)
-                for batch in multi_batch_tuple
-            }
-            self.get_G_loss(multi_domain_batch, verbose)
-
-            if val_logger is None:
-                val_logger = deepcopy(self.logger.losses.generator)
-            else:
-                val_logger = sum_dict(val_logger, self.logger.losses.generator)
-
-        val_logger = div_dict(val_logger, nb_of_batches)
-        self.logger.losses.generator = val_logger
-        self.logger.log_losses(model_to_update="G", mode="val")
-
-        for d in self.opts.domains:
-            self.logger.log_comet_images("train", d)
-            self.logger.log_comet_images("val", d)
-
-        if "m" in self.opts.tasks and "p" in self.opts.tasks:
-            self.logger.log_comet_combined_images("train", "r")
-            self.logger.log_comet_combined_images("val", "r")
-
-        if "m" in self.opts.tasks:
-            self.eval_images("val", "r")
-            self.eval_images("val", "s")
-
-        if "p" in self.opts.tasks:
-            val_fid = compute_val_fid(self)
-            if self.exp is not None:
-                self.exp.log_metric("val_fid", val_fid, step=self.logger.global_step)
-            else:
-                print("Validation FID Score", val_fid)
-
-        self.train_mode()
-        timing = int(time() - start_time)
-        print("****************** Done in {}s *********************".format(timing))
-
     def save(self):
         save_dir = Path(self.opts.output_path) / Path("checkpoints")
         save_dir.mkdir(exist_ok=True)
@@ -1264,34 +431,795 @@ class Trainer:
         if self.logger.global_step % 2 != 0:
             self.logger.global_step += 1
 
-    def eval_images(self, mode, domain):
-        metrics = {"accuracy": accuracy, "iou": iou}
-        metric_avg_scores = {}
-        for key in metrics.keys():
-            metric_avg_scores[key] = 0.0
-        if domain != "rf":
-            for im_set in self.display_images[mode][domain]:
-                x = im_set["data"]["x"].unsqueeze(0).to(self.device)
-                m = im_set["data"]["m"].unsqueeze(0).detach().cpu().numpy()
-                z = self.G.encode(x)
-                pred_mask = self.mask(z).detach().cpu().numpy()
-                # Binarize mask
-                pred_mask[pred_mask > 0.5] = 1.0
+    def eval_mode(self):
+        """
+        Set trainer's models in eval mode
+        """
+        if self.G is not None:
+            self.G.eval()
+        if self.D is not None:
+            self.D.eval()
+        if self.C is not None:
+            self.C.eval()
+        self.current_mode = "eval"
 
-                for metric_key in metrics.keys():
-                    metric_score = metrics[metric_key](pred_mask, m)
-                    metric_avg_scores[metric_key] += metric_score / len(
-                        self.display_images[mode][domain]
+    def train_mode(self):
+        """
+        Set trainer's models in train mode
+        """
+        if self.G is not None:
+            self.G.train()
+        if self.D is not None:
+            self.D.train()
+        if self.C is not None:
+            self.C.train()
+        self.current_mode = "train"
+
+    def assert_z_matches_x(self, x, z):
+        assert x.shape[0] == (
+            z.shape[0] if not isinstance(z, (list, tuple)) else z[0].shape[0]
+        ), "x-> {}, z->{}".format(
+            x.shape, z.shape if not isinstance(z, (list, tuple)) else z[0].shape
+        )
+
+    def batch_to_device(self, b):
+        """sends the data in b to self.device
+
+        Args:
+            b (dict): the batch dictionnay
+
+        Returns:
+            dict: the batch dictionnary with its "data" field sent to self.device
+        """
+        for task, tensor in b["data"].items():
+            b["data"][task] = tensor.to(self.device)
+        return b
+
+    def sample_painter_z(self, batch_size):
+        if self.opts.gen.p.no_z:
+            return None
+
+        return torch.empty(
+            batch_size,
+            self.opts.gen.p.latent_dim,
+            self.G.painter.z_h,
+            self.G.painter.z_w,
+            device=self.device,
+        ).normal_(mean=0, std=1.0)
+
+    @property
+    def train_loaders(self):
+        """Get a zip of all training loaders
+
+        Returns:
+            generator: zip generator yielding tuples:
+                (batch_rf, batch_rn, batch_sf, batch_sn)
+        """
+        return zip(*list(self.loaders["train"].values()))
+
+    @property
+    def val_loaders(self):
+        """Get a zip of all validation loaders
+
+        Returns:
+            generator: zip generator yielding tuples:
+                (batch_rf, batch_rn, batch_sf, batch_sn)
+        """
+        return zip(*list(self.loaders["val"].values()))
+
+    def compute_latent_shape(self):
+        """Compute the latent shape, i.e. the Encoder's output shape,
+        from a batch.
+
+        Raises:
+            ValueError: If no loader, the latent_shape cannot be inferred
+
+        Returns:
+            tuple: (c, h, w)
+        """
+        x = None
+        for mode in self.loaders:
+            for domain in self.loaders[mode]:
+                x = self.loaders[mode][domain].dataset[0]["data"]["x"].to(self.device)
+                break
+            if x is not None:
+                break
+
+        if x is None:
+            raise ValueError("No batch found to compute_latent_shape")
+
+        x = x.unsqueeze(0)
+        z = self.G.encode(x)
+        return z.shape[1:] if not isinstance(z, (list, tuple)) else z[0].shape[1:]
+
+    def compute_input_shape(self):
+        """Compute the latent shape, i.e. the Encoder's output shape,
+        from a batch.
+
+        Raises:
+            ValueError: If no loader, the latent_shape cannot be inferred
+
+        Returns:
+            tuple: (c, h, w)
+        """
+        shape = None
+        for mode in self.loaders:
+            for domain in self.loaders[mode]:
+                shape = self.loaders[mode][domain].dataset[0]["data"]["x"].shape
+                break
+            if shape is not None:
+                break
+
+        if shape is None:
+            raise ValueError("No batch found to compute_latent_shape")
+
+        return shape
+
+    def g_opt_step(self):
+        """Run an optimizing step ; if using ExtraAdam, there needs to be an extrapolation
+        step every other step
+        """
+        if "extra" in self.opts.gen.opt.optimizer.lower() and (
+            self.logger.global_step % 2 == 0
+        ):
+            self.g_opt.extrapolation()
+        else:
+            self.g_opt.step()
+
+    def d_opt_step(self):
+        """Run an optimizing step ; if using ExtraAdam, there needs to be an extrapolation
+        step every other step
+        """
+        if "extra" in self.opts.dis.opt.optimizer.lower() and (
+            self.logger.global_step % 2 == 0
+        ):
+            self.d_opt.extrapolation()
+        else:
+            self.d_opt.step()
+
+    def c_opt_step(self):
+        """Run an optimizing step ; if using ExtraAdam, there needs to be an extrapolation
+        step every other step
+        """
+        if "extra" in self.opts.classifier.opt.optimizer.lower() and (
+            self.logger.global_step % 2 == 0
+        ):
+            self.c_opt.extrapolation()
+        else:
+            self.c_opt.step()
+
+    def update_learning_rates(self):
+        if self.g_scheduler is not None:
+            self.g_scheduler.step()
+        if self.d_scheduler is not None:
+            self.d_scheduler.step()
+        if self.c_scheduler is not None:
+            self.c_scheduler.step()
+
+    def setup(self, inference=False):
+        """Prepare the trainer before it can be used to train the models:
+        * initialize G and D
+        * compute latent space dims and create classifier accordingly
+        * creates 3 optimizers
+        """
+        self.logger.global_step = 0
+        start_time = time()
+        self.logger.time.start_time = start_time
+        verbose = self.verbose
+
+        if not inference:
+            self.loaders = get_all_loaders(self.opts)
+
+        # -----------------------
+        # -----  Generator  -----
+        # -----------------------
+        __t = time()
+        print("Creating generator:")
+        self.G: OmniGenerator = get_gen(self.opts, verbose=verbose, no_init=inference)
+        print("Sending to", self.device)
+        self.G = self.G.to(self.device)
+        print(f"Generator OK in {time() - __t:.1f}s.")
+
+        if self.input_shape is None:
+            if inference:
+                raise ValueError(
+                    "Cannot auto-set input_shape from loaders in inference mode."
+                    + " It  has to  be set prior to setup()."
+                )
+            print("Computing latent & input shapes...", end="", flush=True)
+            self.input_shape = self.compute_input_shape()
+
+        if "s" in self.opts.tasks:
+            self.G.decoders["s"].set_target_size(self.input_shape[-2:])
+        print("OK.")
+
+        self.G.painter.z_h = self.input_shape[-2] // (2 ** self.opts.gen.p.spade_n_up)
+        self.G.painter.z_w = self.input_shape[-1] // (2 ** self.opts.gen.p.spade_n_up)
+
+        if inference:
+            print("Inference mode: no Discriminator, no Classifier, no optimizers")
+            print_num_parameters(self)
+            return
+
+        # ---------------------------
+        # -----  Discriminator  -----
+        # ---------------------------
+
+        self.D: OmniDiscriminator = get_dis(self.opts, verbose=verbose).to(self.device)
+        print("Discriminator OK.")
+
+        # ------------------------
+        # -----  Classifier  -----
+        # ------------------------
+
+        self.C: OmniClassifier = None
+        if self.G.encoder is not None and self.opts.train.latent_domain_adaptation:
+            self.latent_shape = self.compute_latent_shape()
+            self.C = get_classifier(self.opts, self.latent_shape, verbose=verbose).to(
+                self.device
+            )
+            print("Classifier OK.")
+
+        print_num_parameters(self)
+
+        # --------------------------
+        # -----  Optimization  -----
+        # --------------------------
+        # Get different optimizers for each task (different learning rates)
+        self.g_opt, self.g_scheduler, self.lr_names["G"] = get_optimizer(
+            self.G, self.opts.gen.opt, self.opts.tasks
+        )
+
+        if get_num_params(self.D) > 0:
+            self.d_opt, self.d_scheduler, self.lr_names["D"] = get_optimizer(
+                self.D, self.opts.dis.opt, self.opts.tasks
+            )
+        else:
+            self.d_opt, self.d_scheduler = None, None
+
+        if self.C is not None:
+            self.c_opt, self.c_scheduler, self.lr_names["C"] = get_optimizer(
+                self.C, self.opts.classifier.opt, None
+            )
+        else:
+            self.c_opt, self.c_scheduler = None, None
+
+        if self.opts.train.resume:
+            self.resume()
+
+        self.losses = get_losses(self.opts, verbose, device=self.device)
+
+        if verbose > 0:
+            for mode, mode_dict in self.loaders.items():
+                for domain, domain_loader in mode_dict.items():
+                    print(
+                        "Loader {} {} : {}".format(
+                            mode, domain, len(domain_loader.dataset)
+                        )
                     )
 
-            if self.exp is not None:
-                self.exp.log_metrics(
-                    metric_avg_scores,
-                    prefix=f"metrics_{mode}",
-                    step=self.logger.global_step,
+        # ----------------------------
+        # -----  Display images  -----
+        # ----------------------------
+        self.display_images = {}
+        for mode, mode_dict in self.loaders.items():
+            self.display_images[mode] = {}
+            for domain, domain_loader in mode_dict.items():
+                dataset = self.loaders[mode][domain].dataset
+                display_indices = get_display_indices(self.opts, domain, len(dataset))
+                ldis = len(display_indices)
+                print(
+                    f"Creating {ldis} {mode} {domain} display images...",
+                    end="\r",
+                    flush=True,
                 )
+                self.display_images[mode][domain] = [
+                    Dict(dataset[i]) for i in display_indices if i < len(dataset)
+                ]
+                if self.exp is not None:
+                    for im_id, d in enumerate(self.display_images[mode][domain]):
+                        self.exp.log_parameter(
+                            "display_image_{}_{}_{}".format(mode, domain, im_id),
+                            d["paths"],
+                        )
+        print(" " * 50, end="\r")
+        print("Done creating display images")
+        print("Setup done.")
+        self.is_setup = True
 
-        return 0
+    def train(self):
+        """For each epoch:
+        * train
+        * eval
+        * save
+        """
+        assert self.is_setup
+
+        for self.logger.epoch in range(
+            self.logger.epoch, self.logger.epoch + self.opts.train.epochs
+        ):
+            self.run_epoch()
+            self.run_evaluation(verbose=1)
+            self.save()
+
+            if self.logger.epoch == self.opts.gen.p.pl4m:
+                self.use_pl4m = True
+
+    def run_epoch(self):
+        """Runs an epoch:
+        * checks trainer is setup
+        * gets a tuple of batches per domain
+        * sends batches to device
+        * updates sequentially G, D, C
+        """
+        assert self.is_setup
+        self.train_mode()
+        if self.exp is not None:
+            self.exp.log_parameter("epoch", self.logger.epoch)
+        epoch_len = min(len(loader) for loader in self.loaders["train"].values())
+        epoch_desc = "Epoch {}".format(self.logger.epoch)
+        self.logger.time.epoch_start = time()
+
+        for multi_batch_tuple in tqdm(
+            self.train_loaders,
+            desc=epoch_desc,
+            total=epoch_len,
+            mininterval=0.5,
+            unit="batch",
+        ):
+
+            self.logger.time.step_start = time()
+            multi_batch_tuple = shuffle_batch_tuple(multi_batch_tuple)
+
+            # The `[0]` is because the domain is contained in a list
+            multi_domain_batch = {
+                batch["domain"][0]: self.batch_to_device(batch)
+                for batch in multi_batch_tuple
+            }
+
+            # ------------------------------
+            # -----  Update Generator  -----
+            # ------------------------------
+
+            # freeze params of the discriminator
+            if self.d_opt is not None:
+                for param in self.D.parameters():
+                    param.requires_grad = False
+
+            self.update_G(multi_domain_batch)
+
+            # ----------------------------------
+            # -----  Update Discriminator  -----
+            # ----------------------------------
+
+            # unfreeze params of the discriminator
+            if self.d_opt is not None:
+                for param in self.D.parameters():
+                    param.requires_grad = True
+
+                self.update_D(multi_domain_batch)
+
+            # -------------------------------
+            # -----  Update Classifier  -----
+            # -------------------------------
+            if self.opts.train.latent_domain_adaptation and self.C is not None:
+                self.update_C(multi_domain_batch)
+
+            # -------------------------
+            # -----  Log Metrics  -----
+            # -------------------------
+            self.logger.global_step += 1
+            self.logger.log_step_time(time())
+
+        self.update_learning_rates()
+        self.logger.log_learning_rates()
+        self.logger.log_epoch_time(time())
+
+    def update_G(self, multi_domain_batch, verbose=0):
+        """Perform an update on g from multi_domain_batch which is a dictionary
+        domain => batch
+
+        * automatic mixed precision according to self.opts.train.amp
+        * compute loss for each task
+        * loss.backward()
+        * g_opt_step()
+            * g_opt.step() or .extrapolation() depending on self.logger.global_step
+        * logs losses on comet.ml with self.logger.log_losses(model_to_update="G")
+
+        Args:
+            multi_domain_batch (dict): dictionnary of domain batches
+        """
+        zero_grad(self.G)
+        if self.opts.train.amp:
+            with autocast():
+                g_loss = self.get_G_loss(multi_domain_batch, verbose)
+            self.grad_scaler_g.scale(g_loss).backward()
+            self.grad_scaler_g.step(self.g_opt)
+            self.grad_scaler_g.update()
+        else:
+            g_loss = self.get_G_loss(multi_domain_batch, verbose)
+            g_loss.backward()
+            self.g_opt_step()
+
+        self.logger.log_losses(model_to_update="G", mode="train")
+
+    def update_D(self, multi_domain_batch, verbose=0):
+        zero_grad(self.D)
+
+        if self.opts.train.amp:
+            with autocast():
+                d_loss = self.get_D_loss(multi_domain_batch, verbose)
+            self.grad_scaler_d.scale(d_loss).backward()
+            self.grad_scaler_d.step(self.d_opt)
+            self.grad_scaler_d.update()
+        else:
+            d_loss = self.get_D_loss(multi_domain_batch, verbose)
+            d_loss.backward()
+            self.d_opt_step()
+
+        self.logger.losses.disc.total_loss = d_loss.item()
+        self.logger.log_losses(model_to_update="D", mode="train")
+
+    def update_C(self, multi_domain_batch):
+        """
+        Update the classifier using normal labels
+
+        Args:
+            multi_domain_batch (dict): dictionnary mapping domain names to batches from
+                the trainer's loaders
+
+        """
+        zero_grad(self.C)
+        if self.opts.train.amp:
+            with autocast():
+                c_loss = self.get_C_loss(multi_domain_batch)
+            self.grad_scaler_c.scale(c_loss).backward()
+            self.grad_scaler_c.step(self.c_opt)
+            self.grad_scaler_c.update()
+        else:
+            c_loss = self.get_C_loss(multi_domain_batch)
+            self.logger.losses.classifier = c_loss.item()
+            c_loss.backward()
+            self.c_opt_step()
+
+        self.logger.losses.classifier = c_loss.item()
+
+    def get_C_loss(self, multi_domain_batch):
+        """Compute the loss of the domain classifier with real labels
+
+        Args:
+            multi_domain_batch (dict): dictionnary mapping domain names to batches from
+            the trainer's loaders
+
+        Returns:
+            torch.Tensor: scalar loss tensor, weighted according to opts.train.lambdas.C
+        """
+        loss = 0
+        lambdas = self.opts.train.lambdas
+        one_hot = self.opts.classifier.loss != "cross_entropy"
+        for batch_domain, batch in multi_domain_batch.items():
+            # We don't care about the flooded domain here
+            if batch_domain == "rf":
+                continue
+            z = self.G.encode(batch["data"]["x"])
+            # Forward through classifier, output classifier = (batch_size, 4)
+            output_classifier = self.C(z)
+            # Cross entropy loss (with sigmoid)
+            update_loss = self.losses["C"](
+                output_classifier,
+                domains_to_class_tensor(batch["domain"], one_hot).to(self.device),
+            )
+            loss += update_loss
+
+        return lambdas.C * loss
+
+    def get_D_loss(self, multi_domain_batch, verbose=0):
+        """Compute the discriminators' losses:
+
+        * for each domain-specific batch:
+        * encode the image
+        * get the conditioning tensor if using spade
+        * source domain is the data's domain, sequentially r|s then f|n
+        * get the target domain accordingly
+        * compute the translated image from the data
+        * compute the source domain discriminator's loss on the data
+        * compute the target domain discriminator's loss on the translated image
+
+        # ? In this setting, each D[decoder][domain] is updated twice towards
+        # real or fake data
+
+        See readme's update d section for details
+
+        Args:
+            multi_domain_batch ([type]): [description]
+
+        Returns:
+            [type]: [description]
+        """
+
+        disc_loss = {
+            "m": {"Advent": 0},
+            "s": {"Advent": 0},
+        }
+        if self.opts.dis.p.use_local_discriminator:
+            disc_loss["p"] = {"global": 0, "local": 0}
+        else:
+            disc_loss["p"] = {"gan": 0}
+
+        for domain, batch in multi_domain_batch.items():
+            x = batch["data"]["x"]
+
+            # ---------------------
+            # -----  Painter  -----
+            # ---------------------
+            if domain == "rf":
+                m = batch["data"]["m"]
+                # sample vector
+                with torch.no_grad():
+                    # see spade compute_discriminator_loss
+                    z_paint = self.sample_painter_z(x.shape[0])
+                    fake = self.G.painter(z_paint, x * (1.0 - m))
+                    if self.opts.gen.p.paste_original_content:
+                        fake = fake * m + x * (1.0 - m)
+                    fake = fake.detach()
+                    fake.requires_grad_()
+
+                if self.opts.dis.p.use_local_discriminator:
+                    fake_d_global = self.D["p"]["global"](fake)
+                    real_d_global = self.D["p"]["global"](x)
+
+                    fake_d_local = self.D["p"]["local"](fake * m)
+                    real_d_local = self.D["p"]["local"](x * m)
+
+                    global_loss = self.losses["D"]["p"](fake_d_global, False, True)
+                    global_loss += self.losses["D"]["p"](real_d_global, True, True)
+
+                    local_loss = self.losses["D"]["p"](fake_d_local, False, True)
+                    local_loss += self.losses["D"]["p"](real_d_local, True, True)
+
+                    disc_loss["p"]["global"] += global_loss
+                    disc_loss["p"]["local"] += local_loss
+                else:
+                    real_cat = torch.cat([m, x], axis=1)
+                    fake_cat = torch.cat([m, fake], axis=1)
+                    real_fake_cat = torch.cat([real_cat, fake_cat], dim=0)
+                    real_fake_d = self.D["p"](real_fake_cat)
+                    real_d, fake_d = divide_pred(real_fake_d)
+                    disc_loss["p"]["gan"] = self.losses["D"]["p"](fake_d, False, True)
+                    disc_loss["p"]["gan"] += self.losses["D"]["p"](real_d, True, True)
+
+            # --------------------
+            # -----  Masker  -----
+            # --------------------
+            else:
+                z = self.G.encode(x)
+                for task, _ in batch["data"].items():
+                    if task == "m":
+                        step_loss = self.masker_m_loss(x, z, None, domain, for_="D")
+                        step_loss *= self.opts.train.lambdas.advent.adv_main
+                        disc_loss["m"]["Advent"] += step_loss
+
+                    if task == "s":
+                        step_loss = self.masker_s_loss(x, z, None, domain, for_="D")
+                        step_loss *= self.opts.train.lambdas.advent.adv_main
+                        disc_loss["s"]["Advent"] += step_loss
+
+        self.logger.losses.disc.update(
+            {
+                dom: {
+                    k: v.item() if isinstance(v, torch.Tensor) else v
+                    for k, v in d.items()
+                }
+                for dom, d in disc_loss.items()
+            }
+        )
+
+        loss = sum(v for d in disc_loss.values() for k, v in d.items())
+        return loss
+
+    def get_G_loss(self, multi_domain_batch, verbose=0):
+        m_loss = p_loss = None
+
+        # For now, always compute "representation loss"
+        g_loss = 0
+
+        if any(t in self.opts.tasks for t in "msd"):
+            m_loss = self.get_masker_loss(multi_domain_batch)
+            self.logger.losses.gen.masker = m_loss.item()
+            g_loss += m_loss
+
+        if "p" in self.opts.tasks:
+            p_loss = self.get_painter_loss(multi_domain_batch)
+            self.logger.losses.gen.painter = p_loss.item()
+            g_loss += p_loss
+
+        assert g_loss != 0 and not isinstance(g_loss, int), "No update in get_G_loss!"
+
+        self.logger.losses.gen.total_loss = g_loss.item()
+
+        return g_loss
+
+    def get_masker_loss(self, multi_domain_batch):  # TODO update docstrings
+        """Only update the representation part of the model, meaning everything
+        but the translation part
+
+        * for each batch in available domains:
+            * compute latent classifier loss with fake labels(1)
+            * compute task-specific losses (2)
+            * compute the adaptation and translation decoders' auto-encoding losses (3)
+            * compute the adaptation decoder's translation losses (GAN and Cycle) (4)
+
+        Args:
+            multi_domain_batch (dict): dictionnary mapping domain names to batches from
+            the trainer's loaders
+
+        Returns:
+            torch.Tensor: scalar loss tensor, weighted according to opts.train.lambdas
+        """
+        m_loss = 0
+        for domain, batch in multi_domain_batch.items():
+            # We don't care about the flooded domain here
+            if domain == "rf":
+                continue
+
+            x = batch["data"]["x"]
+            z = self.G.encode(x)
+            # ---------------------------------
+            # -----  classifier loss (1)  -----
+            # ---------------------------------
+            if self.opts.train.latent_domain_adaptation:
+                loss = self.masker_c_loss(z, batch["domain"])
+                m_loss += loss
+                self.logger.losses.gen.classifier[domain] = loss.item()
+
+            # --------------------------------------
+            # -----  task-specific losses (2)  -----
+            # --------------------------------------
+            for task, target in batch["data"].items():
+                if task == "m":
+                    loss = self.masker_m_loss(x, z, target, domain, "G")
+                    m_loss += loss
+                    self.logger.losses.gen.task["m"][domain] = loss.item()
+                elif task == "s":
+                    loss = self.masker_s_loss(x, z, target, domain, "G")
+                    m_loss += loss
+                    self.logger.losses.gen.task["s"][domain] = loss.item()
+                elif task == "d":
+                    loss = self.masker_d_loss(x, z, target, "G")
+                    m_loss += loss
+                    self.logger.losses.gen.task["d"][domain] = loss.item()
+
+        return m_loss
+
+    def get_painter_loss(self, multi_domain_batch):
+        """Computes the translation loss when flooding/deflooding images
+
+        Args:
+            multi_domain_batch (dict): dictionnary mapping domain names to batches from
+            the trainer's loaders
+
+        Returns:
+            torch.Tensor: scalar loss tensor, weighted according to opts.train.lambdas
+        """
+        step_loss = 0
+        # self.g_opt.zero_grad()
+        lambdas = self.opts.train.lambdas
+        batch_domain = "rf"
+        batch = multi_domain_batch[batch_domain]
+
+        x = batch["data"]["x"]
+        # ! different mask: hides water to be reconstructed
+        # ! 1 for water, 0 otherwise
+        m = batch["data"]["m"]
+        z = self.sample_painter_z(x.shape[0])
+        masked_x = x * (1.0 - m)
+
+        fake_flooded = self.G.painter(z, masked_x)
+        if self.opts.gen.p.paste_original_content:
+            fake_flooded = masked_x + m * fake_flooded
+
+        # ----------------------
+        # -----  VGG Loss  -----
+        # ----------------------
+        loss = self.losses["G"]["p"]["vgg"](
+            vgg_preprocess(fake_flooded * m), vgg_preprocess(x * m)
+        )
+        loss *= lambdas.G.p.vgg
+        self.logger.losses.gen.p.vgg = loss.item()
+        step_loss += loss
+
+        # ---------------------
+        # -----  TV Loss  -----
+        # ---------------------
+        loss = self.losses["G"]["p"]["tv"](fake_flooded * m)
+        loss *= lambdas.G.p.tv
+        self.logger.losses.gen.p.tv = loss.item()
+        step_loss += loss
+
+        # --------------------------
+        # -----  Context Loss  -----
+        # --------------------------
+        loss = self.losses["G"]["p"]["context"](fake_flooded, x, m)
+        loss *= lambdas.G.p.context
+        self.logger.losses.gen.p.context = loss.item()
+        step_loss += loss
+
+        # ---------------------------------
+        # -----  Reconstruction Loss  -----
+        # ---------------------------------
+        loss = self.losses["G"]["p"]["reconstruction"](fake_flooded, x, m)
+        loss *= lambdas.G.p.reconstruction
+        self.logger.losses.gen.p.reconstruction = loss.item()
+        step_loss += loss
+
+        # -------------------------------------
+        # -----  Local & Global GAN Loss  -----
+        # -------------------------------------
+        if self.opts.dis.p.use_local_discriminator:
+            fake_d_global = self.D["p"]["global"](fake_flooded)
+            fake_d_local = self.D["p"]["local"](fake_flooded * m)
+
+            real_d_global = self.D["p"]["global"](x)
+
+            # Note: discriminator returns [out_1,...,out_num_D] outputs
+            # Each out_i is a list [feat1, feat2, ..., pred_i]
+
+            self.logger.losses.gen.p.gan = 0
+
+            loss = self.losses["G"]["p"]["gan"](fake_d_global, True, False)
+            loss += self.losses["G"]["p"]["gan"](fake_d_local, True, False)
+            loss *= lambdas.G["p"]["gan"]
+
+            self.logger.losses.gen.p.gan = loss.item()
+
+            step_loss += loss
+
+            # -----------------------------------
+            # -----  Feature Matching Loss  -----
+            # -----------------------------------
+            # (only on global discriminator)
+            # Order must be real, fake
+            if self.opts.dis.p.get_intermediate_features:
+                loss = self.losses["G"]["p"]["featmatch"](real_d_global, fake_d_global)
+                loss *= lambdas.G["p"]["featmatch"]
+
+                if isinstance(loss, float):
+                    self.logger.losses.gen.p.featmatch = loss
+                else:
+                    self.logger.losses.gen.p.featmatch = loss.item()
+
+                step_loss += loss
+
+        # -------------------------------------------
+        # -----  Single Discriminator GAN Loss  -----
+        # -------------------------------------------
+        else:
+            real_cat = torch.cat([m, x], axis=1)
+            fake_cat = torch.cat([m, fake_flooded], axis=1)
+            real_fake_cat = torch.cat([real_cat, fake_cat], dim=0)
+
+            real_fake_d = self.D["p"](real_fake_cat)
+            real_d, fake_d = divide_pred(real_fake_d)
+
+            loss = self.losses["G"]["p"]["gan"](fake_d, True, False)
+            self.logger.losses.gen.p.gan = loss.item()
+            step_loss += loss
+
+            # -----------------------------------
+            # -----  Feature Matching Loss  -----
+            # -----------------------------------
+            if self.opts.dis.p.get_intermediate_features:
+                loss = self.losses["G"]["p"]["featmatch"](real_d, fake_d)
+                loss *= lambdas.G["p"]["featmatch"]
+
+                if isinstance(loss, float):
+                    self.logger.losses.gen.p.featmatch = loss
+                else:
+                    self.logger.losses.gen.p.featmatch = loss.item()
+
+            step_loss += loss
+
+        return step_loss
 
     def masker_c_loss(self, z, target, for_="G"):
         assert for_ in {"G", "D"}
@@ -1309,13 +1237,6 @@ class Trainer:
         full_loss += loss
 
         return full_loss
-
-    def assert_z_matches_x(self, x, z):
-        assert x.shape[0] == (
-            z.shape[0] if not isinstance(z, (list, tuple)) else z[0].shape[0]
-        ), "x-> {}, z->{}".format(
-            x.shape, z.shape if not isinstance(z, (list, tuple)) else z[0].shape
-        )
 
     def masker_d_loss(self, x, z, target, for_="G"):
         assert for_ in {"G", "D"}
@@ -1550,6 +1471,85 @@ class Trainer:
                 param.requires_grad = True
 
         return pl4m_loss
+
+    @torch.no_grad()
+    def run_evaluation(self, verbose=0):
+        print("******************* Running Evaluation ***********************")
+        start_time = time()
+        self.eval_mode()
+        val_logger = None
+        nb_of_batches = None
+        for i, multi_batch_tuple in enumerate(self.val_loaders):
+            # create a dictionnary (domain => batch) from tuple
+            # (batch_domain_0, ..., batch_domain_i)
+            # and send it to self.device
+            nb_of_batches = i + 1
+            multi_domain_batch = {
+                batch["domain"][0]: self.batch_to_device(batch)
+                for batch in multi_batch_tuple
+            }
+            self.get_G_loss(multi_domain_batch, verbose)
+
+            if val_logger is None:
+                val_logger = deepcopy(self.logger.losses.generator)
+            else:
+                val_logger = sum_dict(val_logger, self.logger.losses.generator)
+
+        val_logger = div_dict(val_logger, nb_of_batches)
+        self.logger.losses.generator = val_logger
+        self.logger.log_losses(model_to_update="G", mode="val")
+
+        for d in self.opts.domains:
+            self.logger.log_comet_images("train", d)
+            self.logger.log_comet_images("val", d)
+
+        if "m" in self.opts.tasks and "p" in self.opts.tasks:
+            self.logger.log_comet_combined_images("train", "r")
+            self.logger.log_comet_combined_images("val", "r")
+
+        if "m" in self.opts.tasks:
+            self.eval_images("val", "r")
+            self.eval_images("val", "s")
+
+        if "p" in self.opts.tasks:
+            val_fid = compute_val_fid(self)
+            if self.exp is not None:
+                self.exp.log_metric("val_fid", val_fid, step=self.logger.global_step)
+            else:
+                print("Validation FID Score", val_fid)
+
+        self.train_mode()
+        timing = int(time() - start_time)
+        print("****************** Done in {}s *********************".format(timing))
+
+    def eval_images(self, mode, domain):
+        metrics = {"accuracy": accuracy, "iou": iou}
+        metric_avg_scores = {}
+        for key in metrics.keys():
+            metric_avg_scores[key] = 0.0
+        if domain != "rf":
+            for im_set in self.display_images[mode][domain]:
+                x = im_set["data"]["x"].unsqueeze(0).to(self.device)
+                m = im_set["data"]["m"].unsqueeze(0).detach().cpu().numpy()
+                z = self.G.encode(x)
+                pred_mask = self.mask(z).detach().cpu().numpy()
+                # Binarize mask
+                pred_mask[pred_mask > 0.5] = 1.0
+
+                for metric_key in metrics.keys():
+                    metric_score = metrics[metric_key](pred_mask, m)
+                    metric_avg_scores[metric_key] += metric_score / len(
+                        self.display_images[mode][domain]
+                    )
+
+            if self.exp is not None:
+                self.exp.log_metrics(
+                    metric_avg_scores,
+                    prefix=f"metrics_{mode}",
+                    step=self.logger.global_step,
+                )
+
+        return 0
 
     def functional_test_mode(self):
         import atexit
