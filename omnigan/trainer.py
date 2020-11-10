@@ -1271,29 +1271,30 @@ class Trainer:
 
         # Supervised segmentation loss: crossent for sim domain,
         # crossent_pseudo for real ; loss is crossent in any case
-        if for_ == "G" and (domain == "s" or self.opts.gen.s.use_pseudo_labels):
-            if domain == "s":
-                logger = self.logger.losses.gen.task["s"]["crossent"]
-                weight = self.opts.train.lambdas.G["s"]["crossent"]
-            else:
-                logger = self.logger.losses.gen.task["s"]["crossent_pseudo"]
-                weight = self.opts.train.lambdas.G["s"]["crossent_pseudo"]
-
-            loss = self.losses["G"]["tasks"]["s"]["crossent"](pred, target.squeeze(1))
-            loss *= weight
-            full_loss += loss
-            logger[domain] = loss.item()
-
-        if domain == "r" and for_ == "G":
-            # Entropy minimization loss
-            if self.opts.gen.s.use_minent:
-                softmax_preds = softmax(pred, dim=1)
-                # Direct entropy minimization
-                loss = self.losses["G"]["tasks"]["s"]["minent"](softmax_preds)
-                loss *= self.opts.train.lambdas.G["s"]["minent"]
+        if for_ == "G":
+            if domain == "s" or self.opts.gen.s.use_pseudo_labels:
+                if domain == "s":
+                    logger = self.logger.losses.gen.task["s"]["crossent"]
+                    weight = self.opts.train.lambdas.G["s"]["crossent"]
+                else:
+                    logger = self.logger.losses.gen.task["s"]["crossent_pseudo"]
+                    weight = self.opts.train.lambdas.G["s"]["crossent_pseudo"]
+                # Cross-Entropy loss
+                loss_func = self.losses["G"]["tasks"]["s"]["crossent"]
+                loss = loss_func(pred, target.squeeze(1))
+                loss *= weight
                 full_loss += loss
+                logger[domain] = loss.item()
 
-                self.logger.losses.gen.task["s"]["minent"]["r"] = loss.item()
+            if domain == "r":
+                # Entropy minimization loss
+                if self.opts.gen.s.use_minent:
+                    softmax_preds = softmax(pred, dim=1)
+                    loss = self.losses["G"]["tasks"]["s"]["minent"](softmax_preds)
+                    loss *= self.opts.train.lambdas.G["s"]["minent"]
+                    full_loss += loss
+
+                    self.logger.losses.gen.task["s"]["minent"]["r"] = loss.item()
 
         # Fool ADVENT discriminator
         if self.opts.gen.s.use_advent:
@@ -1322,6 +1323,7 @@ class Trainer:
                 logger[domain] = loss.item()
 
                 if for_ == "D":
+                    # WGAN: clipping or GP
                     if self.opts.dis.s.gan_type == "GAN" or "WGAN_norm":
                         pass
                     elif self.opts.dis.s.gan_type == "WGAN":
@@ -1352,12 +1354,6 @@ class Trainer:
         pred_prob = sigmoid(pred_logits)
         pred_prob_complementary = 1 - pred_prob
         prob = torch.cat([pred_prob, pred_prob_complementary], dim=1)
-        if domain == "s" and for_ == "G":
-            # CrossEnt Loss
-            loss = self.losses["G"]["tasks"]["m"]["bce"](pred_logits, target)
-            loss *= self.opts.train.lambdas.G.m.bce
-            full_loss += loss
-            self.logger.losses.gen.task["m"]["bce"]["s"] = loss.item()
 
         if for_ == "G":
             # TV loss
@@ -1367,29 +1363,36 @@ class Trainer:
 
             self.logger.losses.gen.task["m"]["tv"][domain] = loss.item()
 
-        if domain == "r" and for_ == "G":
-            # GroundIntersection loss
-            if self.opts.gen.m.use_ground_intersection and for_ == "G":
-                if self.verbose > 0:
-                    print("Using GroundIntersection loss.")
-                loss = self.losses["G"]["tasks"]["m"]["gi"](pred_prob, target)
-                loss *= self.opts.train.lambdas.G["m"]["gi"]
+            if domain == "s":
+                # CrossEnt Loss
+                loss = self.losses["G"]["tasks"]["m"]["bce"](pred_logits, target)
+                loss *= self.opts.train.lambdas.G.m.bce
                 full_loss += loss
-                self.logger.losses.gen.task["m"]["gi"]["r"] = loss.item()
+                self.logger.losses.gen.task["m"]["bce"]["s"] = loss.item()
 
-            # Painter loss
-            if self.use_pl4m and for_ == "G":
-                pl4m_loss = self.painter_loss_for_masker(x, pred_prob)
-                pl4m_loss *= self.opts.train.lambdas.G.m.pl4m
-                full_loss += pl4m_loss
-                self.logger.losses.gen.task.m.pl4m.r = pl4m_loss.item()
+            if domain == "r":
+                if self.opts.gen.m.use_ground_intersection:
+                    if self.verbose > 0:
+                        print("Using GroundIntersection loss.")
+                    # GroundIntersection loss
+                    loss = self.losses["G"]["tasks"]["m"]["gi"](pred_prob, target)
+                    loss *= self.opts.train.lambdas.G["m"]["gi"]
+                    full_loss += loss
+                    self.logger.losses.gen.task["m"]["gi"]["r"] = loss.item()
 
-            if self.opts.gen.m.use_minent:
-                # MinEnt loss
-                loss = self.losses["G"]["tasks"]["m"]["minent"](prob.to(self.device))
-                loss *= self.opts.train.lambdas.advent.ent_main
-                full_loss += loss
-                self.logger.losses.gen.task["m"]["minent"]["r"] = loss.item()
+                if self.use_pl4m:
+                    # Painter loss
+                    pl4m_loss = self.painter_loss_for_masker(x, pred_prob)
+                    pl4m_loss *= self.opts.train.lambdas.G.m.pl4m
+                    full_loss += pl4m_loss
+                    self.logger.losses.gen.task.m.pl4m.r = pl4m_loss.item()
+
+                if self.opts.gen.m.use_minent:
+                    # MinEnt loss
+                    loss = self.losses["G"]["tasks"]["m"]["minent"](prob)
+                    loss *= self.opts.train.lambdas.advent.ent_main
+                    full_loss += loss
+                    self.logger.losses.gen.task["m"]["minent"]["r"] = loss.item()
 
         if self.opts.gen.m.use_advent:
             # AdvEnt loss
@@ -1416,6 +1419,7 @@ class Trainer:
                 logger[domain] = loss.item()
 
             if for_ == "D":
+                # WGAN: clipping or GP
                 if self.opts.dis.s.gan_type == "GAN" or "WGAN_norm":
                     pass
                 elif self.opts.dis.s.gan_type == "WGAN":
