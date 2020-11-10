@@ -154,7 +154,7 @@ class Trainer:
 
         if mask_batch is None:
             z = self.G.encode(image_batch)
-            mask_batch = sigmoid(self.G.decoders["m"](z))
+            mask_batch = self.mask(z)
         else:
             assert len(image_batch) == len(mask_batch)
             assert image_batch.shape[-2:] == mask_batch.shape[-2:]
@@ -1274,7 +1274,7 @@ class Trainer:
                 x = im_set["data"]["x"].unsqueeze(0).to(self.device)
                 m = im_set["data"]["m"].unsqueeze(0).detach().cpu().numpy()
                 z = self.G.encode(x)
-                pred_mask = sigmoid(self.G.decoders["m"](z)).detach().cpu().numpy()
+                pred_mask = self.mask(z).detach().cpu().numpy()
                 # Binarize mask
                 pred_mask[pred_mask > 0.5] = 1.0
 
