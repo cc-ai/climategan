@@ -1121,36 +1121,40 @@ class Trainer:
         # ----------------------
         # -----  VGG Loss  -----
         # ----------------------
-        loss = self.losses["G"]["p"]["vgg"](
-            vgg_preprocess(fake_flooded * m), vgg_preprocess(x * m)
-        )
-        loss *= lambdas.G.p.vgg
-        self.logger.losses.gen.p.vgg = loss.item()
-        step_loss += loss
+        if lambdas.G.p.vgg != 0:
+            loss = self.losses["G"]["p"]["vgg"](
+                vgg_preprocess(fake_flooded * m), vgg_preprocess(x * m)
+            )
+            loss *= lambdas.G.p.vgg
+            self.logger.losses.gen.p.vgg = loss.item()
+            step_loss += loss
 
         # ---------------------
         # -----  TV Loss  -----
         # ---------------------
-        loss = self.losses["G"]["p"]["tv"](fake_flooded * m)
-        loss *= lambdas.G.p.tv
-        self.logger.losses.gen.p.tv = loss.item()
-        step_loss += loss
+        if lambdas.G.p.tv != 0:
+            loss = self.losses["G"]["p"]["tv"](fake_flooded * m)
+            loss *= lambdas.G.p.tv
+            self.logger.losses.gen.p.tv = loss.item()
+            step_loss += loss
 
         # --------------------------
         # -----  Context Loss  -----
         # --------------------------
-        loss = self.losses["G"]["p"]["context"](fake_flooded, x, m)
-        loss *= lambdas.G.p.context
-        self.logger.losses.gen.p.context = loss.item()
-        step_loss += loss
+        if lambdas.G.p.context != 0:
+            loss = self.losses["G"]["p"]["context"](fake_flooded, x, m)
+            loss *= lambdas.G.p.context
+            self.logger.losses.gen.p.context = loss.item()
+            step_loss += loss
 
         # ---------------------------------
         # -----  Reconstruction Loss  -----
         # ---------------------------------
-        loss = self.losses["G"]["p"]["reconstruction"](fake_flooded, x, m)
-        loss *= lambdas.G.p.reconstruction
-        self.logger.losses.gen.p.reconstruction = loss.item()
-        step_loss += loss
+        if lambdas.G.p.reconstruction != 0:
+            loss = self.losses["G"]["p"]["reconstruction"](fake_flooded, x, m)
+            loss *= lambdas.G.p.reconstruction
+            self.logger.losses.gen.p.reconstruction = loss.item()
+            step_loss += loss
 
         # -------------------------------------
         # -----  Local & Global GAN Loss  -----
@@ -1208,9 +1212,9 @@ class Trainer:
             # -----------------------------------
             # -----  Feature Matching Loss  -----
             # -----------------------------------
-            if self.opts.dis.p.get_intermediate_features:
+            if self.opts.dis.p.get_intermediate_features and lambdas.G.p.featmatch != 0:
                 loss = self.losses["G"]["p"]["featmatch"](real_d, fake_d)
-                loss *= lambdas.G["p"]["featmatch"]
+                loss *= lambdas.G.p.featmatch
 
                 if isinstance(loss, float):
                     self.logger.losses.gen.p.featmatch = loss
@@ -1243,13 +1247,17 @@ class Trainer:
         self.assert_z_matches_x(x, z)
         assert x.shape[0] == target.shape[0]
         full_loss = 0
+        weight = self.opts.train.lambdas.G.d.main
+
+        if weight == 0:
+            return full_loss
         # -------------------
         # -----  Depth  -----
         # -------------------
 
         prediction = self.G.decoders["d"](z)
         loss = self.losses["G"]["tasks"]["d"](prediction, target)
-        loss *= self.opts.train.lambdas.G.d.main
+        loss *= weight
 
         full_loss += loss
 
@@ -1279,19 +1287,22 @@ class Trainer:
                 else:
                     logger = self.logger.losses.gen.task["s"]["crossent_pseudo"]
                     weight = self.opts.train.lambdas.G["s"]["crossent_pseudo"]
-                # Cross-Entropy loss
-                loss_func = self.losses["G"]["tasks"]["s"]["crossent"]
-                loss = loss_func(pred, target.squeeze(1))
-                loss *= weight
-                full_loss += loss
-                logger[domain] = loss.item()
+
+                if weight != 0:
+                    # Cross-Entropy loss
+                    loss_func = self.losses["G"]["tasks"]["s"]["crossent"]
+                    loss = loss_func(pred, target.squeeze(1))
+                    loss *= weight
+                    full_loss += loss
+                    logger[domain] = loss.item()
 
             if domain == "r":
-                # Entropy minimization loss
-                if self.opts.gen.s.use_minent:
+                weight = self.opts.train.lambdas.G["s"]["minent"]
+                if self.opts.gen.s.use_minent and weight != 0:
                     softmax_preds = softmax(pred, dim=1)
+                    # Entropy minimization loss
                     loss = self.losses["G"]["tasks"]["s"]["minent"](softmax_preds)
-                    loss *= self.opts.train.lambdas.G["s"]["minent"]
+                    loss *= weight
                     full_loss += loss
 
                     self.logger.losses.gen.task["s"]["minent"]["r"] = loss.item()
@@ -1310,7 +1321,7 @@ class Trainer:
                 loss_func = self.losses["G"]["tasks"]["s"]["advent"]
                 weight = self.opts.train.lambdas.G["s"]["advent"]
 
-            if for_ == "D" or domain == "r":
+            if (for_ == "D" or domain == "r") and weight != 0:
                 if softmax_preds is None:
                     softmax_preds = softmax(pred, dim=1)
                 loss = loss_func(
@@ -1357,40 +1368,47 @@ class Trainer:
 
         if for_ == "G":
             # TV loss
-            loss = self.losses["G"]["tasks"]["m"]["tv"](pred_prob)
-            loss *= self.opts.train.lambdas.G.m.tv
-            full_loss += loss
+            weight = self.opts.train.lambdas.G.m.tv
+            if weight != 0:
+                loss = self.losses["G"]["tasks"]["m"]["tv"](pred_prob)
+                loss *= weight
+                full_loss += loss
 
-            self.logger.losses.gen.task["m"]["tv"][domain] = loss.item()
+                self.logger.losses.gen.task["m"]["tv"][domain] = loss.item()
 
-            if domain == "s":
+            weight = self.opts.train.lambdas.G.m.bce
+            if domain == "s" and weight != 0:
                 # CrossEnt Loss
                 loss = self.losses["G"]["tasks"]["m"]["bce"](pred_logits, target)
-                loss *= self.opts.train.lambdas.G.m.bce
+                loss *= weight
                 full_loss += loss
                 self.logger.losses.gen.task["m"]["bce"]["s"] = loss.item()
 
             if domain == "r":
-                if self.opts.gen.m.use_ground_intersection:
+
+                weight = self.opts.train.lambdas.G["m"]["gi"]
+                if self.opts.gen.m.use_ground_intersection and weight != 0:
                     if self.verbose > 0:
                         print("Using GroundIntersection loss.")
                     # GroundIntersection loss
                     loss = self.losses["G"]["tasks"]["m"]["gi"](pred_prob, target)
-                    loss *= self.opts.train.lambdas.G["m"]["gi"]
+                    loss *= weight
                     full_loss += loss
                     self.logger.losses.gen.task["m"]["gi"]["r"] = loss.item()
 
-                if self.use_pl4m:
+                weight = self.opts.train.lambdas.G.m.pl4m
+                if self.use_pl4m and weight != 0:
                     # Painter loss
                     pl4m_loss = self.painter_loss_for_masker(x, pred_prob)
-                    pl4m_loss *= self.opts.train.lambdas.G.m.pl4m
+                    pl4m_loss *= weight
                     full_loss += pl4m_loss
                     self.logger.losses.gen.task.m.pl4m.r = pl4m_loss.item()
 
-                if self.opts.gen.m.use_minent:
+                weight = self.opts.train.lambdas.advent.ent_main
+                if self.opts.gen.m.use_minent and weight != 0:
                     # MinEnt loss
                     loss = self.losses["G"]["tasks"]["m"]["minent"](prob)
-                    loss *= self.opts.train.lambdas.advent.ent_main
+                    loss *= weight
                     full_loss += loss
                     self.logger.losses.gen.task["m"]["minent"]["r"] = loss.item()
 
@@ -1408,7 +1426,7 @@ class Trainer:
                 loss_func = self.losses["G"]["tasks"]["m"]["advent"]
                 weight = self.opts.train.lambdas.advent.adv_main
 
-            if for_ == "D" or domain == "r":
+            if (for_ == "D" or domain == "r") and weight != 0:
                 loss = loss_func(
                     prob.to(self.device),
                     self.domain_labels[domain_label],
