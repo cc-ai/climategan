@@ -391,21 +391,33 @@ def zero_grad(model: nn.Module):
 
 
 # Take the prediction of fake and real images from the combined batch
-def divide_pred(pred):
+def divide_pred(disc_output):
+    """
+    Divide a multiscale discriminator's output into 2 sets of tensors,
+    expecting the input to the discriminator to be a concatenation
+    on the batch axis of real and fake (or fake and real) images,
+    effectively doubling the batch size for better batchnorm statistics
+
+    Args:
+        disc_output (list | torch.Tensor): Discriminator output to split
+
+    Returns:
+        list | torch.Tensor[type]: pair of split outputs
+    """
     # https://github.com/NVlabs/SPADE/blob/master/models/pix2pix_model.py
     # the prediction contains the intermediate outputs of multiscale GAN,
     # so it's usually a list
-    if type(pred) == list:
-        fake = []
-        real = []
-        for p in pred:
-            fake.append([tensor[: tensor.size(0) // 2] for tensor in p])
-            real.append([tensor[tensor.size(0) // 2 :] for tensor in p])
+    if type(disc_output) == list:
+        half1 = []
+        half2 = []
+        for p in disc_output:
+            half1.append([tensor[: tensor.size(0) // 2] for tensor in p])
+            half2.append([tensor[tensor.size(0) // 2 :] for tensor in p])
     else:
-        fake = pred[: pred.size(0) // 2]
-        real = pred[pred.size(0) // 2 :]
+        half1 = disc_output[: disc_output.size(0) // 2]
+        half2 = disc_output[disc_output.size(0) // 2 :]
 
-    return fake, real
+    return half1, half2
 
 
 def is_tpu_available():
