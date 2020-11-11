@@ -76,8 +76,8 @@ class OmniGenerator(nn.Module):
         if any(t in opts.tasks for t in "msd"):
             if opts.gen.encoder.architecture == "deeplabv2":
                 self.encoder = DeeplabV2Encoder(opts, no_init)
-                print("  - Created Deeplab Encoder")
-            if opts.gen.encoder.architecture == "deeplabv3":
+                print("  - Created Deeplabv2 Encoder")
+            elif opts.gen.encoder.architecture == "deeplabv3":
                 self.encoder = build_backbone(opts, no_init)
                 print(
                     "  - Created Deeplabv3 ({}) Encoder".format(
