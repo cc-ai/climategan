@@ -147,6 +147,10 @@ class Conv2dBlock(nn.Module):
 # -----  Residual Blocks  -----
 # -----------------------------
 class ResBlocks(nn.Module):
+    """
+    From https://github.com/NVlabs/MUNIT/blob/master/networks.py
+    """
+
     def __init__(self, num_blocks, dim, norm="in", activation="relu", pad_type="zero"):
         super().__init__()
         self.model = nn.Sequential(
@@ -284,9 +288,17 @@ class BaseDecoder(nn.Module):
         conv_norm="layer",
     ):
         super().__init__()
-        self.model = [
-            Conv2dBlock(input_dim, proj_dim, 1, 1, 0, norm=res_norm, activation=activ)
-        ]
+
+        if proj_dim != -1:
+            conv = Conv2dBlock(
+                input_dim, proj_dim, 1, 1, 0, norm=conv_norm, activation=activ
+            )
+            if res_norm == "spectral":
+                conv = SpectralNorm(conv)
+            self.model = [conv]
+        else:
+            self.model = []
+            proj_dim = input_dim
 
         self.model += [ResBlocks(n_res, proj_dim, res_norm, activ, pad_type=pad_type)]
         dim = proj_dim
@@ -314,7 +326,7 @@ class BaseDecoder(nn.Module):
                 7,
                 1,
                 3,
-                norm="none",
+                norm=conv_norm,
                 activation=output_activ,
                 pad_type=pad_type,
             )
@@ -337,11 +349,20 @@ class DepthDecoder(nn.Module):
 
     def __init__(self, opts):
         super().__init__()
-        res_dim = opts.gen.d.res_dim
-        if res_dim == 2048:
-            mid_dim = 512
+        if (
+            opts.gen.encoder.architecture == "deeplabv3"
+            and opts.gen.deeplabv3.backbone == "mobilenet"
+        ):
+            res_dim = 320
         else:
-            mid_dim = 256
+            res_dim = 2048
+
+        # if res_dim == 2048:
+        #     mid_dim = 512
+        # else:
+        #     mid_dim = 256
+
+        mid_dim = 512
 
         self.relu = nn.ReLU(inplace=True)
         self.enc4_1 = nn.Conv2d(

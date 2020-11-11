@@ -118,6 +118,7 @@ gen:
     conv_norm: batch
     res_norm: batch
     use_pseudo_labels: False
+    loss: dada
   s: # specific params for the semantic segmentation decoder
     <<: *default-gen
     num_classes: 11

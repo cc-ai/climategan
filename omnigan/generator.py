@@ -130,10 +130,18 @@ class OmniGenerator(nn.Module):
 
 class MaskDecoder(BaseDecoder):
     def __init__(self, opts):
+        if (
+            opts.gen.encoder.architecture == "deeplabv3"
+            and opts.gen.deeplabv3.backbone == "mobilenet"
+        ):
+            input_dim = 320
+        else:
+            input_dim = 2048
+
         super().__init__(
             n_upsample=opts.gen.m.n_upsample,
             n_res=opts.gen.m.n_res,
-            input_dim=opts.gen.encoder.res_dim,
+            input_dim=input_dim,
             proj_dim=opts.gen.m.proj_dim,
             output_dim=opts.gen.m.output_dim,
             res_norm=opts.gen.m.res_norm,
