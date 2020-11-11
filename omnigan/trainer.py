@@ -1085,7 +1085,7 @@ class Trainer:
                     m_loss += loss
                     self.logger.losses.gen.task["s"][domain] = loss.item()
                 elif task == "d":
-                    loss = self.masker_d_loss(x, z, target, "G")
+                    loss = self.masker_d_loss(x, z, target, domain, "G")
                     m_loss += loss
                     self.logger.losses.gen.task["d"][domain] = loss.item()
 
@@ -1242,7 +1242,7 @@ class Trainer:
 
         return full_loss
 
-    def masker_d_loss(self, x, z, target, for_="G"):
+    def masker_d_loss(self, x, z, target, domain, for_="G"):
         assert for_ in {"G", "D"}
         self.assert_z_matches_x(x, z)
         assert x.shape[0] == target.shape[0]
@@ -1251,6 +1251,10 @@ class Trainer:
 
         if weight == 0:
             return full_loss
+
+        if domain == "r" and not self.opts.gen.d.use_pseudo_labels:
+            return full_loss
+
         # -------------------
         # -----  Depth  -----
         # -------------------
