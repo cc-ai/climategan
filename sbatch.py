@@ -856,3 +856,6 @@ if __name__ == "__main__":
             print("Add summary_dir=path to store the printed markdown table ⇪")
         else:
             print("Saved table in", str(sum_path))
+
+    if not dev:
+        print("Cancel entire experiment? \n$ scancel", " ".join(summary["Slurm JOBID"]))
