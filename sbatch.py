@@ -861,4 +861,7 @@ if __name__ == "__main__":
             print("Saved table in", str(sum_path))
 
     if not dev:
-        print("Cancel entire experiment? \n$ scancel", " ".join(summary["Slurm JOBID"]))
+        print(
+            "Cancel entire experiment? \n$ scancel",
+            " ".join(map(str, summary["Slurm JOBID"])),
+        )
