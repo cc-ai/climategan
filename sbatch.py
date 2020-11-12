@@ -690,6 +690,9 @@ if __name__ == "__main__":
         else:
             train_args.append(f"{k}={v}")
 
+        if k == "output":
+            Path(v).parent.mkdir(parents=True, exist_ok=True)
+
     # ------------------------------------
     # -----  Load Experiment Config  -----
     # ------------------------------------
@@ -856,3 +859,6 @@ if __name__ == "__main__":
             print("Add summary_dir=path to store the printed markdown table ⇪")
         else:
             print("Saved table in", str(sum_path))
+
+    if not dev:
+        print("Cancel entire experiment? \n$ scancel", " ".join(summary["Slurm JOBID"]))
