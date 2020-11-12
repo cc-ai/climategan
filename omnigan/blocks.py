@@ -291,10 +291,8 @@ class BaseDecoder(nn.Module):
 
         if proj_dim != -1:
             conv = Conv2dBlock(
-                input_dim, proj_dim, 1, 1, 0, norm=conv_norm, activation=activ
+                input_dim, proj_dim, 1, 1, 0, norm=res_norm, activation=activ
             )
-            if res_norm == "spectral":
-                conv = SpectralNorm(conv)
             self.model = [conv]
         else:
             self.model = []

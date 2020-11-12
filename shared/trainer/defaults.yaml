@@ -139,7 +139,7 @@ gen:
     spade_n_up: 7 # number of upsampling layers in the translation decoder is equal to number of downsamplings in the encoder.  output's h and w are z's h and w x 2^spade_num_upsampling_layers | z:32 and spade_n_up:4 => output 512
     no_z: true # <=> use_vae=False in the SPADE repo
     use_final_shortcut: False # if true, the last spade block does not get the masked input as conditioning but the prediction of the previous layer (passed through a conv to match dims) in order to lighten the masking restrictions and have smoother edges
-    paste_original_content: False # only select the water painted to backprop through the network, not the whole generated image: fake_flooded = masked_x + m * fake_flooded
+    paste_original_content: True # only select the water painted to backprop through the network, not the whole generated image: fake_flooded = masked_x + m * fake_flooded
     pl4m_epoch: 50 # epoch from which we introduce a new loss to the masker: the painter's discriminator's loss
 
   m: # specific params for the mask-generation decoder
