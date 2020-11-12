@@ -438,8 +438,10 @@ def get_losses(opts, verbose, device=None):
     # ----------------------------------
     # -----  Discriminator Losses  -----
     # ----------------------------------
-    losses["D"]["p"] = losses["G"]["p"]["gan"]
-    losses["D"]["advent"] = ADVENTAdversarialLoss(opts)
+    if "p" in opts.tasks:
+        losses["D"]["p"] = losses["G"]["p"]["gan"]
+    if "m" in opts.tasks or "s" in opts.tasks:
+        losses["D"]["advent"] = ADVENTAdversarialLoss(opts)
     return losses
 
 
