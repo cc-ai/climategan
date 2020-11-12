@@ -1363,7 +1363,7 @@ class Trainer:
         assert domain in {"r", "s"}
         self.assert_z_matches_x(x, z)
         assert x.shape[0] == target.shape[0] if target is not None else True
-        full_loss = torch.tensor(t)orch.tensor(0)
+        full_loss = torch.tensor(0)
         # ? output features classifier
         pred_logits = self.G.decoders["m"](z)
         pred_prob = sigmoid(pred_logits)
