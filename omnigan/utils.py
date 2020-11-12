@@ -214,21 +214,16 @@ def get_increased_path(path: Union[str, Path]) -> Path:
         pathlib.Path: increased path
     """
     fp = Path(path).resolve()
-    f = str(fp)
-
     vals = []
     for n in fp.parent.glob("{}*".format(fp.stem)):
-        ms = list(re.finditer(r"^{} \(\d+\)$".format(f), str(n)))
-        if ms:
-            m = list(re.finditer(r"\(\d+\)$", str(n)))[0].group()
-            vals.append(int(m.replace("(", "").replace(")", "")))
+        if re.match(r"\(\d+\)", str(n)[-3:]) is not None:
+            vals.append(int(str(n)[-2]))
     if vals:
         ext = " ({})".format(max(vals) + 1)
     elif fp.exists():
         ext = " (1)"
     else:
         ext = ""
-
     return fp.parent / (fp.stem + ext + fp.suffix)
 
 
