@@ -690,6 +690,9 @@ if __name__ == "__main__":
         else:
             train_args.append(f"{k}={v}")
 
+        if k == "output":
+            Path(v).parent.mkdir(parents=True, exist_ok=True)
+
     # ------------------------------------
     # -----  Load Experiment Config  -----
     # ------------------------------------
