@@ -742,7 +742,7 @@ class Trainer:
             self.run_evaluation(verbose=1)
             self.save()
 
-            if self.logger.epoch == self.opts.gen.p.pl4m:
+            if self.logger.epoch == self.opts.gen.p.pl4m_epoch:
                 self.use_pl4m = True
 
     def run_epoch(self):
