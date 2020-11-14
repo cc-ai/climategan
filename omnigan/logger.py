@@ -61,6 +61,9 @@ class Logger:
                         task_saves.append(x * (1.0 - (prediction > 0.1).to(torch.int)))
                         task_saves.append(x * (1.0 - (prediction > 0.5).to(torch.int)))
                         task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
+                        # dummy pixels to fool scaling and preserve mask range
+                        prediction[:, :, 0, 0] = 1.0
+                        prediction[:, :, -1, -1] = 0.0
 
                     elif task == "d":
                         # prediction is a log depth tensor
