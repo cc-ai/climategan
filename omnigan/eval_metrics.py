@@ -1,6 +1,8 @@
 from PIL import Image
 import numpy as np
 import cv2
+import torch
+import torch.nn.functional as F
 
 # ------------------------------------------------------------------------------
 # ----- Evaluation metrics for a pair of binary mask images (pred, target) -----
@@ -8,7 +10,7 @@ import cv2
 
 
 def get_accuracy(arr1, arr2):
-    """pixel accuracy 
+    """pixel accuracy
 
     Args:
         arr1 (np.array)
@@ -64,3 +66,38 @@ def accuracy(pred_im, gt_im):
     pred = np.array(pred_im)
     gt = np.array(gt_im)
     return float((pred == gt).sum()) / gt.size
+
+
+def mIOU(label, pred, num_classes=19):
+    """
+    https://stackoverflow.com/questions/62461379/multiclass-semantic-segmentation-model-evaluation
+    """
+    pred = F.softmax(pred, dim=1)
+    pred = torch.argmax(pred, dim=1).squeeze(1)
+    iou_list = list()
+    present_iou_list = list()
+
+    pred = pred.view(-1)
+    label = label.view(-1)
+    # Note: Following for loop goes from 0 to (num_classes-1)
+    # and ignore_index is num_classes, thus ignore_index is
+    # not considered in computation of IoU.
+    for sem_class in range(num_classes):
+        pred_inds = pred == sem_class
+        target_inds = label == sem_class
+        if target_inds.long().sum().item() == 0:
+            iou_now = float("nan")
+        else:
+            intersection_now = (pred_inds[target_inds]).long().sum().item()
+            union_now = (
+                pred_inds.long().sum().item()
+                + target_inds.long().sum().item()
+                - intersection_now
+            )
+            iou_now = float(intersection_now) / float(union_now)
+            present_iou_list.append(iou_now)
+        iou_list.append(iou_now)
+    return np.mean(present_iou_list)
+
+
+ƒ

@@ -10,6 +10,7 @@ from pathlib import Path
 from time import time
 
 from comet_ml import ExistingExperiment
+from comet_ml.utils import flatten
 
 warnings.simplefilter("ignore", UserWarning)
 
@@ -25,7 +26,7 @@ from tqdm import tqdm
 from omnigan.classifier import OmniClassifier, get_classifier
 from omnigan.data import get_all_loaders
 from omnigan.discriminator import OmniDiscriminator, get_dis
-from omnigan.eval_metrics import accuracy, iou
+from omnigan.eval_metrics import accuracy, mIOU
 from omnigan.fid import compute_val_fid
 from omnigan.generator import OmniGenerator, get_gen
 from omnigan.losses import get_losses
@@ -1549,29 +1550,41 @@ class Trainer:
         print("****************** Done in {}s *********************".format(timing))
 
     def eval_images(self, mode, domain):
-        metrics = {"accuracy": accuracy, "iou": iou}
-        metric_avg_scores = {}
+        metrics = {"accuracy": accuracy, "mIOU": mIOU}
+        metric_avg_scores = {"m": {}}
+        if "s" in self.opts.tasks:
+            metric_avg_scores["s"] = {}
         for key in metrics.keys():
-            metric_avg_scores[key] = 0.0
+            for task in metric_avg_scores.keys():
+                metric_avg_scores[task][key] = 0.0
+
         if domain != "rf":
             for im_set in self.display_images[mode][domain]:
                 x = im_set["data"]["x"].unsqueeze(0).to(self.device)
-                m = im_set["data"]["m"].unsqueeze(0).detach().cpu().numpy()
+                m = im_set["data"]["m"].unsqueeze(0).detach()
                 z = self.G.encode(x)
-                pred_mask = self.mask(z).detach().cpu().numpy()
+                pred_mask = self.mask(z).detach().cpu()
                 # Binarize mask
-                pred_mask[pred_mask > 0.5] = 1.0
-
+                pred_mask = (pred_mask > 0.5).astype(float)
                 for metric_key in metrics.keys():
                     metric_score = metrics[metric_key](pred_mask, m)
-                    metric_avg_scores[metric_key] += metric_score / len(
+                    metric_avg_scores["m"][metric_key] += metric_score / len(
                         self.display_images[mode][domain]
                     )
 
+                if "s" in self.opts.tasks:
+                    pred_seg = self.G.decoders["s"](z)
+                    s = im_set["data"]["s"].unsqueeze(0).detach()
+                    for metric_key in metrics.keys():
+                        metric_score = metrics[metric_key](pred_seg, s)
+                        metric_avg_scores["s"][metric_key] += metric_score / len(
+                            self.display_images[mode][domain]
+                        )
+
             if self.exp is not None:
                 self.exp.log_metrics(
-                    metric_avg_scores,
-                    prefix=f"metrics_{mode}",
+                    flatten_opts(metric_avg_scores),
+                    prefix=f"metrics_{mode}_{domain}",
                     step=self.logger.global_step,
                 )
 
