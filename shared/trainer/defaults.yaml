@@ -152,6 +152,7 @@ gen:
     loss: gan # either "hinge" or "gan" loss
     proj_dim: 128
     n_res: 3
+    use_low_level_feats: False
 # -------------------------
 # ----- Discriminator -----
 # -------------------------

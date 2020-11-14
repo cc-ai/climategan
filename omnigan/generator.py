@@ -130,11 +130,19 @@ class OmniGenerator(nn.Module):
 
 class MaskDecoder(BaseDecoder):
     def __init__(self, opts):
-        if (
-            opts.gen.encoder.architecture == "deeplabv3"
-            and opts.gen.deeplabv3.backbone == "mobilenet"
-        ):
+        low_level_feats_dim = -1
+        use_v3 = opts.gen.encoder.architecture == "deeplabv3"
+        use_mobile_net = opts.gen.deeplabv3.backbone == "mobilenet"
+        use_low = opts.gen.m.use_low_level_feats
+
+        if use_v3 and use_mobile_net:
             input_dim = 320
+            if use_low:
+                low_level_feats_dim = 24
+        elif use_v3:
+            input_dim = 2048
+            if use_low:
+                low_level_feats_dim = 256
         else:
             input_dim = 2048
 
@@ -148,4 +156,5 @@ class MaskDecoder(BaseDecoder):
             activ=opts.gen.m.activ,
             pad_type=opts.gen.m.pad_type,
             output_activ="none",
+            low_level_feats_dim=low_level_feats_dim,
         )

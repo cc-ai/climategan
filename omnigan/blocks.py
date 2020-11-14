@@ -1,6 +1,7 @@
 """File for all blocks which are parts of decoders
 """
 import torch
+from torch.functional import norm
 import torch.nn as nn
 import torch.nn.functional as F
 from omnigan.norms import SPADE, SpectralNorm, LayerNorm, AdaptiveInstanceNorm2d
@@ -286,17 +287,30 @@ class BaseDecoder(nn.Module):
         pad_type="zero",
         output_activ="tanh",
         conv_norm="layer",
+        low_level_feats_dim=-1,
     ):
         super().__init__()
 
+        self.low_level_feats_dim = low_level_feats_dim
+
+        self.model = []
         if proj_dim != -1:
-            conv = Conv2dBlock(
+            self.proj_conv = Conv2dBlock(
                 input_dim, proj_dim, 1, 1, 0, norm=res_norm, activation=activ
             )
-            self.model = [conv]
         else:
-            self.model = []
+            self.proj_conv = None
             proj_dim = input_dim
+
+        if low_level_feats_dim > 0:
+            self.low_level_conv = Conv2dBlock(
+                low_level_feats_dim, proj_dim, 3, 1, 1, norm=res_norm, activation=activ
+            )
+            self.merge_feats_conv = Conv2dBlock(
+                2 * proj_dim, proj_dim, 1, 1, 0, norm=res_norm, activation=activ
+            )
+        else:
+            self.low_level_conv = None
 
         self.model += [ResBlocks(n_res, proj_dim, res_norm, activ, pad_type=pad_type)]
         dim = proj_dim
@@ -332,8 +346,23 @@ class BaseDecoder(nn.Module):
         self.model = nn.Sequential(*self.model)
 
     def forward(self, z):
+        low_level_feat = None
         if isinstance(z, (list, tuple)):
-            z = z[0]
+            if self.low_level_conv is None:
+                z = z[0]
+            else:
+                z, low_level_feat = z
+                low_level_feat = self.low_level_conv(low_level_feat)
+                low_level_feat = F.interpolate(
+                    low_level_feat, size=z.shape[-2:], mode="bilinear"
+                )
+
+        if self.proj_conv is not None:
+            z = self.proj_conv(z)
+
+        if low_level_feat is not None:
+            z = self.merge_feats_conv(torch.cat([low_level_feat, z], dim=1))
+
         return self.model(z)
 
     def __str__(self):
