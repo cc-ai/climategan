@@ -1573,7 +1573,7 @@ class Trainer:
                     )
 
                 if "s" in self.opts.tasks:
-                    pred_seg = self.G.decoders["s"](z)
+                    pred_seg = self.G.decoders["s"](z).detach().cpu()
                     s = im_set["data"]["s"].unsqueeze(0).detach()
                     for metric_key in metrics.keys():
                         metric_score = metrics[metric_key](pred_seg, s)
