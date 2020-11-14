@@ -1565,7 +1565,7 @@ class Trainer:
                 z = self.G.encode(x)
                 pred_mask = self.mask(z).detach().cpu()
                 # Binarize mask
-                pred_mask = (pred_mask > 0.5).astype(float)
+                pred_mask = (pred_mask > 0.5).to(torch.float32)
                 for metric_key in metrics.keys():
                     metric_score = metrics[metric_key](pred_mask, m)
                     metric_avg_scores["m"][metric_key] += metric_score / len(
