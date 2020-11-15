@@ -149,10 +149,11 @@ gen:
     use_minent_var: True # add variance of entropy map in the measure of entropy for a certain picture
     use_advent: True # minimize the entropy of the image by adversarial training
     use_ground_intersection: True
-    loss: gan # either "hinge" or "gan" loss
-    proj_dim: 128
+    proj_dim: 64
     n_res: 3
     use_low_level_feats: False
+    res_norm: spectral_instance
+    conv_norm: spectral_instance
 # -------------------------
 # ----- Discriminator -----
 # -------------------------

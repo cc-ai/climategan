@@ -75,6 +75,11 @@ class Conv2dBlock(nn.Module):
             assert 0, "Unsupported padding type: {}".format(pad_type)
 
         # initialize normalization
+        use_spectral_norm = False
+        if norm.startswith("spectral_"):
+            norm = norm.replace("spectral_", "")
+            use_spectral_norm = True
+
         norm_dim = output_dim
         if norm == "batch":
             self.norm = nn.BatchNorm2d(norm_dim)
@@ -85,7 +90,7 @@ class Conv2dBlock(nn.Module):
             self.norm = LayerNorm(norm_dim)
         elif norm == "adain":
             self.norm = AdaptiveInstanceNorm2d(norm_dim)
-        elif norm == "spectral":
+        elif norm == "spectral" or norm.startswith("spectral_"):
             self.norm = None  # dealt with later in the code
         elif norm == "none":
             self.norm = None
@@ -111,7 +116,7 @@ class Conv2dBlock(nn.Module):
             raise ValueError("Unsupported activation: {}".format(activation))
 
         # initialize convolution
-        if norm == "spectral":
+        if norm == "spectral" or use_spectral_norm:
             self.conv = SpectralNorm(
                 nn.Conv2d(
                     input_dim,
