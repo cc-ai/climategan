@@ -343,7 +343,7 @@ class BaseDecoder(nn.Module):
                 7,
                 1,
                 3,
-                norm=conv_norm,
+                norm="none",
                 activation=output_activ,
                 pad_type=pad_type,
             )
