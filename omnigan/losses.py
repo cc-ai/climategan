@@ -594,7 +594,7 @@ class HingeLoss(nn.Module):
             return self.loss(input, target_is_real, for_discriminator)
 
 
-def DADADepthLoss():
+class DADADepthLoss:
     """
     From https://github.com/valeoai/DADA/blob/master/dada/utils/func.py
     """
