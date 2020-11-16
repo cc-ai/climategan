@@ -1443,15 +1443,15 @@ class Trainer:
 
             if for_ == "D":
                 # WGAN: clipping or GP
-                if self.opts.dis.s.gan_type == "GAN" or "WGAN_norm":
+                if self.opts.dis.m.gan_type == "GAN" or "WGAN_norm":
                     pass
-                elif self.opts.dis.s.gan_type == "WGAN":
+                elif self.opts.dis.m.gan_type == "WGAN":
                     for p in self.D["s"]["Advent"].parameters():
                         p.data.clamp_(
-                            self.opts.dis.s.wgan_clamp_lower,
-                            self.opts.dis.s.wgan_clamp_upper,
+                            self.opts.dis.m.wgan_clamp_lower,
+                            self.opts.dis.m.wgan_clamp_upper,
                         )
-                elif self.opts.dis.s.gan_type == "WGAN_gp":
+                elif self.opts.dis.m.gan_type == "WGAN_gp":
                     prob_need_grad = autograd.Variable(prob, requires_grad=True)
                     d_out = self.D["s"]["Advent"](prob_need_grad)
                     gp = get_WGAN_gradient(prob_need_grad, d_out)

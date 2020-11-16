@@ -152,8 +152,6 @@ gen:
     proj_dim: 64
     n_res: 3
     use_low_level_feats: False
-    res_norm: spectral_instance
-    conv_norm: spectral_instance
 # -------------------------
 # ----- Discriminator -----
 # -------------------------

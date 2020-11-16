@@ -390,7 +390,7 @@ def get_losses(opts, verbose, device=None):
 
     # depth losses
     if "d" in opts.tasks:
-        if opts.gen.d.loss == "data":
+        if opts.gen.d.loss == "dada":
             depth_func = DADADepthLoss()
         else:
             depth_func = SIGMLoss(opts.train.lambdas.G.d.gml)
