@@ -8,9 +8,9 @@ import warnings
 from copy import deepcopy
 from pathlib import Path
 from time import time
+import numpy as np
 
 from comet_ml import ExistingExperiment
-from comet_ml.utils import flatten
 
 warnings.simplefilter("ignore", UserWarning)
 
@@ -22,6 +22,7 @@ from comet_ml import Experiment
 from torch import autograd
 from torch.cuda.amp import GradScaler, autocast
 from tqdm import tqdm
+import traceback
 
 from omnigan.classifier import OmniClassifier, get_classifier
 from omnigan.data import get_all_loaders
@@ -1556,7 +1557,7 @@ class Trainer:
             metric_avg_scores["s"] = {}
         for key in metrics.keys():
             for task in metric_avg_scores.keys():
-                metric_avg_scores[task][key] = 0.0
+                metric_avg_scores[task][key] = []
 
         if domain != "rf":
             for im_set in self.display_images[mode][domain]:
@@ -1568,20 +1569,29 @@ class Trainer:
                 pred_mask = (pred_mask > 0.5).to(torch.float32)
                 for metric_key in metrics.keys():
                     metric_score = metrics[metric_key](pred_mask, m)
-                    metric_avg_scores["m"][metric_key] += metric_score / len(
-                        self.display_images[mode][domain]
-                    )
+                    metric_avg_scores["m"][metric_key].append(metric_score)
 
                 if "s" in self.opts.tasks:
                     pred_seg = self.G.decoders["s"](z).detach().cpu()
                     s = im_set["data"]["s"].unsqueeze(0).detach()
                     for metric_key in metrics.keys():
-                        metric_score = metrics[metric_key](pred_seg, s)
-                        metric_avg_scores["s"][metric_key] += metric_score / len(
-                            self.display_images[mode][domain]
-                        )
+                        try:
+                            metric_score = metrics[metric_key](pred_seg, s)
+                        except Exception:
+                            print("Failed metric:", traceback.format_exc())
+                            print(im_set["paths"])
+                            metric_score = None
+
+                        if metric_score is not None:
+                            metric_avg_scores["s"][metric_key].append(metric_score)
 
             if self.exp is not None:
+                metric_avg_scores = {
+                    task: {
+                        metric: np.mean(values) for metric, values in met_dict.items()
+                    }
+                    for task, met_dict in metric_avg_scores.items()
+                }
                 self.exp.log_metrics(
                     flatten_opts(metric_avg_scores),
                     prefix=f"metrics_{mode}_{domain}",
