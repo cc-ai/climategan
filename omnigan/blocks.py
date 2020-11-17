@@ -439,15 +439,17 @@ class DepthDecoder(nn.Module):
             z4_enc = self.upsample(z4_enc)
 
         depth = torch.mean(z4_enc, dim=1, keepdim=True)  # DADA paper decoder
-        depth = F.interpolate(
-            depth,
-            size=(384, 384),  # size used in MiDaS inference
-            mode="bicubic",  # what MiDaS uses
-            align_corners=False,
-        )
-        depth = F.interpolate(
-            depth, (self.output_size, self.output_size), mode="nearest"
-        )  # what we used in the transforms to resize input
+        if depth.shape[-1] != self.output_size:
+            depth = F.interpolate(
+                depth,
+                size=(384, 384),  # size used in MiDaS inference
+                mode="bicubic",  # what MiDaS uses
+                align_corners=False,
+            )
+
+            depth = F.interpolate(
+                depth, (self.output_size, self.output_size), mode="nearest"
+            )  # what we used in the transforms to resize input
         return depth
 
     def __str__(self):
