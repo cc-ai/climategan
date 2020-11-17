@@ -1585,18 +1585,19 @@ class Trainer:
                         if metric_score is not None:
                             metric_avg_scores["s"][metric_key].append(metric_score)
 
+            metric_avg_scores = {
+                task: {metric: np.mean(values) for metric, values in met_dict.items()}
+                for task, met_dict in metric_avg_scores.items()
+            }
             if self.exp is not None:
-                metric_avg_scores = {
-                    task: {
-                        metric: np.mean(values) for metric, values in met_dict.items()
-                    }
-                    for task, met_dict in metric_avg_scores.items()
-                }
                 self.exp.log_metrics(
                     flatten_opts(metric_avg_scores),
                     prefix=f"metrics_{mode}_{domain}",
                     step=self.logger.global_step,
                 )
+            else:
+                print(f"metrics_{mode}_{domain}")
+                print(flatten_opts(metric_avg_scores))
 
         return 0
 
