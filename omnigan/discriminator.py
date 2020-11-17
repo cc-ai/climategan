@@ -24,7 +24,7 @@ def get_dis(opts, verbose, no_init=False):
                     init_type=opts.dis[task].init_type,
                     init_gain=opts.dis[task].init_gain,
                     verbose=verbose,
-                    caller=f"get_dis {task} {domain}"
+                    caller=f"get_dis {task} {domain}",
                 )
         else:
             init_weights(
@@ -32,7 +32,7 @@ def get_dis(opts, verbose, no_init=False):
                 init_type=opts.dis[task].init_type,
                 init_gain=opts.dis[task].init_gain,
                 verbose=verbose,
-                caller=f"get_dis {task}"
+                caller=f"get_dis {task}",
             )
     return disc
 
@@ -282,7 +282,7 @@ class OmniDiscriminator(nn.ModuleDict):
                         self["m"] = nn.ModuleDict(
                             {
                                 "Advent": get_fc_discriminator(
-                                    num_classes=2, use_norm=True
+                                    num_classes=opts.dis.m.num_classes, use_norm=True
                                 )
                             }
                         )
@@ -290,7 +290,7 @@ class OmniDiscriminator(nn.ModuleDict):
                         self["m"] = nn.ModuleDict(
                             {
                                 "Advent": get_fc_discriminator(
-                                    num_classes=2, use_norm=False
+                                    num_classes=opts.dis.m.num_classes, use_norm=False
                                 )
                             }
                         )
@@ -298,7 +298,7 @@ class OmniDiscriminator(nn.ModuleDict):
                     self["m"] = nn.ModuleDict(
                         {
                             "Advent": define_D(
-                                input_nc=2,
+                                input_nc=opts.dis.m.num_classes,
                                 ndf=opts.dis.m.ndf,
                                 n_layers=opts.dis.m.n_layers,
                                 norm=opts.dis.m.norm,

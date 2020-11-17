@@ -137,6 +137,7 @@ gen:
     use_advent: True # minimize the entropy of the image by adversarial training
     use_ground_intersection: True
     loss: gan # either "hinge" or "gan" loss
+    output_activ: sigmoid
 # -------------------------
 # ----- Discriminator -----
 # -------------------------
@@ -183,6 +184,7 @@ dis:
     gan_type: WGAN_norm # can be [GAN | WGAN | WGAN_gp | WGAN_norm]
     wgan_clamp_lower: -0.01 # used in WGAN, WGAN clap the params in dis to [wgan_clamp_lower, wgan_clamp_upper] for every updation
     wgan_clamp_upper: 0.01 # used in WGAN
+    num_classes: 3
   s:
     <<: *default-dis
     gan_type: WGAN_norm # can be [GAN | WGAN | WGAN_gp | WGAN_norm]

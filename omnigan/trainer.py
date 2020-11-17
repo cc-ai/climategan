@@ -767,15 +767,17 @@ class Trainer:
 
             z = self.sample_z(x.shape[0]) if not self.no_z else None
             m = self.G.decoders["m"](self.G.encode(x))
-
-            prediction = self.G.painter(z, x * (1.0 - m))
+            m_ground = m[:, 0, :, :]
+            m_sky = m[:, 1, :, :]
+            prediction = self.G.painter(z, x * (1.0 - m_ground))
             if self.opts.gen.p.paste_original_content:
-                prediction = prediction * m + x * (1.0 - m)
+                prediction = prediction * m_ground + x * (1.0 - m_ground)
 
-            image_outputs.append(x * (1.0 - m))
+            image_outputs.append(x * (1.0 - m_ground))
+            image_outputs.append(x * (1.0 - m_sky))
             image_outputs.append(prediction)
             image_outputs.append(x)
-            image_outputs.append(prediction * m)
+            image_outputs.append(prediction * m_ground)
         # Write images
         self.write_images(
             image_outputs=image_outputs,
@@ -853,6 +855,8 @@ class Trainer:
         for self.logger.epoch in range(
             self.logger.epoch, self.logger.epoch + self.opts.train.epochs
         ):
+            if self.logger.epoch == 0:
+                self.run_evaluation(verbose=1)
             self.run_epoch()
             self.run_evaluation(verbose=1)
             self.save()
@@ -1031,9 +1035,8 @@ class Trainer:
                 elif update_task == "m":
                     # ? output features classifier
                     prediction = self.G.decoders["m"](self.z)
+                    prediction = nn.functional.softmax(prediction, dim=1)
                     if batch_domain == "s":
-
-                        # Main loss first:
                         update_loss = (
                             self.losses["G"]["tasks"]["m"]["bce"](
                                 prediction, update_target
@@ -1074,8 +1077,9 @@ class Trainer:
                             ] = update_loss.item()
 
                     if batch_domain == "r":
-                        pred_complementary = 1 - prediction
-                        prob = torch.cat([prediction, pred_complementary], dim=1)
+                        # pred_complementary = 1 - prediction
+                        # prob = torch.cat([prediction, pred_complementary], dim=1)
+                        prob = nn.functional.softmax(prediction, dim=1)
                         if self.opts.gen.m.use_minent:
                             # Then Minent loss
                             update_loss = (
@@ -1385,8 +1389,9 @@ class Trainer:
                         if verbose > 0:
                             print("Now training the ADVENT discriminator!")
                         fake_mask = self.G.decoders["m"](z)
-                        fake_complementary_mask = 1 - fake_mask
-                        prob = torch.cat([fake_mask, fake_complementary_mask], dim=1)
+                        # fake_complementary_mask = 1 - fake_mask
+                        # prob = torch.cat([fake_mask, fake_complementary_mask], dim=1)
+                        prob = nn.functional.softmax(fake_mask, dim=1)
                         prob = prob.detach()
 
                         loss_main = self.losses["D"]["advent"](

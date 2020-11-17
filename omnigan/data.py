@@ -273,10 +273,10 @@ def tensor_loader(path, task, domain):
     elif task == "m":
         arr[arr != 0] = 1
         # Make sure mask is single-channel
-        if len(arr.shape) >= 3:
-            arr = arr[:, :, 0]
-        arr = np.expand_dims(arr, 0)
-
+        # if len(arr.shape) >= 3:
+        #     arr = arr[:, :, 0]
+        # arr = np.expand_dims(arr, 0)
+        arr = np.moveaxis(arr, -1, 0)
     # print(path)
     # print(task)
     # print(torch.from_numpy(arr).unsqueeze(0).shape)
