@@ -406,6 +406,17 @@ class DepthDecoder(nn.Module):
         self.enc4_3 = nn.Conv2d(
             mid_dim, 128, kernel_size=1, stride=1, padding=0, bias=True
         )
+        self.upsample = None
+        if opts.gen.d.upsample_featuremaps:
+            self.upsample = nn.Sequential(
+                *[
+                    InterpolateNearest2d(),
+                    nn.Conv2d(128, 32, kernel_size=3, stride=1, padding=1),
+                    nn.ReLU(True),
+                    nn.Conv2d(32, 1, kernel_size=1, stride=1, padding=0),
+                    nn.ReLU(True),
+                ]
+            )
         self.output_size = opts.data.transforms[-1].new_size
 
     def forward(self, z):
@@ -416,6 +427,9 @@ class DepthDecoder(nn.Module):
         z4_enc = self.enc4_2(z4_enc)
         z4_enc = self.relu(z4_enc)
         z4_enc = self.enc4_3(z4_enc)
+
+        if self.upsample is not None:
+            z4_enc = self.upsample(z4_enc)
 
         depth = torch.mean(z4_enc, dim=1, keepdim=True)  # DADA paper decoder
         depth = F.interpolate(

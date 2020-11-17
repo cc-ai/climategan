@@ -52,7 +52,9 @@ data:
       width: 600
     - name: resize # ? this or change generator's output? Or resize larger then crop to 256?
       ignore: false
-      new_size: 640
+      new_size:
+        - default: 640
+        - d: 160
 
 # ---------------------
 # ----- Generator -----
@@ -119,6 +121,7 @@ gen:
     res_norm: batch
     use_pseudo_labels: False
     loss: dada
+    upsample_featuremaps: False # upsamples from 80x80 to 160x160 intermediate feature maps
   s: # specific params for the semantic segmentation decoder
     <<: *default-gen
     num_classes: 11
