@@ -53,8 +53,8 @@ data:
     - name: resize # ? this or change generator's output? Or resize larger then crop to 256?
       ignore: false
       new_size:
-        - default: 640
-        - d: 160
+        default: 640
+        d: 160
 
 # ---------------------
 # ----- Generator -----
