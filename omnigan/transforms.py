@@ -109,7 +109,7 @@ class Resize:
         try:
             if not self.sizes:
                 d = {}
-                new_size = self.compute_new_size(data["x"])
+                new_size = self.compute_new_default_size(data["x"])
                 for task, tensor in data.items():
                     d[task] = F.interpolate(
                         tensor, size=new_size, **interpolation(task)
@@ -126,7 +126,7 @@ class Resize:
             tb = traceback.format_exc()
             print("Debug: task, shape, interpolation, h, w, new_size")
             print(task)
-            # print(tensor.shape)
+            print(tensor.shape)
             print(interpolation(task))
             print(self.h, self.w)
             print(new_size)
