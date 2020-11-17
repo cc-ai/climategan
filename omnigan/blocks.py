@@ -417,7 +417,14 @@ class DepthDecoder(nn.Module):
                     nn.ReLU(True),
                 ]
             )
-        self.output_size = opts.data.transforms[-1].new_size
+        if isinstance(opts.data.transforms[-1].new_size, int):
+            self.output_size = opts.data.transforms[-1].new_size
+        else:
+            if "d" in opts.data.transforms[-1].new_size:
+                self.output_size = opts.data.transforms[-1].new_size["d"]
+            else:
+                assert "default" in opts.data.transforms[-1].new_size
+                self.output_size = opts.data.transforms[-1].new_size["default"]
 
     def forward(self, z):
         if isinstance(z, (list, tuple)):
