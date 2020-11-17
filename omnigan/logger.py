@@ -266,12 +266,12 @@ class Logger:
                 end="...",
                 flush=True,
             )
-            ims = self.padd(
-                image_outputs[logidx * nb_per_log : (logidx + 1) * nb_per_log]
-            )
+            ims = image_outputs[logidx * nb_per_log : (logidx + 1) * nb_per_log]
             if not ims:
                 print("", end="\r", flush=True)
                 continue
+
+            ims = self.padd(ims)
             ims = torch.stack(ims).squeeze()
             image_grid = vutils.make_grid(
                 ims, nrow=im_per_row, normalize=True, scale_each=True
