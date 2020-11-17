@@ -1,4 +1,5 @@
 from addict import Dict
+from numpy.lib.type_check import imag
 import torchvision.utils as vutils
 
 import numpy as np
@@ -265,7 +266,9 @@ class Logger:
                 end="...",
                 flush=True,
             )
-            ims = image_outputs[logidx * nb_per_log : (logidx + 1) * nb_per_log]
+            ims = self.padd(
+                image_outputs[logidx * nb_per_log : (logidx + 1) * nb_per_log]
+            )
             if not ims:
                 print("", end="\r", flush=True)
                 continue
@@ -282,3 +285,21 @@ class Logger:
                 step=curr_iter,
             )
             print("Ok", end="\r", flush=True)
+
+    def padd(self, ims):
+        h = max(im.shape[-2] for im in ims)
+        w = max(im.shape[-1] for im in ims)
+        new_ims = []
+        for im in ims:
+            ih = im.shape[-2]
+            iw = im.shape[-1]
+            if ih != h or iw != w:
+                padded = torch.zeros(im.shape[-3], h, w)
+                padded[
+                    :, (h - ih) // 2 : (h + ih) // 2, (w - iw) // 2 : (w + iw) // 2
+                ] = im
+                new_ims.append(padded)
+            else:
+                new_ims.append(im)
+
+        return new_ims
