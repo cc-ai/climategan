@@ -1,4 +1,5 @@
 from addict import Dict
+from numpy.core.fromnumeric import squeeze
 from numpy.lib.type_check import imag
 import torchvision.utils as vutils
 
@@ -272,7 +273,7 @@ class Logger:
                 continue
 
             ims = self.padd(ims)
-            ims = torch.stack(ims).squeeze()
+            ims = torch.stack([im.squeeze() for im in ims]).squeeze()
             image_grid = vutils.make_grid(
                 ims, nrow=im_per_row, normalize=True, scale_each=True
             )
