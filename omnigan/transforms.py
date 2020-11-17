@@ -126,7 +126,7 @@ class Resize:
             tb = traceback.format_exc()
             print("Debug: task, shape, interpolation, h, w, new_size")
             print(task)
-            print(tensor.shape)
+            # print(tensor.shape)
             print(interpolation(task))
             print(self.h, self.w)
             print(new_size)
