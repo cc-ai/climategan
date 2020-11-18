@@ -1098,7 +1098,7 @@ class Trainer:
         # ! different mask: hides water to be reconstructed
         # ! 1 for water, 0 otherwise
         m = batch["data"]["m"]
-        fake_flooded = self.trainer.G.paint(m, x)
+        fake_flooded = self.G.paint(m, x)
 
         # ----------------------
         # -----  VGG Loss  -----
