@@ -11,7 +11,6 @@ import torch.nn.functional as F
 import os
 from tqdm import tqdm
 from PIL import ImageFile
-from torch.nn.functional import sigmoid
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 

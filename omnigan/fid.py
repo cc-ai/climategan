@@ -411,7 +411,6 @@ def compute_fakes(trainer, verbose=0):
     # in the rf domain display_size may be different from fid.n_images
     n = trainer.opts.train.fid.n_images
     bs = trainer.opts.data.loaders.batch_size
-    z = None
 
     display_batches = [
         (sample["data"]["x"], sample["data"]["m"])
