@@ -1592,9 +1592,7 @@ class Trainer:
     def functional_test_mode(self):
         import atexit
 
-        self.self.opts.output_path = (
-            Path("~").expanduser() / "omnigan" / "functional_tests"
-        )
+        self.opts.output_path = Path("~").expanduser() / "omnigan" / "functional_tests"
         Path(self.opts.output_path).mkdir(parents=True, exist_ok=True)
         with open(Path(self.opts.output_path) / "is_functional.test", "w") as f:
             f.write("trainer functional test - delete this dir")
