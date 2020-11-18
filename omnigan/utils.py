@@ -198,26 +198,26 @@ def write_hash(path: Union[str, Path]) -> None:
 def get_increased_path(path: Union[str, Path]) -> Path:
     """Returns an increased path: if dir exists, returns `dir (1)`.
     If `dir (i)` exists, returns `dir (max(i) + 1)`
-
     get_increased_path("test").mkdir() creates `test/`
     then
     get_increased_path("test").mkdir() creates `test (1)/`
     etc.
     if `test (3)/` exists but not `test (2)/`, `test (4)/` is created so that indexes
     always increase
-
     Args:
         path (str or pathlib.Path): the file/directory which may already exist and would
             need to be increased
-
     Returns:
         pathlib.Path: increased path
     """
     fp = Path(path).resolve()
     vals = []
     for n in fp.parent.glob("{}*".format(fp.stem)):
-        if re.match(r"\(\d+\)", str(n)[-3:]) is not None:
-            vals.append(int(str(n)[-2]))
+        if re.match(r".+\(\d+\)", str(n.name)) is not None:
+            name = str(n.name)
+            start = name.index("(")
+            end = name.index(")")
+            vals.append(int(name[start + 1 : end]))
     if vals:
         ext = " ({})".format(max(vals) + 1)
     elif fp.exists():
