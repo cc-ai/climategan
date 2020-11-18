@@ -55,6 +55,7 @@ data:
       new_size:
         default: 640
         d: 160
+        s: 160
 
 # ---------------------
 # ----- Generator -----
