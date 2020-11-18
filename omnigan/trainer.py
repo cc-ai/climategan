@@ -544,23 +544,22 @@ class Trainer:
         Returns:
             dict(tuple): {task: (c, h, w) for task in self.opts.tasks}
         """
-        shape = None
-        for mode in self.loaders:
-            for domain in self.loaders[mode]:
-                shape = {
-                    task: tensor.shape
-                    for task, tensor in self.loaders[mode][domain]
-                    .dataset[0]["data"]
-                    .items()
-                }
-                break
-            if shape is not None:
-                break
 
-        if shape is None:
-            raise ValueError("No batch found to compute_latent_shape")
+        if any(t in self.opts.tasks for t in "msd"):
+            domain = "r"
+        else:
+            domain = "rf"
 
-        return shape
+        if "train" in self.loaders:
+            mode = "train"
+        else:
+            assert "val" in self.loaders, "no data loader found"
+            mode = "val"
+
+        return {
+            task: tensor.shape
+            for task, tensor in self.loaders[mode][domain].dataset[0]["data"].items()
+        }
 
     def g_opt_step(self):
         """Run an optimizing step ; if using ExtraAdam, there needs to be an extrapolation
