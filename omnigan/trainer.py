@@ -1551,6 +1551,9 @@ class Trainer:
         print("****************** Done in {}s *********************".format(timing))
 
     def eval_images(self, mode, domain):
+        if domain == "rf":
+            return
+
         metrics = {"accuracy": accuracy, "mIOU": mIOU}
         metric_avg_scores = {"m": {}}
         if "s" in self.opts.tasks:
@@ -1559,45 +1562,44 @@ class Trainer:
             for task in metric_avg_scores.keys():
                 metric_avg_scores[task][key] = []
 
-        if domain != "rf":
-            for im_set in self.display_images[mode][domain]:
-                x = im_set["data"]["x"].unsqueeze(0).to(self.device)
-                m = im_set["data"]["m"].unsqueeze(0).detach()
-                z = self.G.encode(x)
-                pred_mask = self.mask(z).detach().cpu()
-                # Binarize mask
-                pred_mask = (pred_mask > 0.5).to(torch.float32)
+        for im_set in self.display_images[mode][domain]:
+            x = im_set["data"]["x"].unsqueeze(0).to(self.device)
+            m = im_set["data"]["m"].unsqueeze(0).detach()
+            z = self.G.encode(x)
+            pred_mask = self.mask(z).detach().cpu()
+            # Binarize mask
+            pred_mask = (pred_mask > 0.5).to(torch.float32)
+            for metric_key in metrics.keys():
+                metric_score = metrics[metric_key](pred_mask, m)
+                metric_avg_scores["m"][metric_key].append(metric_score)
+
+            if "s" in self.opts.tasks:
+                pred_seg = self.G.decoders["s"](z).detach().cpu()
+                s = im_set["data"]["s"].unsqueeze(0).detach()
                 for metric_key in metrics.keys():
-                    metric_score = metrics[metric_key](pred_mask, m)
-                    metric_avg_scores["m"][metric_key].append(metric_score)
+                    try:
+                        metric_score = metrics[metric_key](pred_seg, s)
+                    except Exception:
+                        print("Failed metric:", traceback.format_exc())
+                        print(im_set["paths"])
+                        metric_score = None
 
-                if "s" in self.opts.tasks:
-                    pred_seg = self.G.decoders["s"](z).detach().cpu()
-                    s = im_set["data"]["s"].unsqueeze(0).detach()
-                    for metric_key in metrics.keys():
-                        try:
-                            metric_score = metrics[metric_key](pred_seg, s)
-                        except Exception:
-                            print("Failed metric:", traceback.format_exc())
-                            print(im_set["paths"])
-                            metric_score = None
+                    if metric_score is not None and not np.isnan(metric_score):
+                        metric_avg_scores["s"][metric_key].append(metric_score)
 
-                        if metric_score is not None:
-                            metric_avg_scores["s"][metric_key].append(metric_score)
-
-            metric_avg_scores = {
-                task: {metric: np.mean(values) for metric, values in met_dict.items()}
-                for task, met_dict in metric_avg_scores.items()
-            }
-            if self.exp is not None:
-                self.exp.log_metrics(
-                    flatten_opts(metric_avg_scores),
-                    prefix=f"metrics_{mode}_{domain}",
-                    step=self.logger.global_step,
-                )
-            else:
-                print(f"metrics_{mode}_{domain}")
-                print(flatten_opts(metric_avg_scores))
+        metric_avg_scores = {
+            task: {metric: np.mean(values) for metric, values in met_dict.items()}
+            for task, met_dict in metric_avg_scores.items()
+        }
+        if self.exp is not None:
+            self.exp.log_metrics(
+                flatten_opts(metric_avg_scores),
+                prefix=f"metrics_{mode}_{domain}",
+                step=self.logger.global_step,
+            )
+        else:
+            print(f"metrics_{mode}_{domain}")
+            print(flatten_opts(metric_avg_scores))
 
         return 0
 
