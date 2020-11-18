@@ -69,7 +69,7 @@ def accuracy(pred_im, gt_im):
     return float((pred == gt).sum()) / gt.size
 
 
-def mIOU(label, pred, num_classes=19):
+def mIOU(pred, label):
     """
     https://stackoverflow.com/questions/62461379/multiclass-semantic-segmentation-model-evaluation
     """
