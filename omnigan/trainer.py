@@ -1588,7 +1588,10 @@ class Trainer:
                         metric_avg_scores["s"][metric_key].append(metric_score)
 
         metric_avg_scores = {
-            task: {metric: np.mean(values) for metric, values in met_dict.items()}
+            task: {
+                metric: np.mean(values) if values else float("nan")
+                for metric, values in met_dict.items()
+            }
             for task, met_dict in metric_avg_scores.items()
         }
         metric_avg_scores = {
