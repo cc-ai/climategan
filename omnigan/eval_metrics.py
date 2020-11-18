@@ -98,4 +98,4 @@ def mIOU(label, pred, num_classes=19):
             iou_now = float(intersection_now) / float(union_now)
             present_iou_list.append(iou_now)
         iou_list.append(iou_now)
-    return np.mean(present_iou_list)
+    return np.mean(present_iou_list) if present_iou_list else float("nan")
