@@ -1530,12 +1530,13 @@ class Trainer:
         if domain == "rf":
             return
 
-        metrics = {"accuracy": accuracy, "mIOU": mIOU}
+        metric_funcs = {"accuracy": accuracy, "mIOU": mIOU}
         metric_avg_scores = {"m": {}}
         if "s" in self.opts.tasks:
             metric_avg_scores["s"] = {}
-        for key in metrics.keys():
-            for task in metric_avg_scores.keys():
+
+        for key in metric_funcs:
+            for task in metric_avg_scores:
                 metric_avg_scores[task][key] = []
 
         for im_set in self.display_images[mode][domain]:
@@ -1545,23 +1546,17 @@ class Trainer:
             pred_mask = self.G.mask(z=z).detach().cpu()
             # Binarize mask
             pred_mask = (pred_mask > 0.5).to(torch.float32)
-            for metric_key in metrics.keys():
-                metric_score = metrics[metric_key](pred_mask, m)
-                metric_avg_scores["m"][metric_key].append(metric_score)
+            for metric in metric_funcs:
+                metric_score = metric_funcs[metric](pred_mask, m)
+                metric_avg_scores["m"][metric].append(metric_score)
 
             if "s" in self.opts.tasks:
                 pred_seg = self.G.decoders["s"](z).detach().cpu()
                 s = im_set["data"]["s"].unsqueeze(0).detach()
-                for metric_key in metrics.keys():
-                    try:
-                        metric_score = metrics[metric_key](pred_seg, s)
-                    except Exception:
-                        print("Failed metric:", traceback.format_exc())
-                        print(im_set["paths"])
-                        metric_score = None
 
-                    if metric_score is not None:
-                        metric_avg_scores["s"][metric_key].append(metric_score)
+                for metric in metric_funcs:
+                    metric_score = metric_funcs[metric](pred_seg, s)
+                    metric_avg_scores["s"][metric].append(metric_score)
 
         metric_avg_scores = {
             task: {

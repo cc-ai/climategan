@@ -71,7 +71,19 @@ def accuracy(pred_im, gt_im):
 
 def mIOU(pred, label):
     """
+    Adapted from:
     https://stackoverflow.com/questions/62461379/multiclass-semantic-segmentation-model-evaluation
+
+    Compute the mean IOU from pred and label tensors
+    pred is a tensor N x C x H x W with logits (softmax will be applied)
+    and label is a N x H  x W tensor with int labels per pixel
+
+    Args:
+        pred (torch.tensor): predicted logits
+        label (torch.tensor): labels
+
+    Returns:
+        float: mIOU, can be nan
     """
     num_classes = pred.shape[-3]
     pred = F.softmax(pred, dim=1)

@@ -260,7 +260,6 @@ class Logger:
             )
             ims = image_outputs[logidx * nb_per_log : (logidx + 1) * nb_per_log]
             if not ims:
-                print("", end="\r", flush=True)
                 continue
 
             ims = self.padd(ims)
@@ -269,14 +268,11 @@ class Logger:
                 ims, nrow=im_per_row, normalize=True, scale_each=True
             )
             image_grid = image_grid.permute(1, 2, 0).cpu().numpy()
-
-            print("Uploading...", end="", flush=True)
             trainer.exp.log_image(
                 Image.fromarray((image_grid * 255).astype(np.uint8)),
                 name=f"{mode}_{domain}_{task}_{str(curr_iter)}_#{logidx}",
                 step=curr_iter,
             )
-            print("Ok", end="\r", flush=True)
 
     def padd(self, ims):
         h = max(im.shape[-2] for im in ims)
