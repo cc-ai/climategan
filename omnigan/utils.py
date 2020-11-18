@@ -273,8 +273,11 @@ def get_increased_path(path: Union[str, Path]) -> Path:
     fp = Path(path).resolve()
     vals = []
     for n in fp.parent.glob("{}*".format(fp.stem)):
-        if re.match(r"\(\d+\)", str(n)[-3:]) is not None:
-            vals.append(int(str(n)[-2]))
+        if re.match(r".+\(\d+\)", str(n.name)) is not None:
+            name = str(n.name)
+            start = name.index("(")
+            end = name.index(")")
+            vals.append(int(name[start + 1: end]))
     if vals:
         ext = " ({})".format(max(vals) + 1)
     elif fp.exists():
