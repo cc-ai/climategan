@@ -1,7 +1,6 @@
 """File for all blocks which are parts of decoders
 """
 import torch
-from torch.functional import norm
 import torch.nn as nn
 import torch.nn.functional as F
 from omnigan.norms import SPADE, SpectralNorm, LayerNorm, AdaptiveInstanceNorm2d
@@ -12,7 +11,7 @@ import omnigan.strings as strings
 
 class InterpolateNearest2d(nn.Module):
     """
-    Custom implementation of nn.Upsample because pytroch/xla
+    Custom implementation of nn.Upsample because pytorch/xla
     does not yet support scale_factor and needs to be provided with
     the output_size
     """
