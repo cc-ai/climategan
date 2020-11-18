@@ -11,7 +11,7 @@ from omnigan.utils import get_comet_rest_api_key
 import logging
 
 logging.basicConfig()
-logging.getLogger().setLevel(logging.DEBUG)
+logging.getLogger().setLevel(logging.ERROR)
 
 
 class bcolors:
