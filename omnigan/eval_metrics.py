@@ -77,8 +77,8 @@ def mIOU(label, pred, num_classes=19):
     iou_list = list()
     present_iou_list = list()
 
-    pred = pred.view(-1)
     num_classes = pred.shape[-3]
+    pred = pred.view(-1)
     label = label.view(-1)
     # Note: Following for loop goes from 0 to (num_classes-1)
     # and ignore_index is num_classes, thus ignore_index is
