@@ -1584,11 +1584,18 @@ class Trainer:
                         print(im_set["paths"])
                         metric_score = None
 
-                    if metric_score is not None and not np.isnan(metric_score):
+                    if metric_score is not None:
                         metric_avg_scores["s"][metric_key].append(metric_score)
 
         metric_avg_scores = {
             task: {metric: np.mean(values) for metric, values in met_dict.items()}
+            for task, met_dict in metric_avg_scores.items()
+        }
+        metric_avg_scores = {
+            task: {
+                metric: value if not np.isnan(value) else -1
+                for metric, value in met_dict.items()
+            }
             for task, met_dict in metric_avg_scores.items()
         }
         if self.exp is not None:
