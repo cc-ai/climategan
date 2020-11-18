@@ -534,20 +534,25 @@ class Trainer:
         z = self.G.encode(x)
         return z.shape[1:] if not isinstance(z, (list, tuple)) else z[0].shape[1:]
 
-    def compute_input_shape(self):
-        """Compute the latent shape, i.e. the Encoder's output shape,
-        from a batch.
+    def compute_input_shapes(self):
+        """Compute the input shape, i.e. the data's post-transform shape,
+        from a batch, as a dict per task.
 
         Raises:
             ValueError: If no loader, the latent_shape cannot be inferred
 
         Returns:
-            tuple: (c, h, w)
+            dict(tuple): {task: (c, h, w) for task in self.opts.tasks}
         """
         shape = None
         for mode in self.loaders:
             for domain in self.loaders[mode]:
-                shape = self.loaders[mode][domain].dataset[0]["data"]["x"].shape
+                shape = {
+                    task: tensor.shape
+                    for task, tensor in self.loaders[mode][domain]
+                    .dataset[0]["data"]
+                    .items()
+                }
                 break
             if shape is not None:
                 break
@@ -629,14 +634,18 @@ class Trainer:
                     + " It  has to  be set prior to setup()."
                 )
             print("Computing latent & input shapes...", end="", flush=True)
-            self.input_shape = self.compute_input_shape()
+            self.input_shapes = self.compute_input_shapes()
 
         if "s" in self.opts.tasks:
-            self.G.decoders["s"].set_target_size(self.input_shape[-2:])
+            self.G.decoders["s"].set_target_size(self.input_shapes["s"][-2:])
         print("OK.")
 
-        self.G.painter.z_h = self.input_shape[-2] // (2 ** self.opts.gen.p.spade_n_up)
-        self.G.painter.z_w = self.input_shape[-1] // (2 ** self.opts.gen.p.spade_n_up)
+        self.G.painter.z_h = self.input_shapes["x"][-2] // (
+            2 ** self.opts.gen.p.spade_n_up
+        )
+        self.G.painter.z_w = self.input_shapes["x"][-1] // (
+            2 ** self.opts.gen.p.spade_n_up
+        )
 
         if inference:
             print("Inference mode: no Discriminator, no Classifier, no optimizers")
