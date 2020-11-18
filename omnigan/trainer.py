@@ -713,6 +713,8 @@ class Trainer:
                             prediction_sky = prediction_sky.repeat(1, 3, 1, 1)
                             task_saves.append(x * (1.0 - prediction_ground))
                             task_saves.append(x * (1.0 - prediction_sky))
+                            if domain == "s":
+                                task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
 
                     elif update_task == "d":
                         # prediction is a log depth tensor
