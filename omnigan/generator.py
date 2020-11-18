@@ -6,6 +6,7 @@
 from omnigan.deeplabv3 import build_backbone, DeepLabV3Decoder
 from omnigan.deeplabv2 import DeepLabV2Decoder
 import torch.nn as nn
+import torch
 from omnigan.tutils import init_weights
 from omnigan.blocks import (
     PainterSpadeDecoder,
@@ -126,6 +127,54 @@ class OmniGenerator(nn.Module):
 
     def __str__(self):
         return strings.generator(self)
+
+    def sample_painter_z(self, batch_size, device, force_half=False):
+        if self.opts.gen.p.no_z:
+            return None
+
+        z = torch.empty(
+            batch_size,
+            self.opts.gen.p.latent_dim,
+            self.painter.z_h,
+            self.painter.z_w,
+            device=device,
+        ).normal_(mean=0, std=1.0)
+
+        if force_half:
+            z = z.half()
+
+        return z
+
+    def mask(self, x=None, z=None, sigmoid=True):
+        assert x is not None or z is not None
+        assert not (x is not None and z is not None)
+        if z is None:
+            z = self.encode(x)
+        logits = self.G.decoders["m"](z)
+
+        if not sigmoid:
+            return logits
+
+        return torch.sigmoid(logits)
+
+    def paint(self, m, x):
+        """
+        Paints given a mask and an image
+        calls painter(z, x * (1.0 - m))
+        Mask has 1s where water should be painted
+
+        Args:
+            m (torch.Tensor): Mask
+            x (torch.Tensor): Image to paint
+
+        Returns:
+            torch.Tensor: painted image
+        """
+        z_paint = self.sample_painter_z(x.shape[0], x.device)
+        fake = self.painter(z_paint, x * (1.0 - m))
+        if self.opts.gen.p.paste_original_content:
+            return x * (1.0 - m) + fake * m
+        return fake
 
 
 class MaskDecoder(BaseDecoder):

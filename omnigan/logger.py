@@ -1,6 +1,4 @@
 from addict import Dict
-from numpy.core.fromnumeric import squeeze
-from numpy.lib.type_check import imag
 import torchvision.utils as vutils
 
 import numpy as np
@@ -101,10 +99,7 @@ class Logger:
                 x = im_set["data"]["x"].unsqueeze(0).to(trainer.device)
                 m = im_set["data"]["m"].unsqueeze(0).to(trainer.device)
 
-                z = trainer.sample_painter_z(x.shape[0])
-                prediction = trainer.G.painter(z, x * (1.0 - m))
-                if trainer.opts.gen.p.paste_original_content:
-                    prediction = prediction * m + x * (1.0 - m)
+                prediction = trainer.G.paint(m, x)
 
                 image_outputs.append(x * (1.0 - m))
                 image_outputs.append(prediction)
@@ -211,16 +206,12 @@ class Logger:
             x = im_set["data"]["x"].unsqueeze(0).to(trainer.device)
             # m = im_set["data"]["m"].unsqueeze(0).to(trainer.device)
 
-            zp = trainer.sample_painter_z(x.shape[0])
-            m = sigmoid(trainer.G.decoders["m"](trainer.G.encode(x)))
+            m = trainer.G.mask(x=x)
+            prediction = trainer.G.paint(m, x)
 
-            prediction = trainer.G.painter(zp, x * (1.0 - m))
-            if trainer.opts.gen.p.paste_original_content:
-                prediction = prediction * m + x * (1.0 - m)
-
+            image_outputs.append(x)
             image_outputs.append(x * (1.0 - m))
             image_outputs.append(prediction)
-            image_outputs.append(x)
             image_outputs.append(prediction * m)
         # Write images
         self.write_images(

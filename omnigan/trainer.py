@@ -117,9 +117,6 @@ class Trainer:
             self.grad_scaler_g = GradScaler()
             self.grad_scaler_c = GradScaler()
 
-    def mask(self, z):
-        return sigmoid(self.G.decoders["m"](z))
-
     @torch.no_grad()
     def paint(self, image_batch, mask_batch=None, resolution="approx"):
         """
@@ -155,19 +152,13 @@ class Trainer:
             self.eval_mode()
 
         if mask_batch is None:
-            z = self.G.encode(image_batch)
-            mask_batch = self.mask(z)
+            mask_batch = self.G.mask(x=image_batch)
         else:
             assert len(image_batch) == len(mask_batch)
             assert image_batch.shape[-2:] == mask_batch.shape[-2:]
 
-        z_painter = None
-        masked_batch = image_batch * (1.0 - mask_batch)
-
         if resolution not in {"approx", "exact"}:
-            painted = self.G.painter(z_painter, masked_batch)
-            if self.opts.gen.p.paste_original_content:
-                painted = mask_batch * painted + masked_batch
+            painted = self.G.paint(mask_batch, image_batch)
 
             if resolution == "upsample":
                 painted = nn.functional.interpolate(
@@ -185,9 +176,7 @@ class Trainer:
                 image_batch.shape[-1] // 2 ** self.opts.gen.p.spade_n_up
             )
 
-            painted = self.G.painter(z_painter, masked_batch)
-            if self.opts.gen.p.paste_original_content:
-                painted = mask_batch * painted + masked_batch
+            painted = self.G.paint(mask_batch, image_batch)
 
             self.G.painter.z_h = zh
             self.G.painter.z_w = zw
@@ -478,16 +467,7 @@ class Trainer:
         return b
 
     def sample_painter_z(self, batch_size):
-        if self.opts.gen.p.no_z:
-            return None
-
-        return torch.empty(
-            batch_size,
-            self.opts.gen.p.latent_dim,
-            self.G.painter.z_h,
-            self.G.painter.z_w,
-            device=self.device,
-        ).normal_(mean=0, std=1.0)
+        return self.G.sample_painter_z(batch_size, self.device)
 
     @property
     def train_loaders(self):
@@ -967,10 +947,7 @@ class Trainer:
                 # sample vector
                 with torch.no_grad():
                     # see spade compute_discriminator_loss
-                    z_paint = self.sample_painter_z(x.shape[0])
-                    fake = self.G.painter(z_paint, x * (1.0 - m))
-                    if self.opts.gen.p.paste_original_content:
-                        fake = fake * m + x * (1.0 - m)
+                    fake = self.G.paint(m, x)
                     fake = fake.detach()
                     fake.requires_grad_()
 
@@ -1121,12 +1098,7 @@ class Trainer:
         # ! different mask: hides water to be reconstructed
         # ! 1 for water, 0 otherwise
         m = batch["data"]["m"]
-        z = self.sample_painter_z(x.shape[0])
-        masked_x = x * (1.0 - m)
-
-        fake_flooded = self.G.painter(z, masked_x)
-        if self.opts.gen.p.paste_original_content:
-            fake_flooded = masked_x + m * fake_flooded
+        fake_flooded = self.trainer.G.paint(m, x)
 
         # ----------------------
         # -----  VGG Loss  -----
@@ -1231,7 +1203,7 @@ class Trainer:
                 else:
                     self.logger.losses.gen.p.featmatch = loss.item()
 
-            step_loss += loss
+                step_loss += loss
 
         return step_loss
 
@@ -1375,7 +1347,7 @@ class Trainer:
         assert x.shape[0] == target.shape[0] if target is not None else True
         full_loss = torch.tensor(0.0, device=self.device)
         # ? output features classifier
-        pred_logits = self.G.decoders["m"](z)
+        pred_logits = self.G.mask(z=z, sigmoid=False)
         pred_prob = sigmoid(pred_logits)
         pred_prob_complementary = 1 - pred_prob
         prob = torch.cat([pred_prob, pred_prob_complementary], dim=1)
@@ -1477,11 +1449,7 @@ class Trainer:
         for param in self.G.painter.parameters():
             param.requires_grad = False
 
-        z = self.sample_painter_z(x.shape[0])
-        masked_x = x * (1.0 - m)  # 0s where water should be painted
-        fake_flooded = self.G.painter(z, masked_x)
-        if self.opts.gen.p.paste_original_content:
-            fake_flooded = masked_x + m * fake_flooded
+        fake_flooded = self.G.paint(m, x)
 
         if self.opts.dis.p.use_local_discriminator:
             fake_d_global = self.D["p"]["global"](fake_flooded)
@@ -1574,7 +1542,7 @@ class Trainer:
             x = im_set["data"]["x"].unsqueeze(0).to(self.device)
             m = im_set["data"]["m"].unsqueeze(0).detach()
             z = self.G.encode(x)
-            pred_mask = self.mask(z).detach().cpu()
+            pred_mask = self.G.mask(z=z).detach().cpu()
             # Binarize mask
             pred_mask = (pred_mask > 0.5).to(torch.float32)
             for metric_key in metrics.keys():

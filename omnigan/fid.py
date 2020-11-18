@@ -429,9 +429,8 @@ def compute_fakes(trainer, verbose=0):
         with torch.no_grad():
             x = display_x[b * bs : (b + 1) * bs]
             m = display_m[b * bs : (b + 1) * bs]
-            masked_x = x * (1.0 - m)
-            fake = trainer.G.painter(z, masked_x)
-        fakes.append(fake * m + x * (1 - m))
+            fake = trainer.G.paint(m, x)
+        fakes.append(fake)
 
     return torch.cat(fakes, dim=0)
 

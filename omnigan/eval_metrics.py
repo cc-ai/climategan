@@ -1,4 +1,3 @@
-from PIL import Image
 import numpy as np
 import cv2
 import torch
@@ -74,12 +73,12 @@ def mIOU(label, pred, num_classes=19):
     """
     https://stackoverflow.com/questions/62461379/multiclass-semantic-segmentation-model-evaluation
     """
+    num_classes = pred.shape[-3]
     pred = F.softmax(pred, dim=1)
     pred = torch.argmax(pred, dim=1).squeeze(1)
     iou_list = list()
     present_iou_list = list()
 
-    num_classes = pred.shape[-3]
     pred = pred.view(-1)
     label = label.view(-1)
     # Note: Following for loop goes from 0 to (num_classes-1)
