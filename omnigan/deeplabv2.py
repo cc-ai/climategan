@@ -141,7 +141,7 @@ class ResNetMulti(nn.Module):
 class DeepLabV2Decoder(BaseDecoder):
     # https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/decoder.py
     # https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/deeplab.py
-    def __init__(self, opts, no_init):
+    def __init__(self, opts, no_init=False):
         super().__init__()
         self.aspp = ASPP("resnet", 16, nn.BatchNorm2d, no_init)
         conv_modules = [
