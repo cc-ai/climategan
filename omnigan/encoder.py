@@ -79,8 +79,5 @@ class DeeplabV2Encoder(nn.Module):
             self.model.load_state_dict(new_params)
             print("    - Loaded pretrained weights")
 
-    def forward(self, z):
-        if isinstance(z, (list, tuple)):
-            assert len(z) == 2
-            z = z[0]
-        return self.model(z)
+    def forward(self, x):
+        return self.model(x)
