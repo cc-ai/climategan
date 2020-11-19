@@ -22,7 +22,6 @@ from comet_ml import Experiment
 from torch import autograd
 from torch.cuda.amp import GradScaler, autocast
 from tqdm import tqdm
-import traceback
 
 from omnigan.classifier import OmniClassifier, get_classifier
 from omnigan.data import get_all_loaders
@@ -1544,14 +1543,22 @@ class Trainer:
 
         for im_set in self.display_images[mode][domain]:
             x = im_set["data"]["x"].unsqueeze(0).to(self.device)
-            m = im_set["data"]["m"].unsqueeze(0).detach()
             z = self.G.encode(x)
-            pred_mask = self.G.mask(z=z).detach().cpu()
-            # Binarize mask
-            pred_mask = (pred_mask > 0.5).to(torch.float32)
-            for metric in metric_funcs:
-                metric_score = metric_funcs[metric](pred_mask, m)
-                metric_avg_scores["m"][metric].append(metric_score)
+
+            if "m" in self.opts:
+                pred_mask = self.G.mask(z=z).detach().cpu()
+                pred_mask = (pred_mask > 0.5).to(torch.float32)
+                pred_prob = torch.cat([1 - pred_mask, pred_mask], dim=1)
+
+                m = im_set["data"]["m"].unsqueeze(0).detach()
+
+                for metric in metric_funcs:
+                    if metric != "mIOU":
+                        metric_score = metric_funcs[metric](pred_mask, m)
+                    else:
+                        metric_score = metric_funcs[metric](pred_prob, m)
+
+                    metric_avg_scores["m"][metric].append(metric_score)
 
             if "s" in self.opts.tasks:
                 pred_seg = self.G.decoders["s"](z).detach().cpu()
