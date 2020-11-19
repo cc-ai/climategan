@@ -203,6 +203,7 @@ if __name__ == "__main__":
             f"[{test_idx + 1}/{n_confs}] "
             + conf.get("__doc", "WARNING: no __doc for test scenario")
         )
+        print()
         print(f"{prompt.b('••  Current Scenario:')}\n{conf}")
         print(prompt.b("•• Execution:\n"))
 
@@ -232,9 +233,9 @@ if __name__ == "__main__":
         finally:
             print_end("Done")
 
-        print_end("     -----   Summary   -----     ")
-        if len(fails) == 0:
-            print("•• All scenarios were successful")
-        else:
-            print(f"•• {len(successes)} successful tests")
-            print(f"•• Failed test indices: {', '.join(map(str, fails))}")
+    print_end("     -----   Summary   -----     ")
+    if len(fails) == 0:
+        print("•• All scenarios were successful")
+    else:
+        print(f"•• {len(successes)} successful tests")
+        print(f"•• Failed test indices: {', '.join(map(str, fails))}")
