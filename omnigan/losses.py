@@ -375,6 +375,7 @@ def get_losses(opts, verbose, device=None):
     # ------------------------------
     # -----  Generator Losses  -----
     # ------------------------------
+
     # painter losses
     if "p" in opts.tasks:
         losses["G"]["p"]["gan"] = (
@@ -387,12 +388,15 @@ def get_losses(opts, verbose, device=None):
         losses["G"]["p"]["reconstruction"] = ReconstructionLoss()
         losses["G"]["p"]["featmatch"] = FeatMatchLoss()
 
-    # task losses
-    # ? * add discriminator and gan loss to these task when no ground truth
-    # ?   instead of noisy label
-
+    # depth losses
     if "d" in opts.tasks:
-        losses["G"]["tasks"]["d"] = SIGMLoss(opts.train.lambdas.G.d.gml)
+        if opts.gen.d.loss == "dada":
+            depth_func = DADADepthLoss()
+        else:
+            depth_func = SIGMLoss(opts.train.lambdas.G.d.gml)
+        losses["G"]["tasks"]["d"] = depth_func
+
+    # segmentation losses
     if "s" in opts.tasks:
         losses["G"]["tasks"]["s"] = {}
         losses["G"]["tasks"]["s"]["crossent"] = CrossEntropy()
@@ -400,6 +404,8 @@ def get_losses(opts, verbose, device=None):
         losses["G"]["tasks"]["s"]["advent"] = ADVENTAdversarialLoss(
             opts, gan_type=opts.dis.s.gan_type
         )
+
+    # masker losses
     if "m" in opts.tasks:
         losses["G"]["tasks"]["m"] = {}
         losses["G"]["tasks"]["m"]["bce"] = nn.BCEWithLogitsLoss()
@@ -414,8 +420,8 @@ def get_losses(opts, verbose, device=None):
             opts, gan_type=opts.dis.m.gan_type
         )
         losses["G"]["tasks"]["m"]["gi"] = GroundIntersectionLoss()
+
     # undistinguishable features loss
-    # TODO setup a get_losses func to assign the right loss according to the yaml
     if opts.classifier.loss == "l1":
         loss_classifier = L1Loss()
     elif opts.classifier.loss == "l2":
@@ -423,15 +429,19 @@ def get_losses(opts, verbose, device=None):
     else:
         loss_classifier = CrossEntropy()
     losses["G"]["classifier"] = loss_classifier
+
     # -------------------------------
     # -----  Classifier Losses  -----
     # -------------------------------
     losses["C"] = loss_classifier
+
     # ----------------------------------
     # -----  Discriminator Losses  -----
     # ----------------------------------
-    losses["D"]["p"] = HingeLoss()
-    losses["D"]["advent"] = ADVENTAdversarialLoss(opts)
+    if "p" in opts.tasks:
+        losses["D"]["p"] = losses["G"]["p"]["gan"]
+    if "m" in opts.tasks or "s" in opts.tasks:
+        losses["D"]["advent"] = ADVENTAdversarialLoss(opts)
     return losses
 
 
@@ -582,3 +592,28 @@ class HingeLoss(nn.Module):
             return loss / len(input)
         else:
             return self.loss(input, target_is_real, for_discriminator)
+
+
+class DADADepthLoss:
+    """
+    From https://github.com/valeoai/DADA/blob/master/dada/utils/func.py
+    """
+
+    def loss_calc_depth(self, pred, label):
+        n, c, h, w = pred.size()
+        assert c == 1
+
+        pred = pred.squeeze()
+        label = label.squeeze()
+
+        adiff = torch.abs(pred - label)
+        batch_max = 0.2 * torch.max(adiff).item()
+        t1_mask = adiff.le(batch_max).float()
+        t2_mask = adiff.gt(batch_max).float()
+        t1 = adiff * t1_mask
+        t2 = (adiff * adiff + batch_max * batch_max) / (2 * batch_max)
+        t2 = t2 * t2_mask
+        return (torch.sum(t1) + torch.sum(t2)) / torch.numel(pred.data)
+
+    def __call__(self, pred, label):
+        return self.loss_calc_depth(pred, label)

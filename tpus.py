@@ -178,15 +178,11 @@ def eval_folder(
                     print("Batch", i, img.shape, img.device, end="\r", flush=True)
 
                     with Timer(store=masker_inference_time):
-                        z = model.encode(img)
-                        mask = F.sigmoid(model.decoders["m"](z))
+                        mask = model.mask(x=img)
                         # xm.mark_step()
 
                     with Timer(store=painter_inference_time):
-                        z_painter = None
-                        if use_half:
-                            z_painter = z_painter.half()
-                        fake_flooded = model.painter(z_painter, img * (1.0 - mask))
+                        fake_flooded = model.paint(img, mask)
                         xm.mark_step()
                     if to_cpu:
                         with Timer(store=to_cpu_time):

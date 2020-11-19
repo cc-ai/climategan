@@ -735,6 +735,10 @@ if __name__ == "__main__":
 
                 if k == "codeloc":
                     v = escape_path(v)
+
+                if k == "output":
+                    Path(v).parent.mkdir(parents=True, exist_ok=True)
+
                 # override template params depending on exp config
                 if k in tmp_template_dict:
                     if template_dict[k] is None or is_sampled(k, exp_conf):
@@ -856,3 +860,9 @@ if __name__ == "__main__":
             print("Add summary_dir=path to store the printed markdown table ⇪")
         else:
             print("Saved table in", str(sum_path))
+
+    if not dev:
+        print(
+            "Cancel entire experiment? \n$ scancel",
+            " ".join(map(str, summary["Slurm JOBID"])),
+        )

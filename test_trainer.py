@@ -7,8 +7,11 @@ import torch
 
 import omnigan
 from omnigan.utils import get_comet_rest_api_key
-from pathlib import Path
-from shutil import rmtree
+
+import logging
+
+logging.basicConfig()
+logging.getLogger().setLevel(logging.ERROR)
 
 
 class bcolors:

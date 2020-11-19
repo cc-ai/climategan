@@ -8,6 +8,7 @@ import warnings
 from copy import deepcopy
 from pathlib import Path
 from time import time
+import numpy as np
 
 from comet_ml import ExistingExperiment
 
@@ -21,11 +22,12 @@ from comet_ml import Experiment
 from torch import autograd
 from torch.cuda.amp import GradScaler, autocast
 from tqdm import tqdm
+import traceback
 
 from omnigan.classifier import OmniClassifier, get_classifier
 from omnigan.data import get_all_loaders
 from omnigan.discriminator import OmniDiscriminator, get_dis
-from omnigan.eval_metrics import accuracy, iou
+from omnigan.eval_metrics import accuracy, mIOU
 from omnigan.fid import compute_val_fid
 from omnigan.generator import OmniGenerator, get_gen
 from omnigan.losses import get_losses
@@ -115,9 +117,6 @@ class Trainer:
             self.grad_scaler_g = GradScaler()
             self.grad_scaler_c = GradScaler()
 
-    def mask(self, z):
-        return sigmoid(self.G.decoders["m"](z))
-
     @torch.no_grad()
     def paint(self, image_batch, mask_batch=None, resolution="approx"):
         """
@@ -153,19 +152,13 @@ class Trainer:
             self.eval_mode()
 
         if mask_batch is None:
-            z = self.G.encode(image_batch)
-            mask_batch = self.mask(z)
+            mask_batch = self.G.mask(x=image_batch)
         else:
             assert len(image_batch) == len(mask_batch)
             assert image_batch.shape[-2:] == mask_batch.shape[-2:]
 
-        z_painter = None
-        masked_batch = image_batch * (1.0 - mask_batch)
-
         if resolution not in {"approx", "exact"}:
-            painted = self.G.painter(z_painter, masked_batch)
-            if self.opts.gen.p.paste_original_content:
-                painted = mask_batch * painted + masked_batch
+            painted = self.G.paint(mask_batch, image_batch)
 
             if resolution == "upsample":
                 painted = nn.functional.interpolate(
@@ -183,9 +176,7 @@ class Trainer:
                 image_batch.shape[-1] // 2 ** self.opts.gen.p.spade_n_up
             )
 
-            painted = self.G.painter(z_painter, masked_batch)
-            if self.opts.gen.p.paste_original_content:
-                painted = mask_batch * painted + masked_batch
+            painted = self.G.paint(mask_batch, image_batch)
 
             self.G.painter.z_h = zh
             self.G.painter.z_w = zw
@@ -476,16 +467,7 @@ class Trainer:
         return b
 
     def sample_painter_z(self, batch_size):
-        if self.opts.gen.p.no_z:
-            return None
-
-        return torch.empty(
-            batch_size,
-            self.opts.gen.p.latent_dim,
-            self.G.painter.z_h,
-            self.G.painter.z_w,
-            device=self.device,
-        ).normal_(mean=0, std=1.0)
+        return self.G.sample_painter_z(batch_size, self.device)
 
     @property
     def train_loaders(self):
@@ -532,28 +514,32 @@ class Trainer:
         z = self.G.encode(x)
         return z.shape[1:] if not isinstance(z, (list, tuple)) else z[0].shape[1:]
 
-    def compute_input_shape(self):
-        """Compute the latent shape, i.e. the Encoder's output shape,
-        from a batch.
+    def compute_input_shapes(self):
+        """Compute the input shape, i.e. the data's post-transform shape,
+        from a batch, as a dict per task.
 
         Raises:
             ValueError: If no loader, the latent_shape cannot be inferred
 
         Returns:
-            tuple: (c, h, w)
+            dict(tuple): {task: (c, h, w) for task in self.opts.tasks}
         """
-        shape = None
-        for mode in self.loaders:
-            for domain in self.loaders[mode]:
-                shape = self.loaders[mode][domain].dataset[0]["data"]["x"].shape
-                break
-            if shape is not None:
-                break
 
-        if shape is None:
-            raise ValueError("No batch found to compute_latent_shape")
+        if any(t in self.opts.tasks for t in "msd"):
+            domain = "r"
+        else:
+            domain = "rf"
 
-        return shape
+        if "train" in self.loaders:
+            mode = "train"
+        else:
+            assert "val" in self.loaders, "no data loader found"
+            mode = "val"
+
+        return {
+            task: tensor.shape
+            for task, tensor in self.loaders[mode][domain].dataset[0]["data"].items()
+        }
 
     def g_opt_step(self):
         """Run an optimizing step ; if using ExtraAdam, there needs to be an extrapolation
@@ -627,14 +613,18 @@ class Trainer:
                     + " It  has to  be set prior to setup()."
                 )
             print("Computing latent & input shapes...", end="", flush=True)
-            self.input_shape = self.compute_input_shape()
+            self.input_shapes = self.compute_input_shapes()
 
         if "s" in self.opts.tasks:
-            self.G.decoders["s"].set_target_size(self.input_shape[-2:])
+            self.G.decoders["s"].set_target_size(self.input_shapes["s"][-2:])
         print("OK.")
 
-        self.G.painter.z_h = self.input_shape[-2] // (2 ** self.opts.gen.p.spade_n_up)
-        self.G.painter.z_w = self.input_shape[-1] // (2 ** self.opts.gen.p.spade_n_up)
+        self.G.painter.z_h = self.input_shapes["x"][-2] // (
+            2 ** self.opts.gen.p.spade_n_up
+        )
+        self.G.painter.z_w = self.input_shapes["x"][-1] // (
+            2 ** self.opts.gen.p.spade_n_up
+        )
 
         if inference:
             print("Inference mode: no Discriminator, no Classifier, no optimizers")
@@ -742,7 +732,10 @@ class Trainer:
             self.run_evaluation(verbose=1)
             self.save()
 
-            if self.logger.epoch == self.opts.gen.p.pl4m:
+            if (
+                self.logger.epoch == self.opts.gen.p.pl4m_epoch
+                and get_num_params(self.G.painter) > 0
+            ):
                 self.use_pl4m = True
 
     def run_epoch(self):
@@ -957,10 +950,7 @@ class Trainer:
                 # sample vector
                 with torch.no_grad():
                     # see spade compute_discriminator_loss
-                    z_paint = self.sample_painter_z(x.shape[0])
-                    fake = self.G.painter(z_paint, x * (1.0 - m))
-                    if self.opts.gen.p.paste_original_content:
-                        fake = fake * m + x * (1.0 - m)
+                    fake = self.G.paint(m, x)
                     fake = fake.detach()
                     fake.requires_grad_()
 
@@ -1085,7 +1075,7 @@ class Trainer:
                     m_loss += loss
                     self.logger.losses.gen.task["s"][domain] = loss.item()
                 elif task == "d":
-                    loss = self.masker_d_loss(x, z, target, "G")
+                    loss = self.masker_d_loss(x, z, target, domain, "G")
                     m_loss += loss
                     self.logger.losses.gen.task["d"][domain] = loss.item()
 
@@ -1111,12 +1101,7 @@ class Trainer:
         # ! different mask: hides water to be reconstructed
         # ! 1 for water, 0 otherwise
         m = batch["data"]["m"]
-        z = self.sample_painter_z(x.shape[0])
-        masked_x = x * (1.0 - m)
-
-        fake_flooded = self.G.painter(z, masked_x)
-        if self.opts.gen.p.paste_original_content:
-            fake_flooded = masked_x + m * fake_flooded
+        fake_flooded = self.G.paint(m, x)
 
         # ----------------------
         # -----  VGG Loss  -----
@@ -1221,13 +1206,13 @@ class Trainer:
                 else:
                     self.logger.losses.gen.p.featmatch = loss.item()
 
-            step_loss += loss
+                step_loss += loss
 
         return step_loss
 
     def masker_c_loss(self, z, target, for_="G"):
         assert for_ in {"G", "D"}
-        full_loss = 0
+        full_loss = torch.tensor(0.0, device=self.device)
         # -------------------
         # -----  Depth  -----
         # -------------------
@@ -1242,15 +1227,19 @@ class Trainer:
 
         return full_loss
 
-    def masker_d_loss(self, x, z, target, for_="G"):
+    def masker_d_loss(self, x, z, target, domain, for_="G"):
         assert for_ in {"G", "D"}
         self.assert_z_matches_x(x, z)
         assert x.shape[0] == target.shape[0]
-        full_loss = 0
+        full_loss = torch.tensor(0.0, device=self.device)
         weight = self.opts.train.lambdas.G.d.main
 
         if weight == 0:
             return full_loss
+
+        if domain == "r" and not self.opts.gen.d.use_pseudo_labels:
+            return full_loss
+
         # -------------------
         # -----  Depth  -----
         # -------------------
@@ -1268,7 +1257,7 @@ class Trainer:
         assert domain in {"r", "s"}
         self.assert_z_matches_x(x, z)
         assert x.shape[0] == target.shape[0] if target is not None else True
-        full_loss = 0
+        full_loss = torch.tensor(0.0, device=self.device)
         softmax_preds = None
         # --------------------------
         # -----  Segmentation  -----
@@ -1359,9 +1348,9 @@ class Trainer:
         assert domain in {"r", "s"}
         self.assert_z_matches_x(x, z)
         assert x.shape[0] == target.shape[0] if target is not None else True
-        full_loss = 0
+        full_loss = torch.tensor(0.0, device=self.device)
         # ? output features classifier
-        pred_logits = self.G.decoders["m"](z)
+        pred_logits = self.G.mask(z=z, sigmoid=False)
         pred_prob = sigmoid(pred_logits)
         pred_prob_complementary = 1 - pred_prob
         prob = torch.cat([pred_prob, pred_prob_complementary], dim=1)
@@ -1438,15 +1427,15 @@ class Trainer:
 
             if for_ == "D":
                 # WGAN: clipping or GP
-                if self.opts.dis.s.gan_type == "GAN" or "WGAN_norm":
+                if self.opts.dis.m.gan_type == "GAN" or "WGAN_norm":
                     pass
-                elif self.opts.dis.s.gan_type == "WGAN":
+                elif self.opts.dis.m.gan_type == "WGAN":
                     for p in self.D["s"]["Advent"].parameters():
                         p.data.clamp_(
-                            self.opts.dis.s.wgan_clamp_lower,
-                            self.opts.dis.s.wgan_clamp_upper,
+                            self.opts.dis.m.wgan_clamp_lower,
+                            self.opts.dis.m.wgan_clamp_upper,
                         )
-                elif self.opts.dis.s.gan_type == "WGAN_gp":
+                elif self.opts.dis.m.gan_type == "WGAN_gp":
                     prob_need_grad = autograd.Variable(prob, requires_grad=True)
                     d_out = self.D["s"]["Advent"](prob_need_grad)
                     gp = get_WGAN_gradient(prob_need_grad, d_out)
@@ -1463,11 +1452,7 @@ class Trainer:
         for param in self.G.painter.parameters():
             param.requires_grad = False
 
-        z = self.sample_painter_z(x.shape[0])
-        masked_x = x * (1.0 - m)  # 0s where water should be painted
-        fake_flooded = self.G.painter(z, masked_x)
-        if self.opts.gen.p.paste_original_content:
-            fake_flooded = masked_x + m * fake_flooded
+        fake_flooded = self.G.paint(m, x)
 
         if self.opts.dis.p.use_local_discriminator:
             fake_d_global = self.D["p"]["global"](fake_flooded)
@@ -1545,37 +1530,68 @@ class Trainer:
         print("****************** Done in {}s *********************".format(timing))
 
     def eval_images(self, mode, domain):
-        metrics = {"accuracy": accuracy, "iou": iou}
-        metric_avg_scores = {}
-        for key in metrics.keys():
-            metric_avg_scores[key] = 0.0
-        if domain != "rf":
-            for im_set in self.display_images[mode][domain]:
-                x = im_set["data"]["x"].unsqueeze(0).to(self.device)
-                m = im_set["data"]["m"].unsqueeze(0).detach().cpu().numpy()
-                z = self.G.encode(x)
-                pred_mask = self.mask(z).detach().cpu().numpy()
-                # Binarize mask
-                pred_mask[pred_mask > 0.5] = 1.0
+        if domain == "rf":
+            return
 
-                for metric_key in metrics.keys():
-                    metric_score = metrics[metric_key](pred_mask, m)
-                    metric_avg_scores[metric_key] += metric_score / len(
-                        self.display_images[mode][domain]
-                    )
+        metric_funcs = {"accuracy": accuracy, "mIOU": mIOU}
+        metric_avg_scores = {"m": {}}
+        if "s" in self.opts.tasks:
+            metric_avg_scores["s"] = {}
 
-            if self.exp is not None:
-                self.exp.log_metrics(
-                    metric_avg_scores,
-                    prefix=f"metrics_{mode}",
-                    step=self.logger.global_step,
-                )
+        for key in metric_funcs:
+            for task in metric_avg_scores:
+                metric_avg_scores[task][key] = []
+
+        for im_set in self.display_images[mode][domain]:
+            x = im_set["data"]["x"].unsqueeze(0).to(self.device)
+            m = im_set["data"]["m"].unsqueeze(0).detach()
+            z = self.G.encode(x)
+            pred_mask = self.G.mask(z=z).detach().cpu()
+            # Binarize mask
+            pred_mask = (pred_mask > 0.5).to(torch.float32)
+            for metric in metric_funcs:
+                metric_score = metric_funcs[metric](pred_mask, m)
+                metric_avg_scores["m"][metric].append(metric_score)
+
+            if "s" in self.opts.tasks:
+                pred_seg = self.G.decoders["s"](z).detach().cpu()
+                s = im_set["data"]["s"].unsqueeze(0).detach()
+
+                for metric in metric_funcs:
+                    metric_score = metric_funcs[metric](pred_seg, s)
+                    metric_avg_scores["s"][metric].append(metric_score)
+
+        metric_avg_scores = {
+            task: {
+                metric: np.mean(values) if values else float("nan")
+                for metric, values in met_dict.items()
+            }
+            for task, met_dict in metric_avg_scores.items()
+        }
+        metric_avg_scores = {
+            task: {
+                metric: value if not np.isnan(value) else -1
+                for metric, value in met_dict.items()
+            }
+            for task, met_dict in metric_avg_scores.items()
+        }
+        if self.exp is not None:
+            self.exp.log_metrics(
+                flatten_opts(metric_avg_scores),
+                prefix=f"metrics_{mode}_{domain}",
+                step=self.logger.global_step,
+            )
+        else:
+            print(f"metrics_{mode}_{domain}")
+            print(flatten_opts(metric_avg_scores))
 
         return 0
 
     def functional_test_mode(self):
         import atexit
 
+        self.opts.output_path = Path("~").expanduser() / "omnigan" / "functional_tests"
+        Path(self.opts.output_path).mkdir(parents=True, exist_ok=True)
         with open(Path(self.opts.output_path) / "is_functional.test", "w") as f:
             f.write("trainer functional test - delete this dir")
 

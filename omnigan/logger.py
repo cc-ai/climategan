@@ -61,6 +61,9 @@ class Logger:
                         task_saves.append(x * (1.0 - (prediction > 0.1).to(torch.int)))
                         task_saves.append(x * (1.0 - (prediction > 0.5).to(torch.int)))
                         task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
+                        # dummy pixels to fool scaling and preserve mask range
+                        prediction[:, :, 0, 0] = 1.0
+                        prediction[:, :, -1, -1] = 0.0
 
                     elif task == "d":
                         # prediction is a log depth tensor
@@ -96,10 +99,7 @@ class Logger:
                 x = im_set["data"]["x"].unsqueeze(0).to(trainer.device)
                 m = im_set["data"]["m"].unsqueeze(0).to(trainer.device)
 
-                z = trainer.sample_painter_z(x.shape[0])
-                prediction = trainer.G.painter(z, x * (1.0 - m))
-                if trainer.opts.gen.p.paste_original_content:
-                    prediction = prediction * m + x * (1.0 - m)
+                prediction = trainer.G.paint(m, x)
 
                 image_outputs.append(x * (1.0 - m))
                 image_outputs.append(prediction)
@@ -206,16 +206,12 @@ class Logger:
             x = im_set["data"]["x"].unsqueeze(0).to(trainer.device)
             # m = im_set["data"]["m"].unsqueeze(0).to(trainer.device)
 
-            zp = trainer.sample_painter_z(x.shape[0])
-            m = sigmoid(trainer.G.decoders["m"](trainer.G.encode(x)))
+            m = trainer.G.mask(x=x)
+            prediction = trainer.G.paint(m, x)
 
-            prediction = trainer.G.painter(zp, x * (1.0 - m))
-            if trainer.opts.gen.p.paste_original_content:
-                prediction = prediction * m + x * (1.0 - m)
-
+            image_outputs.append(x)
             image_outputs.append(x * (1.0 - m))
             image_outputs.append(prediction)
-            image_outputs.append(x)
             image_outputs.append(prediction * m)
         # Write images
         self.write_images(
@@ -264,18 +260,34 @@ class Logger:
             )
             ims = image_outputs[logidx * nb_per_log : (logidx + 1) * nb_per_log]
             if not ims:
-                print("", end="\r", flush=True)
                 continue
-            ims = torch.stack(ims).squeeze()
+
+            ims = self.padd(ims)
+            ims = torch.stack([im.squeeze() for im in ims]).squeeze()
             image_grid = vutils.make_grid(
                 ims, nrow=im_per_row, normalize=True, scale_each=True
             )
             image_grid = image_grid.permute(1, 2, 0).cpu().numpy()
-
-            print("Uploading...", end="", flush=True)
             trainer.exp.log_image(
                 Image.fromarray((image_grid * 255).astype(np.uint8)),
                 name=f"{mode}_{domain}_{task}_{str(curr_iter)}_#{logidx}",
                 step=curr_iter,
             )
-            print("Ok", end="\r", flush=True)
+
+    def padd(self, ims):
+        h = max(im.shape[-2] for im in ims)
+        w = max(im.shape[-1] for im in ims)
+        new_ims = []
+        for im in ims:
+            ih = im.shape[-2]
+            iw = im.shape[-1]
+            if ih != h or iw != w:
+                padded = torch.zeros(im.shape[-3], h, w)
+                padded[
+                    :, (h - ih) // 2 : (h + ih) // 2, (w - iw) // 2 : (w + iw) // 2
+                ] = im
+                new_ims.append(padded)
+            else:
+                new_ims.append(im)
+
+        return new_ims

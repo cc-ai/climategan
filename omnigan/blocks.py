@@ -11,7 +11,7 @@ import omnigan.strings as strings
 
 class InterpolateNearest2d(nn.Module):
     """
-    Custom implementation of nn.Upsample because pytroch/xla
+    Custom implementation of nn.Upsample because pytorch/xla
     does not yet support scale_factor and needs to be provided with
     the output_size
     """
@@ -74,6 +74,11 @@ class Conv2dBlock(nn.Module):
             assert 0, "Unsupported padding type: {}".format(pad_type)
 
         # initialize normalization
+        use_spectral_norm = False
+        if norm.startswith("spectral_"):
+            norm = norm.replace("spectral_", "")
+            use_spectral_norm = True
+
         norm_dim = output_dim
         if norm == "batch":
             self.norm = nn.BatchNorm2d(norm_dim)
@@ -84,7 +89,7 @@ class Conv2dBlock(nn.Module):
             self.norm = LayerNorm(norm_dim)
         elif norm == "adain":
             self.norm = AdaptiveInstanceNorm2d(norm_dim)
-        elif norm == "spectral":
+        elif norm == "spectral" or norm.startswith("spectral_"):
             self.norm = None  # dealt with later in the code
         elif norm == "none":
             self.norm = None
@@ -110,7 +115,7 @@ class Conv2dBlock(nn.Module):
             raise ValueError("Unsupported activation: {}".format(activation))
 
         # initialize convolution
-        if norm == "spectral":
+        if norm == "spectral" or use_spectral_norm:
             self.conv = SpectralNorm(
                 nn.Conv2d(
                     input_dim,
@@ -147,6 +152,10 @@ class Conv2dBlock(nn.Module):
 # -----  Residual Blocks  -----
 # -----------------------------
 class ResBlocks(nn.Module):
+    """
+    From https://github.com/NVlabs/MUNIT/blob/master/networks.py
+    """
+
     def __init__(self, num_blocks, dim, norm="in", activation="relu", pad_type="zero"):
         super().__init__()
         self.model = nn.Sequential(
@@ -282,11 +291,30 @@ class BaseDecoder(nn.Module):
         pad_type="zero",
         output_activ="tanh",
         conv_norm="layer",
+        low_level_feats_dim=-1,
     ):
         super().__init__()
-        self.model = [
-            Conv2dBlock(input_dim, proj_dim, 1, 1, 0, norm=res_norm, activation=activ)
-        ]
+
+        self.low_level_feats_dim = low_level_feats_dim
+
+        self.model = []
+        if proj_dim != -1:
+            self.proj_conv = Conv2dBlock(
+                input_dim, proj_dim, 1, 1, 0, norm=res_norm, activation=activ
+            )
+        else:
+            self.proj_conv = None
+            proj_dim = input_dim
+
+        if low_level_feats_dim > 0:
+            self.low_level_conv = Conv2dBlock(
+                low_level_feats_dim, proj_dim, 3, 1, 1, norm=res_norm, activation=activ
+            )
+            self.merge_feats_conv = Conv2dBlock(
+                2 * proj_dim, proj_dim, 1, 1, 0, norm=res_norm, activation=activ
+            )
+        else:
+            self.low_level_conv = None
 
         self.model += [ResBlocks(n_res, proj_dim, res_norm, activ, pad_type=pad_type)]
         dim = proj_dim
@@ -322,8 +350,23 @@ class BaseDecoder(nn.Module):
         self.model = nn.Sequential(*self.model)
 
     def forward(self, z):
+        low_level_feat = None
         if isinstance(z, (list, tuple)):
-            z = z[0]
+            if self.low_level_conv is None:
+                z = z[0]
+            else:
+                z, low_level_feat = z
+                low_level_feat = self.low_level_conv(low_level_feat)
+                low_level_feat = F.interpolate(
+                    low_level_feat, size=z.shape[-2:], mode="bilinear"
+                )
+
+        if self.proj_conv is not None:
+            z = self.proj_conv(z)
+
+        if low_level_feat is not None:
+            z = self.merge_feats_conv(torch.cat([low_level_feat, z], dim=1))
+
         return self.model(z)
 
     def __str__(self):
@@ -337,11 +380,20 @@ class DepthDecoder(nn.Module):
 
     def __init__(self, opts):
         super().__init__()
-        res_dim = opts.gen.d.res_dim
-        if res_dim == 2048:
-            mid_dim = 512
+        if (
+            opts.gen.encoder.architecture == "deeplabv3"
+            and opts.gen.deeplabv3.backbone == "mobilenet"
+        ):
+            res_dim = 320
         else:
-            mid_dim = 256
+            res_dim = 2048
+
+        # if res_dim == 2048:
+        #     mid_dim = 512
+        # else:
+        #     mid_dim = 256
+
+        mid_dim = 512
 
         self.relu = nn.ReLU(inplace=True)
         self.enc4_1 = nn.Conv2d(
@@ -353,7 +405,25 @@ class DepthDecoder(nn.Module):
         self.enc4_3 = nn.Conv2d(
             mid_dim, 128, kernel_size=1, stride=1, padding=0, bias=True
         )
-        self.output_size = opts.data.transforms[-1].new_size
+        self.upsample = None
+        if opts.gen.d.upsample_featuremaps:
+            self.upsample = nn.Sequential(
+                *[
+                    InterpolateNearest2d(),
+                    nn.Conv2d(128, 32, kernel_size=3, stride=1, padding=1),
+                    nn.ReLU(True),
+                    nn.Conv2d(32, 1, kernel_size=1, stride=1, padding=0),
+                    nn.ReLU(True),
+                ]
+            )
+        if isinstance(opts.data.transforms[-1].new_size, int):
+            self.output_size = opts.data.transforms[-1].new_size
+        else:
+            if "d" in opts.data.transforms[-1].new_size:
+                self.output_size = opts.data.transforms[-1].new_size["d"]
+            else:
+                assert "default" in opts.data.transforms[-1].new_size
+                self.output_size = opts.data.transforms[-1].new_size["default"]
 
     def forward(self, z):
         if isinstance(z, (list, tuple)):
@@ -364,16 +434,21 @@ class DepthDecoder(nn.Module):
         z4_enc = self.relu(z4_enc)
         z4_enc = self.enc4_3(z4_enc)
 
+        if self.upsample is not None:
+            z4_enc = self.upsample(z4_enc)
+
         depth = torch.mean(z4_enc, dim=1, keepdim=True)  # DADA paper decoder
-        depth = F.interpolate(
-            depth,
-            size=(384, 384),  # size used in MiDaS inference
-            mode="bicubic",  # what MiDaS uses
-            align_corners=False,
-        )
-        depth = F.interpolate(
-            depth, (self.output_size, self.output_size), mode="nearest"
-        )  # what we used in the transforms to resize input
+        if depth.shape[-1] != self.output_size:
+            depth = F.interpolate(
+                depth,
+                size=(384, 384),  # size used in MiDaS inference
+                mode="bicubic",  # what MiDaS uses
+                align_corners=False,
+            )
+
+            depth = F.interpolate(
+                depth, (self.output_size, self.output_size), mode="nearest"
+            )  # what we used in the transforms to resize input
         return depth
 
     def __str__(self):
