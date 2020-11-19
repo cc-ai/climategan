@@ -208,9 +208,13 @@ def set_data_paths(opts: Dict) -> Dict:
 
     for mode in ["train", "val"]:
         for domain in opts.data.files[mode]:
-            opts.data.files[mode][domain] = str(
-                Path(opts.data.files.base) / opts.data.files[mode][domain]
-            )
+            if opts.data.files.base and not opts.data.files[mode][domain].startswith(
+                "/"
+            ):
+                opts.data.files[mode][domain] = str(
+                    Path(opts.data.files.base) / opts.data.files[mode][domain]
+                )
+            assert Path(opts.data.files[mode][domain]).exists()
 
     return opts
 
@@ -277,7 +281,7 @@ def get_increased_path(path: Union[str, Path]) -> Path:
             name = str(n.name)
             start = name.index("(")
             end = name.index(")")
-            vals.append(int(name[start + 1: end]))
+            vals.append(int(name[start + 1 : end]))
     if vals:
         ext = " ({})".format(max(vals) + 1)
     elif fp.exists():

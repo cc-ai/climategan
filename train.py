@@ -24,6 +24,11 @@ from omnigan.utils import (
     get_existing_comet_id,
 )
 
+import logging
+
+logging.basicConfig()
+logging.getLogger().setLevel(logging.ERROR)
+
 hydra_config_path = Path(__file__).resolve().parent / "shared/trainer/config.yaml"
 
 
