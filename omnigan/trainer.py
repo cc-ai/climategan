@@ -732,7 +732,10 @@ class Trainer:
             self.run_evaluation(verbose=1)
             self.save()
 
-            if self.logger.epoch == self.opts.gen.p.pl4m_epoch:
+            if (
+                self.logger.epoch == self.opts.gen.p.pl4m_epoch
+                and get_num_params(self.G.painter) > 0
+            ):
                 self.use_pl4m = True
 
     def run_epoch(self):
