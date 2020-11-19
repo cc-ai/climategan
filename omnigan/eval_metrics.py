@@ -85,7 +85,7 @@ def mIOU(pred, label):
     Returns:
         float: mIOU, can be nan
     """
-    num_classes = pred[-3]
+    num_classes = pred.shape[-3]
 
     pred = torch.argmax(pred, dim=1).squeeze(1)
     present_iou_list = list()
