@@ -140,7 +140,6 @@ if __name__ == "__main__":
     # prompt util for colors
     prompt = Colors()
 
-
     # -------------------------------------
     # -----  Base Test Scenario Opts  -----
     # -------------------------------------
@@ -154,7 +153,10 @@ if __name__ == "__main__":
     base_opts.data.loaders.batch_size = 2
     base_opts.data.max_samples = 9
     base_opts.train.epochs = 1
-    base_opts.data.transforms[-1].new_size = 256
+    if isinstance(base_opts.data.transforms[-1].new_size, int):
+        base_opts.data.transforms[-1].new_size = 256
+    else:
+        base_opts.data.transforms[-1].new_size.default = 256
 
     # --------------------------------------
     # -----  Configure Test Scenarios  -----
