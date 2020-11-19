@@ -12,6 +12,7 @@ import logging
 
 logging.basicConfig()
 logging.getLogger().setLevel(logging.ERROR)
+import traceback
 
 
 def set_opts(opts, str_nested_key, value):
@@ -140,7 +141,6 @@ if __name__ == "__main__":
     # prompt util for colors
     prompt = Colors()
 
-
     # -------------------------------------
     # -----  Base Test Scenario Opts  -----
     # -------------------------------------
@@ -154,7 +154,10 @@ if __name__ == "__main__":
     base_opts.data.loaders.batch_size = 2
     base_opts.data.max_samples = 9
     base_opts.train.epochs = 1
-    base_opts.data.transforms[-1].new_size = 256
+    if isinstance(base_opts.data.transforms[-1].new_size, int):
+        base_opts.data.transforms[-1].new_size = 256
+    else:
+        base_opts.data.transforms[-1].new_size.default = 256
 
     # --------------------------------------
     # -----  Configure Test Scenarios  -----
@@ -182,6 +185,9 @@ if __name__ == "__main__":
 
     n_confs = len(test_scenarios)
 
+    fails = []
+    successes = []
+
     # --------------------------------
     # -----  Run Test Scenarios  -----
     # --------------------------------
@@ -197,22 +203,38 @@ if __name__ == "__main__":
             f"[{test_idx + 1}/{n_confs}] "
             + conf.get("__doc", "WARNING: no __doc for test scenario")
         )
-        print(f"{prompt.b('Current Scenario:')}\n{conf}")
+        print(f"{prompt.b('••  Current Scenario:')}\n{conf}")
+        print(prompt.b("•• Execution:\n"))
 
         # set (or not) experiment
         test_exp = None
         if conf.get("__comet", True):
             test_exp = global_exp
 
-        # create trainer
-        trainer = omnigan.trainer.Trainer(opts=test_opts, comet_exp=test_exp,)
-        trainer.functional_test_mode()
+        try:
+            # create trainer
+            trainer = omnigan.trainer.Trainer(opts=test_opts, comet_exp=test_exp,)
+            trainer.functional_test_mode()
 
-        # set (or not) painter loss for masker (= end-to-end)
-        if conf.get("__pl4m", False):
-            trainer.use_pl4m = True
+            # set (or not) painter loss for masker (= end-to-end)
+            if conf.get("__pl4m", False):
+                trainer.use_pl4m = True
 
-        # test training procedure
-        trainer.setup()
-        trainer.train()
-        print_end("Done")
+            # test training procedure
+            trainer.setup()
+            trainer.train()
+
+            successes.append(test_idx)
+        except Exception as e:
+            print(e)
+            print(traceback.format_exc())
+            fails.append(test_idx)
+        finally:
+            print_end("Done")
+
+        print_end("     -----   Summary   -----     ")
+        if len(fails) == 0:
+            print("•• All scenarios were successful")
+        else:
+            print(f"•• {len(successes)} successful tests")
+            print(f"•• Failed test indices: {', '.join(map(str, fails))}")
