@@ -85,10 +85,9 @@ def mIOU(pred, label):
     Returns:
         float: mIOU, can be nan
     """
-    num_classes = pred.shape[-3]
+    num_classes = int(label.max().item())
     pred = F.softmax(pred, dim=1)
     pred = torch.argmax(pred, dim=1).squeeze(1)
-    iou_list = list()
     present_iou_list = list()
 
     pred = pred.view(-1)
@@ -99,9 +98,7 @@ def mIOU(pred, label):
     for sem_class in range(num_classes):
         pred_inds = pred == sem_class
         target_inds = label == sem_class
-        if target_inds.long().sum().item() == 0:
-            iou_now = float("nan")
-        else:
+        if target_inds.long().sum().item() > 0:
             intersection_now = (pred_inds[target_inds]).long().sum().item()
             union_now = (
                 pred_inds.long().sum().item()
@@ -110,5 +107,4 @@ def mIOU(pred, label):
             )
             iou_now = float(intersection_now) / float(union_now)
             present_iou_list.append(iou_now)
-        iou_list.append(iou_now)
     return np.mean(present_iou_list) if present_iou_list else float("nan")
