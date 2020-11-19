@@ -1,17 +1,33 @@
 import atexit
 from argparse import ArgumentParser
+from copy import deepcopy
 
 from comet_ml import Experiment
 from comet_ml.api import API
 import torch
 
 import omnigan
-from omnigan.utils import get_comet_rest_api_key
+from omnigan.utils import get_comet_rest_api_key, flatten_opts
 
 import logging
 
 logging.basicConfig()
 logging.getLogger().setLevel(logging.ERROR)
+
+
+def set_opts(opts, str_nested_key, value):
+    keys = str_nested_key.split(".")
+    o = opts
+    for k in keys[:-1]:
+        o = o[k]
+    o[keys[-1]] = value
+
+
+def set_conf(opts, conf):
+    for k, v in conf.items():
+        if k.startswith("__"):
+            continue
+        set_opts(opts, k, v)
 
 
 class bcolors:
@@ -87,9 +103,9 @@ if __name__ == "__main__":
     parser.add_argument("--no_end_to_end", action="store_true", default=False)
     args = parser.parse_args()
 
-    exp = Experiment(project_name="omnigan-test")
+    global_exp = Experiment(project_name="omnigan-test")
     if not args.no_delete:
-        delete_on_exit(exp)
+        delete_on_exit(global_exp)
 
     prompt = Colors()
 
@@ -105,67 +121,44 @@ if __name__ == "__main__":
     opts.train.epochs = 1
     opts.data.transforms[-1].new_size = 256
 
-    # ---------------------------------
-    # -----  MSD Trainer no Exp.  -----
-    # ---------------------------------
+    test_scenarios = [
+        {"__comet": False, "__doc": "MSD no exp"},
+        {"__doc": "MSD with exp"},
+        {"tasks": ["p"], "domains": ["rf"], "__doc": "Painter"},
+        {
+            "tasks": ["m", "s", "d", "p"],
+            "domains": ["rf", "r", "s"],
+            "__doc": "MSDP no End-to-end",
+        },
+        {
+            "tasks": ["m", "s", "d", "p"],
+            "domains": ["rf", "r", "s"],
+            "__pl4m": True,
+            "__doc": "MSDP with End-to-end",
+        },
+    ]
 
-    print_start("Running MSD no Exp")
-    trainer = omnigan.trainer.Trainer(opts=opts, comet_exp=None,)
-    trainer.functional_test_mode()
-    trainer.setup()
-    trainer.train()
-    print_end("Done")
+    n_confs = len(test_scenarios)
 
-    del trainer
-    torch.cuda.empty_cache()
+    for test_idx, conf in enumerate(test_scenarios):
+        test_opts = deepcopy(opts)
+        set_conf(test_opts, conf)
+        print_start(
+            f"[{test_idx + 1}/{n_confs}] "
+            + conf.get("__doc", "WARNING: no __doc for test scenario")
+        )
+        print(f"{prompt.b('Current Scenario:')}\n{conf}")
 
-    # ----------------------------------
-    # -----  MSD Trainer with Exp  -----
-    # ----------------------------------
-    print_start("Running MSD with Exp")
-    trainer = omnigan.trainer.Trainer(opts=opts, comet_exp=exp)
-    trainer.functional_test_mode()
-    trainer.exp.log_parameter("is_functional_test", True)
-    trainer.setup()
-    trainer.train()
-    print_end("Done")
+        test_exp = None
+        if conf.get("__comet", True):
+            test_exp = global_exp
 
-    # -----------------------
-    # -----  P trainer  -----
-    # -----------------------
-    print_start("Running P")
-    opts.tasks = ["p"]
-    opts.domains = ["rf"]
-    trainer = omnigan.trainer.Trainer(opts=opts, comet_exp=exp)
-    trainer.functional_test_mode()
-    trainer.exp.log_parameter("is_functional_test", True)
-    trainer.setup()
-    trainer.train()
-    print_end("Done")
+        trainer = omnigan.trainer.Trainer(opts=test_opts, comet_exp=test_exp,)
+        trainer.functional_test_mode()
 
-    # --------------------------------
-    # -----  MSDP no end-to-end  -----
-    # --------------------------------
-    print_start("Running MSDP no end-to-end")
-    opts.tasks = ["m", "s", "d", "p"]
-    opts.domains = ["rf", "r", "s"]
-    trainer = omnigan.trainer.Trainer(opts=opts, comet_exp=exp)
-    trainer.functional_test_mode()
-    trainer.exp.log_parameter("is_functional_test", True)
-    trainer.setup()
-    trainer.train()
-    print_end("Done")
+        if conf.get("__pl4m", False):
+            trainer.use_pl4m = True
 
-    # ----------------------------------
-    # -----  MSDP with end-to-end  -----
-    # ----------------------------------
-    print_start("Running MSDP with end-to-end")
-    opts.tasks = ["m", "s", "d", "p"]
-    opts.domains = ["rf", "r", "s"]
-    trainer = omnigan.trainer.Trainer(opts=opts, comet_exp=exp)
-    trainer.functional_test_mode()
-    trainer.exp.log_parameter("is_functional_test", True)
-    trainer.use_pl4m = True
-    trainer.setup()
-    trainer.train()
-    print_end("Done")
+        trainer.setup()
+        trainer.train()
+        print_end("Done")
