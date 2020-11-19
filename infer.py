@@ -103,7 +103,7 @@ def eval_folder(
         img = img.unsqueeze(0).to(device)
 
         if not masker and paint:
-            mask = tensor_loader(masks[i], task="m", domain="val", binarize=False)
+            mask = tensor_loader(masks[i], task="m", domain="val")
             # mask = F.interpolate(mask, (new_size, new_size), mode="nearest")
             mask = mask.squeeze()
             mask = mask.unsqueeze(0).to(device)
