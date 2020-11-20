@@ -103,13 +103,16 @@ def print_start(desc):
 def print_end(desc=None, ok=None):
     p = Colors()
     if ok and desc is None:
-        cdesc = p.b(p.og("Done"))
+        desc = "Done"
+        cdesc = p.b(p.og(desc))
     elif not ok and desc is None:
-        cdesc = p.b(p.f("! Fail !"))
+        desc = "! Fail !"
+        cdesc = p.b(p.f(desc))
     elif desc is not None:
         cdesc = p.b(p.og(desc))
     else:
-        cdesc = "Unknown"
+        desc = "Unknown"
+        cdesc = desc
 
     title = "|  " + cdesc + "  |"
     line = "-" * (len(desc) + 6)
