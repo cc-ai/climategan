@@ -271,7 +271,7 @@ def tensor_loader(path, task, domain):
     elif task == "s":
         arr = np.moveaxis(arr, 2, 0)
     elif task == "m":
-        if arr.max() > 1:
+        if arr.max() > 127:
             arr = (arr > 127).astype(arr.dtype)
         # Make sure mask is single-channel
         if len(arr.shape) >= 3:

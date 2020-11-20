@@ -94,9 +94,10 @@ def mIOU(pred, label):
     # Note: Following for loop goes from 0 to (num_classes-1)
     # and ignore_index is num_classes, thus ignore_index is
     # not considered in computation of IoU.
-    interesting_classes = [
-        range(num_classes) if num_classes > 2 else int(label.max().item())
-    ]
+    interesting_classes = (
+        range(num_classes) if num_classes > 2 else [int(label.max().item())]
+    )
+
     for sem_class in interesting_classes:
         pred_inds = pred == sem_class
         target_inds = label == sem_class
