@@ -1652,12 +1652,14 @@ class Trainer:
                 # todo: s to sky mask
                 # todo: interpolate to d's size
 
-        airlight = self.opts.events.smog.airlight * torch.ones(3)
+        params = self.opts.events.smog
+
+        airlight = params.airlight * torch.ones(3)
         airlight = airlight.view(1, -1, 1, 1).to(self.device)
 
         irradiance = srgb2lrgb(x)
 
-        beta = torch.tensor([self.opts.events.smog.beta / self.opts.events.vr] * 3)
+        beta = torch.tensor([params.beta / params.vr] * 3)
         beta = beta.view(1, -1, 1, 1).to(self.device)
 
         d = normalize(d, mini=0.3, maxi=1.0)
