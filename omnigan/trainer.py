@@ -11,6 +11,7 @@ from time import time
 import numpy as np
 
 from comet_ml import ExistingExperiment
+from torch.functional import align_tensors
 
 warnings.simplefilter("ignore", UserWarning)
 
@@ -41,6 +42,9 @@ from omnigan.tutils import (
     vgg_preprocess,
     zero_grad,
     print_num_parameters,
+    normalize,
+    srgb2lrgb,
+    lrgb2srgb,
 )
 from omnigan.utils import (
     comet_kwargs,
@@ -117,7 +121,7 @@ class Trainer:
             self.grad_scaler_c = GradScaler()
 
     @torch.no_grad()
-    def paint(self, image_batch, mask_batch=None, resolution="approx"):
+    def paint_and_mask(self, image_batch, mask_batch=None, resolution="approx"):
         """
         Paints a batch of images (or a single image with a batch dim of 1). If
         masks are not provided, they are inferred from the masker.
@@ -1614,3 +1618,43 @@ class Trainer:
 
         if (Path(self.opts.output_path) / "is_functional.test").exists() or force:
             shutil.rmtree(self.opts.output_path)
+
+    def compute_smog(self, x, z=None, d=None, s=None, use_sky_seg=False):
+        sky_mask = None
+        if d is None or (use_sky_seg and s is None):
+            if z is None:
+                z = self.G.encode(x)
+            if d is None:
+                d = self.G.decoders["d"](z)
+            if use_sky_seg and s is None:
+                s = self.G.decoders["s"](z)
+                # todo: s to sky mask
+                # todo: interpolate to d's size
+
+        airlight = 0.76
+        A = airlight * torch.ones(3).view(1, -1, 1, 1)
+        I = srgb2lrgb(x)
+        vr = 1
+        beta_param = 2
+
+        beta = torch.tensor([beta_param / vr, beta_param / vr, beta_param / vr]).view(
+            1, -1, 1, 1
+        )
+        d = normalize(d, mini=0.3, maxi=1.0)
+        d = 1.0 / d
+        d = normalize(d, mini=0.1, maxi=1)
+
+        if sky_mask is not None:
+            d[sky_mask] = 1
+        d = torch.nn.functional.interpolate(
+            d, size=x.shape[-2:], mode="bilinear", align_corners=True
+        )
+
+        d = d.repeat(1, 3, 1, 1)
+
+        transmission = torch.exp(d * -beta)
+
+        Ic = transmission * I + (1 - transmission) * A
+        smogged = lrgb2srgb(Ic)
+
+        return smogged

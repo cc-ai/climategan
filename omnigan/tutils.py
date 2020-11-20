@@ -480,3 +480,46 @@ def print_num_parameters(trainer):
         print("{:21}:".format("num params classif"), f"{get_num_params(trainer.C):12,}")
     print("-" * 35)
 
+
+def srgb2lrgb(x):
+    x = normalize(x)
+    im = ((x + 0.055) / 1.055) ** (2.4)
+    im[x <= 0.04045] = x[x <= 0.04045] / 12.92
+    return im
+
+
+def lrgb2srgb(ims):
+    if len(ims.shape) == 3:
+        ims = [ims]
+        stack = False
+    else:
+        ims = list(ims)
+        stack = True
+
+    outs = []
+    for im in ims:
+
+        out = torch.zeros_like(im)
+        for k in range(3):
+            temp = im[k, :, :]
+
+            out[k, :, :] = 12.92 * temp * (temp <= 0.0031308) + (
+                1.055 * torch.pow(temp, (1 / 2.4)) - 0.055
+            ) * (temp > 0.0031308)
+            outs.append(out)
+
+    if stack:
+        return torch.stack(outs)
+
+    return outs[0]
+
+
+def normalize(t, mini=0, maxi=1):
+    if len(t.shape) == 3:
+        return mini + (maxi - mini) * (t - t.min()) / (t.max() - t.min())
+
+    min_t = t.view(len(t), -1).min(1)[0].view(len(t), 1, 1, 1)
+    t = t - min_t
+    max_t = t.view(len(t), -1).max(1)[0].view(len(t), 1, 1, 1)
+    t = t / max_t
+    return mini + (maxi - mini) * t
