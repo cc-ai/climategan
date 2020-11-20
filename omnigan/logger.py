@@ -76,8 +76,8 @@ class Logger:
                         )
                         prediction = normalize_tensor(prediction) * 255
                         prediction = prediction.repeat(1, 3, 1, 1)
-                        task_saves.append(target.repeat(1, 3, 1, 1))
                         task_saves.append(smogged)
+                        task_saves.append(target.repeat(1, 3, 1, 1))
 
                     task_saves.append(prediction)
                     save_images[task].append(x.cpu().detach())
