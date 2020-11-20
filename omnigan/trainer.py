@@ -1565,9 +1565,9 @@ class Trainer:
                 pred_seg = self.G.decoders["s"](z).detach().cpu()
                 s = im_set["data"]["s"].unsqueeze(0).detach()
 
-                # for metric in metric_funcs:
-                #     metric_score = metric_funcs[metric](pred_seg, s)
-                #     metric_avg_scores["s"][metric].append(metric_score)
+                for metric in metric_funcs:
+                    metric_score = metric_funcs[metric](pred_seg, s)
+                    metric_avg_scores["s"][metric].append(metric_score)
 
         metric_avg_scores = {
             task: {
