@@ -100,9 +100,17 @@ def print_start(desc):
     print(f"{line}\n{title}\n{line}")
 
 
-def print_end(desc):
+def print_end(desc=None, ok=None):
     p = Colors()
-    cdesc = p.b(p.og(desc))
+    if ok and desc is None:
+        cdesc = p.b(p.og("Done"))
+    elif not ok and desc is None:
+        cdesc = p.b(p.f("! Fail !"))
+    elif desc is not None:
+        cdesc = p.b(p.og(desc))
+    else:
+        cdesc = "Unknown"
+
     title = "|  " + cdesc + "  |"
     line = "-" * (len(desc) + 6)
     print(f"{line}\n{title}\n{line}")
@@ -226,14 +234,16 @@ if __name__ == "__main__":
             trainer.train()
 
             successes.append(test_idx)
+            ok = True
         except Exception as e:
             print(e)
             print(traceback.format_exc())
             fails.append(test_idx)
+            ok = False
         finally:
-            print_end("Done")
+            print_end(ok=ok)
 
-    print_end("     -----   Summary   -----     ")
+    print_end(desc="     -----   Summary   -----     ")
     if len(fails) == 0:
         print("•• All scenarios were successful")
     else:
