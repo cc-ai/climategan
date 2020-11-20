@@ -106,12 +106,15 @@ gen:
   deeplabv2:
     nblocks: [3, 4, 23, 3]
     use_pretrained: True
-    pretrained_model: "/network/tmp1/ccai/data/omnigan/pretrained_models/DeepLab_resnet_pretrained_imagenet.pth"
+    pretrained_model: "/miniscratch/_groups/ccai/data/pretrained_models/deeplabv2/DeepLab_resnet_pretrained_imagenet.pth"
 
   deeplabv3:
     backbone: "mobilenet" # mobilenet or resnet
     output_stride: 8 # 8 or 16
     use_pretrained: true
+    pretrained_model:
+      mobilenet: "/miniscratch/_groups/ccai/data/pretrained_models/deeplabv3/deeplab-mobilenet.pth"
+      resnet: "/miniscratch/_groups/ccai/data/pretrained_models/deeplabv3/deeplab-resnet.pth"
 
   d: # specific params for the depth estimation decoder
     <<: *default-gen
