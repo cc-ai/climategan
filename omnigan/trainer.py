@@ -1627,6 +1627,11 @@ class Trainer:
             if d is None:
                 d = self.G.decoders["d"](z)
             if use_sky_seg and s is None:
+                if "s" not in self.opts.tasks:
+                    raise ValueError(
+                        "Cannot have "
+                        + "(use_sky_seg is True and s is None and 's' not in tasks)"
+                    )
                 s = self.G.decoders["s"](z)
                 # todo: s to sky mask
                 # todo: interpolate to d's size
@@ -1637,9 +1642,11 @@ class Trainer:
         vr = 1
         beta_param = 2
 
-        beta = torch.tensor([beta_param / vr, beta_param / vr, beta_param / vr]).view(
-            1, -1, 1, 1
-        ).to(self.device)
+        beta = (
+            torch.tensor([beta_param / vr, beta_param / vr, beta_param / vr])
+            .view(1, -1, 1, 1)
+            .to(self.device)
+        )
 
         d = normalize(d, mini=0.3, maxi=1.0)
         d = 1.0 / d
