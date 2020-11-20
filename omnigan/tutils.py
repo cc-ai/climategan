@@ -506,7 +506,7 @@ def lrgb2srgb(ims):
             out[k, :, :] = 12.92 * temp * (temp <= 0.0031308) + (
                 1.055 * torch.pow(temp, (1 / 2.4)) - 0.055
             ) * (temp > 0.0031308)
-            outs.append(out)
+        outs.append(out)
 
     if stack:
         return torch.stack(outs)

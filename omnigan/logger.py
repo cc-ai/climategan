@@ -71,9 +71,7 @@ class Logger:
                     elif task == "d":
                         # prediction is a log depth tensor
                         target = normalize_tensor(target) * 255
-                        smogged = self.trainer.compute_smog(
-                            x, d=prediction, s=seg_pred, use_sky_seg=False
-                        )
+                        smogged = self.trainer.compute_smog(x, d=prediction, s=seg_pred, use_sky_seg=False)
                         prediction = normalize_tensor(prediction) * 255
                         prediction = prediction.repeat(1, 3, 1, 1)
                         task_saves.append(target.repeat(1, 3, 1, 1))
