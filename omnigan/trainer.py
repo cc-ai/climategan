@@ -11,7 +11,6 @@ from time import time
 import numpy as np
 
 from comet_ml import ExistingExperiment
-from torch.functional import align_tensors
 
 warnings.simplefilter("ignore", UserWarning)
 

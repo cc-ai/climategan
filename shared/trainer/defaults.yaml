@@ -204,12 +204,12 @@ dis:
     multi_level: false
     architecture: base # can be [base | OmniDiscriminator]
     gan_type: WGAN_norm # can be [GAN | WGAN | WGAN_gp | WGAN_norm]
-    wgan_clamp_lower: -0.01 # used in WGAN, WGAN clap the params in dis to [wgan_clamp_lower, wgan_clamp_upper] for every updation
+    wgan_clamp_lower: -0.01 # used in WGAN, WGAN clap the params in dis to [wgan_clamp_lower, wgan_clamp_upper] for every update
     wgan_clamp_upper: 0.01 # used in WGAN
   s:
     <<: *default-dis
     gan_type: WGAN_norm # can be [GAN | WGAN | WGAN_gp | WGAN_norm]
-    wgan_clamp_lower: -0.01 # used in WGAN, WGAN clap the params in dis to [wgan_clamp_lower, wgan_clamp_upper] for every updation
+    wgan_clamp_lower: -0.01 # used in WGAN, WGAN clap the params in dis to [wgan_clamp_lower, wgan_clamp_upper] for every update
     wgan_clamp_upper: 0.01 # used in WGAN
 # -------------------------------
 # -----  Domain Classifier  -----
