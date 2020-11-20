@@ -1632,14 +1632,15 @@ class Trainer:
                 # todo: interpolate to d's size
 
         airlight = 0.76
-        A = airlight * torch.ones(3).view(1, -1, 1, 1)
+        A = airlight * torch.ones(3).view(1, -1, 1, 1).to(self.device)
         I = srgb2lrgb(x)
         vr = 1
         beta_param = 2
 
         beta = torch.tensor([beta_param / vr, beta_param / vr, beta_param / vr]).view(
             1, -1, 1, 1
-        )
+        ).to(self.device)
+
         d = normalize(d, mini=0.3, maxi=1.0)
         d = 1.0 / d
         d = normalize(d, mini=0.1, maxi=1)
