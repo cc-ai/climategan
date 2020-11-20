@@ -5,10 +5,8 @@ import numpy as np
 import torch
 from torch.nn.functional import sigmoid, interpolate
 from omnigan.data import decode_segmap_merged_labels
-from omnigan.fire import retrieve_sky_mask, add_fire
 from omnigan.tutils import normalize_tensor
 from omnigan.utils import flatten_opts
-from omnigan.transforms import interpolation
 from PIL import Image
 
 
@@ -276,7 +274,7 @@ class Logger:
             if not ims:
                 continue
 
-            ims = self.upsample(ims, task)
+            ims = self.upsample(ims)
             ims = torch.stack([im.squeeze() for im in ims]).squeeze()
             image_grid = vutils.make_grid(
                 ims, nrow=im_per_row, normalize=True, scale_each=True
@@ -288,7 +286,7 @@ class Logger:
                 step=curr_iter,
             )
 
-    def upsample(self, ims, task):
+    def upsample(self, ims):
         h = max(im.shape[-2] for im in ims)
         w = max(im.shape[-1] for im in ims)
         new_ims = []
