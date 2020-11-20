@@ -25,6 +25,7 @@ from tqdm import tqdm
 
 from omnigan.classifier import OmniClassifier, get_classifier
 from omnigan.data import get_all_loaders
+from omnigan.fire import add_fire
 from omnigan.discriminator import OmniDiscriminator, get_dis
 from omnigan.eval_metrics import accuracy, mIOU
 from omnigan.fid import compute_val_fid
@@ -1564,9 +1565,9 @@ class Trainer:
                 pred_seg = self.G.decoders["s"](z).detach().cpu()
                 s = im_set["data"]["s"].unsqueeze(0).detach()
 
-                for metric in metric_funcs:
-                    metric_score = metric_funcs[metric](pred_seg, s)
-                    metric_avg_scores["s"][metric].append(metric_score)
+                # for metric in metric_funcs:
+                #     metric_score = metric_funcs[metric](pred_seg, s)
+                #     metric_avg_scores["s"][metric].append(metric_score)
 
         metric_avg_scores = {
             task: {
@@ -1605,6 +1606,18 @@ class Trainer:
         if self.exp is not None:
             self.exp.log_parameter("is_functional_test", True)
         atexit.register(self.del_output_path)
+
+    def compute_fire(self, x, seg_preds):
+        if seg_preds is None:
+            z = self.G.encode(x)
+            seg_preds = self.G.decoders["s"](z)
+        fire_color = (
+            self.opts.events.fire.color.r,
+            self.opts.events.fire.color.g,
+            self.opts.events.fire.color.b,
+        )
+        blur_radius = self.opts.events.fire.blur_radius
+        return add_fire(x, seg_preds, fire_color, blur_radius)
 
     def del_output_path(self, force=False):
         import shutil

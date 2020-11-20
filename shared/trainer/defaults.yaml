@@ -156,6 +156,7 @@ gen:
     proj_dim: 64
     n_res: 3
     use_low_level_feats: False
+    
 # -------------------------
 # ----- Discriminator -----
 # -------------------------
@@ -291,5 +292,12 @@ comet:
   im_per_row: # how many columns (3 = x, target, pred)
     p: 4
     m: 6
-    s: 3
+    s: 4
     d: 3
+events:
+  fire:
+    color:
+      r: 250
+      g: 0
+      b: 0
+    blur_radius: 150
