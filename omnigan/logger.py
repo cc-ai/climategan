@@ -293,7 +293,7 @@ class Logger:
         w = max(im.shape[-1] for im in ims)
         new_ims = []
         for im in ims:
-            im = interpolate(im, (h, w), **interpolation(task))
+            im = interpolate(im, (h, w), mode="bilinear")
             new_ims.append(im)
         return new_ims
 
