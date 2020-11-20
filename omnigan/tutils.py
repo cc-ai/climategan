@@ -523,3 +523,23 @@ def normalize(t, mini=0, maxi=1):
     max_t = t.view(len(t), -1).max(1)[0].view(len(t), 1, 1, 1)
     t = t / max_t
     return mini + (maxi - mini) * t
+
+
+def retrieve_sky_mask(seg):
+    """
+    get the binary mask for the sky given a segmentation tensor
+    of logits (N x C x H x W) or labels (N x H x W)
+
+    Args:
+        seg (torch.Tensor): Segmentation map
+
+    Returns:
+        torch.Tensor: Sky mask
+    """
+    if len(seg.shape) == 4:  # Predictions
+        seg_ind = torch.argmax(seg.squeeze(), dim=0)
+    else:
+        seg_ind = seg
+
+    sky_mask = seg_ind == 9
+    return sky_mask

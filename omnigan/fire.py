@@ -3,17 +3,7 @@ import numpy as np
 import torch.nn.functional as F
 from PIL import Image, ImageEnhance, ImageFilter
 from torchvision import transforms
-
-
-def normalize(arr, mini=0, maxi=1):
-    return mini + (maxi - mini) * (arr - arr.min()) / (arr.max() - arr.min())
-
-
-def retrieve_sky_mask(seg_preds):
-    if len(seg_preds.shape) == 4:  # Predictions
-        seg_ind = torch.argmax(seg_preds.squeeze(), dim=0)
-    sky_mask = seg_ind == 9
-    return sky_mask
+from omnigan.tutils import normalize, retrieve_sky_mask
 
 
 def increase_sky_mask(sky_mask, increase=True, p_w=0, p_h=0):
