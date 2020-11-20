@@ -32,12 +32,12 @@ class Logger:
 
                 seg_pred = None
                 for task in sorted(self.trainer.opts.tasks, reverse=True):
+                    if task == "p":
+                        continue
+
                     target = display_dict["data"][task]
                     target = target.unsqueeze(0).to(trainer.device)
                     task_saves = []
-
-                    if task == "p":
-                        continue
 
                     if task not in save_images:
                         save_images[task] = []
@@ -71,7 +71,9 @@ class Logger:
                     elif task == "d":
                         # prediction is a log depth tensor
                         target = normalize_tensor(target) * 255
-                        smogged = self.trainer.compute_smog(x, d=prediction, s=seg_pred, use_sky_seg=False)
+                        smogged = self.trainer.compute_smog(
+                            x, d=prediction, s=seg_pred, use_sky_seg=False
+                        )
                         prediction = normalize_tensor(prediction) * 255
                         prediction = prediction.repeat(1, 3, 1, 1)
                         task_saves.append(target.repeat(1, 3, 1, 1))
