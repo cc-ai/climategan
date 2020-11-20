@@ -10,7 +10,8 @@ def normalize(arr, mini=0, maxi=1):
 
 
 def retrieve_sky_mask(seg_preds):
-    seg_ind = torch.argmax(seg_preds.squeeze(), dim=0)
+    if len(seg_preds.shape) == 4:  # Predictions
+        seg_ind = torch.argmax(seg_preds.squeeze(), dim=0)
     sky_mask = seg_ind == 9
     return sky_mask
 
