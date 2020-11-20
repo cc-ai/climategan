@@ -292,4 +292,9 @@ comet:
     p: 4
     m: 6
     s: 3
-    d: 3
+    d: 4
+events:
+  smog:
+    airlight: 0.76
+    beta: 2
+    vr: 1
