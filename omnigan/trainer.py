@@ -1607,9 +1607,10 @@ class Trainer:
             self.exp.log_parameter("is_functional_test", True)
         atexit.register(self.del_output_path)
 
-    def compute_fire(self, x, seg_preds):
+    def compute_fire(self, x, seg_preds=None, z=None):
         if seg_preds is None:
-            z = self.G.encode(x)
+            if z is None:
+                z = self.G.encode(x)
             seg_preds = self.G.decoders["s"](z)
         fire_color = (
             self.opts.events.fire.color.r,

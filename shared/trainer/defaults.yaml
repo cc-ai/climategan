@@ -156,7 +156,7 @@ gen:
     proj_dim: 64
     n_res: 3
     use_low_level_feats: False
-    
+
 # -------------------------
 # ----- Discriminator -----
 # -------------------------
