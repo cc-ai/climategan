@@ -1,7 +1,6 @@
 import numpy as np
 import cv2
 import torch
-import torch.nn.functional as F
 
 # ------------------------------------------------------------------------------
 # ----- Evaluation metrics for a pair of binary mask images (pred, target) -----

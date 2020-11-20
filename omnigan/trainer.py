@@ -11,7 +11,6 @@ from time import time
 import numpy as np
 
 from comet_ml import ExistingExperiment
-from torch.functional import align_tensors
 
 warnings.simplefilter("ignore", UserWarning)
 
@@ -26,6 +25,7 @@ from tqdm import tqdm
 
 from omnigan.classifier import OmniClassifier, get_classifier
 from omnigan.data import get_all_loaders
+from omnigan.fire import add_fire
 from omnigan.discriminator import OmniDiscriminator, get_dis
 from omnigan.eval_metrics import accuracy, mIOU
 from omnigan.fid import compute_val_fid
@@ -1610,6 +1610,29 @@ class Trainer:
             self.exp.log_parameter("is_functional_test", True)
         atexit.register(self.del_output_path)
 
+    def compute_fire(self, x, seg_preds=None, z=None):
+        """
+        Transforms input tensor given wildfires event
+        Args:
+            x (torch.Tensor): Input tensor
+            seg_preds (torch.Tensor): Semantic segmentation predictions for input tensor
+            z (torch.Tensor): Latent vector of encoded "x". Can be None if seg_preds is given.
+        Returns:
+            torch.Tensor: Wildfire version of input tensor
+        """
+
+        if seg_preds is None:
+            if z is None:
+                z = self.G.encode(x)
+            seg_preds = self.G.decoders["s"](z)
+        fire_color = (
+            self.opts.events.fire.color.r,
+            self.opts.events.fire.color.g,
+            self.opts.events.fire.color.b,
+        )
+        blur_radius = self.opts.events.fire.blur_radius
+        return add_fire(x, seg_preds, fire_color, blur_radius)
+
     def del_output_path(self, force=False):
         import shutil
 
@@ -1638,12 +1661,14 @@ class Trainer:
                 # todo: s to sky mask
                 # todo: interpolate to d's size
 
-        airlight = self.opts.events.smog.airlight * torch.ones(3)
+        params = self.opts.events.smog
+
+        airlight = params.airlight * torch.ones(3)
         airlight = airlight.view(1, -1, 1, 1).to(self.device)
 
         irradiance = srgb2lrgb(x)
 
-        beta = torch.tensor([self.opts.events.smog.beta / self.opts.events.vr] * 3)
+        beta = torch.tensor([params.beta / params.vr] * 3)
         beta = beta.view(1, -1, 1, 1).to(self.device)
 
         d = normalize(d, mini=0.3, maxi=1.0)

@@ -3,7 +3,7 @@ import torchvision.utils as vutils
 
 import numpy as np
 import torch
-from torch.nn.functional import sigmoid
+from torch.nn.functional import sigmoid, interpolate
 from omnigan.data import decode_segmap_merged_labels
 from omnigan.tutils import normalize_tensor
 from omnigan.utils import flatten_opts
@@ -21,6 +21,7 @@ class Logger:
     def log_comet_images(self, mode, domain):
         trainer = self.trainer
         save_images = {}
+
         # --------------------
         # -----  Masker  -----
         # --------------------
@@ -45,6 +46,10 @@ class Logger:
                     prediction = trainer.G.decoders[task](z)
 
                     if task == "s":
+                        # Log fire
+                        wildfire_tens = trainer.compute_fire(x, prediction)
+                        task_saves.append(wildfire_tens)
+                        # Log seg output
                         target = (
                             decode_segmap_merged_labels(target, domain, True)
                             .float()
@@ -269,7 +274,7 @@ class Logger:
             if not ims:
                 continue
 
-            ims = self.padd(ims)
+            ims = self.upsample(ims)
             ims = torch.stack([im.squeeze() for im in ims]).squeeze()
             image_grid = vutils.make_grid(
                 ims, nrow=im_per_row, normalize=True, scale_each=True
@@ -280,6 +285,15 @@ class Logger:
                 name=f"{mode}_{domain}_{task}_{str(curr_iter)}_#{logidx}",
                 step=curr_iter,
             )
+
+    def upsample(self, ims):
+        h = max(im.shape[-2] for im in ims)
+        w = max(im.shape[-1] for im in ims)
+        new_ims = []
+        for im in ims:
+            im = interpolate(im, (h, w), mode="bilinear")
+            new_ims.append(im)
+        return new_ims
 
     def padd(self, ims):
         h = max(im.shape[-2] for im in ims)

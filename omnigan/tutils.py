@@ -155,8 +155,9 @@ def show_tanh_tensor(tensor):
     if isinstance(tensor, torch.Tensor):
         image = tensor.permute(1, 2, 0).detach().numpy()
     else:
-        if tensor.shape[-1] != 3:
-            image = tensor.transpose(1, 2, 0)
+        image = tensor
+        if image.shape[-1] != 3:
+            image = image.transpose(1, 2, 0)
 
     if image.min() < 0 and image.min() > -1:
         image = image / 2 + 0.5
@@ -195,22 +196,29 @@ def get_normalized_depth_t(arr, domain, normalize=False):
 
 
 def decode_unity_depth_t(unity_depth, log=True, normalize=False, numpy=False, far=1000):
-    """Transforms the 3-channel encoded depth map from our Unity simulator to 1-channel depth map
-    containing metric depth values.
+    """Transforms the 3-channel encoded depth map from our Unity simulator
+    to 1-channel depth map containing metric depth values.
     The depth is encoded in the following way:
     - The information from the simulator is (1 - LinearDepth (in [0,1])).
-        far corresponds to the furthest distance to the camera included in the depth map.
+        far corresponds to the furthest distance to the camera included in the
+        depth map.
         LinearDepth * far gives the real metric distance to the camera.
-    - depth is first divided in 31 slices encoded in R channel with values ranging from 0 to 247
+    - depth is first divided in 31 slices encoded in R channel with values ranging
+        from 0 to 247
     - each slice is divided again in 31 slices, whose value is encoded in G channel
     - each of the G slices is divided into 256 slices, encoded in B channel
-    In total, we have a discretization of depth into N = 31*31*256 - 1 possible values, covering a range of
-    far/N meters.
-    Note that, what we encode here is 1 - LinearDepth so that the furthest point is [0,0,0] (that is sky)
-    and the closest point[255,255,255]
+
+    In total, we have a discretization of depth into N = 31*31*256 - 1 possible values,
+    covering a range of far/N meters.
+
+    Note that, what we encode here is 1 - LinearDepth so that the furthest point is
+    [0,0,0] (that is sky) and the closest point[255,255,255]
+
     The metric distance associated to a pixel whose depth is (R,G,B) is :
         d = (far/N) * [((255 - R)//8)*256*31 + ((255 - G)//8)*256 + (255 - B)]
+
     * torch.Tensor in [0, 1] as torch.float32 if numpy == False
+
     * else numpy.array in [0, 255] as np.uint8
 
     Args:
@@ -252,8 +260,10 @@ def to_inv_depth(log_depth, numpy=False):
         depth (Tensor): log depth float tensor
     """
     depth = torch.exp(log_depth)
-    # visualize prediction using inverse depth, so that we don't need sky segmentation (if you want to use RGB map for visualization, \
-    # you have to run semantic segmentation to mask the sky first since the depth of sky is random from CNN)
+    # visualize prediction using inverse depth, so that we don't need sky
+    # segmentation (if you want to use RGB map for visualization,
+    # you have to run semantic segmentation to mask the sky first
+    # since the depth of sky is random from CNN)
     inv_depth = 1 / depth
     inv_depth /= torch.max(inv_depth)
     if numpy:
@@ -426,7 +436,7 @@ def is_tpu_available():
         import torch_xla.core.xla_model as xm  # noqa: F401
 
         if "xla" in str(xm.xla_device()):
-            _torch_tpu_available = True  # pylint: disable=
+            _torch_tpu_available = True
         else:
             _torch_tpu_available = False
     except ImportError:
@@ -436,7 +446,8 @@ def is_tpu_available():
 
 
 def get_WGAN_gradient(input, output):
-    # github code reference: https://github.com/caogang/wgan-gp/blob/master/gan_cifar10.py
+    # github code reference:
+    # https://github.com/caogang/wgan-gp/blob/master/gan_cifar10.py
     # Calculate the gradient that WGAN-gp needs
     grads = autograd.grad(
         outputs=output,
@@ -523,3 +534,23 @@ def normalize(t, mini=0, maxi=1):
     max_t = t.view(len(t), -1).max(1)[0].view(len(t), 1, 1, 1)
     t = t / max_t
     return mini + (maxi - mini) * t
+
+
+def retrieve_sky_mask(seg):
+    """
+    get the binary mask for the sky given a segmentation tensor
+    of logits (N x C x H x W) or labels (N x H x W)
+
+    Args:
+        seg (torch.Tensor): Segmentation map
+
+    Returns:
+        torch.Tensor: Sky mask
+    """
+    if len(seg.shape) == 4:  # Predictions
+        seg_ind = torch.argmax(seg.squeeze(), dim=0)
+    else:
+        seg_ind = seg
+
+    sky_mask = seg_ind == 9
+    return sky_mask

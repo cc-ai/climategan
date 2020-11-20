@@ -7,8 +7,8 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.utils.model_zoo as model_zoo
 from omnigan.blocks import ASPP
+from pathlib import Path
 
 
 class Bottleneck(nn.Module):
@@ -62,7 +62,14 @@ class Bottleneck(nn.Module):
 
 class ResNet(nn.Module):
     def __init__(
-        self, block, layers, output_stride, BatchNorm, pretrained=True, no_init=False
+        self,
+        block,
+        layers,
+        output_stride,
+        BatchNorm,
+        pretrained=True,
+        pretrained_path=None,
+        no_init=False,
     ):
         self.inplanes = 64
         super(ResNet, self).__init__()
@@ -75,6 +82,8 @@ class ResNet(nn.Module):
             dilations = [1, 1, 2, 4]
         else:
             raise NotImplementedError
+
+        self.pretrained_path = pretrained_path
 
         # Modules
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
@@ -214,9 +223,10 @@ class ResNet(nn.Module):
                 m.bias.data.zero_()
 
     def _load_pretrained_model(self):
-        pretrain_dict = model_zoo.load_url(
-            "https://download.pytorch.org/models/resnet101-5d3b4d8f.pth"
-        )
+        assert self.pretrained_path is not None
+        assert Path(self.pretrained_path).exists()
+
+        pretrain_dict = torch.load(self.pretrained_path)
         model_dict = {}
         state_dict = self.state_dict()
         for k, v in pretrain_dict.items():
@@ -228,7 +238,11 @@ class ResNet(nn.Module):
 
 
 def ResNet101(
-    output_stride=8, BatchNorm=nn.BatchNorm2d, pretrained=True, no_init=False
+    output_stride=8,
+    BatchNorm=nn.BatchNorm2d,
+    pretrained=True,
+    pretrained_path=None,
+    no_init=False,
 ):
     """Constructs a ResNet-101 model.
     Args:
@@ -240,6 +254,7 @@ def ResNet101(
         output_stride,
         BatchNorm,
         pretrained=pretrained,
+        pretrained_path=pretrained_path,
         no_init=no_init,
     )
     return model
@@ -399,6 +414,7 @@ class MobileNetV2(nn.Module):
         BatchNorm=None,
         width_mult=1.0,
         pretrained=True,
+        pretrained_path=None,
         no_init=False,
     ):
         super(MobileNetV2, self).__init__()
@@ -406,6 +422,7 @@ class MobileNetV2(nn.Module):
         input_channel = 32
         current_stride = 1
         rate = 1
+        self.pretrained_path = pretrained_path
         interverted_residual_setting = [
             # t, c, n, s
             [1, 16, 1, 1],
@@ -467,9 +484,10 @@ class MobileNetV2(nn.Module):
         return x, low_level_feat
 
     def _load_pretrained_model(self):
-        pretrain_dict = model_zoo.load_url(
-            "http://jeff95.me/models/mobilenet_v2-6a65762b.pth"
-        )
+        assert self.pretrained_path is not None
+        assert Path(self.pretrained_path).exists()
+
+        pretrain_dict = torch.load(self.pretrained_path)
         model_dict = {}
         state_dict = self.state_dict()
         for k, v in pretrain_dict.items():
@@ -505,6 +523,7 @@ def build_backbone(opts, no_init):
             output_stride=output_stride,
             BatchNorm=nn.BatchNorm2d,
             pretrained=use_pretrained,
+            pretrained_path=opts.gen.deeplabv3.pretrained_model.resnet,
             no_init=no_init,
         )
     elif backbone == "mobilenet":
@@ -512,10 +531,11 @@ def build_backbone(opts, no_init):
             output_stride=output_stride,
             BatchNorm=nn.BatchNorm2d,
             pretrained=use_pretrained,
+            pretrained_path=opts.gen.deeplabv3.pretrained_model.mobilenet,
             no_init=no_init,
         )
     else:
-        raise NotImplementedError
+        raise NotImplementedError("Unknown backbone in " + str(opts.gen.deeplabv3))
 
 
 """

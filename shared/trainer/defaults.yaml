@@ -106,12 +106,15 @@ gen:
   deeplabv2:
     nblocks: [3, 4, 23, 3]
     use_pretrained: True
-    pretrained_model: "/network/tmp1/ccai/data/omnigan/pretrained_models/DeepLab_resnet_pretrained_imagenet.pth"
+    pretrained_model: "/miniscratch/_groups/ccai/data/pretrained_models/deeplabv2/DeepLab_resnet_pretrained_imagenet.pth"
 
   deeplabv3:
     backbone: "mobilenet" # mobilenet or resnet
     output_stride: 8 # 8 or 16
     use_pretrained: true
+    pretrained_model:
+      mobilenet: "/miniscratch/_groups/ccai/data/pretrained_models/deeplabv3/deeplab-mobilenet.pth"
+      resnet: "/miniscratch/_groups/ccai/data/pretrained_models/deeplabv3/deeplab-resnet.pth"
 
   d: # specific params for the depth estimation decoder
     <<: *default-gen
@@ -156,6 +159,7 @@ gen:
     proj_dim: 64
     n_res: 3
     use_low_level_feats: False
+
 # -------------------------
 # ----- Discriminator -----
 # -------------------------
@@ -200,12 +204,12 @@ dis:
     multi_level: false
     architecture: base # can be [base | OmniDiscriminator]
     gan_type: WGAN_norm # can be [GAN | WGAN | WGAN_gp | WGAN_norm]
-    wgan_clamp_lower: -0.01 # used in WGAN, WGAN clap the params in dis to [wgan_clamp_lower, wgan_clamp_upper] for every updation
+    wgan_clamp_lower: -0.01 # used in WGAN, WGAN clap the params in dis to [wgan_clamp_lower, wgan_clamp_upper] for every update
     wgan_clamp_upper: 0.01 # used in WGAN
   s:
     <<: *default-dis
     gan_type: WGAN_norm # can be [GAN | WGAN | WGAN_gp | WGAN_norm]
-    wgan_clamp_lower: -0.01 # used in WGAN, WGAN clap the params in dis to [wgan_clamp_lower, wgan_clamp_upper] for every updation
+    wgan_clamp_lower: -0.01 # used in WGAN, WGAN clap the params in dis to [wgan_clamp_lower, wgan_clamp_upper] for every update
     wgan_clamp_upper: 0.01 # used in WGAN
 # -------------------------------
 # -----  Domain Classifier  -----
@@ -291,9 +295,15 @@ comet:
   im_per_row: # how many columns (3 = x, target, pred)
     p: 4
     m: 6
-    s: 3
+    s: 4
     d: 4
 events:
+  fire:
+    color:
+      r: 250
+      g: 0
+      b: 0
+    blur_radius: 150
   smog:
     airlight: 0.76
     beta: 2
