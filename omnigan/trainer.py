@@ -1620,6 +1620,8 @@ class Trainer:
             shutil.rmtree(self.opts.output_path)
 
     def compute_smog(self, x, z=None, d=None, s=None, use_sky_seg=False):
+        # implementation from the paper:
+        # HazeRD: An outdoor scene dataset and benchmark for single image dehazing
         sky_mask = None
         if d is None or (use_sky_seg and s is None):
             if z is None:
@@ -1636,17 +1638,13 @@ class Trainer:
                 # todo: s to sky mask
                 # todo: interpolate to d's size
 
-        airlight = 0.76
-        A = airlight * torch.ones(3).view(1, -1, 1, 1).to(self.device)
-        I = srgb2lrgb(x)
-        vr = 1
-        beta_param = 2
+        airlight = self.opts.events.smog.airlight * torch.ones(3)
+        airlight = airlight.view(1, -1, 1, 1).to(self.device)
 
-        beta = (
-            torch.tensor([beta_param / vr, beta_param / vr, beta_param / vr])
-            .view(1, -1, 1, 1)
-            .to(self.device)
-        )
+        irradiance = srgb2lrgb(x)
+
+        beta = torch.tensor([self.opts.events.smog.beta / self.opts.events.vr] * 3)
+        beta = beta.view(1, -1, 1, 1).to(self.device)
 
         d = normalize(d, mini=0.3, maxi=1.0)
         d = 1.0 / d
@@ -1654,6 +1652,7 @@ class Trainer:
 
         if sky_mask is not None:
             d[sky_mask] = 1
+
         d = torch.nn.functional.interpolate(
             d, size=x.shape[-2:], mode="bilinear", align_corners=True
         )
@@ -1662,7 +1661,6 @@ class Trainer:
 
         transmission = torch.exp(d * -beta)
 
-        Ic = transmission * I + (1 - transmission) * A
-        smogged = lrgb2srgb(Ic)
+        smogged = transmission * irradiance + (1 - transmission) * airlight
 
-        return smogged
+        return lrgb2srgb(smogged)
