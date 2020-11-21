@@ -1387,8 +1387,6 @@ class Trainer:
 
                 weight = self.opts.train.lambdas.G["m"]["gi"]
                 if self.opts.gen.m.use_ground_intersection and weight != 0:
-                    if self.verbose > 0:
-                        print("Using GroundIntersection loss.")
                     # GroundIntersection loss
                     loss = self.losses["G"]["tasks"]["m"]["gi"](pred_prob, target)
                     loss *= weight
@@ -1523,6 +1521,9 @@ class Trainer:
         if "m" in self.opts.tasks and "p" in self.opts.tasks:
             self.logger.log_comet_combined_images("train", "r")
             self.logger.log_comet_combined_images("val", "r")
+
+        if self.exp is not None:
+            print()
 
         if "m" in self.opts.tasks:
             self.eval_images("val", "r")

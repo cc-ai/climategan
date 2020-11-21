@@ -237,7 +237,7 @@ if __name__ == "__main__":
 
         # print scenario description
         print_start(
-            f"[{test_idx + 1}/{n_confs}] "
+            f"[{test_idx}/{n_confs - 1}] "
             + conf.get("__doc", "WARNING: no __doc for test scenario")
         )
         print()
@@ -260,6 +260,10 @@ if __name__ == "__main__":
             # set (or not) painter loss for masker (= end-to-end)
             if pl4m:
                 trainer.use_pl4m = True
+
+            # set input_shape for inference-only
+            if inference:
+                trainer.input_shape = (3, 640, 640)
 
             # test training procedure
             trainer.setup(inference=inference)
