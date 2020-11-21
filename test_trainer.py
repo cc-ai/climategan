@@ -215,8 +215,6 @@ if __name__ == "__main__":
             + conf.get("__doc", "WARNING: no __doc for test scenario")
         )
         print()
-        print(f"{prompt.b('••  Current Scenario:')}\n{conf}")
-        print(prompt.b("•• Execution:\n"))
 
         # set (or not) experiment
         test_exp = None
