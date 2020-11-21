@@ -34,7 +34,7 @@ class Logger:
                 z = trainer.G.encode(x)
 
                 seg_pred = None
-                for task in sorted(self.trainer.opts.tasks, reverse=True):
+                for k, task in enumerate(sorted(self.trainer.opts.tasks, reverse=True)):
                     if task == "p":
                         continue
 
@@ -88,7 +88,8 @@ class Logger:
 
                     task_saves.append(prediction)
                     save_images[task].append(x.cpu().detach())
-                    all_images.append(save_images[task][-1])
+                    if k == 0:
+                        all_images.append(save_images[task][-1])
 
                     for im in task_saves:
                         save_images[task].append(im.cpu().detach())
