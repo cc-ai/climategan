@@ -61,7 +61,7 @@ def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
 
 
 class OmniGenerator(nn.Module):
-    def __init__(self, opts, latent_shape=None, verbose=None, no_init=False):
+    def __init__(self, opts, latent_shape=None, verbose=0, no_init=False):
         """Creates the generator. All decoders listed in opts.gen will be added
         to the Generator.decoders ModuleDict if opts.gen.DecoderInitial is not True.
         Then can be accessed as G.decoders.T or G.decoders["T"] for instance,
@@ -76,50 +76,59 @@ class OmniGenerator(nn.Module):
         self.encoder = None
         if any(t in opts.tasks for t in "msd"):
             if opts.gen.encoder.architecture == "deeplabv2":
-                self.encoder = DeeplabV2Encoder(opts, no_init)
-                print("  - Created Deeplabv2 Encoder")
+                self.encoder = DeeplabV2Encoder(opts, no_init, verbose)
+                if self.verbose > 0:
+                    print("  - Created Deeplabv2 Encoder")
             elif opts.gen.encoder.architecture == "deeplabv3":
                 self.encoder = build_backbone(opts, no_init)
-                print(
-                    "  - Created Deeplabv3 ({}) Encoder".format(
-                        opts.gen.deeplabv3.backbone
+                if self.verbose > 0:
+                    print(
+                        "  - Created Deeplabv3 ({}) Encoder".format(
+                            opts.gen.deeplabv3.backbone
+                        )
                     )
-                )
             else:
                 self.encoder = BaseEncoder(opts)
-                print("  - Created Base Encoder")
+                if self.verbose > 0:
+                    print("  - Created Base Encoder")
 
         self.verbose = verbose
         self.decoders = {}
 
         if "d" in opts.tasks:
             self.decoders["d"] = DepthDecoder(opts)
-            print("  - Created Depth Decoder")
+            if self.verbose > 0:
+                print("  - Created Depth Decoder")
 
         if "s" in opts.tasks:
             if opts.gen.s.architecture == "deeplabv2":
                 self.decoders["s"] = DeepLabV2Decoder(opts)
-                print("  - Created DeepLabV2Decoder")
+                if self.verbose > 0:
+                    print("  - Created DeepLabV2Decoder")
             elif opts.gen.s.architecture == "deeplabv3":
                 self.decoders["s"] = DeepLabV3Decoder(opts)
-                print("  - Created DeepLabV3Decoder")
+                if self.verbose > 0:
+                    print("  - Created DeepLabV3Decoder")
             else:
                 raise NotImplementedError(
                     "Unknown architecture {}".format(opts.gen.s.architecture)
                 )
 
         if "m" in opts.tasks:
-            print("  - Created Mask Decoder")
+            if self.verbose > 0:
+                print("  - Created Mask Decoder")
             self.decoders["m"] = MaskDecoder(opts)
 
         self.decoders = nn.ModuleDict(self.decoders)
 
         if "p" in self.opts.tasks:
             self.painter = PainterSpadeDecoder(opts)
-            print("  - Created PainterSpadeDecoder Painter")
+            if self.verbose > 0:
+                print("  - Created PainterSpadeDecoder Painter")
         else:
             self.painter = nn.Module()
-            print("  - Created Empty Painter")
+            if self.verbose > 0:
+                print("  - Created Empty Painter")
 
     def encode(self, x):
         assert self.encoder is not None

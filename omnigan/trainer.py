@@ -193,6 +193,13 @@ class Trainer:
 
         return painted
 
+    def _p(self, *args, **kwargs):
+        """
+        verbose-dependant print util
+        """
+        if self.verbose > 0:
+            print(*args, **kwargs)
+
     @classmethod
     def resume_from_path(
         cls, path, overrides={}, setup=True, inference=False, new_exp=False
@@ -603,7 +610,7 @@ class Trainer:
         # -----  Generator  -----
         # -----------------------
         __t = time()
-        print("Creating generator:")
+        print("Creating generator...")
         self.G: OmniGenerator = get_gen(self.opts, verbose=verbose, no_init=inference)
         print("Sending to", self.device)
         self.G = self.G.to(self.device)

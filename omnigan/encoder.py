@@ -61,7 +61,7 @@ class BaseEncoder(nn.Module):
 
 
 class DeeplabV2Encoder(nn.Module):
-    def __init__(self, opts, no_init=False):
+    def __init__(self, opts, no_init=False, verbose=0):
         """Deeplab architecture encoder
         """
         super().__init__()
@@ -77,7 +77,8 @@ class DeeplabV2Encoder(nn.Module):
                 if not i_parts[1] in ["layer5", "resblock"]:
                     new_params[".".join(i_parts[1:])] = saved_state_dict[i]
             self.model.load_state_dict(new_params)
-            print("    - Loaded pretrained weights")
+            if verbose > 0:
+                print("    - Loaded pretrained weights")
 
     def forward(self, x):
         return self.model(x)

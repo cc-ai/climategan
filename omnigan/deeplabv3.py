@@ -70,8 +70,10 @@ class ResNet(nn.Module):
         pretrained=True,
         pretrained_path=None,
         no_init=False,
+        verbose=0,
     ):
         self.inplanes = 64
+        self.verbose = verbose
         super(ResNet, self).__init__()
         blocks = [1, 2, 4]
         if output_stride == 16:
@@ -234,7 +236,8 @@ class ResNet(nn.Module):
                 model_dict[k] = v
         state_dict.update(model_dict)
         self.load_state_dict(state_dict)
-        print("    - Loaded pre-trained ResNet101")
+        if self.verbose > 0:
+            print("    - Loaded pre-trained ResNet101")
 
 
 def ResNet101(
@@ -243,6 +246,7 @@ def ResNet101(
     pretrained=True,
     pretrained_path=None,
     no_init=False,
+    verbose=0,
 ):
     """Constructs a ResNet-101 model.
     Args:
@@ -256,6 +260,7 @@ def ResNet101(
         pretrained=pretrained,
         pretrained_path=pretrained_path,
         no_init=no_init,
+        verbose=verbose,
     )
     return model
 
@@ -416,6 +421,7 @@ class MobileNetV2(nn.Module):
         pretrained=True,
         pretrained_path=None,
         no_init=False,
+        verbose=0,
     ):
         super(MobileNetV2, self).__init__()
         block = InvertedResidual
@@ -423,6 +429,7 @@ class MobileNetV2(nn.Module):
         current_stride = 1
         rate = 1
         self.pretrained_path = pretrained_path
+        self.verbose = verbose
         interverted_residual_setting = [
             # t, c, n, s
             [1, 16, 1, 1],
@@ -496,7 +503,8 @@ class MobileNetV2(nn.Module):
         state_dict.update(model_dict)
         self.load_state_dict(state_dict)
         self.loaded_pre_trained = True
-        print("    - Loaded pre-trained MobileNetV2")
+        if self.verbose > 0:
+            print("    - Loaded pre-trained MobileNetV2")
 
     def _initialize_weights(self):
         for m in self.modules():
@@ -514,7 +522,7 @@ https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/backb
 """
 
 
-def build_backbone(opts, no_init):
+def build_backbone(opts, no_init, verbose=0):
     backbone = opts.gen.deeplabv3.backbone
     output_stride = opts.gen.deeplabv3.output_stride
     use_pretrained = opts.gen.deeplabv3.use_pretrained
@@ -525,6 +533,7 @@ def build_backbone(opts, no_init):
             pretrained=use_pretrained,
             pretrained_path=opts.gen.deeplabv3.pretrained_model.resnet,
             no_init=no_init,
+            verbose=verbose,
         )
     elif backbone == "mobilenet":
         return MobileNetV2(
@@ -533,6 +542,7 @@ def build_backbone(opts, no_init):
             pretrained=use_pretrained,
             pretrained_path=opts.gen.deeplabv3.pretrained_model.mobilenet,
             no_init=no_init,
+            verbose=verbose,
         )
     else:
         raise NotImplementedError("Unknown backbone in " + str(opts.gen.deeplabv3))

@@ -463,6 +463,8 @@ def get_WGAN_gradient(input, output):
 
 
 def print_num_parameters(trainer):
+    if trainer.verbose == 0:
+        return
     print("-" * 35)
     if trainer.G.encoder is not None:
         print(

@@ -6,6 +6,7 @@ from comet_ml import Experiment
 from comet_ml.api import API
 
 import omnigan
+from omnigan.trainer import Trainer
 from omnigan.utils import get_comet_rest_api_key
 
 import logging
@@ -178,19 +179,44 @@ if __name__ == "__main__":
     # create scenario-specific variables with __key
     # ALWAYS specify a __doc key to describe your scenario
     test_scenarios = [
-        {"__comet": False, "__doc": "MSD no exp"},
+        {"__use_comet": False, "__doc": "MSD no exp", "__verbose": 1},
         {"__doc": "MSD with exp"},
+        {
+            "__doc": "MSD no exp upsample_featuremaps",
+            "__use_comet": False,
+            "gen.d.upsample_featuremaps": True,
+            "gen.s.upsample_featuremaps": True,
+        },
         {"tasks": ["p"], "domains": ["rf"], "__doc": "Painter"},
         {
-            "tasks": ["m", "s", "d", "p"],
-            "domains": ["rf", "r", "s"],
-            "__doc": "MSDP no End-to-end",
+            "__doc": "M no exp low level feats",
+            "__use_comet": False,
+            "gen.m.use_low_level_feats": True,
+            "tasks": ["m"],
         },
         {
-            "tasks": ["m", "s", "d", "p"],
+            "__doc": "MSD no exp deeplabv2",
+            "__use_comet": False,
+            "gen.encoder.architecture": "deeplabv2",
+            "gen.s.architecture": "deeplabv2",
+        },
+        {
+            "__doc": "MSDP no End-to-end",
             "domains": ["rf", "r", "s"],
-            "__pl4m": True,
+            "tasks": ["m", "s", "d", "p"],
+        },
+        {
+            "__doc": "MSDP inference only no exp",
+            "__inference": True,
+            "__use_comet": False,
+            "domains": ["rf", "r", "s"],
+            "tasks": ["m", "s", "d", "p"],
+        },
+        {
             "__doc": "MSDP with End-to-end",
+            "__pl4m": True,
+            "domains": ["rf", "r", "s"],
+            "tasks": ["m", "s", "d", "p"],
         },
     ]
 
@@ -216,22 +242,27 @@ if __name__ == "__main__":
         )
         print()
 
+        comet = conf.get("__use_comet", True)
+        pl4m = conf.get("__pl4m", False)
+        inference = conf.get("__inference", False)
+        verbose = conf.get("__verbose", 0)
+
         # set (or not) experiment
         test_exp = None
-        if conf.get("__comet", True):
+        if comet:
             test_exp = global_exp
 
         try:
             # create trainer
-            trainer = omnigan.trainer.Trainer(opts=test_opts, comet_exp=test_exp,)
+            trainer = Trainer(opts=test_opts, verbose=verbose, comet_exp=test_exp,)
             trainer.functional_test_mode()
 
             # set (or not) painter loss for masker (= end-to-end)
-            if conf.get("__pl4m", False):
+            if pl4m:
                 trainer.use_pl4m = True
 
             # test training procedure
-            trainer.setup()
+            trainer.setup(inference=inference)
             trainer.train()
 
             successes.append(test_idx)
