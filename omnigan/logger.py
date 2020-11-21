@@ -315,7 +315,7 @@ class Logger:
         headers = None
         if len(legends) == im_per_row and all(isinstance(t, str) for t in legends):
             header_width = max(im.shape[-1] for im in image_outputs)
-            headers = all_texts_to_tensors(legends, width=header_width).unsqueeze(0)
+            headers = all_texts_to_tensors(legends, width=header_width)
 
         for logidx in range(rows_per_log):
             print(" " * 100, end="\r", flush=True)
