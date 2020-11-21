@@ -72,6 +72,7 @@ class OmniGenerator(nn.Module):
         """
         super().__init__()
         self.opts = opts
+        self.verbose = verbose
 
         self.encoder = None
         if any(t in opts.tasks for t in "msd"):
@@ -92,7 +93,6 @@ class OmniGenerator(nn.Module):
                 if self.verbose > 0:
                     print("  - Created Base Encoder")
 
-        self.verbose = verbose
         self.decoders = {}
 
         if "d" in opts.tasks:
