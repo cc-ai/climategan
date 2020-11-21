@@ -559,9 +559,9 @@ def retrieve_sky_mask(seg):
     return sky_mask
 
 
-def all_texts_to_tensor(texts, width=640, height=40):
+def all_texts_to_tensors(texts, width=640, height=40):
     """
-    Creates a tensor with concatenated texts along the width axis
+    Creates a list of tensors with texts from PIL images
 
     Args:
         texts (list(str)): texts to write
@@ -569,8 +569,8 @@ def all_texts_to_tensor(texts, width=640, height=40):
         height (int, optional): height of individual texts. Defaults to 40.
 
     Returns:
-        torch.Tensor: texts as a single tensor 3 x height x len(texts) * width
+        list(torch.Tensor): len(texts) tensors 3 x height x width
     """
-    array = all_texts_to_array(texts, width, height)
-    array = array.transpose(2, 0, 1)
-    return torch.tensor(array)
+    arrays = all_texts_to_array(texts, width, height)
+    arrays = [array.transpose(2, 0, 1) for array in arrays]
+    return [torch.tensor(array) for array in arrays]

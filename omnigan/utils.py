@@ -815,6 +815,7 @@ def text_to_array(text, width=640, height=40):
     d.text((w, h), text, font=font, fill=(30, 30, 30))
     return np.array(img)
 
+
 def all_texts_to_array(texts, width=640, height=40):
     """
     Creates an array of texts, each of height and width specified
@@ -826,7 +827,6 @@ def all_texts_to_array(texts, width=640, height=40):
         height (int, optional): Individual text's height. Defaults to 40.
 
     Returns:
-        np.ndarray: Texts with dims height x len(texts) * width x 3
+        list: len(texts) text arrays with dims height x width x 3
     """
-    ims = [text_to_array(text, width, height) for text in texts]
-    return np.concatenate(ims, axis=1)
+    return [text_to_array(text, width, height) for text in texts]

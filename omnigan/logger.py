@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from torch.nn.functional import sigmoid, interpolate
 from omnigan.data import decode_segmap_merged_labels
-from omnigan.tutils import normalize_tensor, all_texts_to_tensor
+from omnigan.tutils import normalize_tensor, all_texts_to_tensors
 from omnigan.utils import flatten_opts
 from PIL import Image
 
@@ -34,13 +34,13 @@ class Logger:
                 print(j, end="\r")
                 x = display_dict["data"]["x"].unsqueeze(0).to(trainer.device)
                 z = trainer.G.encode(x)
-                task_legend = ["Input"]
 
                 seg_pred = None
                 for k, task in enumerate(sorted(self.trainer.opts.tasks, reverse=True)):
                     if task == "p":
                         continue
 
+                    task_legend = ["Input"]
                     target = display_dict["data"][task]
                     target = target.unsqueeze(0).to(trainer.device)
                     task_saves = []
@@ -167,7 +167,7 @@ class Logger:
                 task="painter",
                 im_per_row=trainer.opts.comet.im_per_row.get("p", 4),
                 rows_per_log=trainer.opts.comet.get("rows_per_log", 5),
-                legends=legends
+                legends=legends,
             )
 
         return 0
@@ -312,10 +312,10 @@ class Logger:
         curr_iter = self.global_step
         nb_per_log = im_per_row * rows_per_log
 
-        header = None
+        headers = None
         if len(legends) == im_per_row and all(isinstance(t, str) for t in legends):
             header_width = max(im.shape[-1] for im in image_outputs)
-            header = all_texts_to_tensor(legends, width=header_width).unsqueeze(0)
+            headers = all_texts_to_tensors(legends, width=header_width).unsqueeze(0)
 
         for logidx in range(rows_per_log):
             print(" " * 100, end="\r", flush=True)
@@ -331,8 +331,8 @@ class Logger:
                 continue
 
             ims = self.upsample(ims)
-            if header is not None:
-                ims = [header] + ims
+            if headers is not None:
+                ims = headers + ims
             ims = torch.stack([im.squeeze() for im in ims]).squeeze()
             image_grid = vutils.make_grid(
                 ims, nrow=im_per_row, normalize=True, scale_each=True
