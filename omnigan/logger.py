@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from torch.nn.functional import sigmoid, interpolate
 from omnigan.data import decode_segmap_merged_labels
-from omnigan.tutils import normalize_tensor
+from omnigan.tutils import normalize_tensor, get_num_params
 from omnigan.utils import flatten_opts
 from PIL import Image
 
@@ -21,6 +21,8 @@ class Logger:
     def log_comet_images(self, mode, domain):
         trainer = self.trainer
         save_images = {}
+        all_images = []
+        n_all_ims = None
 
         # --------------------
         # -----  Masker  -----
@@ -86,13 +88,18 @@ class Logger:
 
                     task_saves.append(prediction)
                     save_images[task].append(x.cpu().detach())
+                    all_images.append(save_images[task][-1])
 
                     for im in task_saves:
                         save_images[task].append(im.cpu().detach())
+                        all_images.append(save_images[task][-1])
+
+                if j == 0:
+                    n_all_ims = len(all_images)
 
             for task in save_images.keys():
                 # Write images:
-                self.write_images(
+                self.upload_images(
                     image_outputs=save_images[task],
                     mode=mode,
                     domain=domain,
@@ -100,6 +107,14 @@ class Logger:
                     im_per_row=trainer.opts.comet.im_per_row.get(task, 4),
                     rows_per_log=trainer.opts.comet.get("rows_per_log", 5),
                 )
+
+            self.upload_images(
+                image_outputs=all_images,
+                mode=mode,
+                domain=domain,
+                im_per_row=n_all_ims,
+                rows_per_log=trainer.opts.comet.get("rows_per_log", 5),
+            )
         # ---------------------
         # -----  Painter  -----
         # ---------------------
@@ -118,7 +133,7 @@ class Logger:
                 image_outputs.append(x)
                 image_outputs.append(prediction * m)
             # Write images
-            self.write_images(
+            self.upload_images(
                 image_outputs=image_outputs,
                 mode=mode,
                 domain=domain,
@@ -225,10 +240,10 @@ class Logger:
             image_outputs.append(x * (1.0 - m))
             image_outputs.append(prediction)
             image_outputs.append(prediction * m)
-        # Write images
-        self.write_images(
+        # Upload images
+        self.upload_images(
             image_outputs=image_outputs,
-            mode=mode,
+            mode=f"full_{mode}",
             domain=domain,
             task="combined",
             im_per_row=trainer.opts.comet.im_per_row.get("p", 4),
@@ -237,7 +252,7 @@ class Logger:
 
         return 0
 
-    def write_images(
+    def upload_images(
         self, image_outputs, mode, domain, task, im_per_row=3, rows_per_log=5,
     ):
         """
