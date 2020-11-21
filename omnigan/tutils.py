@@ -11,6 +11,7 @@ from torch.autograd import Variable
 from skimage import io as skio
 from torch.nn import init
 import torch.nn as nn
+from omnigan.utils import all_texts_to_array
 
 
 def transforms_string(ts):
@@ -556,3 +557,20 @@ def retrieve_sky_mask(seg):
 
     sky_mask = seg_ind == 9
     return sky_mask
+
+
+def all_texts_to_tensor(texts, width=640, height=40):
+    """
+    Creates a tensor with concatenated texts along the width axis
+
+    Args:
+        texts (list(str)): texts to write
+        width (int, optional): width of individual texts. Defaults to 640.
+        height (int, optional): height of individual texts. Defaults to 40.
+
+    Returns:
+        torch.Tensor: texts as a single tensor 3 x height x len(texts) * width
+    """
+    array = all_texts_to_array(texts, width, height)
+    array = array.transpose(2, 0, 1)
+    return torch.tensor(array)

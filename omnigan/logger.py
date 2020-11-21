@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from torch.nn.functional import sigmoid, interpolate
 from omnigan.data import decode_segmap_merged_labels
-from omnigan.tutils import normalize_tensor, get_num_params
+from omnigan.tutils import normalize_tensor, all_texts_to_tensor
 from omnigan.utils import flatten_opts
 from PIL import Image
 
@@ -23,6 +23,8 @@ class Logger:
         save_images = {}
         all_images = []
         n_all_ims = None
+        all_legends = ["Input"]
+        task_legends = {}
 
         # --------------------
         # -----  Masker  -----
@@ -32,6 +34,7 @@ class Logger:
                 print(j, end="\r")
                 x = display_dict["data"]["x"].unsqueeze(0).to(trainer.device)
                 z = trainer.G.encode(x)
+                task_legend = ["Input"]
 
                 seg_pred = None
                 for k, task in enumerate(sorted(self.trainer.opts.tasks, reverse=True)):
@@ -51,6 +54,7 @@ class Logger:
                         # Log fire
                         wildfire_tens = trainer.compute_fire(x, prediction)
                         task_saves.append(wildfire_tens)
+                        task_legend.append("Wildfire")
                         # Log seg output
                         target = (
                             decode_segmap_merged_labels(target, domain, True)
@@ -64,6 +68,7 @@ class Logger:
                         )
                         seg_pred = prediction
                         task_saves.append(target)
+                        task_legend.append("Target Segmentation")
 
                     elif task == "m":
                         prediction = sigmoid(prediction).repeat(1, 3, 1, 1)
@@ -71,6 +76,10 @@ class Logger:
                         task_saves.append(x * (1.0 - (prediction > 0.1).to(torch.int)))
                         task_saves.append(x * (1.0 - (prediction > 0.5).to(torch.int)))
                         task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
+                        task_legend.append("Masked input")
+                        task_legend.append("Masked input (>0.1)")
+                        task_legend.append("Masked input (>0.5)")
+                        task_legend.append("Masked input (target)")
                         # dummy pixels to fool scaling and preserve mask range
                         prediction[:, :, 0, 0] = 1.0
                         prediction[:, :, -1, -1] = 0.0
@@ -84,12 +93,20 @@ class Logger:
                         prediction = normalize_tensor(prediction) * 255
                         prediction = prediction.repeat(1, 3, 1, 1)
                         task_saves.append(smogged)
+                        task_legend.append("Smogged")
                         task_saves.append(target.repeat(1, 3, 1, 1))
+                        task_legend.append("Depth target")
 
                     task_saves.append(prediction)
+                    task_legend.append(f"Predicted {task}")
+
                     save_images[task].append(x.cpu().detach())
                     if k == 0:
                         all_images.append(save_images[task][-1])
+
+                    task_legends[task] = task_legend
+                    if j == 0:
+                        all_legends += task_legend[1:]
 
                     for im in task_saves:
                         save_images[task].append(im.cpu().detach())
@@ -107,6 +124,7 @@ class Logger:
                     task=task,
                     im_per_row=trainer.opts.comet.im_per_row.get(task, 4),
                     rows_per_log=trainer.opts.comet.get("rows_per_log", 5),
+                    legends=task_legends[task],
                 )
 
             self.upload_images(
@@ -116,6 +134,7 @@ class Logger:
                 task="all",
                 im_per_row=n_all_ims,
                 rows_per_log=trainer.opts.comet.get("rows_per_log", 5),
+                legends=all_legends,
             )
         # ---------------------
         # -----  Painter  -----
@@ -255,7 +274,14 @@ class Logger:
         return 0
 
     def upload_images(
-        self, image_outputs, mode, domain, task, im_per_row=3, rows_per_log=5,
+        self,
+        image_outputs,
+        mode,
+        domain,
+        task,
+        im_per_row=3,
+        rows_per_log=5,
+        legends=[],
     ):
         """
         Save output image
@@ -278,6 +304,12 @@ class Logger:
             return
         curr_iter = self.global_step
         nb_per_log = im_per_row * rows_per_log
+
+        header = None
+        if len(legends == im_per_row) and all(isinstance(t, str) for t in legends):
+            header_width = max(im.shape[-1] for im in image_outputs)
+            header = all_texts_to_tensor(legends, width=header_width).unsqueeze(0)
+
         for logidx in range(rows_per_log):
             print(" " * 100, end="\r", flush=True)
             print(
@@ -292,6 +324,8 @@ class Logger:
                 continue
 
             ims = self.upsample(ims)
+            if header is not None:
+                ims = [header] + ims
             ims = torch.stack([im.squeeze() for im in ims]).squeeze()
             image_grid = vutils.make_grid(
                 ims, nrow=im_per_row, normalize=True, scale_each=True

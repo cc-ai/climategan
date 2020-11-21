@@ -789,3 +789,44 @@ def get_latest_opts(path):
     assert opts.exists()
     with opts.open("r") as f:
         return Dict(yaml.safe_load(f))
+
+
+def text_to_array(text, width=640, height=40):
+    """
+    Creates a numpy array of shape height x width x 3 with
+    text written on it using PIL
+
+    Args:
+        text (str): text to write
+        width (int, optional): Width of the resulting array. Defaults to 640.
+        height (int, optional): Height of the resulting array. Defaults to 40.
+
+    Returns:
+        np.ndarray: Centered text
+    """
+    from PIL import Image, ImageDraw, ImageFont
+
+    img = Image.new("RGB", (width, height), (255, 255, 255))
+    font = ImageFont.truetype("UnBatang.ttf", 25)
+    d = ImageDraw.Draw(img)
+    text_width, text_height = d.textsize(text)
+    h = 40 // 2 - 3 * text_height // 2
+    w = width // 2 - text_width
+    d.text((w, h), text, font=font, fill=(30, 30, 30))
+    return np.array(img)
+
+def all_texts_to_array(texts, width=640, height=40):
+    """
+    Creates an array of texts, each of height and width specified
+    by the args, concatenated along their width dimension
+
+    Args:
+        texts (list(str)): List of texts to concatenate
+        width (int, optional): Individual text's width. Defaults to 640.
+        height (int, optional): Individual text's height. Defaults to 40.
+
+    Returns:
+        np.ndarray: Texts with dims height x len(texts) * width x 3
+    """
+    ims = [text_to_array(text, width, height) for text in texts]
+    return np.concatenate(ims, axis=1)
