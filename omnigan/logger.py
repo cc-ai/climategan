@@ -143,6 +143,7 @@ class Logger:
             # in the rf domain display_size may be different from fid.n_images
             limit = trainer.opts.comet.display_size
             image_outputs = []
+            legends = []
             for im_set in trainer.display_images[mode][domain][:limit]:
                 x = im_set["data"]["x"].unsqueeze(0).to(trainer.device)
                 m = im_set["data"]["m"].unsqueeze(0).to(trainer.device)
@@ -153,6 +154,11 @@ class Logger:
                 image_outputs.append(prediction)
                 image_outputs.append(x)
                 image_outputs.append(prediction * m)
+                if not legends:
+                    legends.append("Masked Input")
+                    legends.append("Painted Input")
+                    legends.append("Input")
+                    legends.append("Isolated Water")
             # Write images
             self.upload_images(
                 image_outputs=image_outputs,
@@ -161,6 +167,7 @@ class Logger:
                 task="painter",
                 im_per_row=trainer.opts.comet.im_per_row.get("p", 4),
                 rows_per_log=trainer.opts.comet.get("rows_per_log", 5),
+                legends=legends
             )
 
         return 0
@@ -306,7 +313,7 @@ class Logger:
         nb_per_log = im_per_row * rows_per_log
 
         header = None
-        if len(legends == im_per_row) and all(isinstance(t, str) for t in legends):
+        if len(legends) == im_per_row and all(isinstance(t, str) for t in legends):
             header_width = max(im.shape[-1] for im in image_outputs)
             header = all_texts_to_tensor(legends, width=header_width).unsqueeze(0)
 
