@@ -112,6 +112,7 @@ class Logger:
                 image_outputs=all_images,
                 mode=mode,
                 domain=domain,
+                task="all",
                 im_per_row=n_all_ims,
                 rows_per_log=trainer.opts.comet.get("rows_per_log", 5),
             )
@@ -243,7 +244,7 @@ class Logger:
         # Upload images
         self.upload_images(
             image_outputs=image_outputs,
-            mode=f"full_{mode}",
+            mode=mode,
             domain=domain,
             task="combined",
             im_per_row=trainer.opts.comet.im_per_row.get("p", 4),
