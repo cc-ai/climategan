@@ -623,6 +623,25 @@ class PainterSpadeDecoder(nn.Module):
 
         self.upsample = InterpolateNearest2d(scale_factor=2)
 
+    def set_latent_shape(self, shape, is_input=True):
+        """
+        Sets the latent shape to start the upsampling from, i.e. z_h and z_w.
+        If is_input is True, then this is the actual input shape which should
+        be divided by 2 ** spade_n_up
+        Otherwise, just sets z_h and z_w from shape[-2] and shape[-1]
+
+        Args:
+            shape (tuple): The shape to start sampling from.
+            is_input (bool, optional): Whether to divide shape by 2 ** spade_n_up
+        """
+
+        self.z_h = shape[-2]
+        self.z_w = shape[-1]
+
+        if is_input:
+            self.z_h = self.z_h // (2 ** self.opts.gen.p.spade_n_up)
+            self.z_w = self.z_w // (2 ** self.opts.gen.p.spade_n_up)
+
     def _apply(self, fn):
         # print("Applying SpadeDecoder", fn)
         super()._apply(fn)

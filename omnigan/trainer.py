@@ -89,7 +89,7 @@ class Trainer:
         self.logger = Logger(self)
         self.loaders = None
         self.losses = None
-        self.input_shape = None
+        self.input_shapes = None
         self.G = self.D = self.C = None
         self.lr_names = {}
         self.real_val_fid_stats = None
@@ -524,7 +524,7 @@ class Trainer:
         z = self.G.encode(x)
         return z.shape[1:] if not isinstance(z, (list, tuple)) else z[0].shape[1:]
 
-    def compute_input_shapes(self):
+    def compute_input_shapes(self) -> dict:
         """Compute the input shape, i.e. the data's post-transform shape,
         from a batch, as a dict per task.
 
@@ -592,6 +592,30 @@ class Trainer:
         if self.c_scheduler is not None:
             self.c_scheduler.step()
 
+    def set_input_shapes(self, shapes):
+        """
+        Sets the input shapes for the Segmentation Decoder and the Painter
+
+        Args:
+            shapes (tuple | dict): If tuple, should be (c, h, w) and the same
+            value will be used for all tasks. If dict, should map task to shape.
+            The painter requires an `x` key and the seg requires an `s` key
+
+        Raises:
+            NotImplementedError: Cannot handle types other than tuple/list  or dict
+        """
+        if isinstance(shapes, (tuple, list)):
+            self.input_shapes = {t: shapes for t in self.opts.tasks}
+        elif isinstance(shapes, dict):
+            assert "x" in shapes
+            if "s" in self.opts.tasks:
+                assert "s" in shapes
+            self.input_shapes = shapes
+        else:
+            raise NotImplementedError(
+                "Unknown `shapes`type: {} -> {}".format(type(shapes), shapes)
+            )
+
     def setup(self, inference=False):
         """Prepare the trainer before it can be used to train the models:
         * initialize G and D
@@ -612,29 +636,28 @@ class Trainer:
         __t = time()
         print("Creating generator...")
         self.G: OmniGenerator = get_gen(self.opts, verbose=verbose, no_init=inference)
+        use_painter = get_num_params(self.G.painter)
         print("Sending to", self.device)
         self.G = self.G.to(self.device)
         print(f"Generator OK in {time() - __t:.1f}s.")
 
-        if self.input_shape is None:
+        if self.input_shapes is None and ("s" in self.opts.tasks or use_painter):
             if inference:
                 raise ValueError(
-                    "Cannot auto-set input_shape from loaders in inference mode."
+                    "Cannot auto-set input_shapes from loaders in inference mode."
                     + " It  has to  be set prior to setup()."
                 )
             print("Computing latent & input shapes...", end="", flush=True)
             self.input_shapes = self.compute_input_shapes()
 
         if "s" in self.opts.tasks:
+            assert "s" in self.input_shapes
             self.G.decoders["s"].set_target_size(self.input_shapes["s"][-2:])
         print("OK.")
 
-        self.G.painter.z_h = self.input_shapes["x"][-2] // (
-            2 ** self.opts.gen.p.spade_n_up
-        )
-        self.G.painter.z_w = self.input_shapes["x"][-1] // (
-            2 ** self.opts.gen.p.spade_n_up
-        )
+        if use_painter:
+            assert "x" in self.input_shapes
+            self.G.painter.set_latent_shape(self.input_shapes["x"], True)
 
         if inference:
             print("Inference mode: no Discriminator, no Classifier, no optimizers")
