@@ -639,8 +639,8 @@ class PainterSpadeDecoder(nn.Module):
         self.z_w = shape[-1]
 
         if is_input:
-            self.z_h = self.z_h // (2 ** self.opts.gen.p.spade_n_up)
-            self.z_w = self.z_w // (2 ** self.opts.gen.p.spade_n_up)
+            self.z_h = self.z_h // (2 ** self.spade_n_up)
+            self.z_w = self.z_w // (2 ** self.spade_n_up)
 
     def _apply(self, fn):
         # print("Applying SpadeDecoder", fn)
