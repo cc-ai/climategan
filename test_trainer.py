@@ -117,7 +117,7 @@ def print_end(desc=None, ok=None):
 
     title = "|  " + cdesc + "  |"
     line = "-" * (len(desc) + 6)
-    print(f"{line}\n{title}\n{line}")
+    print(f"{line}\n{title}\n{line}\n")
 
 
 def delete_on_exit(exp):
@@ -177,7 +177,7 @@ if __name__ == "__main__":
         input_shapes = {
             "x": (3, 256, 256),
             "s": (
-                base_opts.gen.s.num_classes, 
+                base_opts.gen.s.num_classes,
                 base_opts.data.transforms[-1].new_size.get("s", 256),
                 base_opts.data.transforms[-1].new_size.get("s", 256),
             ),
@@ -279,7 +279,8 @@ if __name__ == "__main__":
 
             # test training procedure
             trainer.setup(inference=inference)
-            trainer.train()
+            if not inference:
+                trainer.train()
 
             successes.append(test_idx)
             ok = True
