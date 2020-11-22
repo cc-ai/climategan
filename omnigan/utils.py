@@ -807,7 +807,11 @@ def text_to_array(text, width=640, height=40):
     from PIL import Image, ImageDraw, ImageFont
 
     img = Image.new("RGB", (width, height), (255, 255, 255))
-    font = ImageFont.truetype("UnBatang.ttf", 25)
+    try:
+        font = ImageFont.truetype("UnBatang.ttf", 25)
+    except OSError:
+        font = ImageFont.load_default() 
+        
     d = ImageDraw.Draw(img)
     text_width, text_height = d.textsize(text)
     h = 40 // 2 - 3 * text_height // 2

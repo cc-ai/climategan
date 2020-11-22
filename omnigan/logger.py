@@ -312,10 +312,11 @@ class Logger:
         curr_iter = self.global_step
         nb_per_log = im_per_row * rows_per_log
 
-        headers = None
+        header = None
         if len(legends) == im_per_row and all(isinstance(t, str) for t in legends):
             header_width = max(im.shape[-1] for im in image_outputs)
             headers = all_texts_to_tensors(legends, width=header_width)
+            header = torch.cat(headers, dim=-1)
 
         for logidx in range(rows_per_log):
             print(" " * 100, end="\r", flush=True)
@@ -331,12 +332,14 @@ class Logger:
                 continue
 
             ims = self.upsample(ims)
-            if headers is not None:
-                ims = headers + ims
             ims = torch.stack([im.squeeze() for im in ims]).squeeze()
             image_grid = vutils.make_grid(
-                ims, nrow=im_per_row, normalize=True, scale_each=True
+                ims, nrow=im_per_row, normalize=True, scale_each=True, padding=0
             )
+
+            if header is not None:
+                image_grid = torch.cat([header.to(image_grid.device), image_grid], dim=1)
+
             image_grid = image_grid.permute(1, 2, 0).cpu().numpy()
             trainer.exp.log_image(
                 Image.fromarray((image_grid * 255).astype(np.uint8)),

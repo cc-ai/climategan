@@ -168,8 +168,20 @@ if __name__ == "__main__":
     base_opts.train.epochs = 1
     if isinstance(base_opts.data.transforms[-1].new_size, int):
         base_opts.data.transforms[-1].new_size = 256
+        input_shapes = {
+            "x": (3, 256, 256),
+            "s": (opts.gen.s.num_classes, 256, 256),
+        }
     else:
         base_opts.data.transforms[-1].new_size.default = 256
+        input_shapes = {
+            "x": (3, 256, 256),
+            "s": (
+                base_opts.gen.s.num_classes, 
+                base_opts.data.transforms[-1].new_size.get("s", 256),
+                base_opts.data.transforms[-1].new_size.get("s", 256),
+            ),
+        }
 
     # --------------------------------------
     # -----  Configure Test Scenarios  -----
@@ -263,7 +275,7 @@ if __name__ == "__main__":
 
             # set input_shape for inference-only
             if inference:
-                trainer.input_shape = (3, 640, 640)
+                trainer.set_input_shapes(input_shapes)
 
             # test training procedure
             trainer.setup(inference=inference)
