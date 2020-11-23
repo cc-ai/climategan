@@ -1626,7 +1626,7 @@ class Trainer:
         print("****************** Done in {}s *********************".format(timing))
 
     def eval_images(self, mode, domain):
-        if domain == "rf":
+        if domain == "rf" or domain not in self.display_images[mode]:
             return
 
         metric_funcs = {"accuracy": accuracy, "mIOU": mIOU}
