@@ -34,7 +34,6 @@ class Logger:
         # --------------------
         if domain != "rf":
             for j, display_dict in enumerate(trainer.display_images[mode][domain]):
-                print(j, end="\r")
                 x = display_dict["data"]["x"].unsqueeze(0).to(trainer.device)
                 z = trainer.G.encode(x)
 
