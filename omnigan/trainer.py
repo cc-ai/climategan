@@ -739,12 +739,18 @@ class Trainer:
         # -----  Display images  -----
         # ----------------------------
         for mode, mode_dict in self.all_loaders.items():
-            self.display_images[mode] = {}
+
+            if self.kitti_pretrain:
+                self.kitty_display_images[mode] = {}
+            self.base_display_images[mode] = {}
+
             for domain, domain_loader in mode_dict.items():
+
                 if self.kitti_pretrain and domain == "kitti":
                     target_dict = self.kitty_display_images
                 else:
                     target_dict = self.base_display_images
+
                 dataset = self.all_loaders[mode][domain].dataset
                 display_indices = get_display_indices(self.opts, domain, len(dataset))
                 ldis = len(display_indices)
@@ -765,6 +771,8 @@ class Trainer:
 
         if self.kitti_pretrain:
             self.switch_data(to="kitti")
+        else:
+            self.switch_data(to="base")
 
         print(" " * 50, end="\r")
         print("Done creating display images")
