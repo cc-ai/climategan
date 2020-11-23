@@ -125,7 +125,6 @@ gen:
     output_dim: 1
     conv_norm: batch
     res_norm: batch
-    use_pseudo_labels: False
     loss: dada
     upsample_featuremaps: False # upsamples from 80x80 to 160x160 intermediate feature maps
   s: # specific params for the semantic segmentation decoder
@@ -134,7 +133,6 @@ gen:
     output_dim: 11
     use_advent: True
     use_minent: True
-    use_pseudo_labels: False
     architecture: "deeplabv3"
     upsample_featuremaps: False # upsamples from 80x80 to 160x160 intermediate feature maps
   p: # specific params for the SPADE painter
@@ -241,6 +239,9 @@ train:
     epochs: 30
     batch_size: 20
   amp: False
+  pseudo:
+    enable: False # True or False to use pseudo-labels as supervision signal
+    epochs: 30 # disable pseudo training after n epochs (set to -1 to never disable)
   epochs: 300
   fid:
     n_images: 57 # val_rf.json has 57 images
