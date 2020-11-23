@@ -49,7 +49,121 @@ classes_dict = {
         9: [8, 19, 49, 255],  # Sky
         10: [0, 80, 100, 255],  # Default
     },
+    "kitti": {
+        0: [210, 0, 200],  # Terrain
+        1: [90, 200, 255],  # Sky
+        2: [0, 199, 0],  # Tree
+        3: [90, 240, 0],  # Vegetation
+        4: [140, 140, 140],  # Building
+        5: [100, 60, 100],  # Road
+        6: [250, 100, 255],  # GuardRail
+        7: [255, 255, 0],  # TrafficSign
+        8: [200, 200, 0],  # TrafficLight
+        9: [255, 130, 0],  # Pole
+        10: [80, 80, 80],  # Misc
+        11: [160, 60, 60],  # Truck
+        12: [255, 127, 80],  # Car
+        13: [0, 139, 139],  # Van
+        14: [0, 0, 0],  # Undefined
+    },
 }
+
+kitti_mapping = {
+    0: 5,  # Terrain -> Terrain
+    1: 9,  # Sky -> Sky
+    2: 7,  # Tree -> Trees
+    3: 4,  # Vegetation ->  Vegetation
+    4: 2,  # Building -> Building
+    5: 1,  # Road -> Ground
+    6: 3,  # GuardRail -> Traffic items
+    7: 3,  # TrafficSign ->  Traffic items
+    8: 3,  # TrafficLight -> Traffic items
+    9: 3,  # Pole -> Traffic items
+    10: 10,  # Misc -> default
+    11: 6,  # Truck -> Car
+    12: 6,  # Car -> Car
+    13: 6,  # Van -> Car
+    14: 10,  # Undefined -> Default
+}
+
+
+def merge_labels(labels, mapping, default_value=14):
+    """
+    Maps values in `labels` to those of mapping, assigning new labels
+    to each pixel
+
+    Args:
+        labels (np.ndarray): Labels to adapt
+        mapping (dict): Mapping source_label -> target_label (kitti->omnigan)
+        default_value (int, optional): Value for unknown labels. Defaults to 14.
+
+    Returns:
+        np.ndarray: adapted labels
+    """
+    out = np.ones_like(labels) * default_value
+    for source, target in mapping.items():
+        out[labels == source] = target
+    return out
+
+
+def encode_exact_segmap(seg, classes_dict, default_value=14):
+    """
+    When the mapping (rgb -> label) is known to be exact (no approximative rgb values)
+    maps rgb image to segmap labels
+
+    Args:
+        seg (np.ndarray): H x W x 3 RGB image
+        classes_dict (dict): Mapping {class: rgb value}
+        default_value (int, optional): Value for unknown label. Defaults to 14.
+
+    Returns:
+        np.ndarray: Segmap as labels, not RGB
+    """
+    out = np.ones((seg.shape[0], seg.shape[1])) * default_value
+    for cindex, cvalue in classes_dict.items():
+        out[np.where((seg == cvalue).all(-1))] = cindex
+    return out
+
+
+def merge_labels(labels, mapping, default_value=14):
+    """
+    Maps labels from a source domain to labels of a target domain,
+    typically kitti -> omnigan
+
+    Args:
+        labels (np.ndarray): input segmap labels
+        mapping (dict): source_label -> target_label
+        default_value (int, optional): Unknown label. Defaults to 14.
+
+    Returns:
+        np.ndarray: Adapted labels
+    """
+    out = np.ones_like(labels) * default_value
+    for source, target in mapping.items():
+        out[labels == source] = target
+    return out
+
+
+def process_kitti_seg(path, kitti_classes, merge_map, default=14):
+    """
+    Processes a path to produce a 1 x 1 x H x W torch segmap
+
+    %timeit process_kitti_seg(path, classes_dict, mapping, default=14)
+    326 ms ± 118 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)
+
+    Args:
+        path (str | pathlib.Path): Segmap RBG path
+        kitti_classes (dict): Kitti map label -> rgb
+        merge_map (dict): map kitti_label -> omnigan_label
+        default (int, optional): Unknown kitti label. Defaults to 14.
+
+    Returns:
+        torch.Tensor: 1 x 1 x H x W torch segmap
+    """
+    seg = imread(path)
+    labels = encode_exact_segmap(seg, kitti_classes, default_value=default)
+    merged = merge_labels(labels, merge_map, default_value=default)
+    return torch.tensor(merged).unsqueeze(0).unsqueeze(0)
 
 
 def decode_segmap_merged_labels(tensor, domain, is_target, nc=11):
@@ -242,17 +356,21 @@ def tensor_loader(path, task, domain):
         [Tensor]: 1 x C x H x W
     """
     if task == "s":
-        arr = torch.load(path)
-        return arr
+        if domain == "kitti":
+            return process_kitti_seg(
+                path, classes_dict["kitti"], kitti_mapping, default=14
+            )
+        return torch.load(path)
     elif task == "d":
         if Path(path).suffix == ".npy":
             arr = np.load(path)
         else:
-            arr = imread(path)  # .astype(np.uint8)
-        arr = torch.from_numpy(arr.astype(np.float32))
-        arr = get_normalized_depth_t(arr, domain, normalize=True)
-        arr = arr.unsqueeze(0)
-        return arr
+            arr = imread(path)  # .astype(np.uint8) /!\ kitti is np.uint16
+        tensor = torch.from_numpy(arr.astype(np.float32))
+        tensor = get_normalized_depth_t(tensor, domain, normalize=True)
+        tensor = tensor.unsqueeze(0)
+        return tensor
+
     elif Path(path).suffix == ".npy":
         arr = np.load(path).astype(np.float32)
     elif is_image_file(path):
@@ -277,10 +395,7 @@ def tensor_loader(path, task, domain):
         if len(arr.shape) >= 3:
             arr = arr[:, :, 0]
         arr = np.expand_dims(arr, 0)
-
-    # print(path)
-    # print(task)
-    # print(torch.from_numpy(arr).unsqueeze(0).shape)
+        
     return torch.from_numpy(arr).unsqueeze(0)
 
 

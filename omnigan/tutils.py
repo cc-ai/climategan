@@ -193,6 +193,11 @@ def get_normalized_depth_t(arr, domain, normalize=False):
     elif domain == "s":
         # from 3-channel depth encoding from Unity simulator to 1-channel [0-1] values
         arr = decode_unity_depth_t(arr, log=False, normalize=normalize)
+    elif domain == "kitti":
+        arr = 1 / arr
+        if normalize:
+            arr = arr - arr.min()
+            arr = arr / arr.max()
     return arr
 
 

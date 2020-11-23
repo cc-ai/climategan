@@ -137,6 +137,10 @@ def load_opts(
         opts.domains.append("rf")
     opts.domains = list(set(opts.domains))
 
+    if opts.train.kitti.pretrained:
+        assert "kitti" in opts.data.files.train
+        assert "kitti" in opts.data.files.val
+
     if "s" in opts.tasks:
         if opts.gen.encoder.architecture != opts.gen.s.architecture:
             print(
@@ -810,8 +814,8 @@ def text_to_array(text, width=640, height=40):
     try:
         font = ImageFont.truetype("UnBatang.ttf", 25)
     except OSError:
-        font = ImageFont.load_default() 
-        
+        font = ImageFont.load_default()
+
     d = ImageDraw.Draw(img)
     text_width, text_height = d.textsize(text)
     h = 40 // 2 - 3 * text_height // 2

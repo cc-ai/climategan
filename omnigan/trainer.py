@@ -96,6 +96,7 @@ class Trainer:
         self.use_pl4m = False
         self.is_setup = False
         self.current_mode = "train"
+        self.kitti_pretrain = self.opts.kitti.pretrain
 
         self.device = device or torch.device(
             "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -628,7 +629,7 @@ class Trainer:
         verbose = self.verbose
 
         if not inference:
-            self.loaders = get_all_loaders(self.opts)
+            self.all_loaders = get_all_loaders(self.opts)
 
         # -----------------------
         # -----  Generator  -----
@@ -662,6 +663,7 @@ class Trainer:
         if inference:
             print("Inference mode: no Discriminator, no Classifier, no optimizers")
             print_num_parameters(self)
+            self.switch_data(to="base")
             return
 
         # ---------------------------
@@ -724,10 +726,15 @@ class Trainer:
         # ----------------------------
         # -----  Display images  -----
         # ----------------------------
-        self.display_images = {}
+        self.base_display_images = {}
+        self.kitty_display_images = {}
         for mode, mode_dict in self.loaders.items():
             self.display_images[mode] = {}
             for domain, domain_loader in mode_dict.items():
+                if self.kitti_pretrain and domain == "kitti":
+                    target_dict = self.kitty_display_images
+                else:
+                    target_dict = self.base_display_images
                 dataset = self.loaders[mode][domain].dataset
                 display_indices = get_display_indices(self.opts, domain, len(dataset))
                 ldis = len(display_indices)
@@ -736,19 +743,41 @@ class Trainer:
                     end="\r",
                     flush=True,
                 )
-                self.display_images[mode][domain] = [
+                target_dict[mode][domain] = [
                     Dict(dataset[i]) for i in display_indices if i < len(dataset)
                 ]
                 if self.exp is not None:
-                    for im_id, d in enumerate(self.display_images[mode][domain]):
+                    for im_id, d in enumerate(target_dict[mode][domain]):
                         self.exp.log_parameter(
                             "display_image_{}_{}_{}".format(mode, domain, im_id),
                             d["paths"],
                         )
+
+        if self.kitti_pretrain:
+            self.switch_data(to="kitti")
+
         print(" " * 50, end="\r")
         print("Done creating display images")
         print("Setup done.")
         self.is_setup = True
+
+    def switch_data(self, to="kitti"):
+        if to == "kitti":
+            self.display_images = self.kitty_display_images
+            self.loaders = {
+                mode: {"s": self.all_loaders[mode]["kitti"]}
+                for mode in self.all_loaders
+            }
+        else:
+            self.display_images = self.base_display_images
+            self.loaders = {
+                mode: {
+                    domain: self.all_loaders[mode][domain]
+                    for domain in self.all_loaders[mode]
+                    if domain != "kitti"
+                }
+                for mode in self.all_loaders
+            }
 
     def train(self):
         """For each epoch:
@@ -770,6 +799,10 @@ class Trainer:
                 and get_num_params(self.G.painter) > 0
             ):
                 self.use_pl4m = True
+
+            if self.logger.epoch == self.opts.train.kitti.epochs:
+                self.switch_data(to="base")
+                self.kitti_pretrain = False
 
     def run_epoch(self):
         """Runs an epoch:
@@ -819,7 +852,7 @@ class Trainer:
             # ----------------------------------
 
             # unfreeze params of the discriminator
-            if self.d_opt is not None:
+            if self.d_opt is not None and not self.kitti_pretrain:
                 for param in self.D.parameters():
                     param.requires_grad = True
 
@@ -828,7 +861,11 @@ class Trainer:
             # -------------------------------
             # -----  Update Classifier  -----
             # -------------------------------
-            if self.opts.train.latent_domain_adaptation and self.C is not None:
+            if (
+                self.opts.train.latent_domain_adaptation
+                and self.C is not None
+                and not self.kitti_pretrain
+            ):
                 self.update_C(multi_domain_batch)
 
             # -------------------------
@@ -837,7 +874,9 @@ class Trainer:
             self.logger.global_step += 1
             self.logger.log_step_time(time())
 
-        self.update_learning_rates()
+        if not self.kitti_pretrain:
+            self.update_learning_rates()
+
         self.logger.log_learning_rates()
         self.logger.log_epoch_time(time())
 
