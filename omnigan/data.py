@@ -498,11 +498,20 @@ class OmniListDataset(Dataset):
 
 
 def get_loader(mode, domain, opts):
+    if (
+        domain != "kitti"
+        or not opts.train.kitti.pretrain
+        or not opts.train.kitti.batch_size
+    ):
+        batch_size = opts.data.loaders.get("batch_size", 4)
+    else:
+        batch_size = opts.train.kitti.get("batch_size", 4)
+
     return DataLoader(
         OmniListDataset(
             mode, domain, opts, transform=transforms.Compose(get_transforms(opts))
         ),
-        batch_size=opts.data.loaders.get("batch_size", 4),
+        batch_size=batch_size,
         shuffle=True,
         num_workers=opts.data.loaders.get("num_workers", 8),
         pin_memory=True,  # faster transfer to gpu
