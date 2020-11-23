@@ -26,6 +26,9 @@ class Logger:
         all_legends = ["Input"]
         task_legends = {}
 
+        if domain not in trainer.display_images[mode]:
+            return
+
         # --------------------
         # -----  Masker  -----
         # --------------------
@@ -341,7 +344,9 @@ class Logger:
             )
 
             if header is not None:
-                image_grid = torch.cat([header.to(image_grid.device), image_grid], dim=1)
+                image_grid = torch.cat(
+                    [header.to(image_grid.device), image_grid], dim=1
+                )
 
             image_grid = image_grid.permute(1, 2, 0).cpu().numpy()
             trainer.exp.log_image(
