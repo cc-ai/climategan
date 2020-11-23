@@ -183,22 +183,23 @@ def normalize_tensor(t):
     return t
 
 
-def get_normalized_depth_t(arr, domain, normalize=False):
+def get_normalized_depth_t(tensor, domain, normalize=False):
     if domain == "r":
         # megadepth depth
-        arr = arr.unsqueeze(0)
+        tensor = tensor.unsqueeze(0)
         if normalize:
-            arr = arr - torch.min(arr)
-            arr = torch.true_divide(arr, torch.max(arr))
+            tensor = tensor - torch.min(tensor)
+            tensor = torch.true_divide(tensor, torch.max(tensor))
     elif domain == "s":
         # from 3-channel depth encoding from Unity simulator to 1-channel [0-1] values
-        arr = decode_unity_depth_t(arr, log=False, normalize=normalize)
+        tensor = decode_unity_depth_t(tensor, log=False, normalize=normalize)
     elif domain == "kitti":
-        arr = 1 / arr
+        tensor = 1 / tensor
         if normalize:
-            arr = arr - arr.min()
-            arr = arr / arr.max()
-    return arr
+            tensor = tensor - tensor.min()
+            tensor = tensor / tensor.max()
+        tensor = tensor.unsqueeze(0)
+    return tensor
 
 
 def decode_unity_depth_t(unity_depth, log=True, normalize=False, numpy=False, far=1000):
