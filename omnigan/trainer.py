@@ -547,10 +547,10 @@ class Trainer:
         else:
             domain = "rf"
 
-        if "train" in self.loaders:
+        if "train" in self.all_loaders:
             mode = "train"
         else:
-            assert "val" in self.loaders, "no data loader found"
+            assert "val" in self.all_loaders, "no data loader found"
             mode = "val"
 
         return {
