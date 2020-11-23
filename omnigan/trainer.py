@@ -517,7 +517,7 @@ class Trainer:
         """
         x = None
         for mode in self.all_loaders:
-            for domain in all_loaders.loaders[mode]:
+            for domain in self.all_loaders.loaders[mode]:
                 x = (
                     self.all_loaders[mode][domain]
                     .dataset[0]["data"]["x"]
