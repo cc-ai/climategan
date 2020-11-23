@@ -540,8 +540,9 @@ class Trainer:
         Returns:
             dict(tuple): {task: (c, h, w) for task in self.opts.tasks}
         """
-
-        if any(t in self.opts.tasks for t in "msd"):
+        if self.opts.train.kitti.pretrain is True:
+            domain = "kitti"
+        elif any(t in self.opts.tasks for t in "msd"):
             domain = "r"
         else:
             domain = "rf"
@@ -554,7 +555,9 @@ class Trainer:
 
         return {
             task: tensor.shape
-            for task, tensor in self.loaders[mode][domain].dataset[0]["data"].items()
+            for task, tensor in self.all_loaders[mode][domain]
+            .dataset[0]["data"]
+            .items()
         }
 
     def g_opt_step(self):
