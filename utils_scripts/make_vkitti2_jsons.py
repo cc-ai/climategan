@@ -7,7 +7,7 @@ import os
 def make_kitti_jsons(
     base,
     out_dir,
-    val_scene="/Scene05/",
+    val_scene="/Scene06/",
     keep_frames=[
         "15-deg-left",
         "15-deg-right",
@@ -77,7 +77,7 @@ if __name__ == "__main__":
     kitti_dir = "/miniscratch/_groups/ccai/data/vkitti2"
     out_dir = "/miniscratch/_groups/ccai/data/jsons"
 
-    val_scene_id = "/Scene05/"
+    val_scene_id = "/Scene06/"
 
     keep_frames = [
         "15-deg-left",
