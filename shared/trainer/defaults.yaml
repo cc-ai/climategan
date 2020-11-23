@@ -239,6 +239,7 @@ train:
   kitti:
     pretrain: False
     epochs: 30
+    batch_size: 20
   amp: False
   epochs: 300
   fid:
