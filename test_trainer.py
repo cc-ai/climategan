@@ -146,8 +146,12 @@ if __name__ == "__main__":
 
     assert not (args.include and args.exclude), "Choose 1: include XOR exclude"
 
-    include = set(args.include)
-    exclude = set(args.exclude)
+    include = set(int(i) for i in args.include)
+    exclude = set(int(i) for i in args.exclude)
+    if include:
+        print("Including exclusively tests", " ".join(args.include))
+    if exclude:
+        print("Excluding tests", " ".join(args.exclude))
 
     # --------------------------------------
     # -----  Create global experiment  -----
@@ -256,6 +260,8 @@ if __name__ == "__main__":
 
     for test_idx, conf in enumerate(test_scenarios):
         if test_idx in exclude or (include and test_idx not in include):
+            reason = "because it is in exclude" if test_idx in exclude else "because it is not in include"
+            print("Ignoring test", test_idx, reason)
             continue
 
         # copy base scenario opts
