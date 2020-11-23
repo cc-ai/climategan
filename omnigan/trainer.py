@@ -516,9 +516,13 @@ class Trainer:
             tuple: (c, h, w)
         """
         x = None
-        for mode in self.loaders:
-            for domain in self.loaders[mode]:
-                x = self.loaders[mode][domain].dataset[0]["data"]["x"].to(self.device)
+        for mode in self.all_loaders:
+            for domain in all_loaders.loaders[mode]:
+                x = (
+                    self.all_loaders[mode][domain]
+                    .dataset[0]["data"]["x"]
+                    .to(self.device)
+                )
                 break
             if x is not None:
                 break
@@ -723,7 +727,7 @@ class Trainer:
         self.losses = get_losses(self.opts, verbose, device=self.device)
 
         if verbose > 0:
-            for mode, mode_dict in self.loaders.items():
+            for mode, mode_dict in self.all_loaders.items():
                 for domain, domain_loader in mode_dict.items():
                     print(
                         "Loader {} {} : {}".format(
@@ -734,14 +738,14 @@ class Trainer:
         # ----------------------------
         # -----  Display images  -----
         # ----------------------------
-        for mode, mode_dict in self.loaders.items():
+        for mode, mode_dict in self.all_loaders.items():
             self.display_images[mode] = {}
             for domain, domain_loader in mode_dict.items():
                 if self.kitti_pretrain and domain == "kitti":
                     target_dict = self.kitty_display_images
                 else:
                     target_dict = self.base_display_images
-                dataset = self.loaders[mode][domain].dataset
+                dataset = self.all_loaders[mode][domain].dataset
                 display_indices = get_display_indices(self.opts, domain, len(dataset))
                 ldis = len(display_indices)
                 print(
