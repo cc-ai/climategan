@@ -40,6 +40,9 @@ class Logger:
                     if task == "p":
                         continue
 
+                    if task not in display_dict["data"]:
+                        continue
+
                     task_legend = ["Input"]
                     target = display_dict["data"][task]
                     target = target.unsqueeze(0).to(trainer.device)
