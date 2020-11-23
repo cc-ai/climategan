@@ -246,6 +246,7 @@ if __name__ == "__main__":
             "train.epochs": 2,
             "train.kitti.pretrain": True,
             "train.kitti.epochs": 1,
+            "domains": ["kitti", "r", "s"],
         },
     ]
 
@@ -260,7 +261,11 @@ if __name__ == "__main__":
 
     for test_idx, conf in enumerate(test_scenarios):
         if test_idx in exclude or (include and test_idx not in include):
-            reason = "because it is in exclude" if test_idx in exclude else "because it is not in include"
+            reason = (
+                "because it is in exclude"
+                if test_idx in exclude
+                else "because it is not in include"
+            )
             print("Ignoring test", test_idx, reason)
             continue
 
