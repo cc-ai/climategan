@@ -98,7 +98,7 @@ class Trainer:
         self.exp = None
 
         self.current_mode = "train"
-        self.kitti_pretrain = self.opts.kitti.pretrain
+        self.kitti_pretrain = self.opts.train.kitti.pretrain
 
         self.lr_names = {}
         self.base_display_images = {}
@@ -749,6 +749,8 @@ class Trainer:
                 if self.kitti_pretrain and domain == "kitti":
                     target_dict = self.kitty_display_images
                 else:
+                    if domain == "kitti":
+                        continue
                     target_dict = self.base_display_images
 
                 dataset = self.all_loaders[mode][domain].dataset
