@@ -222,7 +222,9 @@ def set_data_paths(opts: Dict) -> Dict:
                 opts.data.files[mode][domain] = str(
                     Path(opts.data.files.base) / opts.data.files[mode][domain]
                 )
-            assert Path(opts.data.files[mode][domain]).exists()
+            assert Path(
+                opts.data.files[mode][domain]
+            ).exists(), "Cannot find {}".format(str(opts.data.files[mode][domain]))
 
     return opts
 

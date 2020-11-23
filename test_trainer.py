@@ -198,47 +198,47 @@ if __name__ == "__main__":
     # create scenario-specific variables with __key
     # ALWAYS specify a __doc key to describe your scenario
     test_scenarios = [
-        {"__use_comet": False, "__doc": "MSD no exp", "__verbose": 1},
-        {"__doc": "MSD with exp"},
+        {"__use_comet": False, "__doc": "MSD no exp", "__verbose": 1},  # 0
+        {"__doc": "MSD with exp"},  # 1
         {
-            "__doc": "MSD no exp upsample_featuremaps",
+            "__doc": "MSD no exp upsample_featuremaps",  # 2
             "__use_comet": False,
             "gen.d.upsample_featuremaps": True,
             "gen.s.upsample_featuremaps": True,
         },
-        {"tasks": ["p"], "domains": ["rf"], "__doc": "Painter"},
+        {"tasks": ["p"], "domains": ["rf"], "__doc": "Painter"},  # 3
         {
-            "__doc": "M no exp low level feats",
+            "__doc": "M no exp low level feats",  # 4
             "__use_comet": False,
             "gen.m.use_low_level_feats": True,
             "tasks": ["m"],
         },
         {
-            "__doc": "MSD no exp deeplabv2",
+            "__doc": "MSD no exp deeplabv2",  # 5
             "__use_comet": False,
             "gen.encoder.architecture": "deeplabv2",
             "gen.s.architecture": "deeplabv2",
         },
         {
-            "__doc": "MSDP no End-to-end",
+            "__doc": "MSDP no End-to-end",  # 6
             "domains": ["rf", "r", "s"],
             "tasks": ["m", "s", "d", "p"],
         },
         {
-            "__doc": "MSDP inference only no exp",
+            "__doc": "MSDP inference only no exp",  # 7
             "__inference": True,
             "__use_comet": False,
             "domains": ["rf", "r", "s"],
             "tasks": ["m", "s", "d", "p"],
         },
         {
-            "__doc": "MSDP with End-to-end",
+            "__doc": "MSDP with End-to-end",  # 8
             "__pl4m": True,
             "domains": ["rf", "r", "s"],
             "tasks": ["m", "s", "d", "p"],
         },
         {
-            "__doc": "Kitti pretrain",
+            "__doc": "Kitti pretrain",  # 9
             "train.epochs": 2,
             "train.kitti.pretrain": True,
             "train.kitti.epochs": 1,
