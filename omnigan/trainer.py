@@ -87,25 +87,30 @@ class Trainer:
         self.opts = opts
         self.verbose = verbose
         self.logger = Logger(self)
-        self.loaders = None
+
         self.losses = None
         self.input_shapes = None
         self.G = self.D = self.C = None
-        self.lr_names = {}
         self.real_val_fid_stats = None
         self.use_pl4m = False
         self.is_setup = False
+        self.loaders = self.all_loaders = None
+        self.exp = None
+
         self.current_mode = "train"
         self.kitti_pretrain = self.opts.kitti.pretrain
+
+        self.lr_names = {}
+        self.base_display_images = {}
+        self.kitty_display_images = {}
+        self.domain_labels = {"s": 0, "r": 1}
 
         self.device = device or torch.device(
             "cuda:0" if torch.cuda.is_available() else "cpu"
         )
 
-        self.exp = None
         if isinstance(comet_exp, Experiment):
             self.exp = comet_exp
-        self.domain_labels = {"s": 0, "r": 1}
 
         if self.opts.train.amp:
             optimizers = [
@@ -726,8 +731,6 @@ class Trainer:
         # ----------------------------
         # -----  Display images  -----
         # ----------------------------
-        self.base_display_images = {}
-        self.kitty_display_images = {}
         for mode, mode_dict in self.loaders.items():
             self.display_images[mode] = {}
             for domain, domain_loader in mode_dict.items():
@@ -764,20 +767,22 @@ class Trainer:
     def switch_data(self, to="kitti"):
         if to == "kitti":
             self.display_images = self.kitty_display_images
-            self.loaders = {
-                mode: {"s": self.all_loaders[mode]["kitti"]}
-                for mode in self.all_loaders
-            }
+            if self.all_loaders is not None:
+                self.loaders = {
+                    mode: {"s": self.all_loaders[mode]["kitti"]}
+                    for mode in self.all_loaders
+                }
         else:
             self.display_images = self.base_display_images
-            self.loaders = {
-                mode: {
-                    domain: self.all_loaders[mode][domain]
-                    for domain in self.all_loaders[mode]
-                    if domain != "kitti"
+            if self.all_loaders is not None:
+                self.loaders = {
+                    mode: {
+                        domain: self.all_loaders[mode][domain]
+                        for domain in self.all_loaders[mode]
+                        if domain != "kitti"
+                    }
+                    for mode in self.all_loaders
                 }
-                for mode in self.all_loaders
-            }
 
     def train(self):
         """For each epoch:
@@ -795,12 +800,12 @@ class Trainer:
             self.save()
 
             if (
-                self.logger.epoch == self.opts.gen.p.pl4m_epoch
+                self.logger.epoch == self.opts.gen.p.pl4m_epoch - 1
                 and get_num_params(self.G.painter) > 0
             ):
                 self.use_pl4m = True
 
-            if self.logger.epoch == self.opts.train.kitti.epochs:
+            if self.logger.epoch == self.opts.train.kitti.epochs - 1:
                 self.switch_data(to="base")
                 self.kitti_pretrain = False
 

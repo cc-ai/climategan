@@ -395,7 +395,7 @@ def tensor_loader(path, task, domain):
         if len(arr.shape) >= 3:
             arr = arr[:, :, 0]
         arr = np.expand_dims(arr, 0)
-        
+
     return torch.from_numpy(arr).unsqueeze(0)
 
 
@@ -471,7 +471,7 @@ class OmniListDataset(Dataset):
                 }
             ),
             "paths": paths,
-            "domain": self.domain,
+            "domain": self.domain if self.domain != "kitti" else "s",
             "mode": self.mode,
         }
 

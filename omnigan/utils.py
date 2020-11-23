@@ -130,16 +130,20 @@ def load_opts(
     if commandline_opts is not None and isinstance(commandline_opts, dict):
         opts = Dict(merge(commandline_opts, opts))
 
+    if opts.train.kitti.pretrained:
+        assert "kitti" in opts.data.files.train
+        assert "kitti" in opts.data.files.val
+        assert opts.train.kitti.epochs > 0
+
     opts.domains = []
     if "m" in opts.tasks or "s" in opts.tasks:
         opts.domains.extend(["r", "s"])
     if "p" in opts.tasks:
         opts.domains.append("rf")
-    opts.domains = list(set(opts.domains))
+    if opts.train.kitti.pretrain:
+        opts.domains.append("kitti")
 
-    if opts.train.kitti.pretrained:
-        assert "kitti" in opts.data.files.train
-        assert "kitti" in opts.data.files.val
+    opts.domains = list(set(opts.domains))
 
     if "s" in opts.tasks:
         if opts.gen.encoder.architecture != opts.gen.s.architecture:

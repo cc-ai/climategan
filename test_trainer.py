@@ -140,7 +140,14 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--no_delete", action="store_true", default=False)
     parser.add_argument("--no_end_to_end", action="store_true", default=False)
+    parser.add_argument("--include", "-i", nargs="+", default=[])
+    parser.add_argument("--exclude", "-e", nargs="+", default=[])
     args = parser.parse_args()
+
+    assert not (args.include and args.exclude), "Choose 1: include XOR exclude"
+
+    include = set(args.include)
+    exclude = set(args.exclude)
 
     # --------------------------------------
     # -----  Create global experiment  -----
@@ -170,7 +177,7 @@ if __name__ == "__main__":
         base_opts.data.transforms[-1].new_size = 256
         input_shapes = {
             "x": (3, 256, 256),
-            "s": (opts.gen.s.num_classes, 256, 256),
+            "s": (base_opts.gen.s.num_classes, 256, 256),
         }
     else:
         base_opts.data.transforms[-1].new_size.default = 256
@@ -230,6 +237,12 @@ if __name__ == "__main__":
             "domains": ["rf", "r", "s"],
             "tasks": ["m", "s", "d", "p"],
         },
+        {
+            "__doc": "Kitti pretrain",
+            "train.epochs": 2,
+            "train.kitti.pretrain": True,
+            "train.kitti.epochs": 1,
+        },
     ]
 
     n_confs = len(test_scenarios)
@@ -242,6 +255,9 @@ if __name__ == "__main__":
     # --------------------------------
 
     for test_idx, conf in enumerate(test_scenarios):
+        if test_idx in exclude or (include and test_idx not in include):
+            continue
+
         # copy base scenario opts
         test_opts = deepcopy(base_opts)
         # update with scenario configuration
