@@ -194,7 +194,7 @@ def get_normalized_depth_t(tensor, domain, normalize=False):
         # from 3-channel depth encoding from Unity simulator to 1-channel [0-1] values
         tensor = decode_unity_depth_t(tensor, log=False, normalize=normalize)
     elif domain == "kitti":
-        tensor = 1 / tensor
+        tensor = 1 / (tensor / 100)
         if normalize:
             tensor = tensor - tensor.min()
             tensor = tensor / tensor.max()

@@ -346,7 +346,7 @@ def pil_image_loader(path, task):
     return Image.fromarray(arr)
 
 
-def tensor_loader(path, task, domain):
+def tensor_loader(path, task, domain, enable_pseudo=False):
     """load data as tensors
     Args:
         path (str): path to data
@@ -367,7 +367,7 @@ def tensor_loader(path, task, domain):
         else:
             arr = imread(path)  # .astype(np.uint8) /!\ kitti is np.uint16
         tensor = torch.from_numpy(arr.astype(np.float32))
-        tensor = get_normalized_depth_t(tensor, domain, normalize=True)
+        tensor = get_normalized_depth_t(tensor, domain, normalize=enable_pseudo)
         tensor = tensor.unsqueeze(0)
         return tensor
 
@@ -402,6 +402,7 @@ def tensor_loader(path, task, domain):
 class OmniListDataset(Dataset):
     def __init__(self, mode, domain, opts, transform=None):
 
+        self.opts = opts
         self.domain = domain
         self.mode = mode
         self.tasks = set(opts.tasks)
@@ -466,7 +467,12 @@ class OmniListDataset(Dataset):
         item = {
             "data": self.transform(
                 {
-                    task: tensor_loader(env_to_path(path), task, self.domain)
+                    task: tensor_loader(
+                        env_to_path(path),
+                        task,
+                        self.domain,
+                        self.opts.train.pseudo.enable,
+                    )
                     for task, path in paths.items()
                 }
             ),

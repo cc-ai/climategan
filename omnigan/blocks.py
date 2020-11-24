@@ -413,7 +413,6 @@ class DepthDecoder(nn.Module):
                     nn.Conv2d(128, 32, kernel_size=3, stride=1, padding=1),
                     nn.ReLU(True),
                     nn.Conv2d(32, 1, kernel_size=1, stride=1, padding=0),
-                    nn.ReLU(True),
                 ]
             )
         if isinstance(opts.data.transforms[-1].new_size, int):
