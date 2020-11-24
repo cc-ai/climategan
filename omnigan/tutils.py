@@ -184,7 +184,7 @@ def normalize_tensor(t):
 
 
 def get_normalized_depth_t(tensor, domain, normalize=False, log=True):
-    assert not normalize and bucketize
+    assert not normalize and log
     if domain == "r":
         # megadepth depth
         tensor = tensor.unsqueeze(0)

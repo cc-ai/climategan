@@ -1722,8 +1722,10 @@ class Trainer:
         Transforms input tensor given wildfires event
         Args:
             x (torch.Tensor): Input tensor
-            seg_preds (torch.Tensor): Semantic segmentation predictions for input tensor
-            z (torch.Tensor): Latent vector of encoded "x". Can be None if seg_preds is given.
+                seg_preds (torch.Tensor): Semantic segmentation
+                predictions for input tensor
+            z (torch.Tensor): Latent vector of encoded "x".
+                Can be None if seg_preds is given.
         Returns:
             torch.Tensor: Wildfire version of input tensor
         """

@@ -87,25 +87,6 @@ kitti_mapping = {
 }
 
 
-def merge_labels(labels, mapping, default_value=14):
-    """
-    Maps values in `labels` to those of mapping, assigning new labels
-    to each pixel
-
-    Args:
-        labels (np.ndarray): Labels to adapt
-        mapping (dict): Mapping source_label -> target_label (kitti->omnigan)
-        default_value (int, optional): Value for unknown labels. Defaults to 14.
-
-    Returns:
-        np.ndarray: adapted labels
-    """
-    out = np.ones_like(labels) * default_value
-    for source, target in mapping.items():
-        out[labels == source] = target
-    return out
-
-
 def encode_exact_segmap(seg, classes_dict, default_value=14):
     """
     When the mapping (rgb -> label) is known to be exact (no approximative rgb values)
