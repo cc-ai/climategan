@@ -371,12 +371,7 @@ def tensor_loader(path, task, domain, opts):
             tensor,
             domain,
             normalize=opts.train.pseudo.enable,
-            bucketize=opts.gen.d.classify.enable,
-            linspace_args=(
-                opts.gen.d.classify.linspace.min,
-                opts.gen.d.classify.linspace.max,
-                opts.gen.d.classify.linspace.buckets,
-            )
+            log=opts.gen.d.classify.enable,
         )
         tensor = tensor.unsqueeze(0)
         return tensor
