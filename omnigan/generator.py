@@ -11,7 +11,7 @@ from omnigan.tutils import init_weights
 from omnigan.blocks import (
     PainterSpadeDecoder,
     BaseDecoder,
-    DepthDecoder,
+    DepthRegressionDecoder,
 )
 from omnigan.encoder import DeeplabV2Encoder, BaseEncoder
 import omnigan.strings as strings
@@ -96,9 +96,12 @@ class OmniGenerator(nn.Module):
         self.decoders = {}
 
         if "d" in opts.tasks:
-            self.decoders["d"] = DepthDecoder(opts)
+            if opts.gen.d.classify.enable:
+                self.decoders["d"] = DepthClassificationDecoder(opts)
+            else:
+                self.decoders["d"] = DepthRegressionDecoder(opts)
             if self.verbose > 0:
-                print("  - Created Depth Decoder")
+                print(f"  - Created {self.decoders['d'].__class__.__name__}")
 
         if "s" in opts.tasks:
             if opts.gen.s.architecture == "deeplabv2":
@@ -185,6 +188,19 @@ class OmniGenerator(nn.Module):
             return x * (1.0 - m) + fake * m
         return fake
 
+    def depth_image(self, x=None, z=None):
+        assert x is not None or z is not None
+        assert not (x is not None and z is not None)
+        if z is None:
+            z = self.encode(x)
+        logits = self.decoders["d"](z)
+
+        if logits.shape[1] > 1:
+            logits = torch.argmax(logits, dim=1)
+            logits = logits / logits.max()
+
+        return logits
+
 
 class MaskDecoder(BaseDecoder):
     def __init__(self, opts):
@@ -213,6 +229,38 @@ class MaskDecoder(BaseDecoder):
             res_norm=opts.gen.m.res_norm,
             activ=opts.gen.m.activ,
             pad_type=opts.gen.m.pad_type,
+            output_activ="none",
+            low_level_feats_dim=low_level_feats_dim,
+        )
+
+
+class DepthClassificationDecoder(BaseDecoder):
+    def __init__(self, opts):
+        low_level_feats_dim = -1
+        use_v3 = opts.gen.encoder.architecture == "deeplabv3"
+        use_mobile_net = opts.gen.deeplabv3.backbone == "mobilenet"
+        use_low = opts.gen.d.use_low_level_feats
+
+        if use_v3 and use_mobile_net:
+            input_dim = 320
+            if use_low:
+                low_level_feats_dim = 24
+        elif use_v3:
+            input_dim = 2048
+            if use_low:
+                low_level_feats_dim = 256
+        else:
+            input_dim = 2048
+
+        super().__init__(
+            n_upsample=opts.gen.d.n_upsample,
+            n_res=opts.gen.d.n_res,
+            input_dim=input_dim,
+            proj_dim=opts.gen.d.proj_dim,
+            output_dim=opts.gen.d.classify.linspace.buckets,
+            res_norm=opts.gen.d.res_norm,
+            activ=opts.gen.d.activ,
+            pad_type=opts.gen.d.pad_type,
             output_activ="none",
             low_level_feats_dim=low_level_feats_dim,
         )

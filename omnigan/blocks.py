@@ -373,7 +373,7 @@ class BaseDecoder(nn.Module):
         return strings.basedecoder(self)
 
 
-class DepthDecoder(nn.Module):
+class DepthRegressionDecoder(nn.Module):
     """#Depth decoder based on depth auxiliary task in DADA paper
 
     """

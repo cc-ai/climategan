@@ -183,7 +183,10 @@ def normalize_tensor(t):
     return t
 
 
-def get_normalized_depth_t(tensor, domain, normalize=False):
+def get_normalized_depth_t(
+    tensor, domain, normalize=False, bucketize=True, linspace_args=None
+):
+    assert not normalize and bucketize
     if domain == "r":
         # megadepth depth
         tensor = tensor.unsqueeze(0)
@@ -192,14 +195,33 @@ def get_normalized_depth_t(tensor, domain, normalize=False):
             tensor = torch.true_divide(tensor, torch.max(tensor))
     elif domain == "s":
         # from 3-channel depth encoding from Unity simulator to 1-channel [0-1] values
-        tensor = decode_unity_depth_t(tensor, log=False, normalize=normalize)
+        tensor = decode_unity_depth_t(tensor, log=bucketize, normalize=normalize)
     elif domain == "kitti":
         tensor = 1 / (tensor / 100)
         if normalize:
             tensor = tensor - tensor.min()
             tensor = tensor / tensor.max()
         tensor = tensor.unsqueeze(0)
+
+    if bucketize and domain != "r":
+        tensor = torch.bucketize(
+            tensor, torch.linspace(*linspace_args), out_int32=True, right=True
+        )
     return tensor
+
+
+def decode_bucketed_depth(tensor, opts):
+    # Prediction is size N x C x H x W
+    idx = torch.argmax(tensor.squeeze(0), dim=0)
+    linspace_args = (
+        opts.gen.d.classify.linspace.min,
+        opts.gen.d.classify.linspace.max,
+        opts.gen.d.classify.linspace.buckets,
+    )
+    indexer = torch.linspace(*linspace_args)
+    log_depth = indexer[idx.long()].permute(2, 0, 1).to(torch.float32).unsqueeze(0)
+    depth = torch.exp(log_depth)
+    return depth
 
 
 def decode_unity_depth_t(unity_depth, log=True, normalize=False, numpy=False, far=1000):
@@ -246,7 +268,8 @@ def decode_unity_depth_t(unity_depth, log=True, normalize=False, numpy=False, fa
     B = (255 - B).type(torch.IntTensor)
     depth = ((R * 256 * 31 + G * 256 + B).type(torch.FloatTensor)) / (256 * 31 * 31 - 1)
     depth = depth * far
-    depth = 1 / depth
+    if not log:
+        depth = 1 / depth
     depth = depth.unsqueeze(0)  # (depth * far).unsqueeze(0)
 
     if log:

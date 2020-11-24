@@ -1637,6 +1637,8 @@ class Trainer:
         metric_avg_scores = {"m": {}}
         if "s" in self.opts.tasks:
             metric_avg_scores["s"] = {}
+        if "d" in self.opts.tasks and domain == "s" and self.opts.gen.d.classify.enable:
+            metric_avg_scores["d"] = {}
 
         for key in metric_funcs:
             for task in metric_avg_scores:
@@ -1668,6 +1670,14 @@ class Trainer:
                 for metric in metric_funcs:
                     metric_score = metric_funcs[metric](pred_seg, s)
                     metric_avg_scores["s"][metric].append(metric_score)
+
+            if "d" in self.opts.tasks and domain == "s":
+                pred_depth = self.G.decoders["d"](z).detach().cpu()
+                d = im_set["data"]["d"].unsqueeze(0).detach()
+
+                for metric in metric_funcs:
+                    metric_score = metric_funcs[metric](pred_depth, d)
+                    metric_avg_scores["d"][metric].append(metric_score)
 
         metric_avg_scores = {
             task: {

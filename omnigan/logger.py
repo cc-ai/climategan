@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from torch.nn.functional import sigmoid, interpolate
 from omnigan.data import decode_segmap_merged_labels
-from omnigan.tutils import normalize_tensor, all_texts_to_tensors
+from omnigan.tutils import normalize_tensor, all_texts_to_tensors, decode_bucketed_depth
 from omnigan.utils import flatten_opts
 from PIL import Image
 
@@ -92,6 +92,10 @@ class Logger:
                     elif task == "d":
                         # prediction is a log depth tensor
                         target = normalize_tensor(target) * 255
+                        if prediction.shape[1] > 1:
+                            prediction = decode_bucketed_depth(
+                                prediction, self.trainer.opts
+                            )
                         smogged = self.trainer.compute_smog(
                             x, d=prediction, s=seg_pred, use_sky_seg=False
                         )

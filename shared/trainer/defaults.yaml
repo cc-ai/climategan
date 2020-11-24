@@ -127,6 +127,12 @@ gen:
     res_norm: batch
     loss: dada
     upsample_featuremaps: False # upsamples from 80x80 to 160x160 intermediate feature maps
+    classify: # classify log-depth instead of regression
+      enable: True
+      linspace:
+        min: 0.3
+        max: 7
+        buckets: 256
   s: # specific params for the semantic segmentation decoder
     <<: *default-gen
     num_classes: 11
