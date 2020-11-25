@@ -127,9 +127,9 @@ gen:
     res_norm: batch
     loss: dada # dada or sigm | /!\ ignored if classify.enable
     upsample_featuremaps: False # upsamples from 80x80 to 160x160 intermediate feature maps
-    architecture: dada # dada or base
+    architecture: dada # dada or base | must be base for classif
     classify: # classify log-depth instead of regression
-      enable: True
+      enable: False
       linspace:
         min: 0.35
         max: 6.95

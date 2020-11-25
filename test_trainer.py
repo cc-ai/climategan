@@ -248,6 +248,19 @@ if __name__ == "__main__":
             "train.kitti.epochs": 1,
             "domains": ["kitti", "r", "s"],
         },
+        {
+            "__doc": "Depth Dada archi",  # 10
+            "gen.d.architecture": "data"
+        },
+        {
+            "__doc": "Depth Base archi",  # 11
+            "gen.d.architecture": "base"
+        },
+        {
+            "__doc": "Depth Base Classification",  # 12
+            "gen.d.architecture": "base",
+            "gen.d.classify.enable": True
+        },
     ]
 
     n_confs = len(test_scenarios)
