@@ -125,13 +125,14 @@ gen:
     output_dim: 1
     conv_norm: batch
     res_norm: batch
-    loss: dada
+    loss: dada # dada or sigm | /!\ ignored if classify.enable
     upsample_featuremaps: False # upsamples from 80x80 to 160x160 intermediate feature maps
+    architecture: dada # dada or base
     classify: # classify log-depth instead of regression
       enable: True
       linspace:
-        min: 0.3
-        max: 7
+        min: 0.35
+        max: 6.95
         buckets: 256
   s: # specific params for the semantic segmentation decoder
     <<: *default-gen

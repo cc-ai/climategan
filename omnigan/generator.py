@@ -11,7 +11,7 @@ from omnigan.tutils import init_weights
 from omnigan.blocks import (
     PainterSpadeDecoder,
     BaseDecoder,
-    DepthRegressionDecoder,
+    DADADepthRegressionDecoder,
 )
 from omnigan.encoder import DeeplabV2Encoder, BaseEncoder
 import omnigan.strings as strings
@@ -96,10 +96,11 @@ class OmniGenerator(nn.Module):
         self.decoders = {}
 
         if "d" in opts.tasks:
-            if opts.gen.d.classify.enable:
-                self.decoders["d"] = DepthClassificationDecoder(opts)
+            if opts.gen.d.architecture == "base":
+                self.decoders["d"] = BaseDepthDecoder(opts)
             else:
-                self.decoders["d"] = DepthRegressionDecoder(opts)
+                self.decoders["d"] = DADADepthRegressionDecoder(opts)
+
             if self.verbose > 0:
                 print(f"  - Created {self.decoders['d'].__class__.__name__}")
 
@@ -234,7 +235,7 @@ class MaskDecoder(BaseDecoder):
         )
 
 
-class DepthClassificationDecoder(BaseDecoder):
+class BaseDepthDecoder(BaseDecoder):
     def __init__(self, opts):
         low_level_feats_dim = -1
         use_v3 = opts.gen.encoder.architecture == "deeplabv3"
@@ -252,12 +253,19 @@ class DepthClassificationDecoder(BaseDecoder):
         else:
             input_dim = 2048
 
+        n_upsample = 1 if opts.gen.d.upsample_featuremaps else 0
+        output_dim = (
+            1
+            if not opts.gen.d.classify.enable
+            else opts.gen.d.classify.linspace.buckets
+        )
+
         super().__init__(
-            n_upsample=opts.gen.d.n_upsample,
+            n_upsample=n_upsample,
             n_res=opts.gen.d.n_res,
             input_dim=input_dim,
             proj_dim=opts.gen.d.proj_dim,
-            output_dim=opts.gen.d.classify.linspace.buckets,
+            output_dim=output_dim,
             res_norm=opts.gen.d.res_norm,
             activ=opts.gen.d.activ,
             pad_type=opts.gen.d.pad_type,
