@@ -32,6 +32,7 @@ from omnigan.fid import compute_val_fid
 from omnigan.generator import OmniGenerator, get_gen
 from omnigan.losses import get_losses
 from omnigan.optim import get_optimizer
+from omnigan.transforms import DiffTransforms
 from omnigan.tutils import (
     divide_pred,
     domains_to_class_tensor,
@@ -96,6 +97,7 @@ class Trainer:
         self.use_pl4m = False
         self.is_setup = False
         self.current_mode = "train"
+        self.diff_transforms = None
 
         self.device = device or torch.device(
             "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -712,6 +714,12 @@ class Trainer:
 
         self.losses = get_losses(self.opts, verbose, device=self.device)
 
+        if self.opts.gen.p.apply_diff_augment:
+            self.diff_transforms = DiffTransforms(
+                cutout_ratio=self.opts.gen.p.cutout_ratio,
+                translation_ratio=self.opts.gen.p.translation_ratio,
+            )
+
         if verbose > 0:
             for mode, mode_dict in self.loaders.items():
                 for domain, domain_loader in mode_dict.items():
@@ -984,6 +992,9 @@ class Trainer:
                 with torch.no_grad():
                     # see spade compute_discriminator_loss
                     fake = self.G.paint(m, x)
+                    if self.opts.gen.p.apply_diff_augment:
+                        fake = self.diff_transforms(fake)
+                        x = self.diff_transforms(x)
                     fake = fake.detach()
                     fake.requires_grad_()
 
@@ -1177,6 +1188,10 @@ class Trainer:
         # -------------------------------------
         # -----  Local & Global GAN Loss  -----
         # -------------------------------------
+        if self.opts.gen.p.apply_diff_augment:
+            fake_flooded = self.diff_transforms(fake_flooded)
+            x = self.diff_transforms(x)
+
         if self.opts.dis.p.use_local_discriminator:
             fake_d_global = self.D["p"]["global"](fake_flooded)
             fake_d_local = self.D["p"]["local"](fake_flooded * m)

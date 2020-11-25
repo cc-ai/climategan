@@ -290,17 +290,18 @@ def get_transforms(opts):
     using get_transform(transform_item)
     """
     transforms = []
-    color_jittering = ["brightness", "saturation", "contrast"]
+    last_transforms = ["brightness", "saturation", "contrast", "cutout"]
 
     for t in opts.data.transforms:
-        if t.name not in color_jittering and get_transform(t) is not None:
+        if t.name not in last_transforms and get_transform(t) is not None:
             transforms.append(get_transform(t))
 
     transforms += [Normalize(opts)]
 
-    for t in opts.data.transforms:
-        if t.name in color_jittering and get_transform(t) is not None:
-            transforms.append(get_transform(t))
+    if "p" not in opts.tasks:
+        for t in opts.data.transforms:
+            if t.name in last_transforms and get_transform(t) is not None:
+                transforms.append(get_transform(t))
 
     return transforms
 
@@ -409,3 +410,17 @@ def rand_translation(tensor, ratio=0.125):
         .permute(0, 3, 1, 2)
     )
     return tensor
+
+
+class DiffTransforms:
+    def __init__(self, cutout_ratio, translation_ratio):
+        self.cutout_ratio = cutout_ratio
+        self.translation_ratio = translation_ratio
+
+    def __call__(self, tensor):
+        tensor = rand_brightness(tensor)
+        tensor = rand_contrast(tensor)
+        tensor = rand_saturation(tensor)
+        tensor = rand_translation(tensor, ratio=self.translation_ratio)
+        tensor = rand_cutout(tensor, ratio=self.cutout_ratio)
+        return tensor
