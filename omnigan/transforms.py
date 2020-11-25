@@ -285,7 +285,7 @@ def get_transform(transform_item):
     raise ValueError("Unknown transform_item {}".format(transform_item))
 
 
-def get_transforms(opts):
+def get_transforms(opts, mode):
     """Get all the transform functions listed in opts.data.transforms
     using get_transform(transform_item)
     """
@@ -298,7 +298,7 @@ def get_transforms(opts):
 
     transforms += [Normalize(opts)]
 
-    if "p" not in opts.tasks:
+    if "p" not in opts.tasks and mode == "train":
         for t in opts.data.transforms:
             if t.name in last_transforms and get_transform(t) is not None:
                 transforms.append(get_transform(t))

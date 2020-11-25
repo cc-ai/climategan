@@ -385,7 +385,10 @@ class OmniListDataset(Dataset):
 def get_loader(mode, domain, opts):
     return DataLoader(
         OmniListDataset(
-            mode, domain, opts, transform=transforms.Compose(get_transforms(opts))
+            mode,
+            domain,
+            opts,
+            transform=transforms.Compose(get_transforms(opts, mode)),
         ),
         batch_size=opts.data.loaders.get("batch_size", 4),
         shuffle=True,
