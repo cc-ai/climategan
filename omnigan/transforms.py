@@ -215,23 +215,20 @@ class Normalize:
 
 
 class BucketizeDepth:
-    def __init__(self, opts):
-        if not opts.gen.d.classify.enable:
-            self.apply = False
-        else:
-            self.apply = True
+    def __init__(self, opts, domain):
+        self.domain = domain
 
-        if self.apply:
+        if opts.gen.d.classify.enable and domain in {"s", "kitti"}:
             self.buckets = torch.linspace(
                 *[
                     opts.gen.d.classify.linspace.min,
                     opts.gen.d.classify.linspace.max,
-                    opts.gen.d.classify.linspace.buckets,
+                    opts.gen.d.classify.linspace.buckets - 1,
                 ]
             )
 
             self.transforms = {
-                "d": lambda tensor: torch.bucketize(tensor, self.buckets)
+                "d": lambda tensor: torch.bucketize(tensor, self.buckets, out_int32=True, right=True)
             }
         else:
             self.transforms = {}
@@ -240,6 +237,18 @@ class BucketizeDepth:
         return {
             task: self.transforms.get(task, lambda x: x)(tensor)
             for task, tensor in data.items()
+            if (
+                (
+                    print(
+                        self.domain,
+                        task, 
+                        tensor.min(), 
+                        tensor.max(), 
+                        ">>", 
+                        self.transforms.get(task, lambda x: x)(tensor).min(), 
+                        self.transforms.get(task, lambda x: x)(tensor).max()
+                    ) if task == "deza" else 1
+                ) or 1)
         }
 
 
@@ -266,11 +275,11 @@ def get_transform(transform_item):
     raise ValueError("Unknown transform_item {}".format(transform_item))
 
 
-def get_transforms(opts):
+def get_transforms(opts, domain):
     """Get all the transform functions listed in opts.data.transforms
     using get_transform(transform_item)
     """
-    last_transforms = [Normalize(opts), BucketizeDepth(opts)]
+    last_transforms = [Normalize(opts), BucketizeDepth(opts, domain)]
 
     conf_transforms = []
     for t in opts.data.transforms:

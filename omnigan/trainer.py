@@ -784,6 +784,7 @@ class Trainer:
 
     def switch_data(self, to="kitti"):
         print("Switching data source to", to)
+        self.data_source = to
         if to == "kitti":
             self.display_images = self.kitty_display_images
             if self.all_loaders is not None:
