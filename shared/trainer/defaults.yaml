@@ -56,6 +56,15 @@ data:
         default: 640
         d: 160
         s: 160
+    - name: brightness
+      ignore: false
+    - name: saturation
+      ignore: false
+    - name: contrast
+      ignore: false
+    - name: cutout
+      ignore: False
+      ratio: 0.2
 
 # ---------------------
 # ----- Generator -----
