@@ -714,7 +714,7 @@ class Trainer:
 
         self.losses = get_losses(self.opts, verbose, device=self.device)
 
-        if self.opts.gen.p.apply_diff_augment:
+        if "p" in self.opts.tasks and self.opts.gen.p.apply_diff_augment:
             self.diff_transforms = DiffTransforms(
                 cutout_ratio=self.opts.gen.p.cutout_ratio,
                 translation_ratio=self.opts.gen.p.translation_ratio,
