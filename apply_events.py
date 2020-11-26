@@ -22,6 +22,7 @@ def parse_args():
     parser.add_argument("-o", "--output_path", type=str, default=None)
     parser.add_argument("-r", "--resume_path", type=str, default=None)
     parser.add_argument("-t", "--time", action="store_true", default=False)
+    parser.add_argument("-m", "--mask_binarization", type=int, default=-1)
 
     return parser.parse_args()
 
@@ -33,6 +34,7 @@ if __name__ == "__main__":
 
     batch_size = args.batch_size
     images_paths = Path(args.images_paths).expanduser().resolve()
+    mask_binarization = args.mask_binarization
     outdir = (
         Path(args.output_path).expanduser().resolve()
         if args.output_path is not None
@@ -89,7 +91,9 @@ if __name__ == "__main__":
 
         images = np.stack(images)
 
-        events = trainer.infer_all(images, True, stores)
+        events = trainer.infer_all(
+            images, True, stores, mask_binarization=mask_binarization
+        )
 
         if outdir:
             for i in range(len(images)):

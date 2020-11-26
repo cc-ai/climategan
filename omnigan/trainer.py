@@ -202,12 +202,12 @@ class Trainer:
             print(*args, **kwargs)
 
     @torch.no_grad()
-    def infer_all(self, x, numpy=True, stores={}):
+    def infer_all(self, x, numpy=True, stores={}, mask_binarization=-1):
         assert self.is_setup
         assert len(x.shape) in {3, 4}, f"Unknown Data shape {x.shape}"
 
         if not isinstance(x, torch.Tensor):
-            x = torch.tensor(x)
+            x = torch.tensor(x, device=self.device)
 
         if len(x.shape) == 3:
             x.unsqueeze_(0)
@@ -216,7 +216,8 @@ class Trainer:
             assert x.shape[-1] == 3, f"Unknown x shape to permute {x.shape}"
             x = x.permute(0, 3, 1, 2)
 
-        x = x.to(self.device)
+        if x.device != self.device:
+            x = x.to(self.device)
 
         if x.shape[-1] != 640 or x.shape[-2] != 640:
             x = torch.nn.functional.interpolate(x, (640, 640), mode="bilinear")
@@ -232,6 +233,8 @@ class Trainer:
             segmentation = self.G.decoders["s"](z)
         with Timer(store=stores.get("mask", [])):
             mask = self.G.mask(z=z)
+            if mask_binarization >= 0:
+                mask = (mask > mask_binarization).to(mask.dtype)
 
         # apply events
         with Timer(store=stores.get("wildfire", [])):
