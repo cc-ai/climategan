@@ -55,6 +55,8 @@ if __name__ == "__main__":
             "flood": [],
             "numpy": [],
             "setup": [],
+            "inference": [],
+            "write": [],
         }
 
     outdir.mkdir(exist_ok=True, parents=True)
@@ -83,28 +85,34 @@ if __name__ == "__main__":
 
     print("\n• Creating events\n")
 
-    for b in range(n_batchs):
-        print(f"Batch {b + 1}/{n_batchs}...", end="\r")
-        images = data[b * batch_size : (b + 1) * batch_size]
-        if not images:
-            continue
+    all_events = []
 
-        images = np.stack(images)
+    with Timer(store=stores.get("inference", [])):
+        for b in range(n_batchs):
+            print(f"Batch {b + 1}/{n_batchs}...", end="\r")
+            images = data[b * batch_size : (b + 1) * batch_size]
+            if not images:
+                continue
 
-        events = trainer.infer_all(
-            images, True, stores, mask_binarization=mask_binarization
-        )
+            images = np.stack(images)
 
-        if outdir:
-            for i in range(len(images)):
-                idx = b * batch_size + i
-                stem = Path(data_paths[idx]).stem
-                for event in events:
-                    im_path = outdir / f"{stem}_{event}.png"
-                    im_data = events[event][i]
-                    io.imsave(im_path, im_data)
+            events = trainer.infer_all(
+                images, True, stores, mask_binarization=mask_binarization
+            )
+            all_events.append(events)
+
+    if outdir:
+        with Timer(store=stores.get("write", [])):
+            for b, events in enumerate(all_events):
+                for i in range(len(events)):
+                    idx = b * batch_size + i
+                    stem = Path(data_paths[idx]).stem
+                    for event in events:
+                        im_path = outdir / f"{stem}_{event}.png"
+                        im_data = events[event][i]
+                        io.imsave(im_path, im_data)
 
     if time_inference:
         print("\n• Timings:")
-        for k, v in stores.items():
-            print_time(k, v)
+        for k in sorted(list(stores.keys())):
+            print_time(k, stores[k])
