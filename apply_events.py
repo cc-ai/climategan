@@ -31,8 +31,8 @@ if __name__ == "__main__":
 
     args = parse_args()
     print(
-        "Received",
-        "\n".join(["  {:20}: {}".format(k, v) for k, v in vars(args).items()]),
+        "Received\n",
+        "\n".join(["  {:25}: {}".format(k, v) for k, v in vars(args).items()]),
     )
 
     batch_size = args.batch_size
@@ -58,7 +58,7 @@ if __name__ == "__main__":
             "flood": [],
             "numpy": [],
             "setup": [],
-            "inference": [],
+            "inference on all images": [],
             "write": [],
         }
 
@@ -92,7 +92,7 @@ if __name__ == "__main__":
 
     all_events = []
 
-    with Timer(store=stores.get("inference", [])):
+    with Timer(store=stores.get("inference on all images", [])):
         for b in range(n_batchs):
             print(f"Batch {b + 1}/{n_batchs}", end="\r")
             images = data[b * batch_size : (b + 1) * batch_size]
