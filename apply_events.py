@@ -30,7 +30,10 @@ def parse_args():
 if __name__ == "__main__":
 
     args = parse_args()
-    print("Received", vars(args))
+    print(
+        "Received",
+        "\n".join(["  {:20}: {}".format(k, v) for k, v in vars(args).items()]),
+    )
 
     batch_size = args.batch_size
     images_paths = Path(args.images_paths).expanduser().resolve()
@@ -82,6 +85,8 @@ if __name__ == "__main__":
     data = [(normalize(i.astype(np.float32)) - 0.5) * 2 for i in data]
 
     n_batchs = len(data) // args.batch_size + 1
+
+    print("Found", len(data), "images.")
 
     print(f"\n• Creating events on {str(trainer.device)}\n")
 
