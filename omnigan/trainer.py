@@ -217,6 +217,10 @@ class Trainer:
             x = x.permute(0, 3, 1, 2)
 
         x = x.to(self.device)
+
+        if x.shape[-1] != 640 or x.shape[-2] != 640:
+            x = torch.nn.functional.interpolate(x, 640, 640, mode="bilinear")
+
         # encode
         with Timer(store=stores.get("encode", [])):
             z = self.G.encode(x)
