@@ -67,8 +67,8 @@ gen:
     optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
     beta1: 0.9
     lr:
-      default: 0.00001
-    lr_policy: multi_step
+      default: 0.0001
+    lr_policy: step
     # lr_policy can be constant, step or multi_step; if step, specify lr_step_size and lr_gamma
     # if multi_step specify lr_step_size lr_gamma and lr_milestones:
     #   if lr_milestones is a list:
@@ -76,7 +76,7 @@ gen:
     #     item in the list (no need for lr_step_size).
     #   if lr_milestones is an int:
     #      a list of milestones is created from `range(lr_milestones, train.epochs, lr_step_size)`
-    lr_step_size: 10 # for linear decay : period of learning rate decay (epochs)
+    lr_step_size: 30 # for linear decay : period of learning rate decay (epochs)
     lr_milestones: 15
     lr_gamma: 0.5 # Multiplicative factor of learning rate decay
   default:
@@ -145,16 +145,17 @@ gen:
   p: # specific params for the SPADE painter
     <<: *default-gen
     latent_dim: 512
+    loss: gan # gan or hinge
+    no_z: true # <=> use_vae=False in the SPADE repo
     output_dim: 3 # output dimension
     pad_type: zero # padding type [zero/reflect]
-    spade_kernel_size: 3 # kernel size within SPADE norm layers
-    spade_param_free_norm: instance # what param-free normalization to apply in SPADE normalization
-    spade_use_spectral_norm: true
-    spade_n_up: 7 # number of upsampling layers in the translation decoder is equal to number of downsamplings in the encoder.  output's h and w are z's h and w x 2^spade_num_upsampling_layers | z:32 and spade_n_up:4 => output 512
-    no_z: true # <=> use_vae=False in the SPADE repo
-    use_final_shortcut: False # if true, the last spade block does not get the masked input as conditioning but the prediction of the previous layer (passed through a conv to match dims) in order to lighten the masking restrictions and have smoother edges
     paste_original_content: True # only select the water painted to backprop through the network, not the whole generated image: fake_flooded = masked_x + m * fake_flooded
     pl4m_epoch: 50 # epoch from which we introduce a new loss to the masker: the painter's discriminator's loss
+    spade_kernel_size: 3 # kernel size within SPADE norm layers
+    spade_n_up: 7 # number of upsampling layers in the translation decoder is equal to number of downsamplings in the encoder.  output's h and w are z's h and w x 2^spade_num_upsampling_layers | z:32 and spade_n_up:4 => output 512
+    spade_param_free_norm: instance # what param-free normalization to apply in SPADE normalization
+    spade_use_spectral_norm: true
+    use_final_shortcut: False # if true, the last spade block does not get the masked input as conditioning but the prediction of the previous layer (passed through a conv to match dims) in order to lighten the masking restrictions and have smoother edges
 
   m: # specific params for the mask-generation decoder
     <<: *default-gen
@@ -177,8 +178,8 @@ dis:
     optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
     beta1: 0.5
     lr:
-      default: 0.0001
-    lr_policy: multi_step
+      default: 0.0005
+    lr_policy: step
     # lr_policy can be constant, step or multi_step; if step, specify lr_step_size and lr_gamma
     # if multi_step specify lr_step_size lr_gamma and lr_milestones:
     #   if lr_milestones is a list:
@@ -186,7 +187,7 @@ dis:
     #     item in the list (no need for lr_step_size).
     #   if lr_milestones is an int:
     #      a list of milestones is created from `range(lr_milestones, train.epochs, lr_step_size)`
-    lr_step_size: 10 # for linear decay : period of learning rate decay (epochs)
+    lr_step_size: 30 # for linear decay : period of learning rate decay (epochs)
     lr_milestones: 15
     lr_gamma: 0.5 # Multiplicative factor of learning rate decay
   default:
@@ -271,13 +272,13 @@ train:
         gi: 0.05
         pl4m: 1 # painter loss for the masker (end-to-end)
       p:
-        gan: 1 # gan loss
+        context: 0
         dm: 1 # depth matching
+        featmatch: 10
+        gan: 1 # gan loss
+        reconstruction: 0
         tv: 0
         vgg: 10
-        context: 5
-        reconstruction: 5
-        featmatch: 10
       classifier: 1
     C: 1
     advent:
