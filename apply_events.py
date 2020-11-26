@@ -29,7 +29,7 @@ if __name__ == "__main__":
     print("Received", vars(args))
 
     batch_size = args.batch_size
-    images_paths = args.images_paths
+    images_paths = Path(args.images_paths).expanduser().resolve()
     outdir = (
         Path(args.output).expanduser().resolve() if args.output is not None else None
     )
@@ -59,8 +59,8 @@ if __name__ == "__main__":
 
     print("\n• Reading Data\n")
 
-    data_paths = [i for i in Path(images_paths).glob("*") if is_image_file(i)]
-    data = [io.imread(i) for i in data_paths]
+    data_paths = [i for i in images_paths.glob("*") if is_image_file(i)]
+    data = [io.imread(str(i)) for i in data_paths]
 
     n_batchs = len(data) // args.batch_size + 1
 
@@ -79,7 +79,7 @@ if __name__ == "__main__":
         if outdir:
             for i in range(len(images)):
                 idx = b * batch_size + i
-                stem = Path(data_paths[i]).stem
+                stem = Path(data_paths[idx]).stem
                 for event in events:
                     im_path = outdir / f"{stem}_{event}.png"
                     im_data = events[event][idx]
