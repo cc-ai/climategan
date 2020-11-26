@@ -1735,6 +1735,19 @@ class Trainer:
             self.opts.events.fire.color.b,
         )
         blur_radius = self.opts.events.fire.blur_radius
+        if x.shape[0] > 0:
+            return torch.cat(
+                [
+                    add_fire(
+                        x[i].unsqueeze(0),
+                        seg_preds[i].unsqueeze(0),
+                        fire_color,
+                        blur_radius,
+                    )
+                    for i in range(x.shape[0])
+                ]
+            )
+
         return add_fire(x, seg_preds, fire_color, blur_radius)
 
     def del_output_path(self, force=False):
