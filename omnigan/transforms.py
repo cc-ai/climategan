@@ -285,22 +285,22 @@ def get_transform(transform_item):
     raise ValueError("Unknown transform_item {}".format(transform_item))
 
 
-def get_transforms(opts, mode):
+def get_transforms(opts):
     """Get all the transform functions listed in opts.data.transforms
     using get_transform(transform_item)
     """
     transforms = []
-    last_transforms = ["brightness", "saturation", "contrast", "cutout"]
+    color_jittering = ["brightness", "saturation", "contrast"]
 
     for t in opts.data.transforms:
-        if t.name not in last_transforms and get_transform(t) is not None:
+        if t.name not in color_jittering and get_transform(t) is not None:
             transforms.append(get_transform(t))
 
     transforms += [Normalize(opts)]
 
-    if "p" not in opts.tasks and mode == "train":
+    if "p" not in opts.tasks:
         for t in opts.data.transforms:
-            if t.name in last_transforms and get_transform(t) is not None:
+            if t.name in color_jittering and get_transform(t) is not None:
                 transforms.append(get_transform(t))
 
     return transforms

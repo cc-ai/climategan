@@ -50,21 +50,18 @@ data:
       ignore: false
       height: 600
       width: 600
-    - name: resize # ? this or change generator's output? Or resize larger then crop to 256?
-      ignore: false
-      new_size:
-        default: 640
-        d: 160
-        s: 160
     - name: brightness
       ignore: false
     - name: saturation
       ignore: false
     - name: contrast
       ignore: false
-    - name: cutout
-      ignore: False
-      ratio: 0.2
+    - name: resize # ? this or change generator's output? Or resize larger then crop to 256?
+      ignore: false
+      new_size:
+        default: 640
+        d: 160
+        s: 160
 
 # ---------------------
 # ----- Generator -----
@@ -158,7 +155,7 @@ gen:
     paste_original_content: True # only select the water painted to backprop through the network, not the whole generated image: fake_flooded = masked_x + m * fake_flooded
     pl4m_epoch: 50 # epoch from which we introduce a new loss to the masker: the painter's discriminator's loss
     apply_diff_augment: True
-    cutout_ratio: 0.3
+    cutout_ratio: 0.5
     translation_ratio: 0.125
 
   m: # specific params for the mask-generation decoder
