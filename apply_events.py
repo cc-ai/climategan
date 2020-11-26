@@ -12,7 +12,7 @@ import numpy as np
 def print_time(text, time_series):
     m = np.mean(time_series)
     s = np.std(time_series)
-    print(f"  {text.capitalize()} -> {m} +/- {s}")
+    print(f"  {text.capitalize():20} -> {m:.5f} +/- {s:.5f}")
 
 
 def parse_args():
