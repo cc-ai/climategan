@@ -206,7 +206,7 @@ class Trainer:
         assert self.is_setup
         assert len(x.shape) in {3, 4}, f"Unknown Data shape {x.shape}"
 
-        if not isinstance(x, torch.tensor):
+        if not isinstance(x, torch.Tensor):
             x = torch.tensor(x)
 
         if len(x.shape) == 3:
