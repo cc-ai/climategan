@@ -676,7 +676,7 @@ class Trainer:
             NotImplementedError: Cannot handle types other than tuple/list  or dict
         """
         if isinstance(shapes, (tuple, list)):
-            self.input_shapes = {t: shapes for t in self.opts.tasks}
+            self.input_shapes = {t: shapes for t in self.opts.tasks + ["x"]}
         elif isinstance(shapes, dict):
             assert "x" in shapes
             if "s" in self.opts.tasks:
