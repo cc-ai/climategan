@@ -1,5 +1,6 @@
 from omnigan.trainer import Trainer
 from omnigan.data import is_image_file
+from omnigan.utils import Timer
 import skimage.io as io
 import argparse
 from pathlib import Path
@@ -49,19 +50,22 @@ if __name__ == "__main__":
             "smog": [],
             "flood": [],
             "numpy": [],
+            "setup": [],
         }
 
     outdir.mkdir(exist_ok=True, parents=True)
 
     print("\n• Initializing trainer\n")
 
-    trainer = Trainer.resume_from_path(
-        resume_path,
-        setup=True,
-        inference=True,
-        new_exp=None,
-        input_shapes=(3, 640, 640),
-    )
+    with Timer(store=stores.get("setup", [])):
+
+        trainer = Trainer.resume_from_path(
+            resume_path,
+            setup=True,
+            inference=True,
+            new_exp=None,
+            input_shapes=(3, 640, 640),
+        )
 
     print("\n• Reading Data\n")
 
