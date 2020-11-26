@@ -31,7 +31,9 @@ if __name__ == "__main__":
     batch_size = args.batch_size
     images_paths = Path(args.images_paths).expanduser().resolve()
     outdir = (
-        Path(args.output).expanduser().resolve() if args.output is not None else None
+        Path(args.output_path).expanduser().resolve()
+        if args.output_path is not None
+        else None
     )
     resume_path = args.resume_path
     time_inference = args.time
