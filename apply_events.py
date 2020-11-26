@@ -12,7 +12,7 @@ import numpy as np
 def print_time(text, time_series):
     m = np.mean(time_series)
     s = np.std(time_series)
-    print(f"  {text.capitalize():20} -> {m:.5f} +/- {s:.5f}")
+    print(f"  {text.capitalize() + ' ':.<20}  {m:.5f} +/- {s:.5f}")
 
 
 def parse_args():
@@ -89,7 +89,7 @@ if __name__ == "__main__":
 
     with Timer(store=stores.get("inference", [])):
         for b in range(n_batchs):
-            print(f"Batch {b + 1}/{n_batchs}...", end="\r")
+            print(f"Batch {b + 1}/{n_batchs}", end="\r")
             images = data[b * batch_size : (b + 1) * batch_size]
             if not images:
                 continue
@@ -102,6 +102,7 @@ if __name__ == "__main__":
             all_events.append(events)
 
     if outdir:
+        print("\n• Writing")
         with Timer(store=stores.get("write", [])):
             for b, events in enumerate(all_events):
                 for i in range(len(events)):
