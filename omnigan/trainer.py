@@ -55,7 +55,7 @@ from omnigan.utils import (
     get_latest_opts,
     merge,
     sum_dict,
-    Timer
+    Timer,
 )
 from omnigan.logger import Logger
 
@@ -262,7 +262,13 @@ class Trainer:
 
     @classmethod
     def resume_from_path(
-        cls, path, overrides={}, setup=True, inference=False, new_exp=False
+        cls,
+        path,
+        overrides={},
+        setup=True,
+        inference=False,
+        new_exp=False,
+        input_shapes=None,
     ):
         """
         Resume and optionally setup a trainer from a specific path,
@@ -307,6 +313,8 @@ class Trainer:
         trainer = cls(opts, comet_exp=exp)
 
         if setup:
+            if input_shapes is not None:
+                trainer.set_input_shapes(input_shapes)
             trainer.setup(inference=inference)
         return trainer
 
