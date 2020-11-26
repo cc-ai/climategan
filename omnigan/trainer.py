@@ -55,6 +55,7 @@ from omnigan.utils import (
     get_latest_opts,
     merge,
     sum_dict,
+    Timer
 )
 from omnigan.logger import Logger
 
@@ -200,6 +201,61 @@ class Trainer:
         if self.verbose > 0:
             print(*args, **kwargs)
 
+    @torch.no_grad()
+    def infer_all(self, x, numpy=True, stores={}):
+        assert self.is_setup
+        assert len(x.shape) in {3, 4}, f"Unknown Data shape {x.shape}"
+
+        if not isinstance(x, torch.tensor):
+            x = torch.tensor(x)
+
+        if len(x.shape) == 3:
+            x.unsqueeze_(0)
+
+        if x.shape[1] != 3:
+            assert x.shape[-1] == 3, f"Unknown x shape to permute {x.shape}"
+            x = x.permute(0, 3, 1, 2)
+
+        x = x.to(self.device)
+        # encode
+        with Timer(store=stores.get("encode", [])):
+            z = self.G.encode(x)
+
+        # predict from masker
+        with Timer(store=stores.get("depth", [])):
+            depth = self.G.decoders["d"](z)
+        with Timer(store=stores.get("segmentation", [])):
+            segmentation = self.G.decoders["s"](z)
+        with Timer(store=stores.get("mask", [])):
+            mask = self.G.mask(z=z)
+
+        # apply events
+        with Timer(store=stores.get("wildfire", [])):
+            wildfire = self.compute_fire(x, segmentation).detach().cpu()
+        with Timer(store=stores.get("smog", [])):
+            smog = self.compute_smog(x, d=depth, s=segmentation).detach().cpu()
+        with Timer(store=stores.get("flood", [])):
+            flood = self.G.paint(mask, x).detach().cpu()
+
+        if numpy:
+            with Timer(store=stores.get("numpy", [])):
+                # convert to numpy
+                flood = flood.permute(0, 2, 3, 1).numpy()
+                smog = smog.permute(0, 2, 3, 1).numpy()
+                wildfire = wildfire.permute(0, 2, 3, 1).numpy()
+
+                # normalize to 0-1
+                flood = (flood + 1) / 2
+                smog = (smog + 1) / 2
+                wildfire = (wildfire + 1) / 2
+
+                # convert to 0-255 uint8
+                flood = (flood * 255).astype(np.uint8)
+                smog = (smog * 255).astype(np.uint8)
+                wildfire = (wildfire * 255).astype(np.uint8)
+
+        return {"flood": flood, "wildfire": wildfire, "smog": smog}
+
     @classmethod
     def resume_from_path(
         cls, path, overrides={}, setup=True, inference=False, new_exp=False
@@ -232,7 +288,9 @@ class Trainer:
         opts = Dict(merge(overrides, opts))
         opts.train.resume = True
 
-        if new_exp:
+        if new_exp is None:
+            exp = None
+        elif new_exp is True:
             exp = Experiment(project_name="omnigan", **comet_kwargs)
             exp.log_asset_folder(
                 str(Path(__file__).parent), recursive=True, log_file_name=True,
@@ -243,6 +301,7 @@ class Trainer:
             exp = ExistingExperiment(previous_experiment=comet_id, **comet_kwargs)
 
         trainer = cls(opts, comet_exp=exp)
+
         if setup:
             trainer.setup(inference=inference)
         return trainer
