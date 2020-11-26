@@ -43,7 +43,7 @@ if __name__ == "__main__":
 
     stores = {}
     if time_inference:
-        stores = {idx
+        stores = {
             "encode": [],
             "depth": [],
             "segmentation": [],
