@@ -12,7 +12,7 @@ import numpy as np
 def print_time(text, time_series):
     m = np.mean(time_series)
     s = np.std(time_series)
-    print(f"  {text.capitalize() + ' ':.<20}  {m:.5f} +/- {s:.5f}")
+    print(f"  {text.capitalize() + ' ':.<26}  {m:.5f} +/- {s:.5f}")
 
 
 def parse_args():
@@ -31,8 +31,8 @@ if __name__ == "__main__":
 
     args = parse_args()
     print(
-        "Received\n",
-        "\n".join(["  {:25}: {}".format(k, v) for k, v in vars(args).items()]),
+        "Received\n"
+        + "\n".join(["  {:15}: {}".format(k, v) for k, v in vars(args).items()]),
     )
 
     batch_size = args.batch_size
