@@ -43,7 +43,7 @@ if __name__ == "__main__":
 
     stores = {}
     if time_inference:
-        stores = {
+        stores = {idx
             "encode": [],
             "depth": [],
             "segmentation": [],
@@ -97,7 +97,7 @@ if __name__ == "__main__":
                 stem = Path(data_paths[idx]).stem
                 for event in events:
                     im_path = outdir / f"{stem}_{event}.png"
-                    im_data = events[event][idx]
+                    im_data = events[event][i]
                     io.imsave(im_path, im_data)
 
     if time_inference:
