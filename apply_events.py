@@ -1,7 +1,9 @@
 from omnigan.trainer import Trainer
 from omnigan.data import is_image_file
 from omnigan.utils import Timer
+from omnigan.tutils import normalize
 import skimage.io as io
+from skimage.transform import resize
 import argparse
 from pathlib import Path
 import numpy as np
@@ -70,7 +72,10 @@ if __name__ == "__main__":
     print("\n• Reading Data\n")
 
     data_paths = [i for i in images_paths.glob("*") if is_image_file(i)]
-    data = [io.imread(str(i)) for i in data_paths]
+    data = [
+        resize(io.imread(str(i)), (640, 640), anti_aliasing=True) for i in data_paths
+    ]
+    data = [(normalize(i.astype(np.float32)) - 0.5) * 2 for i in data]
 
     n_batchs = len(data) // args.batch_size + 1
 
