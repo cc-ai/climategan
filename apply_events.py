@@ -22,7 +22,7 @@ def parse_args():
     parser.add_argument("-o", "--output_path", type=str, default=None)
     parser.add_argument("-r", "--resume_path", type=str, default=None)
     parser.add_argument("-t", "--time", action="store_true", default=False)
-    parser.add_argument("-m", "--mask_binarization", type=int, default=-1)
+    parser.add_argument("-m", "--mask_binarization", type=float, default=-1)
 
     return parser.parse_args()
 
