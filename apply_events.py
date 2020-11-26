@@ -87,7 +87,7 @@ if __name__ == "__main__":
         if not images:
             continue
 
-        images = np.vstack(images)
+        images = np.stack(images)
 
         events = trainer.infer_all(images, True, stores)
 

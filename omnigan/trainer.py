@@ -219,7 +219,7 @@ class Trainer:
         x = x.to(self.device)
 
         if x.shape[-1] != 640 or x.shape[-2] != 640:
-            x = torch.nn.functional.interpolate(x, 640, 640, mode="bilinear")
+            x = torch.nn.functional.interpolate(x, (640, 640), mode="bilinear")
 
         # encode
         with Timer(store=stores.get("encode", [])):
