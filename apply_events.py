@@ -56,7 +56,7 @@ if __name__ == "__main__":
     print("\n• Initializing trainer\n")
 
     trainer = Trainer.resume_from_path(
-        resume_path, setup=True, inference=False, new_exp=None
+        resume_path, setup=True, inference=True, new_exp=None
     )
 
     print("\n• Reading Data\n")
