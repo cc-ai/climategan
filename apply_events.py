@@ -83,7 +83,7 @@ if __name__ == "__main__":
 
     n_batchs = len(data) // args.batch_size + 1
 
-    print("\n• Creating events\n")
+    print(f"\n• Creating events on {str(trainer.device)}\n")
 
     all_events = []
 
@@ -100,6 +100,7 @@ if __name__ == "__main__":
                 images, True, stores, mask_binarization=mask_binarization
             )
             all_events.append(events)
+    print()
 
     if outdir:
         print("\n• Writing")
