@@ -80,8 +80,8 @@ if __name__ == "__main__":
     # ------------------------------------------------------
     args = parse_args()
     print(
-        "• Using args\n"
-        + "\n".join(["  {:15}: {}".format(k, v) for k, v in vars(args).items()]),
+        "• Using args\n\n"
+        + "\n".join(["{:15}: {}".format(k, v) for k, v in vars(args).items()]),
     )
 
     batch_size = args.batch_size
@@ -95,7 +95,8 @@ if __name__ == "__main__":
     resume_path = args.resume_path
     time_inference = args.time
 
-    outdir.mkdir(exist_ok=True, parents=True)
+    if outdir is not None:
+        outdir.mkdir(exist_ok=True, parents=True)
 
     # -------------------------------
     # -----  Create time store  -----
