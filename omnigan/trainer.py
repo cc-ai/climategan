@@ -747,6 +747,8 @@ class Trainer:
         if inference:
             print("Inference mode: no Discriminator, no Classifier, no optimizers")
             print_num_parameters(self)
+            self.eval_mode()
+            print("Trainer is in evaluation mode.")
             print("Setup done.")
             self.is_setup = True
             return
