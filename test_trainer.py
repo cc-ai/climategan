@@ -247,7 +247,7 @@ if __name__ == "__main__":
             "train.kitti.pretrain": True,
             "train.kitti.epochs": 1,
             "domains": ["kitti", "r", "s"],
-            "train.kitti.batch_size": 4,
+            "train.kitti.batch_size": 2,
         },
     ]
 
