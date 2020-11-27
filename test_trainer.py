@@ -323,5 +323,5 @@ if __name__ == "__main__":
     if len(fails) == 0:
         print("•• All scenarios were successful")
     else:
-        print(f"•• {len(successes)} successful tests")
+        print(f"•• {len(successes)}/{len(test_scenarios)} successful tests")
         print(f"•• Failed test indices: {', '.join(map(str, fails))}")
