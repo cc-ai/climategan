@@ -12,6 +12,7 @@ import contextlib
 import numpy as np
 from typing import Union, Optional, List, Any
 import traceback
+import time
 
 comet_kwargs = {
     "auto_metric_logging": False,
@@ -844,3 +845,32 @@ def all_texts_to_array(texts, width=640, height=40):
         list: len(texts) text arrays with dims height x width x 3
     """
     return [text_to_array(text, width, height) for text in texts]
+
+
+class Timer:
+    def __init__(self, name="", store=None, precision=3, ignore=False):
+        self.name = name
+        self.store = store
+        self.precision = precision
+        self.ignore = ignore
+
+    def format(self, n):
+        return f"{n:.{self.precision}f}"
+
+    def __enter__(self):
+        """Start a new timer as a context manager"""
+        self._start_time = time.perf_counter()
+        return self
+
+    def __exit__(self, *exc_info):
+        """Stop the context manager timer"""
+        if self.ignore:
+            return
+        t = time.perf_counter()
+        new_time = t - self._start_time
+
+        if self.store is not None:
+            assert isinstance(self.store, list)
+            self.store.append(new_time)
+        if self.name:
+            print(f"[{self.name}] Elapsed time: {self.format(new_time)}")

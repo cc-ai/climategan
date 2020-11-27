@@ -10,7 +10,7 @@ from torchvision import transforms as trsfs
 
 from omnigan.data import tensor_loader
 from omnigan.trainer import Trainer
-from omnigan.utils import load_opts
+from omnigan.utils import load_opts, Timer
 
 import torch_xla.core.xla_model as xm
 import torch_xla.debug.metrics as met
@@ -30,32 +30,6 @@ def print_time(name, time_series, precision=4, file=None):
     print(head + tail)
     if file is not None:
         print(head + tail, file=file)
-
-
-class Timer:
-    def __init__(self, name="", store=None, precision=3):
-        self.name = name
-        self.store = store
-        self.precision = precision
-
-    def format(self, n):
-        return f"{n:.{self.precision}f}"
-
-    def __enter__(self):
-        """Start a new timer as a context manager"""
-        self._start_time = time.perf_counter()
-        return self
-
-    def __exit__(self, *exc_info):
-        """Stop the context manager timer"""
-        t = time.perf_counter()
-        new_time = t - self._start_time
-
-        if self.store is not None:
-            assert isinstance(self.store, list)
-            self.store.append(new_time)
-        if self.name:
-            print(f"[{self.name}] Elapsed time: {self.format(new_time)}")
 
 
 def isimg(path_file):
