@@ -211,7 +211,7 @@ def get_normalized_depth_t(tensor, domain, normalize=False, log=True):
 
 
 def decode_bucketed_depth(tensor, opts):
-    # Prediction is size N x C x H x W
+    # tensor is size 1 x C x H x W
     idx = torch.argmax(tensor.squeeze(0), dim=0)
     linspace_args = (
         opts.gen.d.classify.linspace.min,
@@ -219,9 +219,9 @@ def decode_bucketed_depth(tensor, opts):
         opts.gen.d.classify.linspace.buckets,
     )
     indexer = torch.linspace(*linspace_args)
-    log_depth = indexer[idx.long()].permute(2, 0, 1).to(torch.float32).unsqueeze(0)
+    log_depth = indexer[idx.long()].to(torch.float32)  # H x W
     depth = torch.exp(log_depth)
-    return depth
+    return depth.unsqueeze(0).unsqueeze(0)
 
 
 def decode_unity_depth_t(unity_depth, log=True, normalize=False, numpy=False, far=1000):
