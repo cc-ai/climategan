@@ -237,6 +237,7 @@ class Trainer:
 
         # convert to float16
         if half:
+            print("Warning: permanently setting the Generator to half()")
             x = x.half()
             self.G = self.G.half()
 
