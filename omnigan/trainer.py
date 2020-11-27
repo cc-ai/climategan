@@ -88,24 +88,31 @@ class Trainer:
         self.opts = opts
         self.verbose = verbose
         self.logger = Logger(self)
-        self.loaders = None
+
         self.losses = None
         self.input_shapes = None
         self.G = self.D = self.C = None
-        self.lr_names = {}
         self.real_val_fid_stats = None
         self.use_pl4m = False
         self.is_setup = False
+        self.loaders = self.all_loaders = None
+        self.exp = None
+
         self.current_mode = "train"
+        self.kitti_pretrain = self.opts.train.kitti.pretrain
+        self.use_pseudo_labels = self.opts.train.pseudo.enable
+
+        self.lr_names = {}
+        self.base_display_images = {}
+        self.kitty_display_images = {}
+        self.domain_labels = {"s": 0, "r": 1}
 
         self.device = device or torch.device(
             "cuda:0" if torch.cuda.is_available() else "cpu"
         )
 
-        self.exp = None
         if isinstance(comet_exp, Experiment):
             self.exp = comet_exp
-        self.domain_labels = {"s": 0, "r": 1}
 
         if self.opts.train.amp:
             optimizers = [
@@ -202,7 +209,7 @@ class Trainer:
             print(*args, **kwargs)
 
     @torch.no_grad()
-    def infer_all(self, x, numpy=True, stores={}, bin_value=-1):
+    def infer_all(self, x, numpy=True, stores={}, bin_value=-1, half=False):
         """
         Create a dictionnary of events from a numpy or tensor,
         single or batch image data.
@@ -234,6 +241,9 @@ class Trainer:
         # interpolate to standard input size
         if x.shape[-1] != 640 or x.shape[-2] != 640:
             x = torch.nn.functional.interpolate(x, (640, 640), mode="bilinear")
+
+        if half:
+            x = x.half()
 
         # encode
         with Timer(store=stores.get("encode", [])):
@@ -595,9 +605,13 @@ class Trainer:
             tuple: (c, h, w)
         """
         x = None
-        for mode in self.loaders:
-            for domain in self.loaders[mode]:
-                x = self.loaders[mode][domain].dataset[0]["data"]["x"].to(self.device)
+        for mode in self.all_loaders:
+            for domain in self.all_loaders.loaders[mode]:
+                x = (
+                    self.all_loaders[mode][domain]
+                    .dataset[0]["data"]["x"]
+                    .to(self.device)
+                )
                 break
             if x is not None:
                 break
@@ -619,21 +633,24 @@ class Trainer:
         Returns:
             dict(tuple): {task: (c, h, w) for task in self.opts.tasks}
         """
-
-        if any(t in self.opts.tasks for t in "msd"):
+        if self.opts.train.kitti.pretrain is True:
+            domain = "kitti"
+        elif any(t in self.opts.tasks for t in "msd"):
             domain = "r"
         else:
             domain = "rf"
 
-        if "train" in self.loaders:
+        if "train" in self.all_loaders:
             mode = "train"
         else:
-            assert "val" in self.loaders, "no data loader found"
+            assert "val" in self.all_loaders, "no data loader found"
             mode = "val"
 
         return {
             task: tensor.shape
-            for task, tensor in self.loaders[mode][domain].dataset[0]["data"].items()
+            for task, tensor in self.all_loaders[mode][domain]
+            .dataset[0]["data"]
+            .items()
         }
 
     def g_opt_step(self):
@@ -713,7 +730,7 @@ class Trainer:
         verbose = self.verbose
 
         if not inference:
-            self.loaders = get_all_loaders(self.opts)
+            self.all_loaders = get_all_loaders(self.opts)
 
         # -----------------------
         # -----  Generator  -----
@@ -747,6 +764,7 @@ class Trainer:
         if inference:
             print("Inference mode: no Discriminator, no Classifier, no optimizers")
             print_num_parameters(self)
+            self.switch_data(to="base")
             self.eval_mode()
             print("Trainer is in evaluation mode.")
             print("Setup done.")
@@ -802,7 +820,7 @@ class Trainer:
         self.losses = get_losses(self.opts, verbose, device=self.device)
 
         if verbose > 0:
-            for mode, mode_dict in self.loaders.items():
+            for mode, mode_dict in self.all_loaders.items():
                 for domain, domain_loader in mode_dict.items():
                     print(
                         "Loader {} {} : {}".format(
@@ -813,11 +831,22 @@ class Trainer:
         # ----------------------------
         # -----  Display images  -----
         # ----------------------------
-        self.display_images = {}
-        for mode, mode_dict in self.loaders.items():
-            self.display_images[mode] = {}
+        for mode, mode_dict in self.all_loaders.items():
+
+            if self.kitti_pretrain:
+                self.kitty_display_images[mode] = {}
+            self.base_display_images[mode] = {}
+
             for domain, domain_loader in mode_dict.items():
-                dataset = self.loaders[mode][domain].dataset
+
+                if self.kitti_pretrain and domain == "kitti":
+                    target_dict = self.kitty_display_images
+                else:
+                    if domain == "kitti":
+                        continue
+                    target_dict = self.base_display_images
+
+                dataset = self.all_loaders[mode][domain].dataset
                 display_indices = get_display_indices(self.opts, domain, len(dataset))
                 ldis = len(display_indices)
                 print(
@@ -825,19 +854,46 @@ class Trainer:
                     end="\r",
                     flush=True,
                 )
-                self.display_images[mode][domain] = [
+                target_dict[mode][domain] = [
                     Dict(dataset[i]) for i in display_indices if i < len(dataset)
                 ]
                 if self.exp is not None:
-                    for im_id, d in enumerate(self.display_images[mode][domain]):
+                    for im_id, d in enumerate(target_dict[mode][domain]):
                         self.exp.log_parameter(
                             "display_image_{}_{}_{}".format(mode, domain, im_id),
                             d["paths"],
                         )
+
+        if self.kitti_pretrain:
+            self.switch_data(to="kitti")
+        else:
+            self.switch_data(to="base")
+
         print(" " * 50, end="\r")
         print("Done creating display images")
         print("Setup done.")
         self.is_setup = True
+
+    def switch_data(self, to="kitti"):
+        print("Switching data source to", to)
+        if to == "kitti":
+            self.display_images = self.kitty_display_images
+            if self.all_loaders is not None:
+                self.loaders = {
+                    mode: {"s": self.all_loaders[mode]["kitti"]}
+                    for mode in self.all_loaders
+                }
+        else:
+            self.display_images = self.base_display_images
+            if self.all_loaders is not None:
+                self.loaders = {
+                    mode: {
+                        domain: self.all_loaders[mode][domain]
+                        for domain in self.all_loaders[mode]
+                        if domain != "kitti"
+                    }
+                    for mode in self.all_loaders
+                }
 
     def train(self):
         """For each epoch:
@@ -855,10 +911,17 @@ class Trainer:
             self.save()
 
             if (
-                self.logger.epoch == self.opts.gen.p.pl4m_epoch
+                self.logger.epoch == self.opts.gen.p.pl4m_epoch - 1
                 and get_num_params(self.G.painter) > 0
             ):
                 self.use_pl4m = True
+
+            if self.logger.epoch == self.opts.train.kitti.epochs - 1:
+                self.switch_data(to="base")
+                self.kitti_pretrain = False
+
+            if self.logger.epoch == self.opts.train.pseudo.epochs - 1:
+                self.use_pseudo_labels = False
 
     def run_epoch(self):
         """Runs an epoch:
@@ -908,7 +971,7 @@ class Trainer:
             # ----------------------------------
 
             # unfreeze params of the discriminator
-            if self.d_opt is not None:
+            if self.d_opt is not None and not self.kitti_pretrain:
                 for param in self.D.parameters():
                     param.requires_grad = True
 
@@ -917,7 +980,11 @@ class Trainer:
             # -------------------------------
             # -----  Update Classifier  -----
             # -------------------------------
-            if self.opts.train.latent_domain_adaptation and self.C is not None:
+            if (
+                self.opts.train.latent_domain_adaptation
+                and self.C is not None
+                and not self.kitti_pretrain
+            ):
                 self.update_C(multi_domain_batch)
 
             # -------------------------
@@ -926,7 +993,9 @@ class Trainer:
             self.logger.global_step += 1
             self.logger.log_step_time(time())
 
-        self.update_learning_rates()
+        if not self.kitti_pretrain:
+            self.update_learning_rates()
+
         self.logger.log_learning_rates()
         self.logger.log_epoch_time(time())
 
@@ -1359,7 +1428,7 @@ class Trainer:
         if weight == 0:
             return full_loss
 
-        if domain == "r" and not self.opts.gen.d.use_pseudo_labels:
+        if domain == "r" and not self.use_pseudo_labels:
             return full_loss
 
         # -------------------
@@ -1391,7 +1460,7 @@ class Trainer:
         # Supervised segmentation loss: crossent for sim domain,
         # crossent_pseudo for real ; loss is crossent in any case
         if for_ == "G":
-            if domain == "s" or self.opts.gen.s.use_pseudo_labels:
+            if domain == "s" or self.use_pseudo_labels:
                 if domain == "s":
                     logger = self.logger.losses.gen.task["s"]["crossent"]
                     weight = self.opts.train.lambdas.G["s"]["crossent"]
@@ -1653,7 +1722,7 @@ class Trainer:
         print("****************** Done in {}s *********************".format(timing))
 
     def eval_images(self, mode, domain):
-        if domain == "rf":
+        if domain == "rf" or domain not in self.display_images[mode]:
             return
 
         metric_funcs = {"accuracy": accuracy, "mIOU": mIOU}

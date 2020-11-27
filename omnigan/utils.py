@@ -131,11 +131,19 @@ def load_opts(
     if commandline_opts is not None and isinstance(commandline_opts, dict):
         opts = Dict(merge(commandline_opts, opts))
 
+    if opts.train.kitti.pretrained:
+        assert "kitti" in opts.data.files.train
+        assert "kitti" in opts.data.files.val
+        assert opts.train.kitti.epochs > 0
+
     opts.domains = []
     if "m" in opts.tasks or "s" in opts.tasks:
         opts.domains.extend(["r", "s"])
     if "p" in opts.tasks:
         opts.domains.append("rf")
+    if opts.train.kitti.pretrain:
+        opts.domains.append("kitti")
+
     opts.domains = list(set(opts.domains))
 
     if "s" in opts.tasks:
@@ -215,7 +223,9 @@ def set_data_paths(opts: Dict) -> Dict:
                 opts.data.files[mode][domain] = str(
                     Path(opts.data.files.base) / opts.data.files[mode][domain]
                 )
-            assert Path(opts.data.files[mode][domain]).exists()
+            assert Path(
+                opts.data.files[mode][domain]
+            ).exists(), "Cannot find {}".format(str(opts.data.files[mode][domain]))
 
     return opts
 
@@ -243,6 +253,22 @@ def get_git_revision_hash() -> str:
     """
     try:
         return subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
+    except Exception as e:
+        return str(e)
+
+
+def get_git_branch() -> str:
+    """Get current git branch name
+
+    Returns:
+        str: git branch name
+    """
+    try:
+        return (
+            subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"])
+            .decode()
+            .strip()
+        )
     except Exception as e:
         return str(e)
 

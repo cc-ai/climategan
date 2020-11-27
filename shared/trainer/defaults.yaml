@@ -1,4 +1,4 @@
-output_path: /network/tmp1/schmidtv/yb_runs/test_v1
+output_path: /miniscratch/_groups/ccai/trash
 # README on load_path
 # 1/ any path which leads to a dir will be loaded as `path / checkpoints / latest_ckpt.pth`
 # 2/ if you want to specify a specific checkpoint, it MUST be a `.pth` file
@@ -24,15 +24,17 @@ tasks: [d, s, m, p] # [p] [m, s, d]
 data:
   max_samples: -1 # -1 for all, otherwise set to an int to crop the training data size
   files: # if one is not none it will override the dirs location
-    base: /network/tmp1/ccai/data/omnigan/base/
+    base: /miniscratch/_groups/ccai/data/jsons
     train:
       r: train_r_full.json
       s: train_s_full.json
       rf: train_rf.json
+      kitti: train_kitti.json
     val:
       r: val_r_full.json
       s: val_s_full.json
       rf: val_rf.json
+      kitti: val_kitti.json
   check_samples: False
   loaders:
     batch_size: 6
@@ -123,7 +125,6 @@ gen:
     output_dim: 1
     conv_norm: batch
     res_norm: batch
-    use_pseudo_labels: False
     loss: dada
     upsample_featuremaps: False # upsamples from 80x80 to 160x160 intermediate feature maps
   s: # specific params for the semantic segmentation decoder
@@ -132,7 +133,6 @@ gen:
     output_dim: 11
     use_advent: True
     use_minent: True
-    use_pseudo_labels: False
     architecture: "deeplabv3"
     upsample_featuremaps: False # upsamples from 80x80 to 160x160 intermediate feature maps
   p: # specific params for the SPADE painter
@@ -234,7 +234,14 @@ classifier:
 # ----- Train Params -----
 # ------------------------
 train:
+  kitti:
+    pretrain: False
+    epochs: 30
+    batch_size: 20
   amp: False
+  pseudo:
+    enable: False # True or False to use pseudo-labels as supervision signal
+    epochs: 30 # disable pseudo training after n epochs (set to -1 to never disable)
   epochs: 300
   fid:
     n_images: 57 # val_rf.json has 57 images

@@ -26,18 +26,23 @@ class Logger:
         all_legends = ["Input"]
         task_legends = {}
 
+        if domain not in trainer.display_images[mode]:
+            return
+
         # --------------------
         # -----  Masker  -----
         # --------------------
         if domain != "rf":
             for j, display_dict in enumerate(trainer.display_images[mode][domain]):
-                print(j, end="\r")
                 x = display_dict["data"]["x"].unsqueeze(0).to(trainer.device)
                 z = trainer.G.encode(x)
 
                 seg_pred = None
                 for k, task in enumerate(sorted(self.trainer.opts.tasks, reverse=True)):
                     if task == "p":
+                        continue
+
+                    if task not in display_dict["data"]:
                         continue
 
                     task_legend = ["Input"]
@@ -338,7 +343,9 @@ class Logger:
             )
 
             if header is not None:
-                image_grid = torch.cat([header.to(image_grid.device), image_grid], dim=1)
+                image_grid = torch.cat(
+                    [header.to(image_grid.device), image_grid], dim=1
+                )
 
             image_grid = image_grid.permute(1, 2, 0).cpu().numpy()
             trainer.exp.log_image(
