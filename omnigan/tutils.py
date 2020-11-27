@@ -221,7 +221,7 @@ def decode_bucketed_depth(tensor, opts):
     indexer = torch.linspace(*linspace_args)
     log_depth = indexer[idx.long()].to(torch.float32)  # H x W
     depth = torch.exp(log_depth)
-    return depth.unsqueeze(0).unsqueeze(0)
+    return depth.unsqueeze(0).unsqueeze(0).to(tensor.device)
 
 
 def decode_unity_depth_t(unity_depth, log=True, normalize=False, numpy=False, far=1000):
