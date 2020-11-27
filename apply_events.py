@@ -1,3 +1,7 @@
+print("\n• Imports\n")
+import time
+
+import_time = time.time()
 from omnigan.trainer import Trainer
 from omnigan.data import is_image_file
 from omnigan.utils import Timer
@@ -7,6 +11,8 @@ from skimage.transform import resize
 import argparse
 from pathlib import Path
 import numpy as np
+
+import_time = time.time() - import_time
 
 
 def print_time(text, time_series):
@@ -118,6 +124,7 @@ if __name__ == "__main__":
             "setup": [],
             "inference on all images": [],
             "write": [],
+            "imports": [import_time],
         }
 
     # -------------------------------------
@@ -202,3 +209,4 @@ if __name__ == "__main__":
         print("\n• Timings\n")
         for k in sorted(list(stores.keys())):
             print_time(k, stores[k])
+    print()
