@@ -338,7 +338,7 @@ class Trainer:
 
         if setup:
             if input_shapes is not None:
-                trainer.set_input_shapes(input_shapes)
+                trainer.set_data_shapes(input_shapes)
             trainer.setup(inference=inference)
         return trainer
 
@@ -694,7 +694,7 @@ class Trainer:
         if self.c_scheduler is not None:
             self.c_scheduler.step()
 
-    def set_input_shapes(self, shapes):
+    def set_data_shapes(self, shapes):
         """
         Sets the input shapes for the Segmentation Decoder and the Painter
 
