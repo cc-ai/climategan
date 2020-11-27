@@ -79,7 +79,6 @@ def parse_args():
         + "Set to -1 (default) to use soft masks (not binarized)",
     )
     parser.add_argument(
-        "-h",
         "--half",
         action="store_true",
         default=False,
