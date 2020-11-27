@@ -78,6 +78,13 @@ def parse_args():
         help="Value to use to binarize masks (mask > value). "
         + "Set to -1 (default) to use soft masks (not binarized)",
     )
+    parser.add_argument(
+        "-h",
+        "--half",
+        action="store_true",
+        default=False,
+        help="Binary flag to use half precision (float16). Defaults to False.",
+    )
 
     return parser.parse_args()
 
@@ -94,6 +101,7 @@ if __name__ == "__main__":
     )
 
     batch_size = args.batch_size
+    half = args.half
     images_paths = Path(args.images_paths).expanduser().resolve()
     bin_value = args.flood_mask_binarization
     outdir = (
@@ -179,7 +187,9 @@ if __name__ == "__main__":
             images = np.stack(images)
 
             # Retreive numpy events as a dict {event: array}
-            events = trainer.infer_all(images, True, stores, bin_value=bin_value)
+            events = trainer.infer_all(
+                images, True, stores, bin_value=bin_value, half=half
+            )
 
             # store events to write after inference loop
             all_events.append(events)
