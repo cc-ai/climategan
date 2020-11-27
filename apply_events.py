@@ -149,7 +149,9 @@ if __name__ == "__main__":
     # normalize to -1:1
     data = [(normalize(d.astype(np.float32)) - 0.5) * 2 for d in data]
 
-    n_batchs = len(data) // args.batch_size + 1
+    n_batchs = len(data) // args.batch_size
+    if len(data) % args.batch_size != 0:
+        n_batchs += 1
 
     print("Found", len(data), "images.")
 
