@@ -1435,11 +1435,11 @@ class Trainer:
         if domain == "r" and not self.use_pseudo_labels:
             return full_loss
 
-        # -------------------
-        # -----  Depth  -----
-        # -------------------
-
         prediction = self.G.decoders["d"](z)
+
+        if self.opts.gen.d.classify.enable:
+            target.squeeze_(1)
+
         loss = self.losses["G"]["tasks"]["d"](prediction, target)
         loss *= weight
 
