@@ -202,7 +202,7 @@ class Trainer:
             print(*args, **kwargs)
 
     @torch.no_grad()
-    def infer_all(self, x, numpy=True, stores={}, bin_value=-1, half=False):
+    def infer_all(self, x, numpy=True, stores={}, bin_value=-1):
         """
         Create a dictionnary of events from a numpy or tensor,
         single or batch image data.
@@ -234,10 +234,6 @@ class Trainer:
         # interpolate to standard input size
         if x.shape[-1] != 640 or x.shape[-2] != 640:
             x = torch.nn.functional.interpolate(x, (640, 640), mode="bilinear")
-
-        # convert to float16
-        if half:
-            x = x.half()
 
         # encode
         with Timer(store=stores.get("encode", [])):

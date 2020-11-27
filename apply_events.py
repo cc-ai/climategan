@@ -186,11 +186,11 @@ if __name__ == "__main__":
                 continue
             # concatenate images in a batch batch_size x height x width x 3
             images = np.stack(images)
+            if half:
+                images = images.astype(np.float16)
 
             # Retreive numpy events as a dict {event: array}
-            events = trainer.infer_all(
-                images, True, stores, bin_value=bin_value, half=half
-            )
+            events = trainer.infer_all(images, True, stores, bin_value=bin_value)
 
             # store events to write after inference loop
             all_events.append(events)
