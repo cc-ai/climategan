@@ -741,7 +741,6 @@ class Trainer:
         use_painter = get_num_params(self.G.painter)
         print("Sending to", self.device)
         self.G = self.G.to(self.device)
-        print(f"Generator OK in {time() - __t:.1f}s.")
 
         if self.input_shapes is None and ("s" in self.opts.tasks or use_painter):
             if inference:
@@ -755,11 +754,15 @@ class Trainer:
         if "s" in self.opts.tasks:
             assert "s" in self.input_shapes
             self.G.decoders["s"].set_target_size(self.input_shapes["s"][-2:])
-        print("OK.")
+        if "d" in self.opts.tasks and self.opts.gen.d.architecture == "base":
+            assert "d" in self.input_shapes
+            self.G.decoders["d"].set_target_size(self.input_shapes["d"][-2:])
 
         if use_painter:
             assert "x" in self.input_shapes
             self.G.painter.set_latent_shape(self.input_shapes["x"], True)
+
+        print(f"Generator OK in {time() - __t:.1f}s.")
 
         if inference:
             print("Inference mode: no Discriminator, no Classifier, no optimizers")

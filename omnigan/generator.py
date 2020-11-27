@@ -7,6 +7,8 @@ from omnigan.deeplabv3 import build_backbone, DeepLabV3Decoder
 from omnigan.deeplabv2 import DeepLabV2Decoder
 import torch.nn as nn
 import torch
+import torch.nn.functional as F
+
 from omnigan.tutils import init_weights
 from omnigan.blocks import (
     PainterSpadeDecoder,
@@ -260,6 +262,8 @@ class BaseDepthDecoder(BaseDecoder):
             else opts.gen.d.classify.linspace.buckets
         )
 
+        self._target_size = None
+
         super().__init__(
             n_upsample=n_upsample,
             n_res=opts.gen.d.n_res,
@@ -271,4 +275,28 @@ class BaseDepthDecoder(BaseDecoder):
             pad_type=opts.gen.d.pad_type,
             output_activ="none",
             low_level_feats_dim=low_level_feats_dim,
+        )
+
+    def set_target_size(self, size):
+        """
+        Set final interpolation's target size
+
+        Args:
+            size (int, list, tuple): target size (h, w). If int, target will be (i, i)
+        """
+        if isinstance(size, (list, tuple)):
+            self._target_size = size[:2]
+        else:
+            self._target_size = (size, size)
+
+    def forward(self, z):
+        if self._target_size is None:
+            error = "self._target_size should be set with self.set_target_size()"
+            error += "to interpolate depth to the target depth map's size"
+            raise ValueError(error)
+
+        d = super().forward(z)
+
+        return F.interpolate(
+            d, size=self._target_size, mode="bilinear", align_corners=True
         )
