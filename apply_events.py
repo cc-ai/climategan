@@ -164,6 +164,9 @@ if __name__ == "__main__":
     data = [resize(d, (640, 640), anti_aliasing=True) for d in data]
     # normalize to -1:1
     data = [(normalize(d.astype(np.float32)) - 0.5) * 2 for d in data]
+    # half precision
+    if half:
+        data = [d.astype(np.float16) for d in data]
 
     n_batchs = len(data) // args.batch_size
     if len(data) % args.batch_size != 0:
@@ -186,8 +189,6 @@ if __name__ == "__main__":
                 continue
             # concatenate images in a batch batch_size x height x width x 3
             images = np.stack(images)
-            if half:
-                images = images.astype(np.float16)
 
             # Retreive numpy events as a dict {event: array}
             events = trainer.infer_all(images, True, stores, bin_value=bin_value)
