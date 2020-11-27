@@ -72,7 +72,7 @@ def parse_args():
     )
     parser.add_argument(
         "-m",
-        "--mask_binarization",
+        "--flood_mask_binarization",
         type=float,
         default=-1,
         help="Value to use to binarize masks (mask > value). "
@@ -95,7 +95,7 @@ if __name__ == "__main__":
 
     batch_size = args.batch_size
     images_paths = Path(args.images_paths).expanduser().resolve()
-    mask_binarization = args.mask_binarization
+    bin_value = args.flood_mask_binarization
     outdir = (
         Path(args.output_path).expanduser().resolve()
         if args.output_path is not None
@@ -179,9 +179,7 @@ if __name__ == "__main__":
             images = np.stack(images)
 
             # Retreive numpy events as a dict {event: array}
-            events = trainer.infer_all(
-                images, True, stores, mask_binarization=mask_binarization
-            )
+            events = trainer.infer_all(images, True, stores, bin_value=bin_value)
 
             # store events to write after inference loop
             all_events.append(events)
