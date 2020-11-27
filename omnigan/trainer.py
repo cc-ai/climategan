@@ -55,6 +55,7 @@ from omnigan.utils import (
     get_latest_opts,
     merge,
     sum_dict,
+    Timer,
 )
 from omnigan.logger import Logger
 
@@ -200,9 +201,88 @@ class Trainer:
         if self.verbose > 0:
             print(*args, **kwargs)
 
+    @torch.no_grad()
+    def infer_all(self, x, numpy=True, stores={}, bin_value=-1):
+        """
+        Create a dictionnary of events from a numpy or tensor,
+        single or batch image data.
+
+        stores is a dictionnary of times for the Timer class.
+
+        bin_value is used to binarize (or not) flood masks
+        """
+        assert self.is_setup
+        assert len(x.shape) in {3, 4}, f"Unknown Data shape {x.shape}"
+
+        # convert numpy to tensor
+        if not isinstance(x, torch.Tensor):
+            x = torch.tensor(x, device=self.device)
+
+        # add batch dimension
+        if len(x.shape) == 3:
+            x.unsqueeze_(0)
+
+        # permute channels as second dimension
+        if x.shape[1] != 3:
+            assert x.shape[-1] == 3, f"Unknown x shape to permute {x.shape}"
+            x = x.permute(0, 3, 1, 2)
+
+        # send to device
+        if x.device != self.device:
+            x = x.to(self.device)
+
+        # interpolate to standard input size
+        if x.shape[-1] != 640 or x.shape[-2] != 640:
+            x = torch.nn.functional.interpolate(x, (640, 640), mode="bilinear")
+
+        # encode
+        with Timer(store=stores.get("encode", [])):
+            z = self.G.encode(x)
+
+        # predict from masker
+        with Timer(store=stores.get("depth", [])):
+            depth = self.G.decoders["d"](z)
+        with Timer(store=stores.get("segmentation", [])):
+            segmentation = self.G.decoders["s"](z)
+        with Timer(store=stores.get("mask", [])):
+            mask = self.G.mask(z=z)
+
+        # apply events
+        with Timer(store=stores.get("wildfire", [])):
+            wildfire = self.compute_fire(x, segmentation).detach().cpu()
+        with Timer(store=stores.get("smog", [])):
+            smog = self.compute_smog(x, d=depth, s=segmentation).detach().cpu()
+        with Timer(store=stores.get("flood", [])):
+            flood = self.compute_flood(x, m=mask, bin_value=bin_value).detach().cpu()
+
+        if numpy:
+            with Timer(store=stores.get("numpy", [])):
+                # convert to numpy
+                flood = flood.permute(0, 2, 3, 1).numpy()
+                smog = smog.permute(0, 2, 3, 1).numpy()
+                wildfire = wildfire.permute(0, 2, 3, 1).numpy()
+
+                # normalize to 0-1
+                flood = (flood + 1) / 2
+                smog = (smog + 1) / 2
+                wildfire = (wildfire + 1) / 2
+
+                # convert to 0-255 uint8
+                flood = (flood * 255).astype(np.uint8)
+                smog = (smog * 255).astype(np.uint8)
+                wildfire = (wildfire * 255).astype(np.uint8)
+
+        return {"flood": flood, "wildfire": wildfire, "smog": smog}
+
     @classmethod
     def resume_from_path(
-        cls, path, overrides={}, setup=True, inference=False, new_exp=False
+        cls,
+        path,
+        overrides={},
+        setup=True,
+        inference=False,
+        new_exp=False,
+        input_shapes=None,
     ):
         """
         Resume and optionally setup a trainer from a specific path,
@@ -232,7 +312,9 @@ class Trainer:
         opts = Dict(merge(overrides, opts))
         opts.train.resume = True
 
-        if new_exp:
+        if new_exp is None:
+            exp = None
+        elif new_exp is True:
             exp = Experiment(project_name="omnigan", **comet_kwargs)
             exp.log_asset_folder(
                 str(Path(__file__).parent), recursive=True, log_file_name=True,
@@ -243,7 +325,10 @@ class Trainer:
             exp = ExistingExperiment(previous_experiment=comet_id, **comet_kwargs)
 
         trainer = cls(opts, comet_exp=exp)
+
         if setup:
+            if input_shapes is not None:
+                trainer.set_input_shapes(input_shapes)
             trainer.setup(inference=inference)
         return trainer
 
@@ -605,7 +690,7 @@ class Trainer:
             NotImplementedError: Cannot handle types other than tuple/list  or dict
         """
         if isinstance(shapes, (tuple, list)):
-            self.input_shapes = {t: shapes for t in self.opts.tasks}
+            self.input_shapes = {t: shapes for t in self.opts.tasks + ["x"]}
         elif isinstance(shapes, dict):
             assert "x" in shapes
             if "s" in self.opts.tasks:
@@ -662,6 +747,10 @@ class Trainer:
         if inference:
             print("Inference mode: no Discriminator, no Classifier, no optimizers")
             print_num_parameters(self)
+            self.eval_mode()
+            print("Trainer is in evaluation mode.")
+            print("Setup done.")
+            self.is_setup = True
             return
 
         # ---------------------------
@@ -1641,6 +1730,15 @@ class Trainer:
             self.exp.log_parameter("is_functional_test", True)
         atexit.register(self.del_output_path)
 
+    def del_output_path(self, force=False):
+        import shutil
+
+        if not Path(self.opts.output_path).exists():
+            return
+
+        if (Path(self.opts.output_path) / "is_functional.test").exists() or force:
+            shutil.rmtree(self.opts.output_path)
+
     def compute_fire(self, x, seg_preds=None, z=None):
         """
         Transforms input tensor given wildfires event
@@ -1662,16 +1760,47 @@ class Trainer:
             self.opts.events.fire.color.b,
         )
         blur_radius = self.opts.events.fire.blur_radius
+        if x.shape[0] > 0:
+            return torch.cat(
+                [
+                    add_fire(
+                        x[i].unsqueeze(0),
+                        seg_preds[i].unsqueeze(0),
+                        fire_color,
+                        blur_radius,
+                    )
+                    for i in range(x.shape[0])
+                ]
+            )
+
         return add_fire(x, seg_preds, fire_color, blur_radius)
 
-    def del_output_path(self, force=False):
-        import shutil
+    def compute_flood(self, x, z=None, m=None, bin_value=-1):
+        """
+        Applies a flood (mask + paint) to an input image, with optionally
+        pre-computed masker z or mask
 
-        if not Path(self.opts.output_path).exists():
-            return
+        Args:
+            x (torch.Tensor): B x C x H x W -1:1 input image
+            z (torch.Tensor, optional): B x C x H x W Masker latent vector.
+                Defaults to None.
+            m (torch.Tensor, optional): B x 1 x H x W Mask. Defaults to None.
+            bin_value (float, optional): Mask binarization value.
+                Set to -1 to use smooth masks (no binarization)
 
-        if (Path(self.opts.output_path) / "is_functional.test").exists() or force:
-            shutil.rmtree(self.opts.output_path)
+        Returns:
+            torch.Tensor: B x 3 x H x W -1:1 flooded image
+        """
+
+        if m is None:
+            if z is None:
+                z = self.G.encode(x)
+            m = self.G.mask(z=z)
+
+        if bin_value >= 0:
+            m = (m > bin_value).to(m.dtype)
+
+        return self.G.paint(m, x)
 
     def compute_smog(self, x, z=None, d=None, s=None, use_sky_seg=False):
         # implementation from the paper:

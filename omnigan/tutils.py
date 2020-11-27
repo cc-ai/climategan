@@ -532,9 +532,9 @@ def normalize(t, mini=0, maxi=1):
     if len(t.shape) == 3:
         return mini + (maxi - mini) * (t - t.min()) / (t.max() - t.min())
 
-    min_t = t.view(len(t), -1).min(1)[0].view(len(t), 1, 1, 1)
+    min_t = t.reshape(len(t), -1).min(1)[0].reshape(len(t), 1, 1, 1)
     t = t - min_t
-    max_t = t.view(len(t), -1).max(1)[0].view(len(t), 1, 1, 1)
+    max_t = t.reshape(len(t), -1).max(1)[0].reshape(len(t), 1, 1, 1)
     t = t / max_t
     return mini + (maxi - mini) * t
 
