@@ -15,6 +15,7 @@ from omnigan.utils import (
     env_to_path,
     flatten_opts,
     get_git_revision_hash,
+    get_git_branch,
     get_increased_path,
     load_opts,
     copy_run_files,
@@ -89,6 +90,7 @@ def main(opts):
     copy_run_files(opts)
     # store git hash
     opts.git_hash = get_git_revision_hash()
+    opts.git_branch = get_git_branch()
 
     if not args.no_comet:
         # ----------------------------------
@@ -127,7 +129,7 @@ def main(opts):
 
         # Merge and log tags
         if args.comet_tags or opts.comet.tags:
-            tags = set()
+            tags = set([opts.git_branch])
             if args.comet_tags:
                 tags.update(args.comet_tags)
             if opts.comet.tags:
