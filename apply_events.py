@@ -148,6 +148,8 @@ if __name__ == "__main__":
             new_exp=None,
             input_shapes=(3, 640, 640),
         )
+        if half:
+            trainer.G.half()
 
     # --------------------------------------------
     # -----  Read data from input directory  -----
