@@ -165,8 +165,8 @@ if __name__ == "__main__":
     # normalize to -1:1
     data = [(normalize(d.astype(np.float32)) - 0.5) * 2 for d in data]
     # half precision
-    if half:
-        data = [d.astype(np.float16) for d in data]
+    # if half:
+    #     data = [d.astype(np.float16) for d in data]
 
     n_batchs = len(data) // args.batch_size
     if len(data) % args.batch_size != 0:
@@ -191,7 +191,9 @@ if __name__ == "__main__":
             images = np.stack(images)
 
             # Retreive numpy events as a dict {event: array}
-            events = trainer.infer_all(images, True, stores, bin_value=bin_value)
+            events = trainer.infer_all(
+                images, True, stores, bin_value=bin_value, half=half
+            )
 
             # store events to write after inference loop
             all_events.append(events)

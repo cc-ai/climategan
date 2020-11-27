@@ -247,6 +247,7 @@ if __name__ == "__main__":
             "train.kitti.pretrain": True,
             "train.kitti.epochs": 1,
             "domains": ["kitti", "r", "s"],
+            "train.kitti.batch_size": 2,
         },
         {
             "__doc": "Depth Dada archi",  # 10
@@ -336,5 +337,5 @@ if __name__ == "__main__":
     if len(fails) == 0:
         print("•• All scenarios were successful")
     else:
-        print(f"•• {len(successes)} successful tests")
+        print(f"•• {len(successes)}/{len(test_scenarios)} successful tests")
         print(f"•• Failed test indices: {', '.join(map(str, fails))}")

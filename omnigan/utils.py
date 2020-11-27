@@ -257,6 +257,22 @@ def get_git_revision_hash() -> str:
         return str(e)
 
 
+def get_git_branch() -> str:
+    """Get current git branch name
+
+    Returns:
+        str: git branch name
+    """
+    try:
+        return (
+            subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"])
+            .decode()
+            .strip()
+        )
+    except Exception as e:
+        return str(e)
+
+
 def kill_job(id: Union[int, str]) -> None:
     subprocess.check_output(["scancel", str(id)])
 
