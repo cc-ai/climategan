@@ -17,6 +17,9 @@ def print_time(text, time_series):
         text (str): label of the time series
         time_series (list): list of timings
     """
+    if not time_series:
+        return
+
     m = np.mean(time_series)
     s = np.std(time_series)
     print(f"{text.capitalize() + ' ':.<26}  {m:.5f} +/- {s:.5f}")
