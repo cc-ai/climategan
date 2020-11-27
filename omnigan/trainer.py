@@ -1764,7 +1764,7 @@ class Trainer:
                     metric_score = metric_funcs[metric](pred_seg, s)
                     metric_avg_scores["s"][metric].append(metric_score)
 
-            if "d" in self.opts.tasks and domain == "s":
+            if "d" in metric_avg_scores and domain == "s":
                 pred_depth = self.G.decoders["d"](z).detach().cpu()
                 d = im_set["data"]["d"].unsqueeze(0).detach()
 
