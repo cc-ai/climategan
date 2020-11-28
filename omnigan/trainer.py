@@ -910,15 +910,15 @@ class Trainer:
         for self.logger.epoch in range(
             self.logger.epoch, self.logger.epoch + self.opts.train.epochs
         ):
-            self.run_epoch()
-            self.run_evaluation(verbose=1)
-            self.save()
-
             if (
-                self.logger.epoch == self.opts.gen.p.pl4m_epoch - 1
+                self.logger.epoch == self.opts.gen.p.pl4m_epoch
                 and get_num_params(self.G.painter) > 0
             ):
                 self.use_pl4m = True
+
+            self.run_epoch()
+            self.run_evaluation(verbose=1)
+            self.save()
 
             if self.logger.epoch == self.opts.train.kitti.epochs - 1:
                 self.switch_data(to="base")
