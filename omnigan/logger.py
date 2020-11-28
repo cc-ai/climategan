@@ -266,25 +266,43 @@ class Logger:
 
         trainer = self.trainer
         image_outputs = []
-        for im_set in trainer.display_images[mode][domain]:
+        legends = []
+        im_per_row = 0
+        for i, im_set in enumerate(trainer.display_images[mode][domain]):
             x = im_set["data"]["x"].unsqueeze(0).to(trainer.device)
             # m = im_set["data"]["m"].unsqueeze(0).to(trainer.device)
 
             m = trainer.G.mask(x=x)
+            m_bin = m > 0.5
             prediction = trainer.G.paint(m, x)
+            prediction_bin = trainer.G.paint(m_bin, x)
 
             image_outputs.append(x)
+            legends.append("Input")
             image_outputs.append(x * (1.0 - m))
+            legends.append("Soft Masked Input")
             image_outputs.append(prediction)
+            legends.append("Painted")
             image_outputs.append(prediction * m)
+            legends.append("Soft Masked Painted")
+            image_outputs.append(x * (1.0 - m_bin))
+            legends.append("Binary (0.5) Masked Input")
+            image_outputs.append(prediction_bin)
+            legends.append("Binary (0.5) Painted")
+            image_outputs.append(prediction_bin * m_bin)
+            legends.append("Binary (0.5) Masked Painted")
+
+            if i == 0:
+                im_per_row = len(image_outputs)
         # Upload images
         self.upload_images(
             image_outputs=image_outputs,
             mode=mode,
             domain=domain,
             task="combined",
-            im_per_row=trainer.opts.comet.im_per_row.get("p", 4),
+            im_per_row=im_per_row or 7,
             rows_per_log=trainer.opts.comet.get("rows_per_log", 5),
+            legends=legends
         )
 
         return 0
