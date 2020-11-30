@@ -199,7 +199,7 @@ if __name__ == "__main__":
         data_paths = data_paths[:n_images]
     # repeat data
     elif n_images > len(data_paths):
-        repeats = len(data_paths) // n_images + 1
+        repeats = n_images // len(data_paths) + 1
         data_paths = base_data_paths * repeats
         data_paths = data_paths[:n_images]
 
