@@ -11,6 +11,7 @@ from skimage.transform import resize
 import argparse
 from pathlib import Path
 import numpy as np
+from datetime import datetime
 
 import_time = time.time() - import_time
 
@@ -236,3 +237,10 @@ if __name__ == "__main__":
         for k in sorted(list(stores.keys())):
             print_time(k, stores[k])
     print()
+
+    if XLA:
+        with open(
+            f"./omnigan_xla_metrics_{str(datetime.now()).replace(' ', '_')}.txt", "w"
+        ) as f:
+            report = met.metrics_report()
+            print(report, file=f)
