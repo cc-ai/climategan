@@ -25,7 +25,7 @@ except ImportError:
     pass
 
 
-def print_time(text, time_series):
+def print_time(text, time_series, xla_purge_samples=-1):
     """
     Print a timeseries's mean and std with a label
 
@@ -35,6 +35,9 @@ def print_time(text, time_series):
     """
     if not time_series:
         return
+
+    if xla_purge_samples > 0:
+        time_series = time_series[xla_purge_samples:]
 
     m = np.mean(time_series)
     s = np.std(time_series)
@@ -101,6 +104,14 @@ def parse_args():
         type=int,
         help="Limit the number of images processed",
     )
+    parser.add_argument(
+        "-x",
+        "--xla_purge_samples",
+        type=int,
+        default=-1,
+        help="XLA compile time induces extra computations."
+        + " Ignore -x samples when computing time averages",
+    )
 
     return parser.parse_args()
 
@@ -128,6 +139,7 @@ if __name__ == "__main__":
     resume_path = args.resume_path
     time_inference = args.time
     n_images = args.n_images
+    xla_purge_samples = args.xla_purge_samples
 
     if outdir is not None:
         outdir.mkdir(exist_ok=True, parents=True)
@@ -254,7 +266,7 @@ if __name__ == "__main__":
     if time_inference:
         print("\n• Timings\n")
         for k in sorted(list(stores.keys())):
-            print_time(k, stores[k])
+            print_time(k, stores[k], purge=xla_purge_samples)
     print()
 
     if XLA:
