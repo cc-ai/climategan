@@ -232,7 +232,7 @@ if __name__ == "__main__":
         print("\n• Writing")
         with Timer(store=stores.get("write", [])):
             for b, events in enumerate(all_events):
-                for i in range(len(events)):
+                for i in range(len(list(events.values())[0])):
                     idx = b * batch_size + i
                     stem = Path(data_paths[idx]).stem
                     for event in events:
