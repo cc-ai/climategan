@@ -248,7 +248,7 @@ train:
     batch_size: 20
   amp: False
   pseudo:
-    enable: False # True or False to use pseudo-labels as supervision signal
+    tasks: [] # list of tasks for which to use pseudo labels (empty list to disable)
     epochs: 30 # disable pseudo training after n epochs (set to -1 to never disable)
   epochs: 300
   fid:

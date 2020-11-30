@@ -351,7 +351,7 @@ def tensor_loader(path, task, domain, opts):
         tensor = get_normalized_depth_t(
             tensor,
             domain,
-            normalize=opts.train.pseudo.enable,
+            normalize="d" in opts.train.pseudo.tasks,
             log=opts.gen.d.classify.enable,
         )
         tensor = tensor.unsqueeze(0)
@@ -498,7 +498,10 @@ def get_loader(mode, domain, opts):
 
     return DataLoader(
         OmniListDataset(
-            mode, domain, opts, transform=transforms.Compose(get_transforms(opts, domain))
+            mode,
+            domain,
+            opts,
+            transform=transforms.Compose(get_transforms(opts, domain)),
         ),
         batch_size=batch_size,
         shuffle=True,

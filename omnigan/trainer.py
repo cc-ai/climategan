@@ -101,7 +101,7 @@ class Trainer:
 
         self.current_mode = "train"
         self.kitti_pretrain = self.opts.train.kitti.pretrain
-        self.use_pseudo_labels = self.opts.train.pseudo.enable
+        self.pseudo_training_tasks = set(self.opts.train.pseudo.tasks)
 
         self.lr_names = {}
         self.base_display_images = {}
@@ -927,7 +927,7 @@ class Trainer:
                 self.kitti_pretrain = False
 
             if self.logger.epoch == self.opts.train.pseudo.epochs - 1:
-                self.use_pseudo_labels = False
+                self.pseudo_training_tasks = set()
 
     def run_epoch(self):
         """Runs an epoch:
@@ -1434,7 +1434,7 @@ class Trainer:
         if weight == 0:
             return full_loss
 
-        if domain == "r" and not self.use_pseudo_labels:
+        if domain == "r" and "d" not in self.pseudo_training_tasks:
             return full_loss
 
         prediction = self.G.decoders["d"](z)
@@ -1466,7 +1466,7 @@ class Trainer:
         # Supervised segmentation loss: crossent for sim domain,
         # crossent_pseudo for real ; loss is crossent in any case
         if for_ == "G":
-            if domain == "s" or self.use_pseudo_labels:
+            if domain == "s" or "s" in self.pseudo_training_tasks:
                 if domain == "s":
                     logger = self.logger.losses.gen.task["s"]["crossent"]
                     weight = self.opts.train.lambdas.G["s"]["crossent"]
