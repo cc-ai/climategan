@@ -29,10 +29,12 @@ data:
       r: train_r_full.json
       s: train_s_full.json
       rf: train_rf.json
+      kitti: train_kitti.json
     val:
       r: val_r_full.json
       s: val_s_full.json
       rf: val_rf.json
+      kitti: val_kitti.json
   check_samples: False
   loaders:
     batch_size: 6
@@ -129,7 +131,7 @@ gen:
     output_dim: 1
     conv_norm: batch
     res_norm: batch
-    loss: dada # dada or sigm | /!\ ignored if classify.enable
+    loss: dada
     upsample_featuremaps: False # upsamples from 80x80 to 160x160 intermediate feature maps
     architecture: dada # dada or base | must be base for classif
     classify: # classify log-depth instead of regression
@@ -249,6 +251,10 @@ classifier:
 # ----- Train Params -----
 # ------------------------
 train:
+  kitti:
+    pretrain: False
+    epochs: 30
+    batch_size: 20
   amp: False
   pseudo:
     enable: False # True or False to use pseudo-labels as supervision signal

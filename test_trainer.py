@@ -140,7 +140,18 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--no_delete", action="store_true", default=False)
     parser.add_argument("--no_end_to_end", action="store_true", default=False)
+    parser.add_argument("--include", "-i", nargs="+", default=[])
+    parser.add_argument("--exclude", "-e", nargs="+", default=[])
     args = parser.parse_args()
+
+    assert not (args.include and args.exclude), "Choose 1: include XOR exclude"
+
+    include = set(int(i) for i in args.include)
+    exclude = set(int(i) for i in args.exclude)
+    if include:
+        print("Including exclusively tests", " ".join(args.include))
+    if exclude:
+        print("Excluding tests", " ".join(args.exclude))
 
     # --------------------------------------
     # -----  Create global experiment  -----
@@ -170,7 +181,7 @@ if __name__ == "__main__":
         base_opts.data.transforms[-1].new_size = 256
         input_shapes = {
             "x": (3, 256, 256),
-            "s": (opts.gen.s.num_classes, 256, 256),
+            "s": (base_opts.gen.s.num_classes, 256, 256),
         }
     else:
         base_opts.data.transforms[-1].new_size.default = 256
@@ -191,44 +202,52 @@ if __name__ == "__main__":
     # create scenario-specific variables with __key
     # ALWAYS specify a __doc key to describe your scenario
     test_scenarios = [
-        {"__use_comet": False, "__doc": "MSD no exp", "__verbose": 1},
-        {"__doc": "MSD with exp"},
+        {"__use_comet": False, "__doc": "MSD no exp", "__verbose": 1},  # 0
+        {"__doc": "MSD with exp"},  # 1
         {
-            "__doc": "MSD no exp upsample_featuremaps",
+            "__doc": "MSD no exp upsample_featuremaps",  # 2
             "__use_comet": False,
             "gen.d.upsample_featuremaps": True,
             "gen.s.upsample_featuremaps": True,
         },
-        {"tasks": ["p"], "domains": ["rf"], "__doc": "Painter"},
+        {"tasks": ["p"], "domains": ["rf"], "__doc": "Painter"},  # 3
         {
-            "__doc": "M no exp low level feats",
+            "__doc": "M no exp low level feats",  # 4
             "__use_comet": False,
             "gen.m.use_low_level_feats": True,
             "tasks": ["m"],
         },
         {
-            "__doc": "MSD no exp deeplabv2",
+            "__doc": "MSD no exp deeplabv2",  # 5
             "__use_comet": False,
             "gen.encoder.architecture": "deeplabv2",
             "gen.s.architecture": "deeplabv2",
         },
         {
-            "__doc": "MSDP no End-to-end",
+            "__doc": "MSDP no End-to-end",  # 6
             "domains": ["rf", "r", "s"],
             "tasks": ["m", "s", "d", "p"],
         },
         {
-            "__doc": "MSDP inference only no exp",
+            "__doc": "MSDP inference only no exp",  # 7
             "__inference": True,
             "__use_comet": False,
             "domains": ["rf", "r", "s"],
             "tasks": ["m", "s", "d", "p"],
         },
         {
-            "__doc": "MSDP with End-to-end",
+            "__doc": "MSDP with End-to-end",  # 8
             "__pl4m": True,
             "domains": ["rf", "r", "s"],
             "tasks": ["m", "s", "d", "p"],
+        },
+        {
+            "__doc": "Kitti pretrain",  # 9
+            "train.epochs": 2,
+            "train.kitti.pretrain": True,
+            "train.kitti.epochs": 1,
+            "domains": ["kitti", "r", "s"],
+            "train.kitti.batch_size": 2,
         },
     ]
 
@@ -242,6 +261,15 @@ if __name__ == "__main__":
     # --------------------------------
 
     for test_idx, conf in enumerate(test_scenarios):
+        if test_idx in exclude or (include and test_idx not in include):
+            reason = (
+                "because it is in exclude"
+                if test_idx in exclude
+                else "because it is not in include"
+            )
+            print("Ignoring test", test_idx, reason)
+            continue
+
         # copy base scenario opts
         test_opts = deepcopy(base_opts)
         # update with scenario configuration
@@ -296,5 +324,5 @@ if __name__ == "__main__":
     if len(fails) == 0:
         print("•• All scenarios were successful")
     else:
-        print(f"•• {len(successes)} successful tests")
+        print(f"•• {len(successes)}/{len(test_scenarios)} successful tests")
         print(f"•• Failed test indices: {', '.join(map(str, fails))}")

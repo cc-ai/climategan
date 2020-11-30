@@ -183,17 +183,23 @@ def normalize_tensor(t):
     return t
 
 
-def get_normalized_depth_t(arr, domain, normalize=False):
+def get_normalized_depth_t(tensor, domain, normalize=False):
     if domain == "r":
         # megadepth depth
-        arr = arr.unsqueeze(0)
+        tensor = tensor.unsqueeze(0)
         if normalize:
-            arr = arr - torch.min(arr)
-            arr = torch.true_divide(arr, torch.max(arr))
+            tensor = tensor - torch.min(tensor)
+            tensor = torch.true_divide(tensor, torch.max(tensor))
     elif domain == "s":
         # from 3-channel depth encoding from Unity simulator to 1-channel [0-1] values
-        arr = decode_unity_depth_t(arr, log=False, normalize=normalize)
-    return arr
+        tensor = decode_unity_depth_t(tensor, log=False, normalize=normalize)
+    elif domain == "kitti":
+        tensor = 1 / (tensor / 100)
+        if normalize:
+            tensor = tensor - tensor.min()
+            tensor = tensor / tensor.max()
+        tensor = tensor.unsqueeze(0)
+    return tensor
 
 
 def decode_unity_depth_t(unity_depth, log=True, normalize=False, numpy=False, far=1000):
@@ -532,9 +538,9 @@ def normalize(t, mini=0, maxi=1):
     if len(t.shape) == 3:
         return mini + (maxi - mini) * (t - t.min()) / (t.max() - t.min())
 
-    min_t = t.view(len(t), -1).min(1)[0].view(len(t), 1, 1, 1)
+    min_t = t.reshape(len(t), -1).min(1)[0].reshape(len(t), 1, 1, 1)
     t = t - min_t
-    max_t = t.view(len(t), -1).max(1)[0].view(len(t), 1, 1, 1)
+    max_t = t.reshape(len(t), -1).max(1)[0].reshape(len(t), 1, 1, 1)
     t = t / max_t
     return mini + (maxi - mini) * t
 

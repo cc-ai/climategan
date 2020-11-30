@@ -12,6 +12,7 @@ import contextlib
 import numpy as np
 from typing import Union, Optional, List, Any
 import traceback
+import time
 
 comet_kwargs = {
     "auto_metric_logging": False,
@@ -130,11 +131,19 @@ def load_opts(
     if commandline_opts is not None and isinstance(commandline_opts, dict):
         opts = Dict(merge(commandline_opts, opts))
 
+    if opts.train.kitti.pretrained:
+        assert "kitti" in opts.data.files.train
+        assert "kitti" in opts.data.files.val
+        assert opts.train.kitti.epochs > 0
+
     opts.domains = []
     if "m" in opts.tasks or "s" in opts.tasks:
         opts.domains.extend(["r", "s"])
     if "p" in opts.tasks:
         opts.domains.append("rf")
+    if opts.train.kitti.pretrain:
+        opts.domains.append("kitti")
+
     opts.domains = list(set(opts.domains))
 
     if "s" in opts.tasks:
@@ -214,7 +223,9 @@ def set_data_paths(opts: Dict) -> Dict:
                 opts.data.files[mode][domain] = str(
                     Path(opts.data.files.base) / opts.data.files[mode][domain]
                 )
-            assert Path(opts.data.files[mode][domain]).exists()
+            assert Path(
+                opts.data.files[mode][domain]
+            ).exists(), "Cannot find {}".format(str(opts.data.files[mode][domain]))
 
     return opts
 
@@ -242,6 +253,22 @@ def get_git_revision_hash() -> str:
     """
     try:
         return subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
+    except Exception as e:
+        return str(e)
+
+
+def get_git_branch() -> str:
+    """Get current git branch name
+
+    Returns:
+        str: git branch name
+    """
+    try:
+        return (
+            subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"])
+            .decode()
+            .strip()
+        )
     except Exception as e:
         return str(e)
 
@@ -810,8 +837,8 @@ def text_to_array(text, width=640, height=40):
     try:
         font = ImageFont.truetype("UnBatang.ttf", 25)
     except OSError:
-        font = ImageFont.load_default() 
-        
+        font = ImageFont.load_default()
+
     d = ImageDraw.Draw(img)
     text_width, text_height = d.textsize(text)
     h = 40 // 2 - 3 * text_height // 2
@@ -834,3 +861,32 @@ def all_texts_to_array(texts, width=640, height=40):
         list: len(texts) text arrays with dims height x width x 3
     """
     return [text_to_array(text, width, height) for text in texts]
+
+
+class Timer:
+    def __init__(self, name="", store=None, precision=3, ignore=False):
+        self.name = name
+        self.store = store
+        self.precision = precision
+        self.ignore = ignore
+
+    def format(self, n):
+        return f"{n:.{self.precision}f}"
+
+    def __enter__(self):
+        """Start a new timer as a context manager"""
+        self._start_time = time.perf_counter()
+        return self
+
+    def __exit__(self, *exc_info):
+        """Stop the context manager timer"""
+        if self.ignore:
+            return
+        t = time.perf_counter()
+        new_time = t - self._start_time
+
+        if self.store is not None:
+            assert isinstance(self.store, list)
+            self.store.append(new_time)
+        if self.name:
+            print(f"[{self.name}] Elapsed time: {self.format(new_time)}")
