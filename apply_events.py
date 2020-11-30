@@ -181,9 +181,16 @@ if __name__ == "__main__":
 
     # find all images
     data_paths = [i for i in images_paths.glob("*") if is_image_file(i)]
+    base_data_paths = data_paths
     # filter images
-    if n_images > 0:
+    if 0 < n_images < len(data_paths):
         data_paths = data_paths[:n_images]
+    # repeat data
+    elif n_images > len(data_paths):
+        repeats = len(data_paths) // n_images + 1
+        data_paths = base_data_paths * repeats
+        data_paths = data_paths[:n_images]
+
     # read images to numpy arrays
     data = [io.imread(str(d)) for d in data_paths]
     # resize to standard input size 640 x 640
@@ -198,7 +205,7 @@ if __name__ == "__main__":
     if len(data) % args.batch_size != 0:
         n_batchs += 1
 
-    print("Found", len(data), "images.")
+    print("Found", len(base_data_paths), "images. Inferring on", len(data), "images.")
 
     # --------------------------------------------
     # -----  Batch-process images to events  -----
@@ -234,6 +241,7 @@ if __name__ == "__main__":
             for b, events in enumerate(all_events):
                 for i in range(len(list(events.values())[0])):
                     idx = b * batch_size + i
+                    idx = idx % len(base_data_paths)
                     stem = Path(data_paths[idx]).stem
                     for event in events:
                         im_path = outdir / f"{stem}_{event}.png"
