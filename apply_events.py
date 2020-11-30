@@ -32,6 +32,7 @@ def print_time(text, time_series, purge=-1):
     Args:
         text (str): label of the time series
         time_series (list): list of timings
+        purge (int, optional): ignore first n values of time series. Defaults to -1.
     """
     if not time_series:
         return
@@ -42,6 +43,32 @@ def print_time(text, time_series, purge=-1):
     m = np.mean(time_series)
     s = np.std(time_series)
     print(f"{text.capitalize() + ' ':.<26}  {m:.5f} +/- {s:.5f}")
+
+
+def print_store(store, purge=-1):
+    """
+    Pretty-print time series store
+
+    Args:
+        store (dict): maps string keys to lists of times
+        purge (int, optional): ignore first n values of time series. Defaults to -1.
+    """
+    singles = {k: v for k, v in store.items() if len(v) == 1}
+    multiples = {k: v for k, v in store.items() if len(v) > 1}
+    empties = {k: v for k, v in store.items() if len(v) == 0}
+
+    if empties:
+        print("Ignoring empty stores ", ", ".join(empties.keys()))
+        print()
+
+    for k in sorted(singles.keys()):
+        print_time(k, singles[k], purge)
+
+    print()
+
+    for k in sorted(multiples.keys()):
+        print_time(k, multiples[k], purge)
+    print()
 
 
 def parse_args():
@@ -269,9 +296,7 @@ if __name__ == "__main__":
     # ---------------------------
     if time_inference:
         print("\n• Timings\n")
-        for k in sorted(list(stores.keys())):
-            print_time(k, stores[k], purge=xla_purge_samples)
-    print()
+        print_store(stores, purge=xla_purge_samples)
 
     if XLA:
         with open(
