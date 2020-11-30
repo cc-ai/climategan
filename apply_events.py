@@ -94,6 +94,13 @@ def parse_args():
         default=False,
         help="Binary flag to use half precision (float16). Defaults to False.",
     )
+    parser.add_argument(
+        "-n",
+        "--n_images",
+        default=-1,
+        type=int,
+        help="Limit the number of images processed",
+    )
 
     return parser.parse_args()
 
@@ -120,6 +127,7 @@ if __name__ == "__main__":
     )
     resume_path = args.resume_path
     time_inference = args.time
+    n_images = args.n_images
 
     if outdir is not None:
         outdir.mkdir(exist_ok=True, parents=True)
@@ -173,6 +181,9 @@ if __name__ == "__main__":
 
     # find all images
     data_paths = [i for i in images_paths.glob("*") if is_image_file(i)]
+    # filter images
+    if n_images > 0:
+        data_paths = data_paths[:n_images]
     # read images to numpy arrays
     data = [io.imread(str(d)) for d in data_paths]
     # resize to standard input size 640 x 640
