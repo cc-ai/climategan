@@ -868,6 +868,8 @@ class Trainer:
                             d["paths"],
                         )
 
+        self.logger.log_architecture()
+
         if self.kitti_pretrain:
             self.switch_data(to="kitti")
         else:

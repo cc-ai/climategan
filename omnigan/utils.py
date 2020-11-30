@@ -171,7 +171,7 @@ def load_opts(
                 opts.gen.m.res_dim = 2048
             if opts.gen.d.res_dim != 2048:
                 print(
-                    "WARNING: overriding config's gen.m.res_dim",
+                    "WARNING: overriding config's gen.d.res_dim",
                     "to match encoder architecture {}".format(
                         opts.gen.encoder.architecture
                     ),

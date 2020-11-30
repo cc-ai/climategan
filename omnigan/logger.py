@@ -5,9 +5,15 @@ import numpy as np
 import torch
 from torch.nn.functional import sigmoid, interpolate
 from omnigan.data import decode_segmap_merged_labels
-from omnigan.tutils import normalize_tensor, all_texts_to_tensors, decode_bucketed_depth
+from omnigan.tutils import (
+    normalize_tensor,
+    all_texts_to_tensors,
+    decode_bucketed_depth,
+    write_architecture,
+)
 from omnigan.utils import flatten_opts
 from PIL import Image
+from pathlib import Path
 
 
 class Logger:
@@ -402,3 +408,12 @@ class Logger:
                 new_ims.append(im)
 
         return new_ims
+
+    def log_architecture(self):
+        write_architecture(self.trainer)
+
+        if self.trainer.exp is None:
+            return
+
+        for f in Path(self.trainer.opts.output_path).glob("archi*.txt"):
+            self.trainer.exp.log_asset(str(f), overwrite=True)

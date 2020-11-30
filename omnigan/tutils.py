@@ -604,3 +604,28 @@ def all_texts_to_tensors(texts, width=640, height=40):
     arrays = all_texts_to_array(texts, width, height)
     arrays = [array.transpose(2, 0, 1) for array in arrays]
     return [torch.tensor(array) for array in arrays]
+
+
+def write_architecture(trainer):
+    stem = "archi"
+    out = Path(trainer.opts.output_path)
+
+    # encoder
+    with open(out / f"{stem}_encoder.txt", "w") as f:
+        f.write(str(trainer.G.encoder))
+
+    # decoders
+    for k, v in trainer.G.decoders.items():
+        with open(out / f"{stem}_decoder_{k}.txt", "w") as f:
+            f.write(str(v))
+
+    # painter
+    if get_num_params(trainer.G.painter) > 0:
+        with open(out / f"{stem}_painter.txt", "w") as f:
+            f.write(str(trainer.G.painter))
+
+    # discriminators
+    if get_num_params(trainer.D) > 0:
+        for k, v in trainer.D.items():
+            with open(out / f"{stem}_discriminator_{k}.txt", "w") as f:
+                f.write(str(v))
