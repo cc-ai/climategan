@@ -161,7 +161,7 @@ if __name__ == "__main__":
             "setup": [],
             "inference on all images": [],
             "write": [],
-            "data disk reading": [],
+            "data pre-processing": [],
             "imports": [import_time],
         }
 
@@ -204,7 +204,7 @@ if __name__ == "__main__":
         data_paths = base_data_paths * repeats
         data_paths = data_paths[:n_images]
 
-    with Timer(store=stores.get("data disk reading", [])):
+    with Timer(store=stores.get("data pre-processing", [])):
         # read images to numpy arrays
         data = [io.imread(str(d)) for d in data_paths]
         # resize to standard input size 640 x 640
@@ -236,7 +236,12 @@ if __name__ == "__main__":
 
             # Retreive numpy events as a dict {event: array}
             events = trainer.infer_all(
-                images, True, stores, bin_value=bin_value, half=half, xla=XLA
+                images,
+                numpy=True,
+                stores=stores,
+                bin_value=bin_value,
+                half=half,
+                xla=XLA,
             )
 
             # store events to write after inference loop
