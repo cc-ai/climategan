@@ -193,6 +193,7 @@ if __name__ == "__main__":
                 "segmentation": [],
                 "smog": [],
                 "wildfire": [],
+                "all events": [],
                 "numpy": [],
                 "inference on all images": [],
                 "write": [],

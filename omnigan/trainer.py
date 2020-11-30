@@ -245,33 +245,36 @@ class Trainer:
         if half:
             x = x.half()
 
-        # encode
-        with Timer(store=stores.get("encode", [])):
-            z = self.G.encode(x)
-            if xla:
-                xm.mark_step()
+        with Timer(store=stores.get("all events", [])):
+            # encode
+            with Timer(store=stores.get("encode", [])):
+                z = self.G.encode(x)
+                if xla:
+                    xm.mark_step()
 
-        # predict from masker
-        with Timer(store=stores.get("depth", [])):
-            depth = self.G.decoders["d"](z)
-            if xla:
-                xm.mark_step()
-        with Timer(store=stores.get("segmentation", [])):
-            segmentation = self.G.decoders["s"](z)
-            if xla:
-                xm.mark_step()
-        with Timer(store=stores.get("mask", [])):
-            mask = self.G.mask(z=z)
-            if xla:
-                xm.mark_step()
+            # predict from masker
+            with Timer(store=stores.get("depth", [])):
+                depth = self.G.decoders["d"](z)
+                if xla:
+                    xm.mark_step()
+            with Timer(store=stores.get("segmentation", [])):
+                segmentation = self.G.decoders["s"](z)
+                if xla:
+                    xm.mark_step()
+            with Timer(store=stores.get("mask", [])):
+                mask = self.G.mask(z=z)
+                if xla:
+                    xm.mark_step()
 
-        # apply events
-        with Timer(store=stores.get("wildfire", [])):
-            wildfire = self.compute_fire(x, segmentation).detach().cpu()
-        with Timer(store=stores.get("smog", [])):
-            smog = self.compute_smog(x, d=depth, s=segmentation).detach().cpu()
-        with Timer(store=stores.get("flood", [])):
-            flood = self.compute_flood(x, m=mask, bin_value=bin_value).detach().cpu()
+            # apply events
+            with Timer(store=stores.get("wildfire", [])):
+                wildfire = self.compute_fire(x, segmentation).detach().cpu()
+            with Timer(store=stores.get("smog", [])):
+                smog = self.compute_smog(x, d=depth, s=segmentation).detach().cpu()
+            with Timer(store=stores.get("flood", [])):
+                flood = (
+                    self.compute_flood(x, m=mask, bin_value=bin_value).detach().cpu()
+                )
 
         if xla:
             xm.mark_step()
