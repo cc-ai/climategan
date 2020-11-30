@@ -46,7 +46,7 @@ def print_time(text, time_series, purge=-1):
 
     print(
         f"{text.capitalize() + ' ':.<26}  {m:.5f}"
-        + (f" +/- {s:.5f}" if len(time_series) > 0 else "")
+        + (f" +/- {s:.5f}" if len(time_series) > 1 else "")
     )
 
 
