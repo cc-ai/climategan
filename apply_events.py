@@ -36,7 +36,7 @@ def print_time(text, time_series, purge=-1):
     if not time_series:
         return
 
-    if purge > 0:
+    if purge > 0 and len(time_series) > purge:
         time_series = time_series[purge:]
 
     m = np.mean(time_series)
