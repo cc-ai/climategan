@@ -14,6 +14,15 @@ import numpy as np
 
 import_time = time.time() - import_time
 
+XLA = False
+try:
+    import torch_xla.core.xla_model as xm
+    import torch_xla.debug.metrics as met
+
+    XLA = True
+except ImportError:
+    pass
+
 
 def print_time(text, time_series):
     """
@@ -141,12 +150,17 @@ if __name__ == "__main__":
 
     with Timer(store=stores.get("setup", [])):
 
+        device = None
+        if XLA:
+            device = xm.xla_device()
+
         trainer = Trainer.resume_from_path(
             resume_path,
             setup=True,
             inference=True,
             new_exp=None,
             input_shapes=(3, 640, 640),
+            device=device,
         )
         if half:
             trainer.G.half()
@@ -192,7 +206,7 @@ if __name__ == "__main__":
 
             # Retreive numpy events as a dict {event: array}
             events = trainer.infer_all(
-                images, True, stores, bin_value=bin_value, half=half
+                images, True, stores, bin_value=bin_value, half=half, xla=XLA
             )
 
             # store events to write after inference loop

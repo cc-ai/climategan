@@ -209,7 +209,7 @@ class Trainer:
             print(*args, **kwargs)
 
     @torch.no_grad()
-    def infer_all(self, x, numpy=True, stores={}, bin_value=-1, half=False):
+    def infer_all(self, x, numpy=True, stores={}, bin_value=-1, half=False, xla=False):
         """
         Create a dictionnary of events from a numpy or tensor,
         single or batch image data.
@@ -248,14 +248,22 @@ class Trainer:
         # encode
         with Timer(store=stores.get("encode", [])):
             z = self.G.encode(x)
+            if xla:
+                xm.mark_step()
 
         # predict from masker
         with Timer(store=stores.get("depth", [])):
             depth = self.G.decoders["d"](z)
+            if xla:
+                xm.mark_step()
         with Timer(store=stores.get("segmentation", [])):
             segmentation = self.G.decoders["s"](z)
+            if xla:
+                xm.mark_step()
         with Timer(store=stores.get("mask", [])):
             mask = self.G.mask(z=z)
+            if xla:
+                xm.mark_step()
 
         # apply events
         with Timer(store=stores.get("wildfire", [])):
@@ -264,6 +272,9 @@ class Trainer:
             smog = self.compute_smog(x, d=depth, s=segmentation).detach().cpu()
         with Timer(store=stores.get("flood", [])):
             flood = self.compute_flood(x, m=mask, bin_value=bin_value).detach().cpu()
+
+        if xla:
+            xm.mark_step()
 
         if numpy:
             with Timer(store=stores.get("numpy", [])):
@@ -293,6 +304,7 @@ class Trainer:
         inference=False,
         new_exp=False,
         input_shapes=None,
+        device=None,
     ):
         """
         Resume and optionally setup a trainer from a specific path,
@@ -308,6 +320,7 @@ class Trainer:
                 Defaults to False.
             new_exp (bool, optional): Re-use existing comet exp in path or create
                 a new one? Defaults to False.
+            device (torch.device, optional): Device to use
 
         Returns:
             omnigan.Trainer: Loaded and resumed trainer
@@ -334,7 +347,7 @@ class Trainer:
             comet_id = get_existing_comet_id(p)
             exp = ExistingExperiment(previous_experiment=comet_id, **comet_kwargs)
 
-        trainer = cls(opts, comet_exp=exp)
+        trainer = cls(opts, comet_exp=exp, device=device)
 
         if setup:
             if input_shapes is not None:
