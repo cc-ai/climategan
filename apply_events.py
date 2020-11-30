@@ -12,6 +12,7 @@ import argparse
 from pathlib import Path
 import numpy as np
 from datetime import datetime
+from collections import OrderedDict
 
 import_time = time.time() - import_time
 
@@ -42,7 +43,11 @@ def print_time(text, time_series, purge=-1):
 
     m = np.mean(time_series)
     s = np.std(time_series)
-    print(f"{text.capitalize() + ' ':.<26}  {m:.5f} +/- {s:.5f}")
+
+    print(
+        f"{text.capitalize() + ' ':.<26}  {m:.5f}"
+        + (f" +/- {s:.5f}" if len(time_series) > 0 else "")
+    )
 
 
 def print_store(store, purge=-1):
@@ -53,20 +58,20 @@ def print_store(store, purge=-1):
         store (dict): maps string keys to lists of times
         purge (int, optional): ignore first n values of time series. Defaults to -1.
     """
-    singles = {k: v for k, v in store.items() if len(v) == 1}
-    multiples = {k: v for k, v in store.items() if len(v) > 1}
+    singles = OrderedDict({k: v for k, v in store.items() if len(v) == 1})
+    multiples = OrderedDict({k: v for k, v in store.items() if len(v) > 1})
     empties = {k: v for k, v in store.items() if len(v) == 0}
 
     if empties:
         print("Ignoring empty stores ", ", ".join(empties.keys()))
         print()
 
-    for k in sorted(singles.keys()):
+    for k in singles:
         print_time(k, singles[k], purge)
 
     print()
-
-    for k in sorted(multiples.keys()):
+    print("Unit: s/batch")
+    for k in multiples:
         print_time(k, multiples[k], purge)
     print()
 
@@ -176,21 +181,23 @@ if __name__ == "__main__":
     # -------------------------------
     stores = {}
     if time_inference:
-        stores = {
-            "encode": [],
-            "depth": [],
-            "segmentation": [],
-            "mask": [],
-            "wildfire": [],
-            "smog": [],
-            "flood": [],
-            "numpy": [],
-            "setup": [],
-            "inference on all images": [],
-            "write": [],
-            "data pre-processing": [],
-            "imports": [import_time],
-        }
+        stores = OrderedDict(
+            {
+                "imports": [import_time],
+                "setup": [],
+                "data pre-processing": [],
+                "encode": [],
+                "mask": [],
+                "flood": [],
+                "depth": [],
+                "segmentation": [],
+                "smog": [],
+                "wildfire": [],
+                "numpy": [],
+                "inference on all images": [],
+                "write": [],
+            }
+        )
 
     # -------------------------------------
     # -----  Resume Trainer instance  -----
@@ -217,7 +224,7 @@ if __name__ == "__main__":
     # --------------------------------------------
     # -----  Read data from input directory  -----
     # --------------------------------------------
-    print("\n• Reading Data\n")
+    print("\n• Reading & Pre-processing Data\n")
 
     # find all images
     data_paths = [i for i in images_paths.glob("*") if is_image_file(i)]
