@@ -212,7 +212,8 @@ def get_normalized_depth_t(tensor, domain, normalize=False, log=True):
 
 def decode_bucketed_depth(tensor, opts):
     # tensor is size 1 x C x H x W
-    idx = torch.argmax(tensor.squeeze(0), dim=0)
+    assert tensor.shape[0] == 1
+    idx = torch.argmax(tensor.squeeze(0), dim=0)  # channels become dim 0 with squeeze
     linspace_args = (
         opts.gen.d.classify.linspace.min,
         opts.gen.d.classify.linspace.max,

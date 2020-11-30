@@ -99,7 +99,7 @@ class Logger:
                         smogged = self.trainer.compute_smog(
                             x, d=prediction, s=seg_pred, use_sky_seg=False
                         )
-                        prediction = normalize_tensor(prediction) * 255
+                        prediction = normalize_tensor(prediction)
                         prediction = prediction.repeat(1, 3, 1, 1)
                         task_saves.append(smogged)
                         task_legend.append("Smogged")
@@ -302,7 +302,7 @@ class Logger:
             task="combined",
             im_per_row=im_per_row or 7,
             rows_per_log=trainer.opts.comet.get("rows_per_log", 5),
-            legends=legends
+            legends=legends,
         )
 
         return 0
