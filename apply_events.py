@@ -5,7 +5,7 @@ import_time = time.time()
 from omnigan.trainer import Trainer
 from omnigan.data import is_image_file
 from omnigan.utils import Timer
-from omnigan.tutils import normalize
+from omnigan.tutils import normalize, print_num_parameters
 import skimage.io as io
 from skimage.transform import resize
 import argparse
@@ -219,6 +219,8 @@ if __name__ == "__main__":
             input_shapes=(3, 640, 640),
             device=device,
         )
+        print()
+        print_num_parameters(trainer)
         if half:
             trainer.G.half()
 
