@@ -161,6 +161,7 @@ if __name__ == "__main__":
             "setup": [],
             "inference on all images": [],
             "write": [],
+            "data disk reading": [],
             "imports": [import_time],
         }
 
@@ -203,15 +204,13 @@ if __name__ == "__main__":
         data_paths = base_data_paths * repeats
         data_paths = data_paths[:n_images]
 
-    # read images to numpy arrays
-    data = [io.imread(str(d)) for d in data_paths]
-    # resize to standard input size 640 x 640
-    data = [resize(d, (640, 640), anti_aliasing=True) for d in data]
-    # normalize to -1:1
-    data = [(normalize(d.astype(np.float32)) - 0.5) * 2 for d in data]
-    # half precision
-    # if half:
-    #     data = [d.astype(np.float16) for d in data]
+    with Timer(store=stores.get("data disk reading", [])):
+        # read images to numpy arrays
+        data = [io.imread(str(d)) for d in data_paths]
+        # resize to standard input size 640 x 640
+        data = [resize(d, (640, 640), anti_aliasing=True) for d in data]
+        # normalize to -1:1
+        data = [(normalize(d.astype(np.float32)) - 0.5) * 2 for d in data]
 
     n_batchs = len(data) // args.batch_size
     if len(data) % args.batch_size != 0:
