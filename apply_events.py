@@ -309,7 +309,7 @@ if __name__ == "__main__":
         print_store(stores, purge=xla_purge_samples)
 
     if XLA:
-        metrics_dir = Path(__file__) / "config" / "metrics"
+        metrics_dir = Path(__file__).parent / "config" / "metrics"
         metrics_dir.mkdir(exist_ok=True, parents=True)
         now = str(datetime.now()).replace(" ", "_")
         with open(metrics_dir / f"xla_metrics_{now}.txt", "w",) as f:
