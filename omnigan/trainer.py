@@ -9,6 +9,7 @@ from copy import deepcopy
 from pathlib import Path
 from time import time
 import numpy as np
+import inspect
 
 from comet_ml import ExistingExperiment
 
@@ -878,7 +879,8 @@ class Trainer:
         self.is_setup = True
 
     def switch_data(self, to="kitti"):
-        print("Switching data source to", to)
+        caller = inspect.stack()[1].function
+        print(f"[{caller}]Switching data source to", to)
         self.data_source = to
         if to == "kitti":
             self.display_images = self.kitty_display_images
@@ -1213,7 +1215,7 @@ class Trainer:
             self.logger.losses.gen.masker = m_loss.item()
             g_loss += m_loss
 
-        if "p" in self.opts.tasks:
+        if "p" in self.opts.tasks and not self.kitti_pretrain:
             p_loss = self.get_painter_loss(multi_domain_batch)
             self.logger.losses.gen.painter = p_loss.item()
             g_loss += p_loss
