@@ -25,7 +25,7 @@ except ImportError:
     pass
 
 
-def print_time(text, time_series, xla_purge_samples=-1):
+def print_time(text, time_series, purge=-1):
     """
     Print a timeseries's mean and std with a label
 
@@ -36,8 +36,8 @@ def print_time(text, time_series, xla_purge_samples=-1):
     if not time_series:
         return
 
-    if xla_purge_samples > 0:
-        time_series = time_series[xla_purge_samples:]
+    if purge > 0:
+        time_series = time_series[purge:]
 
     m = np.mean(time_series)
     s = np.std(time_series)
