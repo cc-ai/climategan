@@ -228,7 +228,9 @@ class BucketizeDepth:
             )
 
             self.transforms = {
-                "d": lambda tensor: torch.bucketize(tensor, self.buckets, out_int32=True, right=True)
+                "d": lambda tensor: torch.bucketize(
+                    tensor, self.buckets, out_int32=True, right=True
+                )
             }
         else:
             self.transforms = {}
@@ -237,18 +239,6 @@ class BucketizeDepth:
         return {
             task: self.transforms.get(task, lambda x: x)(tensor)
             for task, tensor in data.items()
-            if (
-                (
-                    print(
-                        self.domain,
-                        task, 
-                        tensor.min(), 
-                        tensor.max(), 
-                        ">>", 
-                        self.transforms.get(task, lambda x: x)(tensor).min(), 
-                        self.transforms.get(task, lambda x: x)(tensor).max()
-                    ) if task == "deza" else 1
-                ) or 1)
         }
 
 
