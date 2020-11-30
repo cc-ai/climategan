@@ -1,7 +1,8 @@
 """Tensor-utils
 """
 from pathlib import Path
-
+import io
+from contextlib import redirect_stdout
 # from copy import copy
 from threading import Thread
 from torch import autograd
@@ -629,3 +630,9 @@ def write_architecture(trainer):
         for k, v in trainer.D.items():
             with open(out / f"{stem}_discriminator_{k}.txt", "w") as f:
                 f.write(str(v))
+
+    with io.StringIO() as buf, redirect_stdout(buf):
+        print_num_parameters(trainer)
+        output = buf.getvalue()
+        with open("archi_num_params.txt", "w") as f:
+            f.write(output)
