@@ -220,7 +220,7 @@ if __name__ == "__main__":
             device=device,
         )
         print()
-        print_num_parameters(trainer)
+        print_num_parameters(trainer, True)
         if half:
             trainer.G.half()
 
