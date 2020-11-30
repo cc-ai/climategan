@@ -124,7 +124,7 @@ if __name__ == "__main__":
     args = parse_args()
     print(
         "• Using args\n\n"
-        + "\n".join(["{:15}: {}".format(k, v) for k, v in vars(args).items()]),
+        + "\n".join(["{:25}: {}".format(k, v) for k, v in vars(args).items()]),
     )
 
     batch_size = args.batch_size
