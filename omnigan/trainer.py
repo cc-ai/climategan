@@ -1715,14 +1715,18 @@ class Trainer:
             self.logger.log_comet_images("train", d)
             self.logger.log_comet_images("val", d)
 
-        if "m" in self.opts.tasks and "p" in self.opts.tasks:
+        if (
+            "m" in self.opts.tasks
+            and "p" in self.opts.tasks
+            and not self.kitti_pretrain
+        ):
             self.logger.log_comet_combined_images("train", "r")
             self.logger.log_comet_combined_images("val", "r")
 
         if self.exp is not None:
             print()
 
-        if "m" in self.opts.tasks:
+        if "m" in self.opts.tasks or "s" in self.opts.tasks:
             self.eval_images("val", "r")
             self.eval_images("val", "s")
 
