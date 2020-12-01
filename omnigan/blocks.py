@@ -174,7 +174,7 @@ class ResBlocks(nn.Module):
 
 class ResBlock(nn.Module):
     def __init__(self, dim, norm="in", activation="relu", pad_type="zero"):
-        super(ResBlock, self).__init__()
+        super().__init__()
         self.dim = dim
         self.norm = norm
         self.activation = activation
@@ -210,7 +210,7 @@ class Bottleneck(nn.Module):
     """
 
     def __init__(self, in_ch, out_ch, stride, dilation, downsample):
-        super(Bottleneck, self).__init__()
+        super().__init__()
         mid_ch = out_ch // _BOTTLENECK_EXPANSION
         self.reduce = Conv2dBlock(in_ch, mid_ch, 1, stride, 0, norm="batch")
         self.conv3x3 = Conv2dBlock(
@@ -242,7 +242,7 @@ class ResLayer(nn.Sequential):
     """
 
     def __init__(self, n_layers, in_ch, out_ch, stride, dilation, multi_grids=None):
-        super(ResLayer, self).__init__()
+        super().__init__()
 
         if multi_grids is None:
             multi_grids = [1 for _ in range(n_layers)]
@@ -270,7 +270,7 @@ class Stem(nn.Sequential):
     """
 
     def __init__(self, out_ch):
-        super(Stem, self).__init__()
+        super().__init__()
         self.add_module("conv1", Conv2dBlock(3, out_ch, 7, 2, 3, 1, norm="batch"))
         self.add_module("pool", nn.MaxPool2d(3, 2, 1, ceil_mode=True))
 
@@ -682,7 +682,7 @@ class _ASPPModule(nn.Module):
     def __init__(
         self, inplanes, planes, kernel_size, padding, dilation, BatchNorm, no_init
     ):
-        super(_ASPPModule, self).__init__()
+        super().__init__()
         self.atrous_conv = nn.Conv2d(
             inplanes,
             planes,
@@ -720,7 +720,7 @@ class ConvBNReLU(nn.Module):
     def __init__(
         self, in_chan, out_chan, ks=3, stride=1, padding=1, dilation=1, *args, **kwargs
     ):
-        super(ConvBNReLU, self).__init__()
+        super().__init__()
         self.conv = nn.Conv2d(
             in_chan,
             out_chan,
@@ -752,7 +752,7 @@ class ASPPv3Plus(nn.Module):
     """
 
     def __init__(self, backbone, no_init):
-        super(ASPP, self).__init__()
+        super().__init__()
 
         if backbone == "mobilenet":
             in_chan = 320

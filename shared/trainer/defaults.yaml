@@ -111,7 +111,7 @@ gen:
     pretrained_model: "/miniscratch/_groups/ccai/data/pretrained_models/deeplabv2/DeepLab_resnet_pretrained_imagenet.pth"
 
   deeplabv3:
-    backbone: "mobilenet" # mobilenet or resnet
+    backbone: resnet # resnet only
     output_stride: 8 # 8 or 16
     use_pretrained: true
     pretrained_model:
