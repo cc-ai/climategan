@@ -494,8 +494,8 @@ def get_WGAN_gradient(input, output):
     return gp
 
 
-def print_num_parameters(trainer):
-    if trainer.verbose == 0:
+def print_num_parameters(trainer, force=False):
+    if trainer.verbose == 0 and not force:
         return
     print("-" * 35)
     if trainer.G.encoder is not None:
