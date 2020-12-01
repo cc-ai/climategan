@@ -759,7 +759,7 @@ class ASPPv3Plus(nn.Module):
         else:
             in_chan = 2048
 
-        self.with_gp = True
+        self.with_gp = False
         self.conv1 = ConvBNReLU(in_chan, 256, ks=1, dilation=1, padding=0)
         self.conv2 = ConvBNReLU(in_chan, 256, ks=3, dilation=6, padding=6)
         self.conv3 = ConvBNReLU(in_chan, 256, ks=3, dilation=12, padding=12)
