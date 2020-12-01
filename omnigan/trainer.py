@@ -1738,7 +1738,7 @@ class Trainer:
             self.eval_images("val", "r")
             self.eval_images("val", "s")
 
-        if "p" in self.opts.tasks:
+        if "p" in self.opts.tasks and not self.kitti_pretrain:
             val_fid = compute_val_fid(self)
             if self.exp is not None:
                 self.exp.log_metric("val_fid", val_fid, step=self.logger.global_step)
