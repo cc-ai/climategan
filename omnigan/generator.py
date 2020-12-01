@@ -24,6 +24,8 @@ def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
 
     for model in G.decoders:
         net = G.decoders[model]
+        if model == "s":
+            continue
         if isinstance(net, nn.ModuleDict):
             for domain, domain_model in net.items():
                 init_weights(
@@ -41,7 +43,7 @@ def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
                 verbose=verbose,
                 caller=f"get_gen decoder {model}",
             )
-    if G.encoder is not None and opts.gen.encoder.architecture != "deeplabv2":
+    if G.encoder is not None and opts.gen.encoder.architecture == "base":
         init_weights(
             G.encoder,
             init_type=opts.gen.encoder.init_type,

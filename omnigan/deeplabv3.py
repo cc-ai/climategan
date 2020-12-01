@@ -7,7 +7,7 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from omnigan.blocks import ASPP
+from omnigan.blocks import ASPPv3Plus, ConvBNReLU
 from pathlib import Path
 
 
@@ -62,15 +62,7 @@ class Bottleneck(nn.Module):
 
 class ResNet(nn.Module):
     def __init__(
-        self,
-        block,
-        layers,
-        output_stride,
-        BatchNorm,
-        pretrained=True,
-        pretrained_path=None,
-        no_init=False,
-        verbose=0,
+        self, block, layers, output_stride, BatchNorm, verbose=0, no_init=False
     ):
         self.inplanes = 64
         self.verbose = verbose
@@ -84,8 +76,6 @@ class ResNet(nn.Module):
             dilations = [1, 1, 2, 4]
         else:
             raise NotImplementedError
-
-        self.pretrained_path = pretrained_path
 
         # Modules
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
@@ -125,15 +115,6 @@ class ResNet(nn.Module):
             dilation=dilations[3],
             BatchNorm=BatchNorm,
         )
-        # self.layer4 = self._make_layer(
-        #     block, 512, layers[3], stride=strides[3],
-        #     dilation=dilations[3], BatchNorm=BatchNorm
-        # )
-        if not no_init:
-            self._init_weight()
-
-        if pretrained and not no_init:
-            self._load_pretrained_model()
 
     def _make_layer(self, block, planes, blocks, stride=1, dilation=1, BatchNorm=None):
         downsample = None
@@ -215,39 +196,8 @@ class ResNet(nn.Module):
         x = self.layer4(x)
         return x, low_level_feat
 
-    def _init_weight(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-                m.weight.data.normal_(0, math.sqrt(2.0 / n))
-            elif isinstance(m, nn.BatchNorm2d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
 
-    def _load_pretrained_model(self):
-        assert self.pretrained_path is not None
-        assert Path(self.pretrained_path).exists()
-
-        pretrain_dict = torch.load(self.pretrained_path)
-        model_dict = {}
-        state_dict = self.state_dict()
-        for k, v in pretrain_dict.items():
-            if k in state_dict:
-                model_dict[k] = v
-        state_dict.update(model_dict)
-        self.load_state_dict(state_dict)
-        if self.verbose > 0:
-            print("    - Loaded pre-trained ResNet101")
-
-
-def ResNet101(
-    output_stride=8,
-    BatchNorm=nn.BatchNorm2d,
-    pretrained=True,
-    pretrained_path=None,
-    no_init=False,
-    verbose=0,
-):
+def ResNet101(output_stride=8, BatchNorm=nn.BatchNorm2d, verbose=0, no_init=False):
     """Constructs a ResNet-101 model.
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
@@ -257,293 +207,61 @@ def ResNet101(
         [3, 4, 23, 3],
         output_stride,
         BatchNorm,
-        pretrained=pretrained,
-        pretrained_path=pretrained_path,
-        no_init=no_init,
         verbose=verbose,
+        no_init=no_init,
     )
     return model
 
 
-def build_aspp(backbone, output_stride, BatchNorm, no_init):
-    return ASPP(backbone, output_stride, BatchNorm, no_init)
-
-
-"""
-https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/decoder.py
-"""
-
-
 class Decoder(nn.Module):
-    def __init__(self, num_classes, backbone, BatchNorm, no_init):
+    """
+    https://github.com/CoinCheung/DeepLab-v3-plus-cityscapes/blob/master/models/deeplabv3plus.py
+    """
+
+    def __init__(self, n_classes):
         super(Decoder, self).__init__()
-        if backbone == "resnet":
-            low_level_inplanes = 256
-        elif backbone == "mobilenet":
-            low_level_inplanes = 24
-        else:
-            raise NotImplementedError
-
-        self.conv1 = nn.Conv2d(low_level_inplanes, 48, 1, bias=False)
-        self.bn1 = BatchNorm(48)
-        self.relu = nn.ReLU()
-        self.last_conv = nn.Sequential(
-            nn.Conv2d(304, 256, kernel_size=3, stride=1, padding=1, bias=False),
-            BatchNorm(256),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
-            BatchNorm(256),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Conv2d(256, num_classes, kernel_size=1, stride=1),
+        self.conv_low = ConvBNReLU(256, 48, ks=1, padding=0)
+        self.conv_cat = nn.Sequential(
+            ConvBNReLU(304, 256, ks=3, padding=1),
+            ConvBNReLU(256, 256, ks=3, padding=1),
         )
-        if not no_init:
-            self._init_weight()
+        self.conv_out = nn.Conv2d(256, n_classes, kernel_size=1, bias=False)
 
-    def forward(self, x, low_level_feat):
-        low_level_feat = self.conv1(low_level_feat)
-        low_level_feat = self.bn1(low_level_feat)
-        low_level_feat = self.relu(low_level_feat)
-
-        x = F.interpolate(
-            x, size=low_level_feat.size()[2:], mode="bilinear", align_corners=True
+    def forward(self, feat_low, feat_aspp):
+        H, W = feat_low.size()[2:]
+        feat_low = self.conv_low(feat_low)
+        feat_aspp_up = F.interpolate(
+            feat_aspp, (H, W), mode="bilinear", align_corners=True
         )
-        x = torch.cat((x, low_level_feat), dim=1)
-        x = self.last_conv(x)
-
-        return x
-
-    def _init_weight(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                torch.nn.init.kaiming_normal_(m.weight)
-            elif isinstance(m, nn.BatchNorm2d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
-
-
-def build_decoder(num_classes, backbone, BatchNorm, no_init):
-    return Decoder(num_classes, backbone, BatchNorm, no_init)
-
-
-"""
-https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/backbone/mobilenet.py
-"""
-
-
-def conv_bn(inp, oup, stride, BatchNorm):
-    return nn.Sequential(
-        nn.Conv2d(inp, oup, 3, stride, 1, bias=False),
-        BatchNorm(oup),
-        nn.ReLU6(inplace=True),
-    )
-
-
-def fixed_padding(inputs, kernel_size, dilation):
-    kernel_size_effective = kernel_size + (kernel_size - 1) * (dilation - 1)
-    pad_total = kernel_size_effective - 1
-    pad_beg = pad_total // 2
-    pad_end = pad_total - pad_beg
-    padded_inputs = F.pad(inputs, (pad_beg, pad_end, pad_beg, pad_end))
-    return padded_inputs
-
-
-class InvertedResidual(nn.Module):
-    def __init__(self, inp, oup, stride, dilation, expand_ratio, BatchNorm):
-        super(InvertedResidual, self).__init__()
-        self.stride = stride
-        assert stride in [1, 2]
-
-        hidden_dim = round(inp * expand_ratio)
-        self.use_res_connect = self.stride == 1 and inp == oup
-        self.kernel_size = 3
-        self.dilation = dilation
-
-        if expand_ratio == 1:
-            self.conv = nn.Sequential(
-                # dw
-                nn.Conv2d(
-                    hidden_dim,
-                    hidden_dim,
-                    3,
-                    stride,
-                    0,
-                    dilation,
-                    groups=hidden_dim,
-                    bias=False,
-                ),
-                BatchNorm(hidden_dim),
-                nn.ReLU6(inplace=True),
-                # pw-linear
-                nn.Conv2d(hidden_dim, oup, 1, 1, 0, 1, 1, bias=False),
-                BatchNorm(oup),
-            )
-        else:
-            self.conv = nn.Sequential(
-                # pw
-                nn.Conv2d(inp, hidden_dim, 1, 1, 0, 1, bias=False),
-                BatchNorm(hidden_dim),
-                nn.ReLU6(inplace=True),
-                # dw
-                nn.Conv2d(
-                    hidden_dim,
-                    hidden_dim,
-                    3,
-                    stride,
-                    0,
-                    dilation,
-                    groups=hidden_dim,
-                    bias=False,
-                ),
-                BatchNorm(hidden_dim),
-                nn.ReLU6(inplace=True),
-                # pw-linear
-                nn.Conv2d(hidden_dim, oup, 1, 1, 0, 1, bias=False),
-                BatchNorm(oup),
-            )
-
-    def forward(self, x):
-        x_pad = fixed_padding(x, self.kernel_size, dilation=self.dilation)
-        if self.use_res_connect:
-            x = x + self.conv(x_pad)
-        else:
-            x = self.conv(x_pad)
-        return x
-
-
-class MobileNetV2(nn.Module):
-    def __init__(
-        self,
-        output_stride=8,
-        BatchNorm=None,
-        width_mult=1.0,
-        pretrained=True,
-        pretrained_path=None,
-        no_init=False,
-        verbose=0,
-    ):
-        super(MobileNetV2, self).__init__()
-        block = InvertedResidual
-        input_channel = 32
-        current_stride = 1
-        rate = 1
-        self.pretrained_path = pretrained_path
-        self.verbose = verbose
-        interverted_residual_setting = [
-            # t, c, n, s
-            [1, 16, 1, 1],
-            [6, 24, 2, 2],
-            [6, 32, 3, 2],
-            [6, 64, 4, 2],
-            [6, 96, 3, 1],
-            [6, 160, 3, 2],
-            [6, 320, 1, 1],
-        ]
-
-        # building first layer
-        input_channel = int(input_channel * width_mult)
-        self.features = [conv_bn(3, input_channel, 2, BatchNorm)]
-        current_stride *= 2
-        # building inverted residual blocks
-        for t, c, n, s in interverted_residual_setting:
-            if current_stride == output_stride:
-                stride = 1
-                dilation = rate
-                rate *= s
-            else:
-                stride = s
-                dilation = 1
-                current_stride *= s
-            output_channel = int(c * width_mult)
-            for i in range(n):
-                if i == 0:
-                    self.features.append(
-                        block(
-                            input_channel,
-                            output_channel,
-                            stride,
-                            dilation,
-                            t,
-                            BatchNorm,
-                        )
-                    )
-                else:
-                    self.features.append(
-                        block(input_channel, output_channel, 1, dilation, t, BatchNorm)
-                    )
-                input_channel = output_channel
-        self.features = nn.Sequential(*self.features)
-        self.loaded_pre_trained = False
-
-        if not no_init:
-            self._initialize_weights()
-
-        if pretrained and not no_init:
-            self._load_pretrained_model()
-
-        self.low_level_features = self.features[0:4]
-        self.high_level_features = self.features[4:]
-
-    def forward(self, x):
-        low_level_feat = self.low_level_features(x)
-        x = self.high_level_features(low_level_feat)
-        return x, low_level_feat
-
-    def _load_pretrained_model(self):
-        assert self.pretrained_path is not None
-        assert Path(self.pretrained_path).exists()
-
-        pretrain_dict = torch.load(self.pretrained_path)
-        model_dict = {}
-        state_dict = self.state_dict()
-        for k, v in pretrain_dict.items():
-            if k in state_dict:
-                model_dict[k] = v
-        state_dict.update(model_dict)
-        self.load_state_dict(state_dict)
-        self.loaded_pre_trained = True
-        if self.verbose > 0:
-            print("    - Loaded pre-trained MobileNetV2")
-
-    def _initialize_weights(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                # n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-                # m.weight.data.normal_(0, math.sqrt(2. / n))
-                torch.nn.init.kaiming_normal_(m.weight)
-            elif isinstance(m, nn.BatchNorm2d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
-
-
-"""
-https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/backbone/__init__.py
-"""
+        feat_cat = torch.cat([feat_low, feat_aspp_up], dim=1)
+        feat_out = self.conv_cat(feat_cat)
+        logits = self.conv_out(feat_out)
+        return logits
 
 
 def build_backbone(opts, no_init, verbose=0):
     backbone = opts.gen.deeplabv3.backbone
     output_stride = opts.gen.deeplabv3.output_stride
-    use_pretrained = opts.gen.deeplabv3.use_pretrained
     if backbone == "resnet":
-        return ResNet101(
+        resnet = ResNet101(
             output_stride=output_stride,
             BatchNorm=nn.BatchNorm2d,
-            pretrained=use_pretrained,
-            pretrained_path=opts.gen.deeplabv3.pretrained_model.resnet,
-            no_init=no_init,
             verbose=verbose,
-        )
-    elif backbone == "mobilenet":
-        return MobileNetV2(
-            output_stride=output_stride,
-            BatchNorm=nn.BatchNorm2d,
-            pretrained=use_pretrained,
-            pretrained_path=opts.gen.deeplabv3.pretrained_model.mobilenet,
             no_init=no_init,
-            verbose=verbose,
         )
+        if not no_init:
+            assert opts.gen.deeplabv3.backbone == "resnet"
+            assert Path(opts.gen.deeplabv3.pretrained_model.resnet).exists()
+
+            std = torch.load(opts.gen.deeplabv3.pretrained_model.resnet)
+            resnet.load_state_dict(
+                {
+                    k.replace("backbone.", ""): v
+                    for k, v in std.items()
+                    if k.startswith("backbone.")
+                }
+            )
+            print("- Loaded pre-trained backbone")
     else:
         raise NotImplementedError("Unknown backbone in " + str(opts.gen.deeplabv3))
 
@@ -559,17 +277,35 @@ class DeepLabV3Decoder(nn.Module):
     ):
         super().__init__()
 
-        BatchNorm = nn.BatchNorm2d
         num_classes = opts.gen.s.output_dim
         backbone = opts.gen.deeplabv3.backbone
-        output_stride = opts.gen.deeplabv3.output_stride
 
-        self.aspp = build_aspp(backbone, output_stride, BatchNorm, no_init)
-        self.decoder = build_decoder(num_classes, backbone, BatchNorm, no_init)
+        self.aspp = ASPPv3Plus(backbone, no_init)
+        self.decoder = Decoder(num_classes)
 
         self.freeze_bn = freeze_bn
 
         self._target_size = None
+
+        if not no_init:
+            self.load_pretrained(opts)
+
+    def load_pretrained(self, opts):
+        assert opts.gen.deeplabv3.backbone == "resnet"
+        assert Path(opts.gen.deeplabv3.pretrained_model.resnet).exists()
+
+        std = torch.load(opts.gen.deeplabv3.pretrained_model.resnet)
+        self.aspp.load_state_dict(
+            {k.replace("aspp.", ""): v for k, v in std.items() if k.startswith("aspp.")}
+        )
+        self.aspp.load_state_dict(
+            {
+                k.replace("decoder.", ""): v
+                for k, v in std.items()
+                if k.startswith("decoder.")
+            }
+        )
+        print("- Loaded pre-trained Decoder & ASPP")
 
     def set_target_size(self, size):
         """

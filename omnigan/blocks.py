@@ -712,6 +712,92 @@ class _ASPPModule(nn.Module):
                 m.bias.data.zero_()
 
 
+class ConvBNReLU(nn.Module):
+    """
+    https://github.com/CoinCheung/DeepLab-v3-plus-cityscapes/blob/master/models/deeplabv3plus.py
+    """
+
+    def __init__(
+        self, in_chan, out_chan, ks=3, stride=1, padding=1, dilation=1, *args, **kwargs
+    ):
+        super(ConvBNReLU, self).__init__()
+        self.conv = nn.Conv2d(
+            in_chan,
+            out_chan,
+            kernel_size=ks,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            bias=True,
+        )
+        self.bn = nn.BatchNorm2d(out_chan)
+        self.init_weight()
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.bn(x)
+        return x
+
+    def init_weight(self):
+        for ly in self.children():
+            if isinstance(ly, nn.Conv2d):
+                nn.init.kaiming_normal_(ly.weight, a=1)
+                if ly.bias is not None:
+                    nn.init.constant_(ly.bias, 0)
+
+
+class ASPPv3Plus(nn.Module):
+    """
+    https://github.com/CoinCheung/DeepLab-v3-plus-cityscapes/blob/master/models/deeplabv3plus.py
+    """
+
+    def __init__(self, backbone, no_init):
+        super(ASPP, self).__init__()
+
+        if backbone == "mobilenet":
+            in_chan = 320
+        else:
+            in_chan = 2048
+
+        self.with_gp = True
+        self.conv1 = ConvBNReLU(in_chan, 256, ks=1, dilation=1, padding=0)
+        self.conv2 = ConvBNReLU(in_chan, 256, ks=3, dilation=6, padding=6)
+        self.conv3 = ConvBNReLU(in_chan, 256, ks=3, dilation=12, padding=12)
+        self.conv4 = ConvBNReLU(in_chan, 256, ks=3, dilation=18, padding=18)
+        if self.with_gp:
+            self.avg = nn.AdaptiveAvgPool2d((1, 1))
+            self.conv1x1 = ConvBNReLU(in_chan, 256, ks=1)
+            self.conv_out = ConvBNReLU(256 * 5, 256, ks=1)
+        else:
+            self.conv_out = ConvBNReLU(256 * 4, 256, ks=1)
+
+        if not no_init:
+            self.init_weight()
+
+    def forward(self, x):
+        H, W = x.size()[2:]
+        feat1 = self.conv1(x)
+        feat2 = self.conv2(x)
+        feat3 = self.conv3(x)
+        feat4 = self.conv4(x)
+        if self.with_gp:
+            avg = self.avg(x)
+            feat5 = self.conv1x1(avg)
+            feat5 = F.interpolate(feat5, (H, W), mode="bilinear", align_corners=True)
+            feat = torch.cat([feat1, feat2, feat3, feat4, feat5], 1)
+        else:
+            feat = torch.cat([feat1, feat2, feat3, feat4], 1)
+        feat = self.conv_out(feat)
+        return feat
+
+    def init_weight(self):
+        for ly in self.children():
+            if isinstance(ly, nn.Conv2d):
+                nn.init.kaiming_normal_(ly.weight, a=1)
+                if ly.bias is not None:
+                    nn.init.constant_(ly.bias, 0)
+
+
 class ASPP(nn.Module):
     # https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/aspp.py
     def __init__(self, backbone, output_stride, BatchNorm, no_init):
