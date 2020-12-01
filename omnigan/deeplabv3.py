@@ -302,7 +302,7 @@ class DeepLabV3Decoder(nn.Module):
             {
                 k.replace("decoder.", ""): v
                 for k, v in std.items()
-                if k.startswith("decoder.")
+                if k.startswith("decoder.") and v.shape[1] != 19
             }
         )
         print("- Loaded pre-trained Decoder & ASPP")
