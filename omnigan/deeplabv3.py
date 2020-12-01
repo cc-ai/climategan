@@ -298,7 +298,7 @@ class DeepLabV3Decoder(nn.Module):
         self.aspp.load_state_dict(
             {k.replace("aspp.", ""): v for k, v in std.items() if k.startswith("aspp.")}
         )
-        self.aspp.load_state_dict(
+        self.decoder.load_state_dict(
             {
                 k.replace("decoder.", ""): v
                 for k, v in std.items()
