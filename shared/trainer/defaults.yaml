@@ -116,7 +116,7 @@ gen:
     use_pretrained: true
     pretrained_model:
       mobilenet: "/miniscratch/_groups/ccai/data/pretrained_models/deeplabv3/deeplab-mobilenet.pth"
-      resnet: "/miniscratch/_groups/ccai/d  ata/pretrained_models/deeplabv3/deeplab-resnet.pth"
+      resnet: "/miniscratch/_groups/ccai/data/pretrained_models/deeplabv3/deeplab-resnet.pth"
 
   d: # specific params for the depth estimation decoder
     <<: *default-gen
