@@ -262,6 +262,7 @@ def build_backbone(opts, no_init, verbose=0):
                 }
             )
             print("- Loaded pre-trained backbone")
+        return resnet
     else:
         raise NotImplementedError("Unknown backbone in " + str(opts.gen.deeplabv3))
 
@@ -304,7 +305,8 @@ class DeepLabV3Decoder(nn.Module):
                 for k, v in std.items()
                 if k.startswith("decoder.")
                 and not (len(v.shape) > 2 and v.shape[1] != 19)
-            }, strict=False
+            },
+            strict=False,
         )
         print("- Loaded pre-trained Decoder & ASPP")
 
