@@ -3,18 +3,15 @@
     * Encoder
     * Decoders
 """
-from omnigan.deeplabv3 import build_backbone, DeepLabV3Decoder
-from omnigan.deeplabv2 import DeepLabV2Decoder
-import torch.nn as nn
 import torch
-from omnigan.tutils import init_weights
-from omnigan.blocks import (
-    PainterSpadeDecoder,
-    BaseDecoder,
-    DepthDecoder,
-)
-from omnigan.encoder import DeeplabV2Encoder, BaseEncoder
+import torch.nn as nn
+
 import omnigan.strings as strings
+from omnigan.blocks import BaseDecoder, DepthDecoder, PainterSpadeDecoder
+from omnigan.deeplabv2 import DeepLabV2Decoder
+from omnigan.deeplabv3 import DeepLabV3Decoder, build_backbone
+from omnigan.encoder import BaseEncoder, DeeplabV2Encoder
+from omnigan.tutils import init_weights
 
 
 def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
@@ -24,6 +21,8 @@ def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
 
     for model in G.decoders:
         net = G.decoders[model]
+        if model == "s":
+            continue
         if isinstance(net, nn.ModuleDict):
             for domain, domain_model in net.items():
                 init_weights(
@@ -41,7 +40,7 @@ def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
                 verbose=verbose,
                 caller=f"get_gen decoder {model}",
             )
-    if G.encoder is not None and opts.gen.encoder.architecture != "deeplabv2":
+    if G.encoder is not None and opts.gen.encoder.architecture == "base":
         init_weights(
             G.encoder,
             init_type=opts.gen.encoder.init_type,

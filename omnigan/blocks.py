@@ -174,7 +174,7 @@ class ResBlocks(nn.Module):
 
 class ResBlock(nn.Module):
     def __init__(self, dim, norm="in", activation="relu", pad_type="zero"):
-        super(ResBlock, self).__init__()
+        super().__init__()
         self.dim = dim
         self.norm = norm
         self.activation = activation
@@ -210,7 +210,7 @@ class Bottleneck(nn.Module):
     """
 
     def __init__(self, in_ch, out_ch, stride, dilation, downsample):
-        super(Bottleneck, self).__init__()
+        super().__init__()
         mid_ch = out_ch // _BOTTLENECK_EXPANSION
         self.reduce = Conv2dBlock(in_ch, mid_ch, 1, stride, 0, norm="batch")
         self.conv3x3 = Conv2dBlock(
@@ -242,7 +242,7 @@ class ResLayer(nn.Sequential):
     """
 
     def __init__(self, n_layers, in_ch, out_ch, stride, dilation, multi_grids=None):
-        super(ResLayer, self).__init__()
+        super().__init__()
 
         if multi_grids is None:
             multi_grids = [1 for _ in range(n_layers)]
@@ -270,7 +270,7 @@ class Stem(nn.Sequential):
     """
 
     def __init__(self, out_ch):
-        super(Stem, self).__init__()
+        super().__init__()
         self.add_module("conv1", Conv2dBlock(3, out_ch, 7, 2, 3, 1, norm="batch"))
         self.add_module("pool", nn.MaxPool2d(3, 2, 1, ceil_mode=True))
 
@@ -682,7 +682,7 @@ class _ASPPModule(nn.Module):
     def __init__(
         self, inplanes, planes, kernel_size, padding, dilation, BatchNorm, no_init
     ):
-        super(_ASPPModule, self).__init__()
+        super().__init__()
         self.atrous_conv = nn.Conv2d(
             inplanes,
             planes,
@@ -710,6 +710,92 @@ class _ASPPModule(nn.Module):
             elif isinstance(m, nn.BatchNorm2d):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
+
+
+class ConvBNReLU(nn.Module):
+    """
+    https://github.com/CoinCheung/DeepLab-v3-plus-cityscapes/blob/master/models/deeplabv3plus.py
+    """
+
+    def __init__(
+        self, in_chan, out_chan, ks=3, stride=1, padding=1, dilation=1, *args, **kwargs
+    ):
+        super().__init__()
+        self.conv = nn.Conv2d(
+            in_chan,
+            out_chan,
+            kernel_size=ks,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            bias=True,
+        )
+        self.bn = nn.BatchNorm2d(out_chan)
+        self.init_weight()
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.bn(x)
+        return x
+
+    def init_weight(self):
+        for ly in self.children():
+            if isinstance(ly, nn.Conv2d):
+                nn.init.kaiming_normal_(ly.weight, a=1)
+                if ly.bias is not None:
+                    nn.init.constant_(ly.bias, 0)
+
+
+class ASPPv3Plus(nn.Module):
+    """
+    https://github.com/CoinCheung/DeepLab-v3-plus-cityscapes/blob/master/models/deeplabv3plus.py
+    """
+
+    def __init__(self, backbone, no_init):
+        super().__init__()
+
+        if backbone == "mobilenet":
+            in_chan = 320
+        else:
+            in_chan = 2048
+
+        self.with_gp = False
+        self.conv1 = ConvBNReLU(in_chan, 256, ks=1, dilation=1, padding=0)
+        self.conv2 = ConvBNReLU(in_chan, 256, ks=3, dilation=6, padding=6)
+        self.conv3 = ConvBNReLU(in_chan, 256, ks=3, dilation=12, padding=12)
+        self.conv4 = ConvBNReLU(in_chan, 256, ks=3, dilation=18, padding=18)
+        if self.with_gp:
+            self.avg = nn.AdaptiveAvgPool2d((1, 1))
+            self.conv1x1 = ConvBNReLU(in_chan, 256, ks=1)
+            self.conv_out = ConvBNReLU(256 * 5, 256, ks=1)
+        else:
+            self.conv_out = ConvBNReLU(256 * 4, 256, ks=1)
+
+        if not no_init:
+            self.init_weight()
+
+    def forward(self, x):
+        H, W = x.size()[2:]
+        feat1 = self.conv1(x)
+        feat2 = self.conv2(x)
+        feat3 = self.conv3(x)
+        feat4 = self.conv4(x)
+        if self.with_gp:
+            avg = self.avg(x)
+            feat5 = self.conv1x1(avg)
+            feat5 = F.interpolate(feat5, (H, W), mode="bilinear", align_corners=True)
+            feat = torch.cat([feat1, feat2, feat3, feat4, feat5], 1)
+        else:
+            feat = torch.cat([feat1, feat2, feat3, feat4], 1)
+        feat = self.conv_out(feat)
+        return feat
+
+    def init_weight(self):
+        for ly in self.children():
+            if isinstance(ly, nn.Conv2d):
+                nn.init.kaiming_normal_(ly.weight, a=1)
+                if ly.bias is not None:
+                    nn.init.constant_(ly.bias, 0)
 
 
 class ASPP(nn.Module):
