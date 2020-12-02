@@ -8,8 +8,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 import omnigan.strings as strings
-from omnigan.blocks import BaseDecoder, PainterSpadeDecoder
-from omnigan.deeplabv2 import DeepLabV2Decoder, DADADepthRegressionDecoder
+from omnigan.blocks import BaseDecoder, PainterSpadeDecoder, DADADepthRegressionDecoder
+from omnigan.deeplabv2 import DeepLabV2Decoder
 from omnigan.deeplabv3 import DeepLabV3Decoder, build_backbone
 from omnigan.encoder import BaseEncoder, DeeplabV2Encoder
 from omnigan.tutils import init_weights
