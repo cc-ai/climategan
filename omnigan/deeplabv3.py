@@ -261,7 +261,7 @@ def build_backbone(opts, no_init, verbose=0):
                     if k.startswith("backbone.")
                 }
             )
-            print("- Loaded pre-trained backbone")
+            print("- Loaded pre-trained DeepLabv3+ Backbone as Encoder")
         return resnet
     else:
         raise NotImplementedError("Unknown backbone in " + str(opts.gen.deeplabv3))
@@ -308,7 +308,7 @@ class DeepLabV3Decoder(nn.Module):
             },
             strict=False,
         )
-        print("- Loaded pre-trained Decoder & ASPP")
+        print("- Loaded pre-trained DeepLabv3+ Decoder & ASPP as Segmentation Decoder")
 
     def set_target_size(self, size):
         """
