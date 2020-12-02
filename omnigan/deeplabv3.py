@@ -1,14 +1,13 @@
 """
 https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/backbone/resnet.py
 """
-
-import math
+from pathlib import Path
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from omnigan.blocks import ASPPv3Plus, ConvBNReLU
-from pathlib import Path
 
 
 class Bottleneck(nn.Module):

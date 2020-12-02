@@ -3,18 +3,15 @@
     * Encoder
     * Decoders
 """
-from omnigan.deeplabv3 import build_backbone, DeepLabV3Decoder
-from omnigan.deeplabv2 import DeepLabV2Decoder
-import torch.nn as nn
 import torch
-from omnigan.tutils import init_weights
-from omnigan.blocks import (
-    PainterSpadeDecoder,
-    BaseDecoder,
-    DepthDecoder,
-)
-from omnigan.encoder import DeeplabV2Encoder, BaseEncoder
+import torch.nn as nn
+
 import omnigan.strings as strings
+from omnigan.blocks import BaseDecoder, DepthDecoder, PainterSpadeDecoder
+from omnigan.deeplabv2 import DeepLabV2Decoder
+from omnigan.deeplabv3 import DeepLabV3Decoder, build_backbone
+from omnigan.encoder import BaseEncoder, DeeplabV2Encoder
+from omnigan.tutils import init_weights
 
 
 def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
