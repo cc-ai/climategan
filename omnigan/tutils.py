@@ -3,6 +3,7 @@
 from pathlib import Path
 import io
 from contextlib import redirect_stdout
+
 # from copy import copy
 from threading import Thread
 from torch import autograd
@@ -634,5 +635,5 @@ def write_architecture(trainer):
     with io.StringIO() as buf, redirect_stdout(buf):
         print_num_parameters(trainer)
         output = buf.getvalue()
-        with open("archi_num_params.txt", "w") as f:
+        with open(out / "archi_num_params.txt", "w") as f:
             f.write(output)
