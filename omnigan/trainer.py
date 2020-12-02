@@ -913,6 +913,11 @@ class Trainer:
                     }
                     for mode in self.all_loaders
                 }
+        if self.logger.global_step % 2 != 0 and "extra" in self.opts.dis.opt.optimizer:
+            print(
+                "Warning: artificially bumping step to run an extrapolation step first."
+            )
+            self.logger.global_step += 1
 
     def train(self):
         """For each epoch:
