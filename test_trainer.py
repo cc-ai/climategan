@@ -1,4 +1,5 @@
 import atexit
+import logging
 from argparse import ArgumentParser
 from copy import deepcopy
 
@@ -8,8 +9,6 @@ from comet_ml.api import API
 import omnigan
 from omnigan.trainer import Trainer
 from omnigan.utils import get_comet_rest_api_key
-
-import logging
 
 logging.basicConfig()
 logging.getLogger().setLevel(logging.ERROR)

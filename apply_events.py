@@ -2,17 +2,19 @@ print("\n• Imports\n")
 import time
 
 import_time = time.time()
-from omnigan.trainer import Trainer
-from omnigan.data import is_image_file
-from omnigan.utils import Timer
-from omnigan.tutils import normalize, print_num_parameters
+import argparse
+from collections import OrderedDict
+from datetime import datetime
+from pathlib import Path
+
+import numpy as np
 import skimage.io as io
 from skimage.transform import resize
-import argparse
-from pathlib import Path
-import numpy as np
-from datetime import datetime
-from collections import OrderedDict
+
+from omnigan.data import is_image_file
+from omnigan.trainer import Trainer
+from omnigan.tutils import normalize, print_num_parameters
+from omnigan.utils import Timer
 
 import_time = time.time() - import_time
 
