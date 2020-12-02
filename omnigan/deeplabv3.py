@@ -304,7 +304,7 @@ class DeepLabV3Decoder(nn.Module):
                 k.replace("decoder.", ""): v
                 for k, v in std.items()
                 if k.startswith("decoder.")
-                and not (len(v.shape) > 2 and v.shape[1] != 19)
+                and not (len(v.shape) > 2 and v.shape[0] == 19)
             },
             strict=False,
         )
