@@ -1758,6 +1758,8 @@ class Trainer:
         print("****************** Done in {}s *********************".format(timing))
 
     def eval_images(self, mode, domain):
+        if domain == "s" and self.kitti_pretrain:
+            domain = "kitti"
         if domain == "rf" or domain not in self.display_images[mode]:
             return
 
