@@ -323,6 +323,9 @@ class Trainer:
                 Defaults to False.
             new_exp (bool, optional): Re-use existing comet exp in path or create
                 a new one? Defaults to False.
+            input_shapes (tuple, optional): In inference mode the trainer does not have
+                loaders and cannot therefore set the final interpolation's target size
+                for the segmentation and depth decoders.
             device (torch.device, optional): Device to use
 
         Returns:
