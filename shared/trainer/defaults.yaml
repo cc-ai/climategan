@@ -88,7 +88,7 @@ gen:
     n_downsample: &n_downsample 3 # number of downsampling layers in encoder | dim 32 + down 3 => z = 256 x 32 x 32
     n_upsample: *n_downsample # upsampling in spade decoder ; should match encoder.n_downsample
     pad_type: reflect # padding type [zero/reflect]
-    res_dim: 320 # Resblock number of channels (=latent space's)
+    res_dim: 2048 # Resblock number of channels (=latent space's)
     # res_dim should be
     # * 2048 if using deeplabv2 or deeplabv3 with resnet backbone
     # * 320 if using deeplabv3 with mobilenet backbone
@@ -111,12 +111,12 @@ gen:
     pretrained_model: "/miniscratch/_groups/ccai/data/pretrained_models/deeplabv2/DeepLab_resnet_pretrained_imagenet.pth"
 
   deeplabv3:
-    backbone: "mobilenet" # mobilenet or resnet
+    backbone: resnet # resnet only
     output_stride: 8 # 8 or 16
     use_pretrained: true
     pretrained_model:
       mobilenet: "/miniscratch/_groups/ccai/data/pretrained_models/deeplabv3/deeplab-mobilenet.pth"
-      resnet: "/miniscratch/_groups/ccai/data/pretrained_models/deeplabv3/deeplab-resnet.pth"
+      resnet: "/miniscratch/_groups/ccai/data/pretrained_models/deeplabv3/model_CoinCheungDeepLab-v3-plus.pth"
 
   d: # specific params for the depth estimation decoder
     <<: *default-gen
