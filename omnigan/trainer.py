@@ -921,7 +921,7 @@ class Trainer:
                     }
                     for mode in self.all_loaders
                 }
-        if self.logger.global_step % 2 != 0 and "extra" in self.opts.dis.opt.optimizer:
+        if self.logger.global_step % 2 != 0 and "extra" in self.opts.dis.opt.optimizer.lower():
             print(
                 "Warning: artificially bumping step to run an extrapolation step first."
             )
