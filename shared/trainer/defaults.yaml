@@ -93,8 +93,7 @@ gen:
     # * 2048 if using deeplabv2 or deeplabv3 with resnet backbone
     # * 320 if using deeplabv3 with mobilenet backbone
     # * anything, like 256, otherwise
-    res_norm: spectral # ResBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
-    conv_norm: spectral
+    norm: spectral # ResBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
     proj_dim: 32 # Dim of projection from latent space
   encoder: # specific params for the encoder
     <<: *default-gen
@@ -123,8 +122,7 @@ gen:
     init_type: normal
     init_gain: 0.01
     output_dim: 1
-    conv_norm: batch
-    res_norm: batch
+    norm: batch
     loss: dada # dada or sigm | /!\ ignored if classify.enable
     upsample_featuremaps: False # upsamples from 80x80 to 160x160 intermediate feature maps
     architecture: dada # dada or base | must be base for classif
@@ -148,7 +146,7 @@ gen:
     loss: gan # gan or hinge
     no_z: true # <=> use_vae=False in the SPADE repo
     output_dim: 3 # output dimension
-    pad_type: zero # padding type [zero/reflect]
+    pad_type: reflect # padding type [zero/reflect]
     paste_original_content: True # only select the water painted to backprop through the network, not the whole generated image: fake_flooded = masked_x + m * fake_flooded
     pl4m_epoch: 49 # epoch from which we introduce a new loss to the masker: the painter's discriminator's loss
     spade_kernel_size: 3 # kernel size within SPADE norm layers
