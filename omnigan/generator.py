@@ -184,6 +184,7 @@ class OmniGenerator(nn.Module):
             torch.Tensor: painted image
         """
         z_paint = self.sample_painter_z(x.shape[0], x.device)
+        m = m.to(x.dtype)
         fake = self.painter(z_paint, x * (1.0 - m))
         if self.opts.gen.p.paste_original_content:
             return x * (1.0 - m) + fake * m
