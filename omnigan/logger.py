@@ -279,7 +279,7 @@ class Logger:
             # m = im_set["data"]["m"].unsqueeze(0).to(trainer.device)
 
             m = trainer.G.mask(x=x)
-            m_bin = m > 0.5
+            m_bin = (m > 0.5).to(m.dtype)
             prediction = trainer.G.paint(m, x)
             prediction_bin = trainer.G.paint(m_bin, x)
 
