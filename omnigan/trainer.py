@@ -901,7 +901,7 @@ class Trainer:
 
     def switch_data(self, to="kitti"):
         caller = inspect.stack()[1].function
-        print(f"[{caller}]Switching data source to", to)
+        print(f"[{caller}] Switching data source to", to)
         self.data_source = to
         if to == "kitti":
             self.display_images = self.kitty_display_images
@@ -921,7 +921,10 @@ class Trainer:
                     }
                     for mode in self.all_loaders
                 }
-        if self.logger.global_step % 2 != 0 and "extra" in self.opts.dis.opt.optimizer.lower():
+        if (
+            self.logger.global_step % 2 != 0
+            and "extra" in self.opts.dis.opt.optimizer.lower()
+        ):
             print(
                 "Warning: artificially bumping step to run an extrapolation step first."
             )
