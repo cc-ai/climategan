@@ -31,7 +31,7 @@ classes_dict = {
         4: [0, 255, 0, 255],  # Vegetation
         5: [255, 97, 0, 255],  # Terrain
         6: [255, 0, 0, 255],  # Car
-        7: [0, 0, 0, 0],  # Trees
+        7: [60, 180, 60, 255],  # Trees
         8: [255, 0, 255, 255],  # Person
         9: [0, 0, 0, 255],  # Sky
         10: [255, 255, 255, 255],  # Default
@@ -44,7 +44,7 @@ classes_dict = {
         4: [0, 255, 0, 255],  # Vegetation
         5: [255, 97, 0, 255],  # Terrain
         6: [255, 0, 0, 255],  # Car
-        7: [0, 255, 0, 255],  # Trees
+        7: [60, 180, 60, 255],  # Trees
         8: [220, 20, 60, 255],  # Person
         9: [8, 19, 49, 255],  # Sky
         10: [0, 80, 100, 255],  # Default
@@ -85,25 +85,6 @@ kitti_mapping = {
     13: 6,  # Van -> Car
     14: 10,  # Undefined -> Default
 }
-
-
-def merge_labels(labels, mapping, default_value=14):
-    """
-    Maps values in `labels` to those of mapping, assigning new labels
-    to each pixel
-
-    Args:
-        labels (np.ndarray): Labels to adapt
-        mapping (dict): Mapping source_label -> target_label (kitti->omnigan)
-        default_value (int, optional): Value for unknown labels. Defaults to 14.
-
-    Returns:
-        np.ndarray: adapted labels
-    """
-    out = np.ones_like(labels) * default_value
-    for source, target in mapping.items():
-        out[labels == source] = target
-    return out
 
 
 def encode_exact_segmap(seg, classes_dict, default_value=14):
@@ -346,7 +327,7 @@ def pil_image_loader(path, task):
     return Image.fromarray(arr)
 
 
-def tensor_loader(path, task, domain, enable_pseudo=False):
+def tensor_loader(path, task, domain, opts):
     """load data as tensors
     Args:
         path (str): path to data
@@ -367,7 +348,12 @@ def tensor_loader(path, task, domain, enable_pseudo=False):
         else:
             arr = imread(path)  # .astype(np.uint8) /!\ kitti is np.uint16
         tensor = torch.from_numpy(arr.astype(np.float32))
-        tensor = get_normalized_depth_t(tensor, domain, normalize=enable_pseudo)
+        tensor = get_normalized_depth_t(
+            tensor,
+            domain,
+            normalize="d" in opts.train.pseudo.tasks,
+            log=opts.gen.d.classify.enable,
+        )
         tensor = tensor.unsqueeze(0)
         return tensor
 
@@ -468,10 +454,7 @@ class OmniListDataset(Dataset):
             "data": self.transform(
                 {
                     task: tensor_loader(
-                        env_to_path(path),
-                        task,
-                        self.domain,
-                        self.opts.train.pseudo.enable,
+                        env_to_path(path), task, self.domain, self.opts,
                     )
                     for task, path in paths.items()
                 }
@@ -515,7 +498,10 @@ def get_loader(mode, domain, opts):
 
     return DataLoader(
         OmniListDataset(
-            mode, domain, opts, transform=transforms.Compose(get_transforms(opts))
+            mode,
+            domain,
+            opts,
+            transform=transforms.Compose(get_transforms(opts, domain)),
         ),
         batch_size=batch_size,
         shuffle=True,

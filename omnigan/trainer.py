@@ -9,6 +9,7 @@ from copy import deepcopy
 from pathlib import Path
 from time import time
 import numpy as np
+import inspect
 
 from comet_ml import ExistingExperiment
 
@@ -100,7 +101,7 @@ class Trainer:
 
         self.current_mode = "train"
         self.kitti_pretrain = self.opts.train.kitti.pretrain
-        self.use_pseudo_labels = self.opts.train.pseudo.enable
+        self.pseudo_training_tasks = set(self.opts.train.pseudo.tasks)
 
         self.lr_names = {}
         self.base_display_images = {}
@@ -357,7 +358,7 @@ class Trainer:
 
         if setup:
             if input_shapes is not None:
-                trainer.set_input_shapes(input_shapes)
+                trainer.set_data_shapes(input_shapes)
             trainer.setup(inference=inference)
         return trainer
 
@@ -713,7 +714,7 @@ class Trainer:
         if self.c_scheduler is not None:
             self.c_scheduler.step()
 
-    def set_input_shapes(self, shapes):
+    def set_data_shapes(self, shapes):
         """
         Sets the input shapes for the Segmentation Decoder and the Painter
 
@@ -760,7 +761,6 @@ class Trainer:
         use_painter = get_num_params(self.G.painter)
         print("Sending to", self.device)
         self.G = self.G.to(self.device)
-        print(f"Generator OK in {time() - __t:.1f}s.")
 
         if self.input_shapes is None and ("s" in self.opts.tasks or use_painter):
             if inference:
@@ -774,11 +774,15 @@ class Trainer:
         if "s" in self.opts.tasks:
             assert "s" in self.input_shapes
             self.G.decoders["s"].set_target_size(self.input_shapes["s"][-2:])
-        print("OK.")
+        if "d" in self.opts.tasks and self.opts.gen.d.architecture == "base":
+            assert "d" in self.input_shapes
+            self.G.decoders["d"].set_target_size(self.input_shapes["d"][-2:])
 
         if use_painter:
             assert "x" in self.input_shapes
             self.G.painter.set_latent_shape(self.input_shapes["x"], True)
+
+        print(f"Generator OK in {time() - __t:.1f}s.")
 
         if inference:
             print("Inference mode: no Discriminator, no Classifier, no optimizers")
@@ -883,6 +887,8 @@ class Trainer:
                             d["paths"],
                         )
 
+        self.logger.log_architecture()
+
         if self.kitti_pretrain:
             self.switch_data(to="kitti")
         else:
@@ -894,7 +900,9 @@ class Trainer:
         self.is_setup = True
 
     def switch_data(self, to="kitti"):
-        print("Switching data source to", to)
+        caller = inspect.stack()[1].function
+        print(f"[{caller}] Switching data source to", to)
+        self.data_source = to
         if to == "kitti":
             self.display_images = self.kitty_display_images
             if self.all_loaders is not None:
@@ -913,7 +921,10 @@ class Trainer:
                     }
                     for mode in self.all_loaders
                 }
-        if self.logger.global_step % 2 != 0 and "extra" in self.opts.dis.opt.optimizer:
+        if (
+            self.logger.global_step % 2 != 0
+            and "extra" in self.opts.dis.opt.optimizer.lower()
+        ):
             print(
                 "Warning: artificially bumping step to run an extrapolation step first."
             )
@@ -930,22 +941,22 @@ class Trainer:
         for self.logger.epoch in range(
             self.logger.epoch, self.logger.epoch + self.opts.train.epochs
         ):
-            self.run_epoch()
-            self.run_evaluation(verbose=1)
-            self.save()
-
             if (
-                self.logger.epoch == self.opts.gen.p.pl4m_epoch - 1
+                self.logger.epoch == self.opts.gen.p.pl4m_epoch
                 and get_num_params(self.G.painter) > 0
             ):
                 self.use_pl4m = True
+
+            self.run_epoch()
+            self.run_evaluation(verbose=1)
+            self.save()
 
             if self.logger.epoch == self.opts.train.kitti.epochs - 1:
                 self.switch_data(to="base")
                 self.kitti_pretrain = False
 
             if self.logger.epoch == self.opts.train.pseudo.epochs - 1:
-                self.use_pseudo_labels = False
+                self.pseudo_training_tasks = set()
 
     def run_epoch(self):
         """Runs an epoch:
@@ -1233,7 +1244,7 @@ class Trainer:
             self.logger.losses.gen.masker = m_loss.item()
             g_loss += m_loss
 
-        if "p" in self.opts.tasks:
+        if "p" in self.opts.tasks and not self.kitti_pretrain:
             p_loss = self.get_painter_loss(multi_domain_batch)
             self.logger.losses.gen.painter = p_loss.item()
             g_loss += p_loss
@@ -1452,14 +1463,14 @@ class Trainer:
         if weight == 0:
             return full_loss
 
-        if domain == "r" and not self.use_pseudo_labels:
+        if domain == "r" and "d" not in self.pseudo_training_tasks:
             return full_loss
 
-        # -------------------
-        # -----  Depth  -----
-        # -------------------
-
         prediction = self.G.decoders["d"](z)
+
+        if self.opts.gen.d.classify.enable:
+            target.squeeze_(1)
+
         loss = self.losses["G"]["tasks"]["d"](prediction, target)
         loss *= weight
 
@@ -1484,7 +1495,7 @@ class Trainer:
         # Supervised segmentation loss: crossent for sim domain,
         # crossent_pseudo for real ; loss is crossent in any case
         if for_ == "G":
-            if domain == "s" or self.use_pseudo_labels:
+            if domain == "s" or "s" in self.pseudo_training_tasks:
                 if domain == "s":
                     logger = self.logger.losses.gen.task["s"]["crossent"]
                     weight = self.opts.train.lambdas.G["s"]["crossent"]
@@ -1738,7 +1749,7 @@ class Trainer:
             self.eval_images("val", "r")
             self.eval_images("val", "s")
 
-        if "p" in self.opts.tasks:
+        if "p" in self.opts.tasks and not self.kitti_pretrain:
             val_fid = compute_val_fid(self)
             if self.exp is not None:
                 self.exp.log_metric("val_fid", val_fid, step=self.logger.global_step)
@@ -1750,6 +1761,8 @@ class Trainer:
         print("****************** Done in {}s *********************".format(timing))
 
     def eval_images(self, mode, domain):
+        if domain == "s" and self.kitti_pretrain:
+            domain = "kitti"
         if domain == "rf" or domain not in self.display_images[mode]:
             return
 
@@ -1757,6 +1770,8 @@ class Trainer:
         metric_avg_scores = {"m": {}}
         if "s" in self.opts.tasks:
             metric_avg_scores["s"] = {}
+        if "d" in self.opts.tasks and domain == "s" and self.opts.gen.d.classify.enable:
+            metric_avg_scores["d"] = {}
 
         for key in metric_funcs:
             for task in metric_avg_scores:
@@ -1788,6 +1803,14 @@ class Trainer:
                 for metric in metric_funcs:
                     metric_score = metric_funcs[metric](pred_seg, s)
                     metric_avg_scores["s"][metric].append(metric_score)
+
+            if "d" in metric_avg_scores and domain == "s":
+                pred_depth = self.G.decoders["d"](z).detach().cpu()
+                d = im_set["data"]["d"].unsqueeze(0).detach()
+
+                for metric in metric_funcs:
+                    metric_score = metric_funcs[metric](pred_depth, d)
+                    metric_avg_scores["d"][metric].append(metric_score)
 
         metric_avg_scores = {
             task: {
@@ -1841,8 +1864,10 @@ class Trainer:
         Transforms input tensor given wildfires event
         Args:
             x (torch.Tensor): Input tensor
-            seg_preds (torch.Tensor): Semantic segmentation predictions for input tensor
-            z (torch.Tensor): Latent vector of encoded "x". Can be None if seg_preds is given.
+                seg_preds (torch.Tensor): Semantic segmentation
+                predictions for input tensor
+            z (torch.Tensor): Latent vector of encoded "x".
+                Can be None if seg_preds is given.
         Returns:
             torch.Tensor: Wildfire version of input tensor
         """

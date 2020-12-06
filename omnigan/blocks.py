@@ -286,11 +286,10 @@ class BaseDecoder(nn.Module):
         input_dim=2048,
         proj_dim=64,
         output_dim=3,
-        res_norm="instance",
+        norm="batch",
         activ="relu",
         pad_type="zero",
         output_activ="tanh",
-        conv_norm="layer",
         low_level_feats_dim=-1,
     ):
         super().__init__()
@@ -300,7 +299,7 @@ class BaseDecoder(nn.Module):
         self.model = []
         if proj_dim != -1:
             self.proj_conv = Conv2dBlock(
-                input_dim, proj_dim, 1, 1, 0, norm=res_norm, activation=activ
+                input_dim, proj_dim, 1, 1, 0, norm=norm, activation=activ
             )
         else:
             self.proj_conv = None
@@ -308,43 +307,57 @@ class BaseDecoder(nn.Module):
 
         if low_level_feats_dim > 0:
             self.low_level_conv = Conv2dBlock(
-                low_level_feats_dim, proj_dim, 3, 1, 1, norm=res_norm, activation=activ
+                input_dim=low_level_feats_dim,
+                output_dim=proj_dim,
+                kernel_size=3,
+                stride=1,
+                padding=1,
+                pad_type=pad_type,
+                norm=norm,
+                activation=activ,
             )
             self.merge_feats_conv = Conv2dBlock(
-                2 * proj_dim, proj_dim, 1, 1, 0, norm=res_norm, activation=activ
+                input_dim=2 * proj_dim,
+                output_dim=proj_dim,
+                kernel_size=1,
+                stride=1,
+                padding=0,
+                pad_type=pad_type,
+                norm=norm,
+                activation=activ,
             )
         else:
             self.low_level_conv = None
 
-        self.model += [ResBlocks(n_res, proj_dim, res_norm, activ, pad_type=pad_type)]
+        self.model += [ResBlocks(n_res, proj_dim, norm, activ, pad_type=pad_type)]
         dim = proj_dim
         # upsampling blocks
         for i in range(n_upsample):
             self.model += [
                 InterpolateNearest2d(scale_factor=2),
                 Conv2dBlock(
-                    dim,
-                    dim // 2,
-                    5,
-                    1,
-                    2,
-                    norm=conv_norm,
-                    activation=activ,
+                    input_dim=dim,
+                    output_dim=dim // 2,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1,
                     pad_type=pad_type,
+                    norm=norm,
+                    activation=activ,
                 ),
             ]
             dim //= 2
         # use reflection padding in the last conv layer
         self.model += [
             Conv2dBlock(
-                dim,
-                output_dim,
-                7,
-                1,
-                3,
+                input_dim=dim,
+                output_dim=output_dim,
+                kernel_size=3,
+                stride=1,
+                padding=1,
+                pad_type=pad_type,
                 norm="none",
                 activation=output_activ,
-                pad_type=pad_type,
             )
         ]
         self.model = nn.Sequential(*self.model)
@@ -373,9 +386,9 @@ class BaseDecoder(nn.Module):
         return strings.basedecoder(self)
 
 
-class DepthDecoder(nn.Module):
-    """#Depth decoder based on depth auxiliary task in DADA paper
-
+class DADADepthRegressionDecoder(nn.Module):
+    """
+    Depth decoder based on depth auxiliary task in DADA paper
     """
 
     def __init__(self, opts):

@@ -5,9 +5,15 @@ import numpy as np
 import torch
 from torch.nn.functional import sigmoid, interpolate
 from omnigan.data import decode_segmap_merged_labels
-from omnigan.tutils import normalize_tensor, all_texts_to_tensors
+from omnigan.tutils import (
+    normalize_tensor,
+    all_texts_to_tensors,
+    decode_bucketed_depth,
+    write_architecture,
+)
 from omnigan.utils import flatten_opts
 from PIL import Image
+from pathlib import Path
 
 
 class Logger:
@@ -92,10 +98,14 @@ class Logger:
                     elif task == "d":
                         # prediction is a log depth tensor
                         target = normalize_tensor(target) * 255
+                        if prediction.shape[1] > 1:
+                            prediction = decode_bucketed_depth(
+                                prediction, self.trainer.opts
+                            )
                         smogged = self.trainer.compute_smog(
                             x, d=prediction, s=seg_pred, use_sky_seg=False
                         )
-                        prediction = normalize_tensor(prediction) * 255
+                        prediction = normalize_tensor(prediction)
                         prediction = prediction.repeat(1, 3, 1, 1)
                         task_saves.append(smogged)
                         task_legend.append("Smogged")
@@ -262,25 +272,43 @@ class Logger:
 
         trainer = self.trainer
         image_outputs = []
-        for im_set in trainer.display_images[mode][domain]:
+        legends = []
+        im_per_row = 0
+        for i, im_set in enumerate(trainer.display_images[mode][domain]):
             x = im_set["data"]["x"].unsqueeze(0).to(trainer.device)
             # m = im_set["data"]["m"].unsqueeze(0).to(trainer.device)
 
             m = trainer.G.mask(x=x)
+            m_bin = (m > 0.5).to(m.dtype)
             prediction = trainer.G.paint(m, x)
+            prediction_bin = trainer.G.paint(m_bin, x)
 
             image_outputs.append(x)
+            legends.append("Input")
             image_outputs.append(x * (1.0 - m))
+            legends.append("Soft Masked Input")
             image_outputs.append(prediction)
+            legends.append("Painted")
             image_outputs.append(prediction * m)
+            legends.append("Soft Masked Painted")
+            image_outputs.append(x * (1.0 - m_bin))
+            legends.append("Binary (0.5) Masked Input")
+            image_outputs.append(prediction_bin)
+            legends.append("Binary (0.5) Painted")
+            image_outputs.append(prediction_bin * m_bin)
+            legends.append("Binary (0.5) Masked Painted")
+
+            if i == 0:
+                im_per_row = len(image_outputs)
         # Upload images
         self.upload_images(
             image_outputs=image_outputs,
             mode=mode,
             domain=domain,
             task="combined",
-            im_per_row=trainer.opts.comet.im_per_row.get("p", 4),
+            im_per_row=im_per_row or 7,
             rows_per_log=trainer.opts.comet.get("rows_per_log", 5),
+            legends=legends,
         )
 
         return 0
@@ -380,3 +408,12 @@ class Logger:
                 new_ims.append(im)
 
         return new_ims
+
+    def log_architecture(self):
+        write_architecture(self.trainer)
+
+        if self.trainer.exp is None:
+            return
+
+        for f in Path(self.trainer.opts.output_path).glob("archi*.txt"):
+            self.trainer.exp.log_asset(str(f), overwrite=True)
