@@ -67,7 +67,7 @@ gen:
     optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
     beta1: 0.9
     lr:
-      default: 0.0001
+      default: 0.00005 # 0.00001 for dlv2, 0.00005 for dlv3
     lr_policy: step
     # lr_policy can be constant, step or multi_step; if step, specify lr_step_size and lr_gamma
     # if multi_step specify lr_step_size lr_gamma and lr_milestones:
@@ -176,7 +176,7 @@ dis:
     optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
     beta1: 0.5
     lr:
-      default: 0.0005
+      default: 0.00002 # 0.0001 for dlv2, 0.00002 for dlv3
     lr_policy: step
     # lr_policy can be constant, step or multi_step; if step, specify lr_step_size and lr_gamma
     # if multi_step specify lr_step_size lr_gamma and lr_milestones:
