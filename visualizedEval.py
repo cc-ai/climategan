@@ -53,7 +53,6 @@ def parsed_args():
         default="r",
         type=str,
         help="Domain of images in path_to_images, can be 'r' or 's'",
-        required=True,
     )
     parser.add_argument(
         "--val_r_json",
@@ -147,6 +146,9 @@ if __name__ == "__main__":
     resume_path = Path(args.resume_path).expand_user().resolve()
     assert resume_path.exists()
 
+    image_domain = args.image_domain
+    assert image_domain in {"r", "s", "rf", "kitti"}
+
     overrides = Dict()
     overrides.data.loaders.batch_size = 1
     overrides.comet.rows_per_log = 1
@@ -159,4 +161,4 @@ if __name__ == "__main__":
         resume_path, overrides=overrides, inference=True, new_exp=True
     )
     trainer.exp.log_parameters(flatten_opts(trainer.opts))
-    trainer.logger.log_comet_images("val", "r")
+    trainer.logger.log_comet_images("val", image_domain)
