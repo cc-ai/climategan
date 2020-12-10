@@ -3,25 +3,16 @@
     * Encoder
     * Decoders
 """
+import torch
 import torch.nn as nn
-from omnigan.tutils import init_weights
-from omnigan.blocks import (
-    PainterSpadeDecoder,
-    BaseDecoder,
-    ASPP,
-    DepthDecoder,
-    InterpolateNearest2d,
-)
-from omnigan.encoder import DeeplabEncoder, BaseEncoder
-import omnigan.strings as strings
 import torch.nn.functional as F
 
-# --------------------------------------------------------------------------
-# -----  For now no network structure, just project in a 64 x 32 x 32  -----
-# -----  latent space and decode to (3 or 1) x 256 x 256               -----
-# --------------------------------------------------------------------------
-
-# TODO think about how to use the classifier probs at inference
+import omnigan.strings as strings
+from omnigan.blocks import BaseDecoder, PainterSpadeDecoder, DADADepthRegressionDecoder
+from omnigan.deeplabv2 import DeepLabV2Decoder
+from omnigan.deeplabv3 import DeepLabV3Decoder, build_backbone
+from omnigan.encoder import BaseEncoder, DeeplabV2Encoder
+from omnigan.tutils import init_weights
 
 
 def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
@@ -31,6 +22,8 @@ def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
 
     for model in G.decoders:
         net = G.decoders[model]
+        if model == "s":
+            continue
         if isinstance(net, nn.ModuleDict):
             for domain, domain_model in net.items():
                 init_weights(
@@ -38,7 +31,7 @@ def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
                     init_type=opts.gen[model].init_type,
                     init_gain=opts.gen[model].init_gain,
                     verbose=verbose,
-                    caller=f"get_gen decoder {model} {domain}"
+                    caller=f"get_gen decoder {model} {domain}",
                 )
         else:
             init_weights(
@@ -46,15 +39,15 @@ def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
                 init_type=opts.gen[model].init_type,
                 init_gain=opts.gen[model].init_gain,
                 verbose=verbose,
-                caller=f"get_gen decoder {model}"
+                caller=f"get_gen decoder {model}",
             )
-    if G.encoder is not None and opts.gen.encoder.architecture != "deeplabv2":
+    if G.encoder is not None and opts.gen.encoder.architecture == "base":
         init_weights(
             G.encoder,
             init_type=opts.gen.encoder.init_type,
             init_gain=opts.gen.encoder.init_gain,
             verbose=verbose,
-            caller=f"get_gen encoder"
+            caller=f"get_gen encoder",
         )
     # Init painter weights
     init_weights(
@@ -62,13 +55,13 @@ def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
         init_type=opts.gen.p.init_type,
         init_gain=opts.gen.p.init_gain,
         verbose=verbose,
-        caller=f"get_gen painter"
+        caller=f"get_gen painter",
     )
     return G
 
 
 class OmniGenerator(nn.Module):
-    def __init__(self, opts, latent_shape=None, verbose=None, no_init=False):
+    def __init__(self, opts, latent_shape=None, verbose=0, no_init=False):
         """Creates the generator. All decoders listed in opts.gen will be added
         to the Generator.decoders ModuleDict if opts.gen.DecoderInitial is not True.
         Then can be accessed as G.decoders.T or G.decoders["T"] for instance,
@@ -79,39 +72,67 @@ class OmniGenerator(nn.Module):
         """
         super().__init__()
         self.opts = opts
+        self.verbose = verbose
 
         self.encoder = None
-        if "m" in opts.tasks:
+        if any(t in opts.tasks for t in "msd"):
             if opts.gen.encoder.architecture == "deeplabv2":
-                self.encoder = DeeplabEncoder(opts, no_init)
-                print("  - Created Deeplab Encoder")
+                self.encoder = DeeplabV2Encoder(opts, no_init, verbose)
+                if self.verbose > 0:
+                    print("  - Created Deeplabv2 Encoder")
+            elif opts.gen.encoder.architecture == "deeplabv3":
+                self.encoder = build_backbone(opts, no_init)
+                if self.verbose > 0:
+                    print(
+                        "  - Created Deeplabv3 ({}) Encoder".format(
+                            opts.gen.deeplabv3.backbone
+                        )
+                    )
             else:
                 self.encoder = BaseEncoder(opts)
-                print("  - Created Base Encoder")
+                if self.verbose > 0:
+                    print("  - Created Base Encoder")
 
-        self.verbose = verbose
         self.decoders = {}
 
-        if "d" in opts.tasks and not opts.gen.d.ignore:
-            self.decoders["d"] = DepthDecoder(opts)
-            print("  - Created Depth Decoder")
+        if "d" in opts.tasks:
+            if opts.gen.d.architecture == "base":
+                self.decoders["d"] = BaseDepthDecoder(opts)
+            else:
+                self.decoders["d"] = DADADepthRegressionDecoder(opts)
 
-        if "s" in opts.tasks and not opts.gen.s.ignore:
-            print("  - Created Segmentation Decoder")
-            self.decoders["s"] = SegmentationDecoder(opts)
+            if self.verbose > 0:
+                print(f"  - Created {self.decoders['d'].__class__.__name__}")
 
-        if "m" in opts.tasks and not opts.gen.m.ignore:
-            print("  - Created Mask Decoder")
+        if "s" in opts.tasks:
+            if opts.gen.s.architecture == "deeplabv2":
+                self.decoders["s"] = DeepLabV2Decoder(opts)
+                if self.verbose > 0:
+                    print("  - Created DeepLabV2Decoder")
+            elif opts.gen.s.architecture == "deeplabv3":
+                self.decoders["s"] = DeepLabV3Decoder(opts)
+                if self.verbose > 0:
+                    print("  - Created DeepLabV3Decoder")
+            else:
+                raise NotImplementedError(
+                    "Unknown architecture {}".format(opts.gen.s.architecture)
+                )
+
+        if "m" in opts.tasks:
+            if self.verbose > 0:
+                print("  - Created Mask Decoder")
             self.decoders["m"] = MaskDecoder(opts)
 
         self.decoders = nn.ModuleDict(self.decoders)
 
         if "p" in self.opts.tasks:
             self.painter = PainterSpadeDecoder(opts)
-            print("  - Created PainterSpadeDecoder Painter")
+            if self.verbose > 0:
+                print("  - Created PainterSpadeDecoder Painter")
         else:
             self.painter = nn.Module()
-            print("  - Created Empty Painter")
+            if self.verbose > 0:
+                print("  - Created Empty Painter")
 
     def encode(self, x):
         assert self.encoder is not None
@@ -120,62 +141,140 @@ class OmniGenerator(nn.Module):
     def __str__(self):
         return strings.generator(self)
 
+    def sample_painter_z(self, batch_size, device, force_half=False):
+        if self.opts.gen.p.no_z:
+            return None
+
+        z = torch.empty(
+            batch_size,
+            self.opts.gen.p.latent_dim,
+            self.painter.z_h,
+            self.painter.z_w,
+            device=device,
+        ).normal_(mean=0, std=1.0)
+
+        if force_half:
+            z = z.half()
+
+        return z
+
+    def mask(self, x=None, z=None, sigmoid=True):
+        assert x is not None or z is not None
+        assert not (x is not None and z is not None)
+        if z is None:
+            z = self.encode(x)
+        logits = self.decoders["m"](z)
+
+        if not sigmoid:
+            return logits
+
+        return torch.sigmoid(logits)
+
+    def paint(self, m, x):
+        """
+        Paints given a mask and an image
+        calls painter(z, x * (1.0 - m))
+        Mask has 1s where water should be painted
+
+        Args:
+            m (torch.Tensor): Mask
+            x (torch.Tensor): Image to paint
+
+        Returns:
+            torch.Tensor: painted image
+        """
+        z_paint = self.sample_painter_z(x.shape[0], x.device)
+        m = m.to(x.dtype)
+        fake = self.painter(z_paint, x * (1.0 - m))
+        if self.opts.gen.p.paste_original_content:
+            return x * (1.0 - m) + fake * m
+        return fake
+
+    def depth_image(self, x=None, z=None):
+        assert x is not None or z is not None
+        assert not (x is not None and z is not None)
+        if z is None:
+            z = self.encode(x)
+        logits = self.decoders["d"](z)
+
+        if logits.shape[1] > 1:
+            logits = torch.argmax(logits, dim=1)
+            logits = logits / logits.max()
+
+        return logits
+
 
 class MaskDecoder(BaseDecoder):
     def __init__(self, opts):
+        low_level_feats_dim = -1
+        use_v3 = opts.gen.encoder.architecture == "deeplabv3"
+        use_mobile_net = opts.gen.deeplabv3.backbone == "mobilenet"
+        use_low = opts.gen.m.use_low_level_feats
+
+        if use_v3 and use_mobile_net:
+            input_dim = 320
+            if use_low:
+                low_level_feats_dim = 24
+        elif use_v3:
+            input_dim = 2048
+            if use_low:
+                low_level_feats_dim = 256
+        else:
+            input_dim = 2048
+
         super().__init__(
             n_upsample=opts.gen.m.n_upsample,
             n_res=opts.gen.m.n_res,
-            input_dim=opts.gen.encoder.res_dim,
+            input_dim=input_dim,
             proj_dim=opts.gen.m.proj_dim,
             output_dim=opts.gen.m.output_dim,
-            res_norm=opts.gen.m.res_norm,
+            norm=opts.gen.m.norm,
             activ=opts.gen.m.activ,
             pad_type=opts.gen.m.pad_type,
-            output_activ="sigmoid",
+            output_activ="none",
+            low_level_feats_dim=low_level_feats_dim,
         )
 
 
-# class DepthDecoder(BaseDecoder):
-#     def __init__(self, opts):
-#         super().__init__(
-#             n_upsample=opts.gen.d.n_upsample,
-#             n_res=opts.gen.d.n_res,
-#             input_dim=opts.gen.encoder.res_dim,
-#             proj_dim=opts.gen.d.proj_dim,
-#             output_dim=opts.gen.d.output_dim,
-#             res_norm=opts.gen.d.res_norm,
-#             activ=opts.gen.d.activ,
-#             pad_type=opts.gen.d.pad_type,
-#             output_activ="sigmoid",
-#             conv_norm=opts.gen.d.conv_norm,
-#         )
-
-
-class SegmentationDecoder(BaseDecoder):
-    # https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/decoder.py
-    # https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/deeplab.py
+class BaseDepthDecoder(BaseDecoder):
     def __init__(self, opts):
-        super().__init__()
-        self.aspp = ASPP(16, nn.BatchNorm2d)
-        conv_modules = [
-            nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.BatchNorm2d(256),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.BatchNorm2d(256),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-        ]
-        if opts.gen.s.upsample_featuremaps:
-            conv_modules = [InterpolateNearest2d(scale_factor=2)] + conv_modules
+        low_level_feats_dim = -1
+        use_v3 = opts.gen.encoder.architecture == "deeplabv3"
+        use_mobile_net = opts.gen.deeplabv3.backbone == "mobilenet"
+        use_low = opts.gen.d.use_low_level_feats
 
-        conv_modules += [
-            nn.Conv2d(256, opts.gen.s.output_dim, kernel_size=1, stride=1),
-        ]
-        self.conv = nn.Sequential(*conv_modules)
+        if use_v3 and use_mobile_net:
+            input_dim = 320
+            if use_low:
+                low_level_feats_dim = 24
+        elif use_v3:
+            input_dim = 2048
+            if use_low:
+                low_level_feats_dim = 256
+        else:
+            input_dim = 2048
+
+        n_upsample = 1 if opts.gen.d.upsample_featuremaps else 0
+        output_dim = (
+            1
+            if not opts.gen.d.classify.enable
+            else opts.gen.d.classify.linspace.buckets
+        )
+
         self._target_size = None
+
+        super().__init__(
+            n_upsample=n_upsample,
+            n_res=opts.gen.d.n_res,
+            input_dim=input_dim,
+            proj_dim=opts.gen.d.proj_dim,
+            output_dim=output_dim,
+            norm=opts.gen.d.norm,
+            activ=opts.gen.d.activ,
+            pad_type=opts.gen.d.pad_type,
+            output_activ="none",
+            low_level_feats_dim=low_level_feats_dim,
+        )
 
     def set_target_size(self, size):
         """
@@ -192,12 +291,11 @@ class SegmentationDecoder(BaseDecoder):
     def forward(self, z):
         if self._target_size is None:
             error = "self._target_size should be set with self.set_target_size()"
-            error += "to interpolate logits to the target seg map's size"
-            raise Exception(error)
-        if z.shape[1] != 2048:
-            raise Exception(
-                "Segmentation decoder will only work with 2048 channels for z"
-            )
-        y = self.aspp(z)
-        y = self.conv(y)
-        return F.interpolate(y, self._target_size, mode="bilinear", align_corners=True)
+            error += "to interpolate depth to the target depth map's size"
+            raise ValueError(error)
+
+        d = super().forward(z)
+
+        return F.interpolate(
+            d, size=self._target_size, mode="bilinear", align_corners=True
+        )

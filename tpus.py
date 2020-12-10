@@ -1,19 +1,24 @@
 import os
-import time
+import sys
 from argparse import ArgumentParser
 from pathlib import Path
 
 import numpy as np
 import torch
 import torch.nn.functional as F
+
+try:
+    import torch_xla.core.xla_model as xm
+    import torch_xla.debug.metrics as met
+except ImportError:
+    print("Could not import torch_xla. Aborting script")
+    sys.exit()
+
 from torchvision import transforms as trsfs
 
 from omnigan.data import tensor_loader
 from omnigan.trainer import Trainer
-from omnigan.utils import load_opts
-
-import torch_xla.core.xla_model as xm
-import torch_xla.debug.metrics as met
+from omnigan.utils import Timer, load_opts
 
 
 def print_time(name, time_series, precision=4, file=None):
@@ -30,32 +35,6 @@ def print_time(name, time_series, precision=4, file=None):
     print(head + tail)
     if file is not None:
         print(head + tail, file=file)
-
-
-class Timer:
-    def __init__(self, name="", store=None, precision=3):
-        self.name = name
-        self.store = store
-        self.precision = precision
-
-    def format(self, n):
-        return f"{n:.{self.precision}f}"
-
-    def __enter__(self):
-        """Start a new timer as a context manager"""
-        self._start_time = time.perf_counter()
-        return self
-
-    def __exit__(self, *exc_info):
-        """Stop the context manager timer"""
-        t = time.perf_counter()
-        new_time = t - self._start_time
-
-        if self.store is not None:
-            assert isinstance(self.store, list)
-            self.store.append(new_time)
-        if self.name:
-            print(f"[{self.name}] Elapsed time: {self.format(new_time)}")
 
 
 def isimg(path_file):
@@ -178,15 +157,11 @@ def eval_folder(
                     print("Batch", i, img.shape, img.device, end="\r", flush=True)
 
                     with Timer(store=masker_inference_time):
-                        z = model.encode(img)
-                        mask = model.decoders["m"](z)
+                        mask = model.mask(x=img)
                         # xm.mark_step()
 
                     with Timer(store=painter_inference_time):
-                        z_painter = None  # trainer.sample_z(1)
-                        if use_half:
-                            z_painter = z_painter.half()
-                        fake_flooded = model.painter(z_painter, img * (1.0 - mask))
+                        fake_flooded = model.paint(img, mask)
                         xm.mark_step()
                     if to_cpu:
                         with Timer(store=to_cpu_time):

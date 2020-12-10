@@ -411,7 +411,6 @@ def compute_fakes(trainer, verbose=0):
     # in the rf domain display_size may be different from fid.n_images
     n = trainer.opts.train.fid.n_images
     bs = trainer.opts.data.loaders.batch_size
-    z = None
 
     display_batches = [
         (sample["data"]["x"], sample["data"]["m"])
@@ -429,9 +428,8 @@ def compute_fakes(trainer, verbose=0):
         with torch.no_grad():
             x = display_x[b * bs : (b + 1) * bs]
             m = display_m[b * bs : (b + 1) * bs]
-            masked_x = x * (1.0 - m)
-            fake = trainer.G.painter(z, masked_x)
-        fakes.append(fake * m + x * (1 - m))
+            fake = trainer.G.paint(m, x)
+        fakes.append(fake)
 
     return torch.cat(fakes, dim=0)
 
@@ -486,6 +484,8 @@ def get_activations(images, model, batch_size=50, dims=2048, device="cpu"):
 
     for b in range(nbs):
         batch = images[b * batch_size : (b + 1) * batch_size].to(device)
+        if not batch.nelement():
+            continue
 
         with torch.no_grad():
             pred = model(batch)[0]

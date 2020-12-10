@@ -49,7 +49,7 @@ class GANLoss(nn.Module):
         if use_lsgan:
             self.loss = nn.MSELoss()
         else:
-            self.loss = nn.BCELoss()
+            self.loss = nn.BCEWithLogitsLoss()
         self.flip_prob = flip_prob
 
     def get_target_tensor(self, input, target_is_real):
@@ -85,7 +85,7 @@ class GANLoss(nn.Module):
 class FeatMatchLoss(nn.Module):
     def __init__(self):
         super().__init__()
-        self.criterionFeat = torch.nn.L1Loss()
+        self.criterionFeat = nn.L1Loss()
 
     def __call__(self, pred_real, pred_fake):
         # pred_{real, fake} are lists of features
@@ -105,31 +105,10 @@ class FeatMatchLoss(nn.Module):
 class CrossEntropy(nn.Module):
     def __init__(self):
         super().__init__()
-        self.loss = torch.nn.CrossEntropyLoss()
+        self.loss = nn.CrossEntropyLoss()
 
     def __call__(self, logits, target):
         return self.loss(logits, target.to(logits.device).long())
-
-
-class BinaryCrossEntropy(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.loss = torch.nn.BCELoss()
-
-    def __call__(self, logits, target):
-        return self.loss(logits, target.to(logits.device))
-
-
-class PixelCrossEntropy(CrossEntropy):
-    """
-    Computes the cross entropy per pixel
-        in  > pred: b x c x h x w | label: b x h x w (int)
-        out > b x h x w
-    """
-
-    def __init__(self):
-        super().__init__()
-        self.loss = torch.nn.CrossEntropyLoss(reduction="none")
 
 
 class TravelLoss(nn.Module):
@@ -224,7 +203,7 @@ class MSELoss(nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.loss = torch.nn.MSELoss()
+        self.loss = nn.MSELoss()
 
     def __call__(self, prediction, target):
         return self.loss(prediction, target.to(prediction.device))
@@ -238,7 +217,7 @@ class L1Loss(MSELoss):
 
     def __init__(self):
         super().__init__()
-        self.loss = torch.nn.L1Loss()
+        self.loss = nn.L1Loss()
 
 
 class SIMSELoss(nn.Module):
@@ -322,15 +301,15 @@ class ReconstructionLoss(nn.Module):
 ##################################################################################
 
 # Source: https://github.com/NVIDIA/pix2pixHD
-class Vgg19(torch.nn.Module):
+class Vgg19(nn.Module):
     def __init__(self, requires_grad=False):
         super(Vgg19, self).__init__()
         vgg_pretrained_features = models.vgg19(pretrained=True).features
-        self.slice1 = torch.nn.Sequential()
-        self.slice2 = torch.nn.Sequential()
-        self.slice3 = torch.nn.Sequential()
-        self.slice4 = torch.nn.Sequential()
-        self.slice5 = torch.nn.Sequential()
+        self.slice1 = nn.Sequential()
+        self.slice2 = nn.Sequential()
+        self.slice3 = nn.Sequential()
+        self.slice4 = nn.Sequential()
+        self.slice5 = nn.Sequential()
         for x in range(2):
             self.slice1.add_module(str(x), vgg_pretrained_features[x])
         for x in range(2, 7):
@@ -396,6 +375,7 @@ def get_losses(opts, verbose, device=None):
     # ------------------------------
     # -----  Generator Losses  -----
     # ------------------------------
+
     # painter losses
     if "p" in opts.tasks:
         losses["G"]["p"]["gan"] = (
@@ -408,12 +388,19 @@ def get_losses(opts, verbose, device=None):
         losses["G"]["p"]["reconstruction"] = ReconstructionLoss()
         losses["G"]["p"]["featmatch"] = FeatMatchLoss()
 
-    # task losses
-    # ? * add discriminator and gan loss to these task when no ground truth
-    # ?   instead of noisy label
-
+    # depth losses
     if "d" in opts.tasks:
-        losses["G"]["tasks"]["d"] = SIGMLoss(opts.train.lambdas.G.d.gml)
+        if not opts.gen.d.classify.enable:
+            if opts.gen.d.loss == "dada":
+                depth_func = DADADepthLoss()
+            else:
+                depth_func = SIGMLoss(opts.train.lambdas.G.d.gml)
+        else:
+            depth_func = CrossEntropy()
+
+        losses["G"]["tasks"]["d"] = depth_func
+
+    # segmentation losses
     if "s" in opts.tasks:
         losses["G"]["tasks"]["s"] = {}
         losses["G"]["tasks"]["s"]["crossent"] = CrossEntropy()
@@ -421,9 +408,11 @@ def get_losses(opts, verbose, device=None):
         losses["G"]["tasks"]["s"]["advent"] = ADVENTAdversarialLoss(
             opts, gan_type=opts.dis.s.gan_type
         )
+
+    # masker losses
     if "m" in opts.tasks:
         losses["G"]["tasks"]["m"] = {}
-        losses["G"]["tasks"]["m"]["bce"] = nn.BCELoss()
+        losses["G"]["tasks"]["m"]["bce"] = nn.BCEWithLogitsLoss()
         if opts.gen.m.use_minent_var:
             losses["G"]["tasks"]["m"]["minent"] = MinentLoss(
                 version=2, lambda_var=opts.train.lambdas.advent.ent_var
@@ -435,8 +424,10 @@ def get_losses(opts, verbose, device=None):
             opts, gan_type=opts.dis.m.gan_type
         )
         losses["G"]["tasks"]["m"]["gi"] = GroundIntersectionLoss()
-    # undistinguishable features loss
-    # TODO setup a get_losses func to assign the right loss according to the yaml
+
+    # -------------------------------
+    # -----  Classifier Losses  -----
+    # -------------------------------
     if opts.classifier.loss == "l1":
         loss_classifier = L1Loss()
     elif opts.classifier.loss == "l2":
@@ -444,15 +435,15 @@ def get_losses(opts, verbose, device=None):
     else:
         loss_classifier = CrossEntropy()
     losses["G"]["classifier"] = loss_classifier
-    # -------------------------------
-    # -----  Classifier Losses  -----
-    # -------------------------------
     losses["C"] = loss_classifier
+
     # ----------------------------------
     # -----  Discriminator Losses  -----
     # ----------------------------------
-    losses["D"]["p"] = HingeLoss()
-    losses["D"]["advent"] = ADVENTAdversarialLoss(opts)
+    if "p" in opts.tasks:
+        losses["D"]["p"] = losses["G"]["p"]["gan"]
+    if "m" in opts.tasks or "s" in opts.tasks:
+        losses["D"]["advent"] = ADVENTAdversarialLoss(opts)
     return losses
 
 
@@ -481,7 +472,7 @@ class CustomBCELoss(nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.loss = torch.nn.BCEWithLogitsLoss()
+        self.loss = nn.BCEWithLogitsLoss()
 
     def __call__(self, prediction, target):
         return self.loss(
@@ -516,7 +507,20 @@ class ADVENTAdversarialLoss(nn.Module):
             raise NotImplementedError
 
     def __call__(self, prediction, target, discriminator):
-        d_out = discriminator(prob_2_entropy(F.softmax(prediction, dim=1)))
+        """
+        Compute the GAN loss from the Advent Discriminator given
+        normalized (softmaxed) predictions (=pixel-wise class probabilities),
+        and int labels (target).
+
+        Args:
+            prediction (torch.Tensor): pixel-wise probability distribution over classes
+            target (torch.Tensor): pixel wise int target labels
+            discriminator (torch.nn.Module): Discriminator to get the loss
+
+        Returns:
+            torch.Tensor: float 0-D loss
+        """
+        d_out = discriminator(prob_2_entropy(prediction))
         if self.opts.dis.m.architecture == "OmniDiscriminator":
             d_out = multiDiscriminatorAdapter(d_out, self.opts)
         loss_ = self.loss(d_out, target)
@@ -590,3 +594,28 @@ class HingeLoss(nn.Module):
             return loss / len(input)
         else:
             return self.loss(input, target_is_real, for_discriminator)
+
+
+class DADADepthLoss:
+    """
+    From https://github.com/valeoai/DADA/blob/master/dada/utils/func.py
+    """
+
+    def loss_calc_depth(self, pred, label):
+        n, c, h, w = pred.size()
+        assert c == 1
+
+        pred = pred.squeeze()
+        label = label.squeeze()
+
+        adiff = torch.abs(pred - label)
+        batch_max = 0.2 * torch.max(adiff).item()
+        t1_mask = adiff.le(batch_max).float()
+        t2_mask = adiff.gt(batch_max).float()
+        t1 = adiff * t1_mask
+        t2 = (adiff * adiff + batch_max * batch_max) / (2 * batch_max)
+        t2 = t2 * t2_mask
+        return (torch.sum(t1) + torch.sum(t2)) / torch.numel(pred.data)
+
+    def __call__(self, pred, label):
+        return self.loss_calc_depth(pred, label)

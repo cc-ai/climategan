@@ -12,6 +12,7 @@ import contextlib
 import numpy as np
 from typing import Union, Optional, List, Any
 import traceback
+import time
 
 comet_kwargs = {
     "auto_metric_logging": False,
@@ -103,7 +104,9 @@ def load_opts(
     Returns:
         addict.Dict: options dictionnary, with overwritten default values
     """
-    assert default or path
+
+    if path is None and default is None:
+        path = Path(__file__).parent.parent / "shared" / "trainer" / "defaults.yaml"
 
     if path:
         path = Path(path).resolve()
@@ -128,12 +131,75 @@ def load_opts(
     if commandline_opts is not None and isinstance(commandline_opts, dict):
         opts = Dict(merge(commandline_opts, opts))
 
+    if opts.train.kitti.pretrained:
+        assert "kitti" in opts.data.files.train
+        assert "kitti" in opts.data.files.val
+        assert opts.train.kitti.epochs > 0
+
     opts.domains = []
     if "m" in opts.tasks or "s" in opts.tasks:
         opts.domains.extend(["r", "s"])
     if "p" in opts.tasks:
         opts.domains.append("rf")
+    if opts.train.kitti.pretrain:
+        opts.domains.append("kitti")
+
     opts.domains = list(set(opts.domains))
+
+    if "s" in opts.tasks:
+        if opts.gen.encoder.architecture != opts.gen.s.architecture:
+            print(
+                "WARNING: segmentation encoder and decoder architectures do not match"
+            )
+            print(
+                "Encoder: {} <> Decoder: {}".format(
+                    opts.gen.encoder.architecture, opts.gen.s.architecture
+                )
+            )
+        if opts.gen.encoder.architecture == "deeplabv2" or (
+            opts.gen.encoder.architecture == "deeplabv3"
+            and opts.gen.deeplabv3.backbone == "resnet"
+        ):
+            if opts.gen.m.res_dim != 2048:
+                print(
+                    "WARNING: overriding config's gen.m.res_dim",
+                    "to match encoder architecture {}".format(
+                        opts.gen.encoder.architecture
+                    ),
+                    "(res_dim was {} now is 2048".format(opts.gen.m.res_dim),
+                )
+                opts.gen.m.res_dim = 2048
+            if opts.gen.d.res_dim != 2048:
+                print(
+                    "WARNING: overriding config's gen.d.res_dim",
+                    "to match encoder architecture {}".format(
+                        opts.gen.encoder.architecture
+                    ),
+                    "(res_dim was {} now is 2048".format(opts.gen.m.res_dim),
+                )
+                opts.gen.d.res_dim = 2048
+        if (
+            opts.gen.encoder.architecture == "deeplabv3"
+            and opts.gen.deeplabv3.backbone == "mobilenet"
+        ):
+            if opts.gen.m.res_dim != 320:
+                print(
+                    "WARNING: overriding config's gen.m.res_dim",
+                    "to match encoder architecture {}".format(
+                        opts.gen.encoder.architecture
+                    ),
+                    "(res_dim was {} now is 320".format(opts.gen.m.res_dim),
+                )
+                opts.gen.m.res_dim = 320
+            if opts.gen.d.res_dim != 320:
+                print(
+                    "WARNING: overriding config's gen.m.res_dim",
+                    "to match encoder architecture {}".format(
+                        opts.gen.encoder.architecture
+                    ),
+                    "(res_dim was {} now is 320".format(opts.gen.m.res_dim),
+                )
+                opts.gen.d.res_dim = 320
 
     return set_data_paths(opts)
 
@@ -151,9 +217,15 @@ def set_data_paths(opts: Dict) -> Dict:
 
     for mode in ["train", "val"]:
         for domain in opts.data.files[mode]:
-            opts.data.files[mode][domain] = str(
-                Path(opts.data.files.base) / opts.data.files[mode][domain]
-            )
+            if opts.data.files.base and not opts.data.files[mode][domain].startswith(
+                "/"
+            ):
+                opts.data.files[mode][domain] = str(
+                    Path(opts.data.files.base) / opts.data.files[mode][domain]
+                )
+            assert Path(
+                opts.data.files[mode][domain]
+            ).exists(), "Cannot find {}".format(str(opts.data.files[mode][domain]))
 
     return opts
 
@@ -181,6 +253,22 @@ def get_git_revision_hash() -> str:
     """
     try:
         return subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
+    except Exception as e:
+        return str(e)
+
+
+def get_git_branch() -> str:
+    """Get current git branch name
+
+    Returns:
+        str: git branch name
+    """
+    try:
+        return (
+            subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"])
+            .decode()
+            .strip()
+        )
     except Exception as e:
         return str(e)
 
@@ -216,8 +304,11 @@ def get_increased_path(path: Union[str, Path]) -> Path:
     fp = Path(path).resolve()
     vals = []
     for n in fp.parent.glob("{}*".format(fp.stem)):
-        if re.match(r"\(\d+\)", str(n)[-3:]) is not None:
-            vals.append(int(str(n)[-2]))
+        if re.match(r".+\(\d+\)", str(n.name)) is not None:
+            name = str(n.name)
+            start = name.index("(")
+            end = name.index(")")
+            vals.append(int(name[start + 1 : end]))
     if vals:
         ext = " ({})".format(max(vals) + 1)
     elif fp.exists():
@@ -725,3 +816,77 @@ def get_latest_opts(path):
     assert opts.exists()
     with opts.open("r") as f:
         return Dict(yaml.safe_load(f))
+
+
+def text_to_array(text, width=640, height=40):
+    """
+    Creates a numpy array of shape height x width x 3 with
+    text written on it using PIL
+
+    Args:
+        text (str): text to write
+        width (int, optional): Width of the resulting array. Defaults to 640.
+        height (int, optional): Height of the resulting array. Defaults to 40.
+
+    Returns:
+        np.ndarray: Centered text
+    """
+    from PIL import Image, ImageDraw, ImageFont
+
+    img = Image.new("RGB", (width, height), (255, 255, 255))
+    try:
+        font = ImageFont.truetype("UnBatang.ttf", 25)
+    except OSError:
+        font = ImageFont.load_default()
+
+    d = ImageDraw.Draw(img)
+    text_width, text_height = d.textsize(text)
+    h = 40 // 2 - 3 * text_height // 2
+    w = width // 2 - text_width
+    d.text((w, h), text, font=font, fill=(30, 30, 30))
+    return np.array(img)
+
+
+def all_texts_to_array(texts, width=640, height=40):
+    """
+    Creates an array of texts, each of height and width specified
+    by the args, concatenated along their width dimension
+
+    Args:
+        texts (list(str)): List of texts to concatenate
+        width (int, optional): Individual text's width. Defaults to 640.
+        height (int, optional): Individual text's height. Defaults to 40.
+
+    Returns:
+        list: len(texts) text arrays with dims height x width x 3
+    """
+    return [text_to_array(text, width, height) for text in texts]
+
+
+class Timer:
+    def __init__(self, name="", store=None, precision=3, ignore=False):
+        self.name = name
+        self.store = store
+        self.precision = precision
+        self.ignore = ignore
+
+    def format(self, n):
+        return f"{n:.{self.precision}f}"
+
+    def __enter__(self):
+        """Start a new timer as a context manager"""
+        self._start_time = time.perf_counter()
+        return self
+
+    def __exit__(self, *exc_info):
+        """Stop the context manager timer"""
+        if self.ignore:
+            return
+        t = time.perf_counter()
+        new_time = t - self._start_time
+
+        if self.store is not None:
+            assert isinstance(self.store, list)
+            self.store.append(new_time)
+        if self.name:
+            print(f"[{self.name}] Elapsed time: {self.format(new_time)}")

@@ -4,7 +4,6 @@ import torch
 import torch.nn.functional as F
 from torchvision import transforms as trsfs
 import numpy as np
-from PIL import Image
 import traceback
 
 
@@ -40,21 +39,32 @@ class Resize:
                 when resizing. Requires target_size to be an int. If keeping aspect
                 ratio, smallest dim will be set to target_size. Defaults to False.
         """
-        assert isinstance(target_size, (int, tuple, list))
-        if not isinstance(target_size, int) and not keep_aspect_ratio:
-            assert len(target_size) == 2
-            self.h, self.w = target_size
-        else:
-            if keep_aspect_ratio:
-                assert isinstance(target_size, int)
-            self.h = self.w = target_size
+        if isinstance(target_size, (int, tuple, list)):
+            if not isinstance(target_size, int) and not keep_aspect_ratio:
+                assert len(target_size) == 2
+                self.h, self.w = target_size
+            else:
+                if keep_aspect_ratio:
+                    assert isinstance(target_size, int)
+                self.h = self.w = target_size
+
+            self.default_h = int(self.h)
+            self.default_w = int(self.w)
+            self.sizes = {}
+        elif isinstance(target_size, dict):
+            assert (
+                not keep_aspect_ratio
+            ), "dict target_size not compatible with keep_aspect_ratio"
+
+            self.sizes = {
+                k: {"h": v, "w": v} for k, v in target_size.items() if k != "default"
+            }
+            self.default_h = int(target_size["default"])
+            self.default_w = int(target_size["default"])
 
         self.keep_aspect_ratio = keep_aspect_ratio
 
-        self.h = int(self.h)
-        self.w = int(self.w)
-
-    def compute_new_size(self, tensor):
+    def compute_new_default_size(self, tensor):
         """
         compute the new size for a tensor depending on target size
         and keep_aspect_rato
@@ -68,10 +78,20 @@ class Resize:
         if self.keep_aspect_ratio:
             h, w = tensor.shape[-2:]
             if h < w:
-                return (self.h, int(self.h * w / h))
+                return (self.h, int(self.default_h * w / h))
             else:
-                return (int(self.h * h / w), self.w)
-        return (self.h, self.w)
+                return (int(self.default_h * h / w), self.default_w)
+        return (self.default_h, self.default_w)
+
+    def compute_new_size_for_task(self, task):
+        assert (
+            not self.keep_aspect_ratio
+        ), "compute_new_size_for_task is not compatible with keep aspect ratio"
+
+        if task not in self.sizes:
+            return (self.default_h, self.default_w)
+
+        return (self.sizes[task]["h"], self.sizes[task]["w"])
 
     def __call__(self, data):
         """
@@ -86,11 +106,21 @@ class Resize:
         """
         task = tensor = new_size = None
         try:
+            if not self.sizes:
+                d = {}
+                new_size = self.compute_new_default_size(data["x"])
+                for task, tensor in data.items():
+                    d[task] = F.interpolate(
+                        tensor, size=new_size, **interpolation(task)
+                    )
+                return d
+
             d = {}
-            new_size = self.compute_new_size(data["x"])
             for task, tensor in data.items():
+                new_size = self.compute_new_size_for_task(task)
                 d[task] = F.interpolate(tensor, size=new_size, **interpolation(task))
             return d
+
         except Exception as e:
             tb = traceback.format_exc()
             print("Debug: task, shape, interpolation, h, w, new_size")
@@ -184,6 +214,34 @@ class Normalize:
         }
 
 
+class BucketizeDepth:
+    def __init__(self, opts, domain):
+        self.domain = domain
+
+        if opts.gen.d.classify.enable and domain in {"s", "kitti"}:
+            self.buckets = torch.linspace(
+                *[
+                    opts.gen.d.classify.linspace.min,
+                    opts.gen.d.classify.linspace.max,
+                    opts.gen.d.classify.linspace.buckets - 1,
+                ]
+            )
+
+            self.transforms = {
+                "d": lambda tensor: torch.bucketize(
+                    tensor, self.buckets, out_int32=True, right=True
+                )
+            }
+        else:
+            self.transforms = {}
+
+    def __call__(self, data):
+        return {
+            task: self.transforms.get(task, lambda x: x)(tensor)
+            for task, tensor in data.items()
+        }
+
+
 def get_transform(transform_item):
     """Returns the torchivion transform function associated to a
     transform_item listed in opts.data.transforms ; transform_item is
@@ -207,11 +265,11 @@ def get_transform(transform_item):
     raise ValueError("Unknown transform_item {}".format(transform_item))
 
 
-def get_transforms(opts):
+def get_transforms(opts, domain):
     """Get all the transform functions listed in opts.data.transforms
     using get_transform(transform_item)
     """
-    last_transforms = [Normalize(opts)]
+    last_transforms = [Normalize(opts), BucketizeDepth(opts, domain)]
 
     conf_transforms = []
     for t in opts.data.transforms:

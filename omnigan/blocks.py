@@ -11,7 +11,7 @@ import omnigan.strings as strings
 
 class InterpolateNearest2d(nn.Module):
     """
-    Custom implementation of nn.Upsample because pytroch/xla
+    Custom implementation of nn.Upsample because pytorch/xla
     does not yet support scale_factor and needs to be provided with
     the output_size
     """
@@ -74,6 +74,11 @@ class Conv2dBlock(nn.Module):
             assert 0, "Unsupported padding type: {}".format(pad_type)
 
         # initialize normalization
+        use_spectral_norm = False
+        if norm.startswith("spectral_"):
+            norm = norm.replace("spectral_", "")
+            use_spectral_norm = True
+
         norm_dim = output_dim
         if norm == "batch":
             self.norm = nn.BatchNorm2d(norm_dim)
@@ -84,7 +89,7 @@ class Conv2dBlock(nn.Module):
             self.norm = LayerNorm(norm_dim)
         elif norm == "adain":
             self.norm = AdaptiveInstanceNorm2d(norm_dim)
-        elif norm == "spectral":
+        elif norm == "spectral" or norm.startswith("spectral_"):
             self.norm = None  # dealt with later in the code
         elif norm == "none":
             self.norm = None
@@ -110,7 +115,7 @@ class Conv2dBlock(nn.Module):
             raise ValueError("Unsupported activation: {}".format(activation))
 
         # initialize convolution
-        if norm == "spectral":
+        if norm == "spectral" or use_spectral_norm:
             self.conv = SpectralNorm(
                 nn.Conv2d(
                     input_dim,
@@ -147,6 +152,10 @@ class Conv2dBlock(nn.Module):
 # -----  Residual Blocks  -----
 # -----------------------------
 class ResBlocks(nn.Module):
+    """
+    From https://github.com/NVlabs/MUNIT/blob/master/networks.py
+    """
+
     def __init__(self, num_blocks, dim, norm="in", activation="relu", pad_type="zero"):
         super().__init__()
         self.model = nn.Sequential(
@@ -165,7 +174,7 @@ class ResBlocks(nn.Module):
 
 class ResBlock(nn.Module):
     def __init__(self, dim, norm="in", activation="relu", pad_type="zero"):
-        super(ResBlock, self).__init__()
+        super().__init__()
         self.dim = dim
         self.norm = norm
         self.activation = activation
@@ -201,7 +210,7 @@ class Bottleneck(nn.Module):
     """
 
     def __init__(self, in_ch, out_ch, stride, dilation, downsample):
-        super(Bottleneck, self).__init__()
+        super().__init__()
         mid_ch = out_ch // _BOTTLENECK_EXPANSION
         self.reduce = Conv2dBlock(in_ch, mid_ch, 1, stride, 0, norm="batch")
         self.conv3x3 = Conv2dBlock(
@@ -233,7 +242,7 @@ class ResLayer(nn.Sequential):
     """
 
     def __init__(self, n_layers, in_ch, out_ch, stride, dilation, multi_grids=None):
-        super(ResLayer, self).__init__()
+        super().__init__()
 
         if multi_grids is None:
             multi_grids = [1 for _ in range(n_layers)]
@@ -261,7 +270,7 @@ class Stem(nn.Sequential):
     """
 
     def __init__(self, out_ch):
-        super(Stem, self).__init__()
+        super().__init__()
         self.add_module("conv1", Conv2dBlock(3, out_ch, 7, 2, 3, 1, norm="batch"))
         self.add_module("pool", nn.MaxPool2d(3, 2, 1, ceil_mode=True))
 
@@ -277,89 +286,181 @@ class BaseDecoder(nn.Module):
         input_dim=2048,
         proj_dim=64,
         output_dim=3,
-        res_norm="instance",
+        norm="batch",
         activ="relu",
         pad_type="zero",
         output_activ="tanh",
-        conv_norm="layer",
+        low_level_feats_dim=-1,
     ):
         super().__init__()
-        self.model = [
-            Conv2dBlock(input_dim, proj_dim, 1, 1, 0, norm=res_norm, activation=activ)
-        ]
 
-        self.model += [ResBlocks(n_res, proj_dim, res_norm, activ, pad_type=pad_type)]
+        self.low_level_feats_dim = low_level_feats_dim
+
+        self.model = []
+        if proj_dim != -1:
+            self.proj_conv = Conv2dBlock(
+                input_dim, proj_dim, 1, 1, 0, norm=norm, activation=activ
+            )
+        else:
+            self.proj_conv = None
+            proj_dim = input_dim
+
+        if low_level_feats_dim > 0:
+            self.low_level_conv = Conv2dBlock(
+                input_dim=low_level_feats_dim,
+                output_dim=proj_dim,
+                kernel_size=3,
+                stride=1,
+                padding=1,
+                pad_type=pad_type,
+                norm=norm,
+                activation=activ,
+            )
+            self.merge_feats_conv = Conv2dBlock(
+                input_dim=2 * proj_dim,
+                output_dim=proj_dim,
+                kernel_size=1,
+                stride=1,
+                padding=0,
+                pad_type=pad_type,
+                norm=norm,
+                activation=activ,
+            )
+        else:
+            self.low_level_conv = None
+
+        self.model += [ResBlocks(n_res, proj_dim, norm, activ, pad_type=pad_type)]
         dim = proj_dim
         # upsampling blocks
         for i in range(n_upsample):
             self.model += [
                 InterpolateNearest2d(scale_factor=2),
                 Conv2dBlock(
-                    dim,
-                    dim // 2,
-                    5,
-                    1,
-                    2,
-                    norm=conv_norm,
-                    activation=activ,
+                    input_dim=dim,
+                    output_dim=dim // 2,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1,
                     pad_type=pad_type,
+                    norm=norm,
+                    activation=activ,
                 ),
             ]
             dim //= 2
         # use reflection padding in the last conv layer
         self.model += [
             Conv2dBlock(
-                dim,
-                output_dim,
-                7,
-                1,
-                3,
+                input_dim=dim,
+                output_dim=output_dim,
+                kernel_size=3,
+                stride=1,
+                padding=1,
+                pad_type=pad_type,
                 norm="none",
                 activation=output_activ,
-                pad_type=pad_type,
             )
         ]
         self.model = nn.Sequential(*self.model)
 
-    def forward(self, x):
-        return self.model(x)
+    def forward(self, z):
+        low_level_feat = None
+        if isinstance(z, (list, tuple)):
+            if self.low_level_conv is None:
+                z = z[0]
+            else:
+                z, low_level_feat = z
+                low_level_feat = self.low_level_conv(low_level_feat)
+                low_level_feat = F.interpolate(
+                    low_level_feat, size=z.shape[-2:], mode="bilinear"
+                )
+
+        if self.proj_conv is not None:
+            z = self.proj_conv(z)
+
+        if low_level_feat is not None:
+            z = self.merge_feats_conv(torch.cat([low_level_feat, z], dim=1))
+
+        return self.model(z)
 
     def __str__(self):
         return strings.basedecoder(self)
 
 
-class DepthDecoder(nn.Module):
-    """#Depth decoder based on depth auxiliary task in DADA paper
-
+class DADADepthRegressionDecoder(nn.Module):
+    """
+    Depth decoder based on depth auxiliary task in DADA paper
     """
 
     def __init__(self, opts):
         super().__init__()
+        if (
+            opts.gen.encoder.architecture == "deeplabv3"
+            and opts.gen.deeplabv3.backbone == "mobilenet"
+        ):
+            res_dim = 320
+        else:
+            res_dim = 2048
+
+        # if res_dim == 2048:
+        #     mid_dim = 512
+        # else:
+        #     mid_dim = 256
+
+        mid_dim = 512
+
         self.relu = nn.ReLU(inplace=True)
         self.enc4_1 = nn.Conv2d(
-            2048, 512, kernel_size=1, stride=1, padding=0, bias=True
+            res_dim, mid_dim, kernel_size=1, stride=1, padding=0, bias=True
         )
-        self.enc4_2 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1, bias=True)
-        self.enc4_3 = nn.Conv2d(512, 128, kernel_size=1, stride=1, padding=0, bias=True)
-        self.output_size = opts.data.transforms[-1].new_size
-
-    def forward(self, x):
-        x4_enc = self.enc4_1(x)
-        x4_enc = self.relu(x4_enc)
-        x4_enc = self.enc4_2(x4_enc)
-        x4_enc = self.relu(x4_enc)
-        x4_enc = self.enc4_3(x4_enc)
-
-        depth = torch.mean(x4_enc, dim=1, keepdim=True)  # DADA paper decoder
-        depth = F.interpolate(
-            depth,
-            size=(384, 384),  # size used in MiDaS inference
-            mode="bicubic",  # what MiDaS uses
-            align_corners=False,
+        self.enc4_2 = nn.Conv2d(
+            mid_dim, mid_dim, kernel_size=3, stride=1, padding=1, bias=True
         )
-        depth = F.interpolate(
-            depth, (self.output_size, self.output_size), mode="nearest"
-        )  # what we used in the transforms to resize input
+        self.enc4_3 = nn.Conv2d(
+            mid_dim, 128, kernel_size=1, stride=1, padding=0, bias=True
+        )
+        self.upsample = None
+        if opts.gen.d.upsample_featuremaps:
+            self.upsample = nn.Sequential(
+                *[
+                    InterpolateNearest2d(),
+                    nn.Conv2d(128, 32, kernel_size=3, stride=1, padding=1),
+                    nn.ReLU(True),
+                    nn.Conv2d(32, 1, kernel_size=1, stride=1, padding=0),
+                ]
+            )
+        if isinstance(opts.data.transforms[-1].new_size, int):
+            self.output_size = opts.data.transforms[-1].new_size
+        else:
+            if "d" in opts.data.transforms[-1].new_size:
+                self.output_size = opts.data.transforms[-1].new_size["d"]
+            else:
+                assert "default" in opts.data.transforms[-1].new_size
+                self.output_size = opts.data.transforms[-1].new_size["default"]
+
+    def forward(self, z):
+        if isinstance(z, (list, tuple)):
+            z = z[0]
+        z4_enc = self.enc4_1(z)
+        z4_enc = self.relu(z4_enc)
+        z4_enc = self.enc4_2(z4_enc)
+        z4_enc = self.relu(z4_enc)
+        z4_enc = self.enc4_3(z4_enc)
+
+        if self.upsample is not None:
+            z4_enc = self.upsample(z4_enc)
+
+        depth = torch.mean(z4_enc, dim=1, keepdim=True)  # DADA paper decoder
+        if depth.shape[-1] != self.output_size:
+            depth = F.interpolate(
+                depth,
+                size=(384, 384),  # size used in MiDaS inference
+                mode="bicubic",  # what MiDaS uses
+                align_corners=False,
+            )
+
+            depth = F.interpolate(
+                depth, (self.output_size, self.output_size), mode="nearest"
+            )  # what we used in the transforms to resize input
         return depth
 
     def __str__(self):
@@ -534,6 +635,25 @@ class PainterSpadeDecoder(nn.Module):
 
         self.upsample = InterpolateNearest2d(scale_factor=2)
 
+    def set_latent_shape(self, shape, is_input=True):
+        """
+        Sets the latent shape to start the upsampling from, i.e. z_h and z_w.
+        If is_input is True, then this is the actual input shape which should
+        be divided by 2 ** spade_n_up
+        Otherwise, just sets z_h and z_w from shape[-2] and shape[-1]
+
+        Args:
+            shape (tuple): The shape to start sampling from.
+            is_input (bool, optional): Whether to divide shape by 2 ** spade_n_up
+        """
+
+        self.z_h = shape[-2]
+        self.z_w = shape[-1]
+
+        if is_input:
+            self.z_h = self.z_h // (2 ** self.spade_n_up)
+            self.z_w = self.z_w // (2 ** self.spade_n_up)
+
     def _apply(self, fn):
         # print("Applying SpadeDecoder", fn)
         super()._apply(fn)
@@ -572,8 +692,10 @@ class PainterSpadeDecoder(nn.Module):
 
 class _ASPPModule(nn.Module):
     # https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/aspp.py
-    def __init__(self, inplanes, planes, kernel_size, padding, dilation, BatchNorm):
-        super(_ASPPModule, self).__init__()
+    def __init__(
+        self, inplanes, planes, kernel_size, padding, dilation, BatchNorm, no_init
+    ):
+        super().__init__()
         self.atrous_conv = nn.Conv2d(
             inplanes,
             planes,
@@ -585,8 +707,8 @@ class _ASPPModule(nn.Module):
         )
         self.bn = BatchNorm(planes)
         self.relu = nn.ReLU()
-
-        self._init_weight()
+        if not no_init:
+            self._init_weight()
 
     def forward(self, x):
         x = self.atrous_conv(x)
@@ -603,12 +725,101 @@ class _ASPPModule(nn.Module):
                 m.bias.data.zero_()
 
 
-class ASPP(nn.Module):
-    # https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/aspp.py
-    def __init__(self, output_stride, BatchNorm):
+class ConvBNReLU(nn.Module):
+    """
+    https://github.com/CoinCheung/DeepLab-v3-plus-cityscapes/blob/master/models/deeplabv3plus.py
+    """
+
+    def __init__(
+        self, in_chan, out_chan, ks=3, stride=1, padding=1, dilation=1, *args, **kwargs
+    ):
+        super().__init__()
+        self.conv = nn.Conv2d(
+            in_chan,
+            out_chan,
+            kernel_size=ks,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            bias=True,
+        )
+        self.bn = nn.BatchNorm2d(out_chan)
+        self.init_weight()
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.bn(x)
+        return x
+
+    def init_weight(self):
+        for ly in self.children():
+            if isinstance(ly, nn.Conv2d):
+                nn.init.kaiming_normal_(ly.weight, a=1)
+                if ly.bias is not None:
+                    nn.init.constant_(ly.bias, 0)
+
+
+class ASPPv3Plus(nn.Module):
+    """
+    https://github.com/CoinCheung/DeepLab-v3-plus-cityscapes/blob/master/models/deeplabv3plus.py
+    """
+
+    def __init__(self, backbone, no_init):
         super().__init__()
 
-        inplanes = 2048
+        if backbone == "mobilenet":
+            in_chan = 320
+        else:
+            in_chan = 2048
+
+        self.with_gp = False
+        self.conv1 = ConvBNReLU(in_chan, 256, ks=1, dilation=1, padding=0)
+        self.conv2 = ConvBNReLU(in_chan, 256, ks=3, dilation=6, padding=6)
+        self.conv3 = ConvBNReLU(in_chan, 256, ks=3, dilation=12, padding=12)
+        self.conv4 = ConvBNReLU(in_chan, 256, ks=3, dilation=18, padding=18)
+        if self.with_gp:
+            self.avg = nn.AdaptiveAvgPool2d((1, 1))
+            self.conv1x1 = ConvBNReLU(in_chan, 256, ks=1)
+            self.conv_out = ConvBNReLU(256 * 5, 256, ks=1)
+        else:
+            self.conv_out = ConvBNReLU(256 * 4, 256, ks=1)
+
+        if not no_init:
+            self.init_weight()
+
+    def forward(self, x):
+        H, W = x.size()[2:]
+        feat1 = self.conv1(x)
+        feat2 = self.conv2(x)
+        feat3 = self.conv3(x)
+        feat4 = self.conv4(x)
+        if self.with_gp:
+            avg = self.avg(x)
+            feat5 = self.conv1x1(avg)
+            feat5 = F.interpolate(feat5, (H, W), mode="bilinear", align_corners=True)
+            feat = torch.cat([feat1, feat2, feat3, feat4, feat5], 1)
+        else:
+            feat = torch.cat([feat1, feat2, feat3, feat4], 1)
+        feat = self.conv_out(feat)
+        return feat
+
+    def init_weight(self):
+        for ly in self.children():
+            if isinstance(ly, nn.Conv2d):
+                nn.init.kaiming_normal_(ly.weight, a=1)
+                if ly.bias is not None:
+                    nn.init.constant_(ly.bias, 0)
+
+
+class ASPP(nn.Module):
+    # https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/aspp.py
+    def __init__(self, backbone, output_stride, BatchNorm, no_init):
+        super().__init__()
+
+        if backbone == "mobilenet":
+            inplanes = 320
+        else:
+            inplanes = 2048
 
         if output_stride == 16:
             dilations = [1, 6, 12, 18]
@@ -618,7 +829,13 @@ class ASPP(nn.Module):
             raise NotImplementedError
 
         self.aspp1 = _ASPPModule(
-            inplanes, 256, 1, padding=0, dilation=dilations[0], BatchNorm=BatchNorm
+            inplanes,
+            256,
+            1,
+            padding=0,
+            dilation=dilations[0],
+            BatchNorm=BatchNorm,
+            no_init=no_init,
         )
         self.aspp2 = _ASPPModule(
             inplanes,
@@ -627,6 +844,7 @@ class ASPP(nn.Module):
             padding=dilations[1],
             dilation=dilations[1],
             BatchNorm=BatchNorm,
+            no_init=no_init,
         )
         self.aspp3 = _ASPPModule(
             inplanes,
@@ -635,6 +853,7 @@ class ASPP(nn.Module):
             padding=dilations[2],
             dilation=dilations[2],
             BatchNorm=BatchNorm,
+            no_init=no_init,
         )
         self.aspp4 = _ASPPModule(
             inplanes,
@@ -643,6 +862,7 @@ class ASPP(nn.Module):
             padding=dilations[3],
             dilation=dilations[3],
             BatchNorm=BatchNorm,
+            no_init=no_init,
         )
 
         self.global_avg_pool = nn.Sequential(
@@ -655,6 +875,8 @@ class ASPP(nn.Module):
         self.bn1 = BatchNorm(256)
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout(0.5)
+        if not no_init:
+            self._init_weight()
 
     def forward(self, x):
         x1 = self.aspp1(x)
@@ -670,3 +892,13 @@ class ASPP(nn.Module):
         x = self.relu(x)
 
         return self.dropout(x)
+
+    def _init_weight(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                # n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                # m.weight.data.normal_(0, math.sqrt(2. / n))
+                torch.nn.init.kaiming_normal_(m.weight)
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()

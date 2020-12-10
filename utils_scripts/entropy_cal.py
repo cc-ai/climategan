@@ -8,6 +8,7 @@ from torchvision import transforms as trsfs
 from omnigan.losses import MinentLoss
 import json
 from omnigan.utils import load_opts, flatten_opts
+from torch.nn.functional import sigmoid
 
 
 def parsed_args():
@@ -139,7 +140,7 @@ if __name__ == "__main__":
                     x = batch["data"]["x"]
                     Dict = batch["paths"]  # a dict includes paths of 'x' and 'm'
                     trainer.z = trainer.G.encode(x)
-                    prediction = trainer.G.decoders["m"](trainer.z)
+                    prediction = sigmoid(trainer.G.decoders["m"](trainer.z))
                     pred_complementary = 1 - prediction
                     prob = torch.cat([prediction, pred_complementary], dim=1)
                     mask_entropy = entropy_loss_v2(prob.to(trainer.device))
