@@ -58,6 +58,9 @@ class Logger:
                     if task == "s":
                         # Log fire
                         wildfire_tens = trainer.compute_fire(x, prediction)
+                        # dummy pixels to fool scaling and preserve range
+                        wildfire_tens[:, :, 0, 0] = 255.0
+                        wildfire_tens[:, :, -1, -1] = 0.0
                         task_saves.append(wildfire_tens)
                         task_legend.append("Wildfire")
                         # Log seg output
