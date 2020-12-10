@@ -1,3 +1,4 @@
+from addict import Dict
 from comet_ml import Experiment
 import torch
 from omnigan.utils import load_opts, flatten_opts
@@ -20,6 +21,9 @@ def parsed_args():
         default="./shared/trainer/defaults.yaml",
         type=str,
         help="What configuration file to use to overwrite default",
+    )
+    parser.add_argument(
+        "--resume_path", required=True, type=str, help="Path to the trainer to resume",
     )
     parser.add_argument(
         "--default_config",
@@ -52,7 +56,7 @@ def parsed_args():
         required=True,
     )
     parser.add_argument(
-        "--valr_json",
+        "--val_r_json",
         default="/network/tmp1/ccai/data/omnigan/base/"
         + "val_r_full_with_labelbox.json",
         type=str,
@@ -140,51 +144,19 @@ if __name__ == "__main__":
     # -----------------------------
 
     args = parsed_args()
-    output_dir = Path(args.output_dir)
-    output_dir.mkdir(exist_ok=True, parents=True)
+    resume_path = Path(args.resume_path).expand_user().resolve()
+    assert resume_path.exists()
 
-    # -----------------------
-    # -----  Load opts  -----
-    # -----------------------
+    overrides = Dict()
+    overrides.data.loaders.batch_size = 1
+    overrides.comet.rows_per_log = 1
+    if args.val_r_json:
+        val_r_json_path = Path(args.val_r_json).expanduser().resolve()
+        assert val_r_json_path.exists()
+        overrides.data.files.val.r = str(val_r_json_path)
 
-    opts = load_opts(Path(args.config), default="./shared/trainer/defaults.yaml")
-    opts.train.resume = True
-    if Path(args.checkpoint).suffix == "":
-        opts.output_path = str(Path(args.checkpoint).resolve())
-    elif Path(args.checkpoint).suffix.lower() == ".pth":
-        opts.load_paths.m = str(Path(args.checkpoint).resolve())
-        opts.output_path = "Loading a specific pth file, not using this option."
-    if args.image_domain == "r":
-        opts.data.files.val.r = args.valr_json
-        opts.data.files.train.r = opts.data.files.val.r
-        opts.data.files.train.s = opts.data.files.val.r
-        opts.data.files.val.s = opts.data.files.val.r
-    else:
-        opts.data.files.train.r = opts.data.files.val.s
-        opts.data.files.train.s = opts.data.files.val.s
-        opts.data.filesval.r = opts.data.files.val.s
-    opts.data.loaders.batch_size = 1
-    # opts.val.visualize = True
-    # ----------------------------------
-    # -----  Set Comet Experiment  -----
-    # ----------------------------------
-    exp = None
-    if not args.no_comet:
-        exp = Experiment(project_name="omnigan", auto_metric_logging=False)
-        exp.log_parameters(flatten_opts(opts))
-    # ------------------------
-    # ----- Define model -----
-    # ------------------------
-    print(args)
-    opts.data.loaders.batch_size = 1
-    opts.val.visualize = True
-    trainer = Trainer(opts)
-    print("Constructed a trainer!")
-    trainer.setup()
-    print("Trainer setup complete!")
-    trainer.resume()
-    print("Trainer resumed!")
-    model = trainer.G
-    model.eval()
-    print("Model setting complete!")
-    eval(trainer, opts, args)
+    trainer = Trainer.resume_from_path(
+        resume_path, overrides=overrides, inference=True, new_exp=True
+    )
+    trainer.exp.log_parameters(flatten_opts(trainer.opts))
+    trainer.logger.log_comet_images("val", "r")

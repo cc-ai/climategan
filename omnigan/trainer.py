@@ -57,6 +57,7 @@ from omnigan.utils import (
     merge,
     sum_dict,
     Timer,
+    get_loader_output_shape_from_opts,
 )
 from omnigan.logger import Logger
 
@@ -359,6 +360,9 @@ class Trainer:
         if setup:
             if input_shapes is not None:
                 trainer.set_data_shapes(input_shapes)
+            else:
+                if inference:
+                    trainer.set_data_shapes(get_loader_output_shape_from_opts(opts))
             trainer.setup(inference=inference)
         return trainer
 

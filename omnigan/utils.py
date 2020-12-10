@@ -890,3 +890,22 @@ class Timer:
             self.store.append(new_time)
         if self.name:
             print(f"[{self.name}] Elapsed time: {self.format(new_time)}")
+
+
+def get_loader_output_shape_from_opts(opts):
+    transforms = opts.data.transforms
+
+    t = None
+    for t in transforms[::-1]:
+        if t.name == "resize":
+            break
+    assert t is not None
+
+    if isinstance(t.new_size, Dict):
+        return {
+            task: t.new_size.get(task, t.new_size.default)
+            for task in opts.tasks + ["x"]
+        }
+    assert isinstance(t.new_size, int)
+    return {task: t.new_size for task in opts.tasks + ["x"]}
+
