@@ -60,9 +60,7 @@ if __name__ == "__main__":
     )
     trainer.exp.log_parameters(flatten_opts(trainer.opts))
     trainer.all_loaders = {
-        "val": {
-            image_domain: get_loader("val", image_domain, trainer.opts)
-        }
+        "val": {image_domain: get_loader("val", image_domain, trainer.opts)}
     }
-    trainer.set_display_images()
+    trainer.set_display_images(True)
     trainer.logger.log_comet_images("val", image_domain)
