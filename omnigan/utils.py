@@ -903,9 +903,13 @@ def get_loader_output_shape_from_opts(opts):
 
     if isinstance(t.new_size, Dict):
         return {
-            task: t.new_size.get(task, t.new_size.default)
+            task: (
+                t.new_size.get(task, t.new_size.default),
+                t.new_size.get(task, t.new_size.default),
+            )
             for task in opts.tasks + ["x"]
         }
     assert isinstance(t.new_size, int)
-    return {task: t.new_size for task in opts.tasks + ["x"]}
+    new_size = (t.new_size, t.new_size)
+    return {task: new_size for task in opts.tasks + ["x"]}
 
