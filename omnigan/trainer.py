@@ -822,10 +822,7 @@ class Trainer:
         self.losses = get_losses(self.opts, verbose, device=self.device)
 
         if "p" in self.opts.tasks and self.opts.gen.p.apply_diff_augment:
-            self.diff_transforms = DiffTransforms(
-                cutout_ratio=self.opts.gen.p.cutout_ratio,
-                translation_ratio=self.opts.gen.p.translation_ratio,
-            )
+            self.diff_transforms = DiffTransforms(self.opts.gen.p.diff_augm)
 
         if verbose > 0:
             for mode, mode_dict in self.all_loaders.items():

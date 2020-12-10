@@ -515,7 +515,10 @@ def get_loader(mode, domain, opts):
 
     return DataLoader(
         OmniListDataset(
-            mode, domain, opts, transform=transforms.Compose(get_transforms(opts)),
+            mode,
+            domain,
+            opts,
+            transform=transforms.Compose(get_transforms(opts, mode)),
         ),
         batch_size=batch_size,
         shuffle=True,
