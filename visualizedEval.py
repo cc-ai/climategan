@@ -1,11 +1,8 @@
 from addict import Dict
-import torch
 from omnigan.utils import flatten_opts
-from torch.nn.functional import sigmoid
 from pathlib import Path
 from argparse import ArgumentParser
 from omnigan.trainer import Trainer
-import torchvision.utils as vutils
 
 
 def parsed_args():
