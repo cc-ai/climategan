@@ -5,8 +5,6 @@ from torch.nn.functional import sigmoid
 from pathlib import Path
 from argparse import ArgumentParser
 from omnigan.trainer import Trainer
-from omnigan.data import get_all_loaders, pil_image_loader
-from torchvision import transforms as trsfs
 import torchvision.utils as vutils
 
 
@@ -36,7 +34,9 @@ def parsed_args():
         help="Path to experiment folder containing checkpoints/latest_ckpt.pth",
     )
     parser.add_argument(
-        "--no_output", action="store_true", help="If you don't want to store images to output_dir"
+        "--no_output",
+        action="store_true",
+        help="If you don't want to store images to output_dir",
     )
     parser.add_argument(
         "--output_dir",
@@ -66,7 +66,7 @@ def parsed_args():
 
 def eval(trainer, opts, args):
     save_images = {}
-    update_task = 'm' # only support masker evaluation now
+    update_task = "m"  # only support masker evaluation now
 
     for i, multi_batch_tuple in enumerate(trainer.val_loaders):
         multi_domain_batch = {
@@ -149,10 +149,10 @@ if __name__ == "__main__":
 
     opts = load_opts(Path(args.config), default="./shared/trainer/defaults.yaml")
     opts.train.resume = True
-    if Path(args.checkpoint).suffix == '':
+    if Path(args.checkpoint).suffix == "":
         opts.output_path = str(Path(args.checkpoint).resolve())
-    elif Path(args.checkpoint).suffix.lower() == '.pth':
-        opt.load_paths.m = str(Path(args.checkpoint).resolve())
+    elif Path(args.checkpoint).suffix.lower() == ".pth":
+        opts.load_paths.m = str(Path(args.checkpoint).resolve())
         opts.output_path = "Loading a specific pth file, not using this option."
     if args.image_domain == "r":
         opts.data.files.val.r = args.valr_json
@@ -181,10 +181,10 @@ if __name__ == "__main__":
     trainer = Trainer(opts)
     print("Constructed a trainer!")
     trainer.setup()
-    print("Trainer setup compelete!")
+    print("Trainer setup complete!")
     trainer.resume()
     print("Trainer resumed!")
     model = trainer.G
     model.eval()
-    print("Model setting compelete!")
+    print("Model setting complete!")
     eval(trainer, opts, args)
