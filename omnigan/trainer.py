@@ -9,6 +9,7 @@ from copy import deepcopy
 from pathlib import Path
 from time import time
 import numpy as np
+import inspect
 
 from comet_ml import ExistingExperiment
 
@@ -102,7 +103,7 @@ class Trainer:
         self.current_mode = "train"
         self.diff_transforms = None
         self.kitti_pretrain = self.opts.train.kitti.pretrain
-        self.use_pseudo_labels = self.opts.train.pseudo.enable
+        self.pseudo_training_tasks = set(self.opts.train.pseudo.tasks)
 
         self.lr_names = {}
         self.base_display_images = {}
@@ -211,7 +212,7 @@ class Trainer:
             print(*args, **kwargs)
 
     @torch.no_grad()
-    def infer_all(self, x, numpy=True, stores={}, bin_value=-1, half=False):
+    def infer_all(self, x, numpy=True, stores={}, bin_value=-1, half=False, xla=False):
         """
         Create a dictionnary of events from a numpy or tensor,
         single or batch image data.
@@ -247,25 +248,39 @@ class Trainer:
         if half:
             x = x.half()
 
-        # encode
-        with Timer(store=stores.get("encode", [])):
-            z = self.G.encode(x)
+        with Timer(store=stores.get("all events", [])):
+            # encode
+            with Timer(store=stores.get("encode", [])):
+                z = self.G.encode(x)
+                if xla:
+                    xm.mark_step()
 
-        # predict from masker
-        with Timer(store=stores.get("depth", [])):
-            depth = self.G.decoders["d"](z)
-        with Timer(store=stores.get("segmentation", [])):
-            segmentation = self.G.decoders["s"](z)
-        with Timer(store=stores.get("mask", [])):
-            mask = self.G.mask(z=z)
+            # predict from masker
+            with Timer(store=stores.get("depth", [])):
+                depth = self.G.decoders["d"](z)
+                if xla:
+                    xm.mark_step()
+            with Timer(store=stores.get("segmentation", [])):
+                segmentation = self.G.decoders["s"](z)
+                if xla:
+                    xm.mark_step()
+            with Timer(store=stores.get("mask", [])):
+                mask = self.G.mask(z=z)
+                if xla:
+                    xm.mark_step()
 
-        # apply events
-        with Timer(store=stores.get("wildfire", [])):
-            wildfire = self.compute_fire(x, segmentation).detach().cpu()
-        with Timer(store=stores.get("smog", [])):
-            smog = self.compute_smog(x, d=depth, s=segmentation).detach().cpu()
-        with Timer(store=stores.get("flood", [])):
-            flood = self.compute_flood(x, m=mask, bin_value=bin_value).detach().cpu()
+            # apply events
+            with Timer(store=stores.get("wildfire", [])):
+                wildfire = self.compute_fire(x, segmentation).detach().cpu()
+            with Timer(store=stores.get("smog", [])):
+                smog = self.compute_smog(x, d=depth, s=segmentation).detach().cpu()
+            with Timer(store=stores.get("flood", [])):
+                flood = (
+                    self.compute_flood(x, m=mask, bin_value=bin_value).detach().cpu()
+                )
+
+        if xla:
+            xm.mark_step()
 
         if numpy:
             with Timer(store=stores.get("numpy", [])):
@@ -295,6 +310,7 @@ class Trainer:
         inference=False,
         new_exp=False,
         input_shapes=None,
+        device=None,
     ):
         """
         Resume and optionally setup a trainer from a specific path,
@@ -310,6 +326,10 @@ class Trainer:
                 Defaults to False.
             new_exp (bool, optional): Re-use existing comet exp in path or create
                 a new one? Defaults to False.
+            input_shapes (tuple, optional): In inference mode the trainer does not have
+                loaders and cannot therefore set the final interpolation's target size
+                for the segmentation and depth decoders.
+            device (torch.device, optional): Device to use
 
         Returns:
             omnigan.Trainer: Loaded and resumed trainer
@@ -336,11 +356,11 @@ class Trainer:
             comet_id = get_existing_comet_id(p)
             exp = ExistingExperiment(previous_experiment=comet_id, **comet_kwargs)
 
-        trainer = cls(opts, comet_exp=exp)
+        trainer = cls(opts, comet_exp=exp, device=device)
 
         if setup:
             if input_shapes is not None:
-                trainer.set_input_shapes(input_shapes)
+                trainer.set_data_shapes(input_shapes)
             trainer.setup(inference=inference)
         return trainer
 
@@ -486,39 +506,42 @@ class Trainer:
         # -----------------------
         # -----  Restore G  -----
         # -----------------------
-        self.G.load_state_dict(checkpoint["G"])
+        if self.opts.val.visualize:
+            self.G.load_state_dict(checkpoint["G"], strict=False)
+        else:
+            self.G.load_state_dict(checkpoint["G"])
 
         if inference:
             # only G is needed to infer
             print("Done loading checkpoints.")
             return
+        if not self.opts.val.visualize:
+            self.g_opt.load_state_dict(checkpoint["g_opt"])
 
-        self.g_opt.load_state_dict(checkpoint["g_opt"])
+            # ------------------------------
+            # -----  Resume scheduler  -----
+            # ------------------------------
+            # https://discuss.pytorch.org/t/a-problem-occured-when-resuming-an-optimizer/28822
+            for _ in range(self.logger.epoch + 1):
+                self.update_learning_rates()
 
-        # ------------------------------
-        # -----  Resume scheduler  -----
-        # ------------------------------
-        # https://discuss.pytorch.org/t/a-problem-occured-when-resuming-an-optimizer/28822
-        for _ in range(self.logger.epoch + 1):
-            self.update_learning_rates()
+            # Round step to even number for extraGradient
+            if self.logger.global_step % 2 != 0:
+                self.logger.global_step += 1
 
-        # Round step to even number for extraGradient
-        if self.logger.global_step % 2 != 0:
-            self.logger.global_step += 1
+            # -----------------------
+            # -----  Restore D  -----
+            # -----------------------
+            if self.D is not None and get_num_params(self.D) > 0:
+                self.D.load_state_dict(checkpoint["D"])
+                self.d_opt.load_state_dict(checkpoint["d_opt"])
 
-        # -----------------------
-        # -----  Restore D  -----
-        # -----------------------
-        if self.D is not None and get_num_params(self.D) > 0:
-            self.D.load_state_dict(checkpoint["D"])
-            self.d_opt.load_state_dict(checkpoint["d_opt"])
-
-        # -----------------------
-        # -----  Restore C  -----
-        # -----------------------
-        if self.C is not None and get_num_params(self.C) > 0:
-            self.C.load_state_dict(checkpoint["C"])
-            self.c_opt.load_state_dict(checkpoint["c_opt"])
+            # -----------------------
+            # -----  Restore C  -----
+            # -----------------------
+            if self.C is not None and get_num_params(self.C) > 0:
+                self.C.load_state_dict(checkpoint["C"])
+                self.c_opt.load_state_dict(checkpoint["c_opt"])
 
         # ---------------------------
         # -----  Resore logger  -----
@@ -696,7 +719,7 @@ class Trainer:
         if self.c_scheduler is not None:
             self.c_scheduler.step()
 
-    def set_input_shapes(self, shapes):
+    def set_data_shapes(self, shapes):
         """
         Sets the input shapes for the Segmentation Decoder and the Painter
 
@@ -743,7 +766,6 @@ class Trainer:
         use_painter = get_num_params(self.G.painter)
         print("Sending to", self.device)
         self.G = self.G.to(self.device)
-        print(f"Generator OK in {time() - __t:.1f}s.")
 
         if self.input_shapes is None and ("s" in self.opts.tasks or use_painter):
             if inference:
@@ -757,11 +779,15 @@ class Trainer:
         if "s" in self.opts.tasks:
             assert "s" in self.input_shapes
             self.G.decoders["s"].set_target_size(self.input_shapes["s"][-2:])
-        print("OK.")
+        if "d" in self.opts.tasks and self.opts.gen.d.architecture == "base":
+            assert "d" in self.input_shapes
+            self.G.decoders["d"].set_target_size(self.input_shapes["d"][-2:])
 
         if use_painter:
             assert "x" in self.input_shapes
             self.G.painter.set_latent_shape(self.input_shapes["x"], True)
+
+        print(f"Generator OK in {time() - __t:.1f}s.")
 
         if inference:
             print("Inference mode: no Discriminator, no Classifier, no optimizers")
@@ -869,6 +895,8 @@ class Trainer:
                             d["paths"],
                         )
 
+        self.logger.log_architecture()
+
         if self.kitti_pretrain:
             self.switch_data(to="kitti")
         else:
@@ -880,7 +908,9 @@ class Trainer:
         self.is_setup = True
 
     def switch_data(self, to="kitti"):
-        print("Switching data source to", to)
+        caller = inspect.stack()[1].function
+        print(f"[{caller}] Switching data source to", to)
+        self.data_source = to
         if to == "kitti":
             self.display_images = self.kitty_display_images
             if self.all_loaders is not None:
@@ -899,6 +929,14 @@ class Trainer:
                     }
                     for mode in self.all_loaders
                 }
+        if (
+            self.logger.global_step % 2 != 0
+            and "extra" in self.opts.dis.opt.optimizer.lower()
+        ):
+            print(
+                "Warning: artificially bumping step to run an extrapolation step first."
+            )
+            self.logger.global_step += 1
 
     def train(self):
         """For each epoch:
@@ -911,22 +949,22 @@ class Trainer:
         for self.logger.epoch in range(
             self.logger.epoch, self.logger.epoch + self.opts.train.epochs
         ):
-            self.run_epoch()
-            self.run_evaluation(verbose=1)
-            self.save()
-
             if (
-                self.logger.epoch == self.opts.gen.p.pl4m_epoch - 1
+                self.logger.epoch == self.opts.gen.p.pl4m_epoch
                 and get_num_params(self.G.painter) > 0
             ):
                 self.use_pl4m = True
+
+            self.run_epoch()
+            self.run_evaluation(verbose=1)
+            self.save()
 
             if self.logger.epoch == self.opts.train.kitti.epochs - 1:
                 self.switch_data(to="base")
                 self.kitti_pretrain = False
 
             if self.logger.epoch == self.opts.train.pseudo.epochs - 1:
-                self.use_pseudo_labels = False
+                self.pseudo_training_tasks = set()
 
     def run_epoch(self):
         """Runs an epoch:
@@ -1217,7 +1255,7 @@ class Trainer:
             self.logger.losses.gen.masker = m_loss.item()
             g_loss += m_loss
 
-        if "p" in self.opts.tasks:
+        if "p" in self.opts.tasks and not self.kitti_pretrain:
             p_loss = self.get_painter_loss(multi_domain_batch)
             self.logger.losses.gen.painter = p_loss.item()
             g_loss += p_loss
@@ -1440,14 +1478,14 @@ class Trainer:
         if weight == 0:
             return full_loss
 
-        if domain == "r" and not self.use_pseudo_labels:
+        if domain == "r" and "d" not in self.pseudo_training_tasks:
             return full_loss
 
-        # -------------------
-        # -----  Depth  -----
-        # -------------------
-
         prediction = self.G.decoders["d"](z)
+
+        if self.opts.gen.d.classify.enable:
+            target.squeeze_(1)
+
         loss = self.losses["G"]["tasks"]["d"](prediction, target)
         loss *= weight
 
@@ -1472,7 +1510,7 @@ class Trainer:
         # Supervised segmentation loss: crossent for sim domain,
         # crossent_pseudo for real ; loss is crossent in any case
         if for_ == "G":
-            if domain == "s" or self.use_pseudo_labels:
+            if domain == "s" or "s" in self.pseudo_training_tasks:
                 if domain == "s":
                     logger = self.logger.losses.gen.task["s"]["crossent"]
                     weight = self.opts.train.lambdas.G["s"]["crossent"]
@@ -1711,18 +1749,22 @@ class Trainer:
             self.logger.log_comet_images("train", d)
             self.logger.log_comet_images("val", d)
 
-        if "m" in self.opts.tasks and "p" in self.opts.tasks:
+        if (
+            "m" in self.opts.tasks
+            and "p" in self.opts.tasks
+            and not self.kitti_pretrain
+        ):
             self.logger.log_comet_combined_images("train", "r")
             self.logger.log_comet_combined_images("val", "r")
 
         if self.exp is not None:
             print()
 
-        if "m" in self.opts.tasks:
+        if "m" in self.opts.tasks or "s" in self.opts.tasks:
             self.eval_images("val", "r")
             self.eval_images("val", "s")
 
-        if "p" in self.opts.tasks:
+        if "p" in self.opts.tasks and not self.kitti_pretrain:
             val_fid = compute_val_fid(self)
             if self.exp is not None:
                 self.exp.log_metric("val_fid", val_fid, step=self.logger.global_step)
@@ -1734,6 +1776,8 @@ class Trainer:
         print("****************** Done in {}s *********************".format(timing))
 
     def eval_images(self, mode, domain):
+        if domain == "s" and self.kitti_pretrain:
+            domain = "kitti"
         if domain == "rf" or domain not in self.display_images[mode]:
             return
 
@@ -1741,6 +1785,8 @@ class Trainer:
         metric_avg_scores = {"m": {}}
         if "s" in self.opts.tasks:
             metric_avg_scores["s"] = {}
+        if "d" in self.opts.tasks and domain == "s" and self.opts.gen.d.classify.enable:
+            metric_avg_scores["d"] = {}
 
         for key in metric_funcs:
             for task in metric_avg_scores:
@@ -1772,6 +1818,14 @@ class Trainer:
                 for metric in metric_funcs:
                     metric_score = metric_funcs[metric](pred_seg, s)
                     metric_avg_scores["s"][metric].append(metric_score)
+
+            if "d" in metric_avg_scores and domain == "s":
+                pred_depth = self.G.decoders["d"](z).detach().cpu()
+                d = im_set["data"]["d"].unsqueeze(0).detach()
+
+                for metric in metric_funcs:
+                    metric_score = metric_funcs[metric](pred_depth, d)
+                    metric_avg_scores["d"][metric].append(metric_score)
 
         metric_avg_scores = {
             task: {
@@ -1825,8 +1879,10 @@ class Trainer:
         Transforms input tensor given wildfires event
         Args:
             x (torch.Tensor): Input tensor
-            seg_preds (torch.Tensor): Semantic segmentation predictions for input tensor
-            z (torch.Tensor): Latent vector of encoded "x". Can be None if seg_preds is given.
+                seg_preds (torch.Tensor): Semantic segmentation
+                predictions for input tensor
+            z (torch.Tensor): Latent vector of encoded "x".
+                Can be None if seg_preds is given.
         Returns:
             torch.Tensor: Wildfire version of input tensor
         """

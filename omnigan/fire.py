@@ -12,8 +12,10 @@ def increase_sky_mask(mask, p_w=0, p_h=0):
     (Purpose: when applying Gaussian blur, there are no artifacts of blue sky behind)
     Args:
         sky_mask (torch.Tensor): Sky mask of shape (H,W)
-        p_w (float): Percentage of mask width by which to increase the width of the sky region
-        p_h (float): Percentage of mask height by which to increase the height of the sky region
+        p_w (float): Percentage of mask width by which to increase
+            the width of the sky region
+        p_h (float): Percentage of mask height by which to increase
+            the height of the sky region
     Returns:
         torch.Tensor: Sky mask increased given p_w and p_h
     """
@@ -64,7 +66,8 @@ def add_fire(x, seg_preds, filter_color, blur_radius):
         x (torch.Tensor): Input tensor
         seg_preds (torch.Tensor): Semantic segmentation predictions for input tensor
         filter_color (tuple): (r,g,b) tuple for the color of the sky
-        blur_radius (float): radius of the Gaussian blur that smooths the transition between sky and foreground
+        blur_radius (float): radius of the Gaussian blur that smooths
+            the transition between sky and foreground
     Returns:
         torch.Tensor: Wildfire version of input tensor
     """

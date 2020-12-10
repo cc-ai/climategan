@@ -71,7 +71,7 @@ gen:
     optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
     beta1: 0.9
     lr:
-      default: 0.0001
+      default: 0.00005 # 0.00001 for dlv2, 0.00005 for dlv3
     lr_policy: step
     # lr_policy can be constant, step or multi_step; if step, specify lr_step_size and lr_gamma
     # if multi_step specify lr_step_size lr_gamma and lr_milestones:
@@ -92,13 +92,12 @@ gen:
     n_downsample: &n_downsample 3 # number of downsampling layers in encoder | dim 32 + down 3 => z = 256 x 32 x 32
     n_upsample: *n_downsample # upsampling in spade decoder ; should match encoder.n_downsample
     pad_type: reflect # padding type [zero/reflect]
-    res_dim: 320 # Resblock number of channels (=latent space's)
+    res_dim: 2048 # Resblock number of channels (=latent space's)
     # res_dim should be
     # * 2048 if using deeplabv2 or deeplabv3 with resnet backbone
     # * 320 if using deeplabv3 with mobilenet backbone
     # * anything, like 256, otherwise
-    res_norm: spectral # ResBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
-    conv_norm: spectral
+    norm: spectral # ResBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
     proj_dim: 32 # Dim of projection from latent space
   encoder: # specific params for the encoder
     <<: *default-gen
@@ -115,21 +114,20 @@ gen:
     pretrained_model: "/miniscratch/_groups/ccai/data/pretrained_models/deeplabv2/DeepLab_resnet_pretrained_imagenet.pth"
 
   deeplabv3:
-    backbone: "mobilenet" # mobilenet or resnet
+    backbone: resnet # resnet only
     output_stride: 8 # 8 or 16
     use_pretrained: true
     pretrained_model:
       mobilenet: "/miniscratch/_groups/ccai/data/pretrained_models/deeplabv3/deeplab-mobilenet.pth"
-      resnet: "/miniscratch/_groups/ccai/d  ata/pretrained_models/deeplabv3/deeplab-resnet.pth"
+      resnet: "/miniscratch/_groups/ccai/data/pretrained_models/deeplabv3/model_CoinCheungDeepLab-v3-plus.pth"
 
   d: # specific params for the depth estimation decoder
     <<: *default-gen
     init_type: normal
     init_gain: 0.01
     output_dim: 1
-    conv_norm: batch
-    res_norm: batch
-    loss: dada
+    norm: batch
+    loss: dada # dada or sigm | /!\ ignored if classify.enable
     upsample_featuremaps: False # upsamples from 80x80 to 160x160 intermediate feature maps
     architecture: dada # dada or base | must be base for classif
     classify: # classify log-depth instead of regression
@@ -152,9 +150,9 @@ gen:
     loss: gan # gan or hinge
     no_z: true # <=> use_vae=False in the SPADE repo
     output_dim: 3 # output dimension
-    pad_type: zero # padding type [zero/reflect]
+    pad_type: reflect # padding type [zero/reflect]
     paste_original_content: True # only select the water painted to backprop through the network, not the whole generated image: fake_flooded = masked_x + m * fake_flooded
-    pl4m_epoch: 50 # epoch from which we introduce a new loss to the masker: the painter's discriminator's loss
+    pl4m_epoch: 49 # epoch from which we introduce a new loss to the masker: the painter's discriminator's loss
     spade_kernel_size: 3 # kernel size within SPADE norm layers
     spade_n_up: 7 # number of upsampling layers in the translation decoder is equal to number of downsamplings in the encoder.  output's h and w are z's h and w x 2^spade_num_upsampling_layers | z:32 and spade_n_up:4 => output 512
     spade_param_free_norm: instance # what param-free normalization to apply in SPADE normalization
@@ -188,7 +186,7 @@ dis:
     optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
     beta1: 0.5
     lr:
-      default: 0.0005
+      default: 0.00002 # 0.0001 for dlv2, 0.00002 for dlv3
     lr_policy: step
     # lr_policy can be constant, step or multi_step; if step, specify lr_step_size and lr_gamma
     # if multi_step specify lr_step_size lr_gamma and lr_milestones:
@@ -258,7 +256,7 @@ train:
     batch_size: 20
   amp: False
   pseudo:
-    enable: False # True or False to use pseudo-labels as supervision signal
+    tasks: [] # list of tasks for which to use pseudo labels (empty list to disable)
     epochs: 30 # disable pseudo training after n epochs (set to -1 to never disable)
   epochs: 300
   fid:
@@ -310,6 +308,7 @@ train:
 # ----- Validation Params -----
 # -----------------------------
 val:
+  visualize: false # True if using visualizedEval.py to evaluate the masker. (Won't load any optimizers. Will load Generator state_dict unstrictly. Helpful to evaluate masker from multihead ckpt)
   store_images: false # write to disk on top of comet logging
 # -----------------------------
 # ----- Comet Params ----------
