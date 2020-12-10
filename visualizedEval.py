@@ -4,6 +4,7 @@ from pathlib import Path
 from addict import Dict
 from comet_ml import Experiment  # noqa: F401 -> keep even if unused
 
+from omnigan.data import get_loader
 from omnigan.trainer import Trainer
 from omnigan.utils import flatten_opts
 
@@ -58,4 +59,10 @@ if __name__ == "__main__":
         resume_path, overrides=overrides, inference=True, new_exp=True
     )
     trainer.exp.log_parameters(flatten_opts(trainer.opts))
+    trainer.all_loaders = {
+        "val": {
+            image_domain: get_loader("val", image_domain, trainer.opts)
+        }
+    }
+    trainer.set_display_images()
     trainer.logger.log_comet_images("val", image_domain)

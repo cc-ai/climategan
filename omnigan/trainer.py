@@ -859,39 +859,8 @@ class Trainer:
         # ----------------------------
         # -----  Display images  -----
         # ----------------------------
-        for mode, mode_dict in self.all_loaders.items():
-
-            if self.kitti_pretrain:
-                self.kitty_display_images[mode] = {}
-            self.base_display_images[mode] = {}
-
-            for domain, domain_loader in mode_dict.items():
-
-                if self.kitti_pretrain and domain == "kitti":
-                    target_dict = self.kitty_display_images
-                else:
-                    if domain == "kitti":
-                        continue
-                    target_dict = self.base_display_images
-
-                dataset = self.all_loaders[mode][domain].dataset
-                display_indices = get_display_indices(self.opts, domain, len(dataset))
-                ldis = len(display_indices)
-                print(
-                    f"Creating {ldis} {mode} {domain} display images...",
-                    end="\r",
-                    flush=True,
-                )
-                target_dict[mode][domain] = [
-                    Dict(dataset[i]) for i in display_indices if i < len(dataset)
-                ]
-                if self.exp is not None:
-                    for im_id, d in enumerate(target_dict[mode][domain]):
-                        self.exp.log_parameter(
-                            "display_image_{}_{}_{}".format(mode, domain, im_id),
-                            d["paths"],
-                        )
-
+        self.set_display_images()
+        
         self.logger.log_architecture()
 
         if self.kitti_pretrain:
@@ -934,6 +903,40 @@ class Trainer:
                 "Warning: artificially bumping step to run an extrapolation step first."
             )
             self.logger.global_step += 1
+
+    def set_display_images(self):
+        for mode, mode_dict in self.all_loaders.items():
+
+            if self.kitti_pretrain:
+                self.kitty_display_images[mode] = {}
+            self.base_display_images[mode] = {}
+
+            for domain in mode_dict:
+
+                if self.kitti_pretrain and domain == "kitti":
+                    target_dict = self.kitty_display_images
+                else:
+                    if domain == "kitti":
+                        continue
+                    target_dict = self.base_display_images
+
+                dataset = self.all_loaders[mode][domain].dataset
+                display_indices = get_display_indices(self.opts, domain, len(dataset))
+                ldis = len(display_indices)
+                print(
+                    f"Creating {ldis} {mode} {domain} display images...",
+                    end="\r",
+                    flush=True,
+                )
+                target_dict[mode][domain] = [
+                    Dict(dataset[i]) for i in display_indices if i < len(dataset)
+                ]
+                if self.exp is not None:
+                    for im_id, d in enumerate(target_dict[mode][domain]):
+                        self.exp.log_parameter(
+                            "display_image_{}_{}_{}".format(mode, domain, im_id),
+                            d["paths"],
+                        )
 
     def train(self):
         """For each epoch:
