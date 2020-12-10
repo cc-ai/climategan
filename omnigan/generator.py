@@ -110,7 +110,7 @@ class OmniGenerator(nn.Module):
                 if self.verbose > 0:
                     print("  - Created DeepLabV2Decoder")
             elif opts.gen.s.architecture == "deeplabv3":
-                self.decoders["s"] = DeepLabV3Decoder(opts)
+                self.decoders["s"] = DeepLabV3Decoder(opts, no_init)
                 if self.verbose > 0:
                     print("  - Created DeepLabV3Decoder")
             else:
