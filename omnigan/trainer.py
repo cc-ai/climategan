@@ -860,7 +860,7 @@ class Trainer:
         # -----  Display images  -----
         # ----------------------------
         self.set_display_images()
-        
+
         self.logger.log_architecture()
 
         if self.kitti_pretrain:
@@ -904,7 +904,7 @@ class Trainer:
             )
             self.logger.global_step += 1
 
-    def set_display_images(self):
+    def set_display_images(self, use_all=False):
         for mode, mode_dict in self.all_loaders.items():
 
             if self.kitti_pretrain:
@@ -921,7 +921,11 @@ class Trainer:
                     target_dict = self.base_display_images
 
                 dataset = self.all_loaders[mode][domain].dataset
-                display_indices = get_display_indices(self.opts, domain, len(dataset))
+                display_indices = (
+                    get_display_indices(self.opts, domain, len(dataset))
+                    if not use_all
+                    else list(range(len(dataset)))
+                )
                 ldis = len(display_indices)
                 print(
                     f"Creating {ldis} {mode} {domain} display images...",
