@@ -21,14 +21,17 @@ if __name__ == "__main__":
     new_data = []
     file_stems = set()
 
-    for d in data:
+    for k, d in enumerate(data):
+        if k % 10 == 0:
+            print(" " * 30, end="\r")
+            print(k, "/", len(data), end="\r")
         new_item = {}
         for task, path in d.items():
             name = Path(path).name
             new_path = out_path / name
 
             i = 1
-            while new_path.stem not in file_stems:
+            while new_path.stem in file_stems:
                 new_path = new_path.parent / (new_path.stem + f"_{i}" + new_path.suffix)
                 i += 1
             file_stems.add(new_path.stem)
