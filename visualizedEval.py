@@ -1,8 +1,10 @@
-from addict import Dict
-from omnigan.utils import flatten_opts
-from pathlib import Path
 from argparse import ArgumentParser
+from pathlib import Path
+
+from addict import Dict
+
 from omnigan.trainer import Trainer
+from omnigan.utils import flatten_opts
 
 
 def parsed_args():
