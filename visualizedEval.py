@@ -2,6 +2,7 @@ from argparse import ArgumentParser
 from pathlib import Path
 
 from addict import Dict
+from comet_ml import Experiment  # noqa: F401 -> keep even if unused
 
 from omnigan.trainer import Trainer
 from omnigan.utils import flatten_opts
