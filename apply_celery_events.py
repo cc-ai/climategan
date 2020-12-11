@@ -2,19 +2,15 @@ print("\n• Imports\n")
 import time
 
 import_time = time.time()
-import argparse
-from collections import OrderedDict
-from datetime import datetime
-from pathlib import Path
-
-import numpy as np
+from omnigan.data import is_image_file
+from omnigan.utils import Timer
+from omnigan.tutils import normalize
 import skimage.io as io
 from skimage.transform import resize
-
-from omnigan.data import is_image_file
-from omnigan.trainer import Trainer
-from omnigan.tutils import normalize, print_num_parameters
-from omnigan.utils import Timer
+from pathlib import Path
+import numpy as np
+from datetime import datetime
+from collections import OrderedDict
 
 import_time = time.time() - import_time
 
@@ -78,102 +74,28 @@ def print_store(store, purge=-1):
     print()
 
 
-def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "-b",
-        "--batch_size",
-        type=int,
-        default=8,
-        help="Batch size to process input images to events",
-    )
-    parser.add_argument(
-        "-i",
-        "--images_paths",
-        type=str,
-        required=True,
-        help="Path to a directory with image files",
-    )
-    parser.add_argument(
-        "-o",
-        "--output_path",
-        type=str,
-        default=None,
-        help="Path to a directory were events should be written. "
-        + "Will NOT write anything if this flag is not used.",
-    )
-    parser.add_argument(
-        "-r",
-        "--resume_path",
-        type=str,
-        default=None,
-        help="Path to a directory containing the trainer to resume."
-        + " In particular it must contain opts.yaml and checkpoints/",
-    )
-    parser.add_argument(
-        "-t",
-        "--time",
-        action="store_true",
-        default=False,
-        help="Binary flag to time operations or not. Defaults to False.",
-    )
-    parser.add_argument(
-        "-m",
-        "--flood_mask_binarization",
-        type=float,
-        default=-1,
-        help="Value to use to binarize masks (mask > value). "
-        + "Set to -1 (default) to use soft masks (not binarized)",
-    )
-    parser.add_argument(
-        "--half",
-        action="store_true",
-        default=False,
-        help="Binary flag to use half precision (float16). Defaults to False.",
-    )
-    parser.add_argument(
-        "-n",
-        "--n_images",
-        default=-1,
-        type=int,
-        help="Limit the number of images processed",
-    )
-    parser.add_argument(
-        "-x",
-        "--xla_purge_samples",
-        type=int,
-        default=-1,
-        help="XLA compile time induces extra computations."
-        + " Ignore -x samples when computing time averages",
-    )
 
-    return parser.parse_args()
-    
 
-if __name__ == "__main__":
+def run_inference_from_trainer(trainer, images_path, output_path=None, time_inference=True, \
+    batch_size=8,
+    flood_mask_binarization=-1,
+    half=False,
+    n_images=-1,
+    xla_purge_samples=-1
+    ):
 
-    # ------------------------------------------------------
-    # -----  Parse Arguments and initialize variables  -----
-    # ------------------------------------------------------
-    args = parse_args()
-    print(
-        "• Using args\n\n"
-        + "\n".join(["{:25}: {}".format(k, v) for k, v in vars(args).items()]),
-    )
+    # print(
+    #     "• Using args\n\n"
+    #     + "\n".join(["{:25}: {}".format(k, v) for k, v in vars(kwargs).items()]),
+    # )
 
-    batch_size = args.batch_size
-    half = args.half
-    images_paths = Path(args.images_paths).expanduser().resolve()
-    bin_value = args.flood_mask_binarization
+    images_paths = Path(images_path).expanduser().resolve()
+    bin_value = flood_mask_binarization
     outdir = (
-        Path(args.output_path).expanduser().resolve()
-        if args.output_path is not None
+        Path(output_path).expanduser().resolve()
+        if output_path is not None
         else None
     )
-    resume_path = args.resume_path
-    time_inference = args.time
-    n_images = args.n_images
-    xla_purge_samples = args.xla_purge_samples
 
     if outdir is not None:
         outdir.mkdir(exist_ok=True, parents=True)
@@ -209,20 +131,6 @@ if __name__ == "__main__":
 
     with Timer(store=stores.get("setup", [])):
 
-        device = None
-        if XLA:
-            device = xm.xla_device()
-
-        trainer = Trainer.resume_from_path(
-            resume_path,
-            setup=True,
-            inference=True,
-            new_exp=None,
-            input_shapes=(3, 640, 640),
-            device=device,
-        )
-        print()
-        print_num_parameters(trainer, True)
         if half:
             trainer.G.half()
 
@@ -251,8 +159,8 @@ if __name__ == "__main__":
         # normalize to -1:1
         data = [(normalize(d.astype(np.float32)) - 0.5) * 2 for d in data]
 
-    n_batchs = len(data) // args.batch_size
-    if len(data) % args.batch_size != 0:
+    n_batchs = len(data) // batch_size
+    if len(data) % batch_size != 0:
         n_batchs += 1
 
     print("Found", len(base_data_paths), "images. Inferring on", len(data), "images.")
