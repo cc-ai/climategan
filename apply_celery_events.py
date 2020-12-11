@@ -109,7 +109,10 @@ def run_inference_from_trainer(trainer, images_path, output_path=None, time_infe
             {
                 "imports": [import_time],
                 "setup": [],
-                "data pre-processing": [],
+                "data 1: read": [],
+                "data 2: resize": [],
+                "data 3: normalize": [],
+                "data 4: full pre-processing": [],
                 "encode": [],
                 "mask": [],
                 "flood": [],
@@ -151,13 +154,16 @@ def run_inference_from_trainer(trainer, images_path, output_path=None, time_infe
         data_paths = base_data_paths * repeats
         data_paths = data_paths[:n_images]
 
-    with Timer(store=stores.get("data pre-processing", [])):
-        # read images to numpy arrays
-        data = [io.imread(str(d)) for d in data_paths]
-        # resize to standard input size 640 x 640
-        data = [resize(d, (640, 640), anti_aliasing=True) for d in data]
-        # normalize to -1:1
-        data = [(normalize(d.astype(np.float32)) - 0.5) * 2 for d in data]
+    with Timer(store=stores.get("data 4: full pre-processing", [])):
+        with Timer(store=stores.get("data 1: read", [])):
+            # read images to numpy arrays
+            data = [io.imread(str(d)) for d in data_paths]
+        with Timer(store=stores.get("data 2: resize", [])):
+            # resize to standard input size 640 x 640
+            data = [resize(d, (640, 640), anti_aliasing=True) for d in data]
+        with Timer(store=stores.get("data 3: normalize", [])):
+            # normalize to -1:1
+            data = [(normalize(d.astype(np.float32)) - 0.5) * 2 for d in data]
 
     n_batchs = len(data) // batch_size
     if len(data) % batch_size != 0:
