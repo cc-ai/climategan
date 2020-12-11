@@ -1,8 +1,6 @@
 """Tensor-utils
 """
 from pathlib import Path
-import io
-from contextlib import redirect_stdout
 
 # from copy import copy
 from threading import Thread
@@ -185,46 +183,23 @@ def normalize_tensor(t):
     return t
 
 
-def get_normalized_depth_t(tensor, domain, normalize=False, log=True):
-    assert not (normalize and log)
+def get_normalized_depth_t(tensor, domain, normalize=False):
     if domain == "r":
         # megadepth depth
         tensor = tensor.unsqueeze(0)
-        tensor = tensor - torch.min(tensor)
-        tensor = torch.true_divide(tensor, torch.max(tensor))
-
+        if normalize:
+            tensor = tensor - torch.min(tensor)
+            tensor = torch.true_divide(tensor, torch.max(tensor))
     elif domain == "s":
         # from 3-channel depth encoding from Unity simulator to 1-channel [0-1] values
-        tensor = decode_unity_depth_t(tensor, log=log, normalize=normalize)
-
+        tensor = decode_unity_depth_t(tensor, log=False, normalize=normalize)
     elif domain == "kitti":
-        tensor = tensor / 100
-        if not log:
-            tensor = 1 / tensor
-            if normalize:
-                tensor = tensor - tensor.min()
-                tensor = tensor / tensor.max()
-        else:
-            tensor = torch.log(tensor)
-
+        tensor = 1 / (tensor / 100)
+        if normalize:
+            tensor = tensor - tensor.min()
+            tensor = tensor / tensor.max()
         tensor = tensor.unsqueeze(0)
-
     return tensor
-
-
-def decode_bucketed_depth(tensor, opts):
-    # tensor is size 1 x C x H x W
-    assert tensor.shape[0] == 1
-    idx = torch.argmax(tensor.squeeze(0), dim=0)  # channels become dim 0 with squeeze
-    linspace_args = (
-        opts.gen.d.classify.linspace.min,
-        opts.gen.d.classify.linspace.max,
-        opts.gen.d.classify.linspace.buckets,
-    )
-    indexer = torch.linspace(*linspace_args)
-    log_depth = indexer[idx.long()].to(torch.float32)  # H x W
-    depth = torch.exp(log_depth)
-    return depth.unsqueeze(0).unsqueeze(0).to(tensor.device)
 
 
 def decode_unity_depth_t(unity_depth, log=True, normalize=False, numpy=False, far=1000):
@@ -271,8 +246,7 @@ def decode_unity_depth_t(unity_depth, log=True, normalize=False, numpy=False, fa
     B = (255 - B).type(torch.IntTensor)
     depth = ((R * 256 * 31 + G * 256 + B).type(torch.FloatTensor)) / (256 * 31 * 31 - 1)
     depth = depth * far
-    if not log:
-        depth = 1 / depth
+    depth = 1 / depth
     depth = depth.unsqueeze(0)  # (depth * far).unsqueeze(0)
 
     if log:
@@ -606,34 +580,3 @@ def all_texts_to_tensors(texts, width=640, height=40):
     arrays = all_texts_to_array(texts, width, height)
     arrays = [array.transpose(2, 0, 1) for array in arrays]
     return [torch.tensor(array) for array in arrays]
-
-
-def write_architecture(trainer):
-    stem = "archi"
-    out = Path(trainer.opts.output_path)
-
-    # encoder
-    with open(out / f"{stem}_encoder.txt", "w") as f:
-        f.write(str(trainer.G.encoder))
-
-    # decoders
-    for k, v in trainer.G.decoders.items():
-        with open(out / f"{stem}_decoder_{k}.txt", "w") as f:
-            f.write(str(v))
-
-    # painter
-    if get_num_params(trainer.G.painter) > 0:
-        with open(out / f"{stem}_painter.txt", "w") as f:
-            f.write(str(trainer.G.painter))
-
-    # discriminators
-    if get_num_params(trainer.D) > 0:
-        for k, v in trainer.D.items():
-            with open(out / f"{stem}_discriminator_{k}.txt", "w") as f:
-                f.write(str(v))
-
-    with io.StringIO() as buf, redirect_stdout(buf):
-        print_num_parameters(trainer)
-        output = buf.getvalue()
-        with open(out / "archi_num_params.txt", "w") as f:
-            f.write(output)

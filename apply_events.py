@@ -2,19 +2,17 @@ print("\n• Imports\n")
 import time
 
 import_time = time.time()
-import argparse
-from collections import OrderedDict
-from datetime import datetime
-from pathlib import Path
-
-import numpy as np
+from omnigan.trainer import Trainer
+from omnigan.data import is_image_file
+from omnigan.utils import Timer
+from omnigan.tutils import normalize, print_num_parameters
 import skimage.io as io
 from skimage.transform import resize
-
-from omnigan.data import is_image_file
-from omnigan.trainer import Trainer
-from omnigan.tutils import normalize, print_num_parameters
-from omnigan.utils import Timer
+import argparse
+from pathlib import Path
+import numpy as np
+from datetime import datetime
+from collections import OrderedDict
 
 import_time = time.time() - import_time
 
@@ -148,6 +146,7 @@ def parse_args():
     )
 
     return parser.parse_args()
+
 
 def run_inference_from_trainer(trainer, images_path, output_path, time_inference):
     args = parse_args()

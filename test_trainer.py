@@ -1,5 +1,4 @@
 import atexit
-import logging
 from argparse import ArgumentParser
 from copy import deepcopy
 
@@ -9,6 +8,8 @@ from comet_ml.api import API
 import omnigan
 from omnigan.trainer import Trainer
 from omnigan.utils import get_comet_rest_api_key
+
+import logging
 
 logging.basicConfig()
 logging.getLogger().setLevel(logging.ERROR)
@@ -248,13 +249,6 @@ if __name__ == "__main__":
             "domains": ["kitti", "r", "s"],
             "train.kitti.batch_size": 2,
         },
-        {"__doc": "Depth Dada archi", "gen.d.architecture": "data"},  # 10
-        {"__doc": "Depth Base archi", "gen.d.architecture": "base"},  # 11
-        {
-            "__doc": "Depth Base Classification",  # 12
-            "gen.d.architecture": "base",
-            "gen.d.classify.enable": True,
-        },
     ]
 
     n_confs = len(test_scenarios)
@@ -309,7 +303,7 @@ if __name__ == "__main__":
 
             # set input_shape for inference-only
             if inference:
-                trainer.set_data_shapes(input_shapes)
+                trainer.set_input_shapes(input_shapes)
 
             # test training procedure
             trainer.setup(inference=inference)

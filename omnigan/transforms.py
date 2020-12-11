@@ -4,6 +4,7 @@ import torch
 import torch.nn.functional as F
 from torchvision import transforms as trsfs
 import numpy as np
+from PIL import Image
 import traceback
 
 
@@ -214,34 +215,6 @@ class Normalize:
         }
 
 
-class BucketizeDepth:
-    def __init__(self, opts, domain):
-        self.domain = domain
-
-        if opts.gen.d.classify.enable and domain in {"s", "kitti"}:
-            self.buckets = torch.linspace(
-                *[
-                    opts.gen.d.classify.linspace.min,
-                    opts.gen.d.classify.linspace.max,
-                    opts.gen.d.classify.linspace.buckets - 1,
-                ]
-            )
-
-            self.transforms = {
-                "d": lambda tensor: torch.bucketize(
-                    tensor, self.buckets, out_int32=True, right=True
-                )
-            }
-        else:
-            self.transforms = {}
-
-    def __call__(self, data):
-        return {
-            task: self.transforms.get(task, lambda x: x)(tensor)
-            for task, tensor in data.items()
-        }
-
-
 def get_transform(transform_item):
     """Returns the torchivion transform function associated to a
     transform_item listed in opts.data.transforms ; transform_item is
@@ -265,11 +238,11 @@ def get_transform(transform_item):
     raise ValueError("Unknown transform_item {}".format(transform_item))
 
 
-def get_transforms(opts, domain):
+def get_transforms(opts):
     """Get all the transform functions listed in opts.data.transforms
     using get_transform(transform_item)
     """
-    last_transforms = [Normalize(opts), BucketizeDepth(opts, domain)]
+    last_transforms = [Normalize(opts)]
 
     conf_transforms = []
     for t in opts.data.transforms:

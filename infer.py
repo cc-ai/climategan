@@ -215,8 +215,6 @@ if __name__ == "__main__":
         new_size = args.new_size
         if "s" in opts.tasks:
             model.decoders["s"].set_target_size(new_size)
-        if "d" in opts.tasks and opts.gen.d.architecture == "base":
-            model.decoders["d"].set_target_size(new_size)
 
     # ----------------------------
     # -----  Iterate images  -----

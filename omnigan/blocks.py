@@ -174,7 +174,7 @@ class ResBlocks(nn.Module):
 
 class ResBlock(nn.Module):
     def __init__(self, dim, norm="in", activation="relu", pad_type="zero"):
-        super().__init__()
+        super(ResBlock, self).__init__()
         self.dim = dim
         self.norm = norm
         self.activation = activation
@@ -210,7 +210,7 @@ class Bottleneck(nn.Module):
     """
 
     def __init__(self, in_ch, out_ch, stride, dilation, downsample):
-        super().__init__()
+        super(Bottleneck, self).__init__()
         mid_ch = out_ch // _BOTTLENECK_EXPANSION
         self.reduce = Conv2dBlock(in_ch, mid_ch, 1, stride, 0, norm="batch")
         self.conv3x3 = Conv2dBlock(
@@ -242,7 +242,7 @@ class ResLayer(nn.Sequential):
     """
 
     def __init__(self, n_layers, in_ch, out_ch, stride, dilation, multi_grids=None):
-        super().__init__()
+        super(ResLayer, self).__init__()
 
         if multi_grids is None:
             multi_grids = [1 for _ in range(n_layers)]
@@ -270,7 +270,7 @@ class Stem(nn.Sequential):
     """
 
     def __init__(self, out_ch):
-        super().__init__()
+        super(Stem, self).__init__()
         self.add_module("conv1", Conv2dBlock(3, out_ch, 7, 2, 3, 1, norm="batch"))
         self.add_module("pool", nn.MaxPool2d(3, 2, 1, ceil_mode=True))
 
@@ -286,10 +286,11 @@ class BaseDecoder(nn.Module):
         input_dim=2048,
         proj_dim=64,
         output_dim=3,
-        norm="batch",
+        res_norm="instance",
         activ="relu",
         pad_type="zero",
         output_activ="tanh",
+        conv_norm="layer",
         low_level_feats_dim=-1,
     ):
         super().__init__()
@@ -299,7 +300,7 @@ class BaseDecoder(nn.Module):
         self.model = []
         if proj_dim != -1:
             self.proj_conv = Conv2dBlock(
-                input_dim, proj_dim, 1, 1, 0, norm=norm, activation=activ
+                input_dim, proj_dim, 1, 1, 0, norm=res_norm, activation=activ
             )
         else:
             self.proj_conv = None
@@ -307,57 +308,43 @@ class BaseDecoder(nn.Module):
 
         if low_level_feats_dim > 0:
             self.low_level_conv = Conv2dBlock(
-                input_dim=low_level_feats_dim,
-                output_dim=proj_dim,
-                kernel_size=3,
-                stride=1,
-                padding=1,
-                pad_type=pad_type,
-                norm=norm,
-                activation=activ,
+                low_level_feats_dim, proj_dim, 3, 1, 1, norm=res_norm, activation=activ
             )
             self.merge_feats_conv = Conv2dBlock(
-                input_dim=2 * proj_dim,
-                output_dim=proj_dim,
-                kernel_size=1,
-                stride=1,
-                padding=0,
-                pad_type=pad_type,
-                norm=norm,
-                activation=activ,
+                2 * proj_dim, proj_dim, 1, 1, 0, norm=res_norm, activation=activ
             )
         else:
             self.low_level_conv = None
 
-        self.model += [ResBlocks(n_res, proj_dim, norm, activ, pad_type=pad_type)]
+        self.model += [ResBlocks(n_res, proj_dim, res_norm, activ, pad_type=pad_type)]
         dim = proj_dim
         # upsampling blocks
         for i in range(n_upsample):
             self.model += [
                 InterpolateNearest2d(scale_factor=2),
                 Conv2dBlock(
-                    input_dim=dim,
-                    output_dim=dim // 2,
-                    kernel_size=3,
-                    stride=1,
-                    padding=1,
-                    pad_type=pad_type,
-                    norm=norm,
+                    dim,
+                    dim // 2,
+                    5,
+                    1,
+                    2,
+                    norm=conv_norm,
                     activation=activ,
+                    pad_type=pad_type,
                 ),
             ]
             dim //= 2
         # use reflection padding in the last conv layer
         self.model += [
             Conv2dBlock(
-                input_dim=dim,
-                output_dim=output_dim,
-                kernel_size=3,
-                stride=1,
-                padding=1,
-                pad_type=pad_type,
+                dim,
+                output_dim,
+                7,
+                1,
+                3,
                 norm="none",
                 activation=output_activ,
+                pad_type=pad_type,
             )
         ]
         self.model = nn.Sequential(*self.model)
@@ -386,9 +373,9 @@ class BaseDecoder(nn.Module):
         return strings.basedecoder(self)
 
 
-class DADADepthRegressionDecoder(nn.Module):
-    """
-    Depth decoder based on depth auxiliary task in DADA paper
+class DepthDecoder(nn.Module):
+    """#Depth decoder based on depth auxiliary task in DADA paper
+
     """
 
     def __init__(self, opts):
@@ -695,7 +682,7 @@ class _ASPPModule(nn.Module):
     def __init__(
         self, inplanes, planes, kernel_size, padding, dilation, BatchNorm, no_init
     ):
-        super().__init__()
+        super(_ASPPModule, self).__init__()
         self.atrous_conv = nn.Conv2d(
             inplanes,
             planes,
@@ -723,92 +710,6 @@ class _ASPPModule(nn.Module):
             elif isinstance(m, nn.BatchNorm2d):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
-
-
-class ConvBNReLU(nn.Module):
-    """
-    https://github.com/CoinCheung/DeepLab-v3-plus-cityscapes/blob/master/models/deeplabv3plus.py
-    """
-
-    def __init__(
-        self, in_chan, out_chan, ks=3, stride=1, padding=1, dilation=1, *args, **kwargs
-    ):
-        super().__init__()
-        self.conv = nn.Conv2d(
-            in_chan,
-            out_chan,
-            kernel_size=ks,
-            stride=stride,
-            padding=padding,
-            dilation=dilation,
-            bias=True,
-        )
-        self.bn = nn.BatchNorm2d(out_chan)
-        self.init_weight()
-
-    def forward(self, x):
-        x = self.conv(x)
-        x = self.bn(x)
-        return x
-
-    def init_weight(self):
-        for ly in self.children():
-            if isinstance(ly, nn.Conv2d):
-                nn.init.kaiming_normal_(ly.weight, a=1)
-                if ly.bias is not None:
-                    nn.init.constant_(ly.bias, 0)
-
-
-class ASPPv3Plus(nn.Module):
-    """
-    https://github.com/CoinCheung/DeepLab-v3-plus-cityscapes/blob/master/models/deeplabv3plus.py
-    """
-
-    def __init__(self, backbone, no_init):
-        super().__init__()
-
-        if backbone == "mobilenet":
-            in_chan = 320
-        else:
-            in_chan = 2048
-
-        self.with_gp = False
-        self.conv1 = ConvBNReLU(in_chan, 256, ks=1, dilation=1, padding=0)
-        self.conv2 = ConvBNReLU(in_chan, 256, ks=3, dilation=6, padding=6)
-        self.conv3 = ConvBNReLU(in_chan, 256, ks=3, dilation=12, padding=12)
-        self.conv4 = ConvBNReLU(in_chan, 256, ks=3, dilation=18, padding=18)
-        if self.with_gp:
-            self.avg = nn.AdaptiveAvgPool2d((1, 1))
-            self.conv1x1 = ConvBNReLU(in_chan, 256, ks=1)
-            self.conv_out = ConvBNReLU(256 * 5, 256, ks=1)
-        else:
-            self.conv_out = ConvBNReLU(256 * 4, 256, ks=1)
-
-        if not no_init:
-            self.init_weight()
-
-    def forward(self, x):
-        H, W = x.size()[2:]
-        feat1 = self.conv1(x)
-        feat2 = self.conv2(x)
-        feat3 = self.conv3(x)
-        feat4 = self.conv4(x)
-        if self.with_gp:
-            avg = self.avg(x)
-            feat5 = self.conv1x1(avg)
-            feat5 = F.interpolate(feat5, (H, W), mode="bilinear", align_corners=True)
-            feat = torch.cat([feat1, feat2, feat3, feat4, feat5], 1)
-        else:
-            feat = torch.cat([feat1, feat2, feat3, feat4], 1)
-        feat = self.conv_out(feat)
-        return feat
-
-    def init_weight(self):
-        for ly in self.children():
-            if isinstance(ly, nn.Conv2d):
-                nn.init.kaiming_normal_(ly.weight, a=1)
-                if ly.bias is not None:
-                    nn.init.constant_(ly.bias, 0)
 
 
 class ASPP(nn.Module):

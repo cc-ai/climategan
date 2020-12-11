@@ -390,14 +390,10 @@ def get_losses(opts, verbose, device=None):
 
     # depth losses
     if "d" in opts.tasks:
-        if not opts.gen.d.classify.enable:
-            if opts.gen.d.loss == "dada":
-                depth_func = DADADepthLoss()
-            else:
-                depth_func = SIGMLoss(opts.train.lambdas.G.d.gml)
+        if opts.gen.d.loss == "dada":
+            depth_func = DADADepthLoss()
         else:
-            depth_func = CrossEntropy()
-
+            depth_func = SIGMLoss(opts.train.lambdas.G.d.gml)
         losses["G"]["tasks"]["d"] = depth_func
 
     # segmentation losses
@@ -425,9 +421,7 @@ def get_losses(opts, verbose, device=None):
         )
         losses["G"]["tasks"]["m"]["gi"] = GroundIntersectionLoss()
 
-    # -------------------------------
-    # -----  Classifier Losses  -----
-    # -------------------------------
+    # undistinguishable features loss
     if opts.classifier.loss == "l1":
         loss_classifier = L1Loss()
     elif opts.classifier.loss == "l2":
@@ -435,6 +429,10 @@ def get_losses(opts, verbose, device=None):
     else:
         loss_classifier = CrossEntropy()
     losses["G"]["classifier"] = loss_classifier
+
+    # -------------------------------
+    # -----  Classifier Losses  -----
+    # -------------------------------
     losses["C"] = loss_classifier
 
     # ----------------------------------
