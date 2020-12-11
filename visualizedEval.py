@@ -53,7 +53,7 @@ if __name__ == "__main__":
     if args.val_r_json:
         val_r_json_path = Path(args.val_r_json).expanduser().resolve()
         assert val_r_json_path.exists()
-        overrides.data.files.val.r = str(val_r_json_path)
+        overrides.data.files.val[image_domain] = str(val_r_json_path)
 
     trainer = Trainer.resume_from_path(
         resume_path, overrides=overrides, inference=True, new_exp=True

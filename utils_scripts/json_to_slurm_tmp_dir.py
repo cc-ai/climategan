@@ -1,3 +1,7 @@
+"""
+Copies the content of an omnigan data json file to slurm tmp dir
+and creates an updated json file there
+"""
 import json
 import shutil
 from pathlib import Path
