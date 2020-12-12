@@ -495,8 +495,8 @@ class Trainer:
                 model = "P" if "p" in self.opts.tasks else "M"
                 checkpoint_path = output_path / "checkpoints/latest_ckpt.pth"
 
-            checkpoint = torch.load(checkpoint_path, map_location=map_loc)
             print(f"Resuming {model} model from {checkpoint_path}")
+            checkpoint = torch.load(checkpoint_path, map_location=map_loc)
 
         # On TPUs must send the data to the xla device as it cannot be mapped
         # there directly from torch.load
