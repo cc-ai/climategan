@@ -32,6 +32,13 @@ def parsed_args():
         type=str,
         help="The json file where you want to evaluate for real domain.",
     )
+    parser.add_argument(
+        "-t",
+        "--tasks",
+        nargs="+",
+        help="list of tasks to eval. eg: `-t m s`",
+        default=["m"],
+    )
     return parser.parse_args()
 
 
@@ -50,6 +57,7 @@ if __name__ == "__main__":
     overrides = Dict()
     overrides.data.loaders.batch_size = 1
     overrides.comet.rows_per_log = 1
+    overrides.tasks = args.tasks
     if args.val_r_json:
         val_r_json_path = Path(args.val_r_json).expanduser().resolve()
         assert val_r_json_path.exists()
