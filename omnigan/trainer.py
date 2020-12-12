@@ -793,6 +793,8 @@ class Trainer:
             print("Inference mode: no Discriminator, no Classifier, no optimizers")
             print_num_parameters(self)
             self.switch_data(to="base")
+            if self.opts.train.resume:
+                self.resume()
             self.eval_mode()
             print("Trainer is in evaluation mode.")
             print("Setup done.")
@@ -841,9 +843,6 @@ class Trainer:
             )
         else:
             self.c_opt, self.c_scheduler = None, None
-
-        if self.opts.train.resume:
-            self.resume()
 
         self.losses = get_losses(self.opts, verbose, device=self.device)
 
