@@ -933,12 +933,14 @@ class Trainer:
                 )
                 ldis = len(display_indices)
                 print(
-                    f"Creating {ldis} {mode} {domain} display images...",
+                    f"       Creating {ldis} {mode} {domain} display images...",
                     end="\r",
                     flush=True,
                 )
                 target_dict[mode][domain] = [
-                    Dict(dataset[i]) for i in display_indices if i < len(dataset)
+                    Dict(dataset[i])
+                    for i in display_indices
+                    if (print(f"({i})", end="\r") is None and i < len(dataset))
                 ]
                 if self.exp is not None:
                     for im_id, d in enumerate(target_dict[mode][domain]):
