@@ -142,15 +142,16 @@ class Logger:
                     legends=task_legends[task],
                 )
 
-            self.upload_images(
-                image_outputs=all_images,
-                mode=mode,
-                domain=domain,
-                task="all",
-                im_per_row=n_all_ims,
-                rows_per_log=trainer.opts.comet.get("rows_per_log", 5),
-                legends=all_legends,
-            )
+            if len(save_images) > 1:
+                self.upload_images(
+                    image_outputs=all_images,
+                    mode=mode,
+                    domain=domain,
+                    task="all",
+                    im_per_row=n_all_ims,
+                    rows_per_log=trainer.opts.comet.get("rows_per_log", 5),
+                    legends=all_legends,
+                )
         # ---------------------
         # -----  Painter  -----
         # ---------------------
