@@ -515,6 +515,7 @@ class Trainer:
             # only G is needed to infer
             print("Done loading checkpoints.")
             return
+
         if not self.opts.val.visualize:
             self.g_opt.load_state_dict(checkpoint["g_opt"])
 
