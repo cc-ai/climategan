@@ -341,7 +341,11 @@ def tensor_loader(path, task, domain, opts):
             return process_kitti_seg(
                 path, classes_dict["kitti"], kitti_mapping, default=14
             )
-        return torch.load(path)
+        try:
+            _t = torch.load(path)
+            return _t
+        except:
+            print(path)
     elif task == "d":
         if Path(path).suffix == ".npy":
             arr = np.load(path)
