@@ -506,7 +506,7 @@ class Trainer:
         # -----------------------
         # -----  Restore G  -----
         # -----------------------
-        if self.opts.val.visualize:
+        if inference:
             self.G.load_state_dict(checkpoint["G"], strict=False)
         else:
             self.G.load_state_dict(checkpoint["G"])
@@ -516,33 +516,32 @@ class Trainer:
             print("Done loading checkpoints.")
             return
 
-        if not self.opts.val.visualize:
-            self.g_opt.load_state_dict(checkpoint["g_opt"])
+        self.g_opt.load_state_dict(checkpoint["g_opt"])
 
-            # ------------------------------
-            # -----  Resume scheduler  -----
-            # ------------------------------
-            # https://discuss.pytorch.org/t/a-problem-occured-when-resuming-an-optimizer/28822
-            for _ in range(self.logger.epoch + 1):
-                self.update_learning_rates()
+        # ------------------------------
+        # -----  Resume scheduler  -----
+        # ------------------------------
+        # https://discuss.pytorch.org/t/a-problem-occured-when-resuming-an-optimizer/28822
+        for _ in range(self.logger.epoch + 1):
+            self.update_learning_rates()
 
-            # Round step to even number for extraGradient
-            if self.logger.global_step % 2 != 0:
-                self.logger.global_step += 1
+        # Round step to even number for extraGradient
+        if self.logger.global_step % 2 != 0:
+            self.logger.global_step += 1
 
-            # -----------------------
-            # -----  Restore D  -----
-            # -----------------------
-            if self.D is not None and get_num_params(self.D) > 0:
-                self.D.load_state_dict(checkpoint["D"])
-                self.d_opt.load_state_dict(checkpoint["d_opt"])
+        # -----------------------
+        # -----  Restore D  -----
+        # -----------------------
+        if self.D is not None and get_num_params(self.D) > 0:
+            self.D.load_state_dict(checkpoint["D"])
+            self.d_opt.load_state_dict(checkpoint["d_opt"])
 
-            # -----------------------
-            # -----  Restore C  -----
-            # -----------------------
-            if self.C is not None and get_num_params(self.C) > 0:
-                self.C.load_state_dict(checkpoint["C"])
-                self.c_opt.load_state_dict(checkpoint["c_opt"])
+        # -----------------------
+        # -----  Restore C  -----
+        # -----------------------
+        if self.C is not None and get_num_params(self.C) > 0:
+            self.C.load_state_dict(checkpoint["C"])
+            self.c_opt.load_state_dict(checkpoint["c_opt"])
 
         # ---------------------------
         # -----  Resore logger  -----
