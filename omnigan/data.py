@@ -345,7 +345,7 @@ def tensor_loader(path, task, domain, opts):
             _t = torch.load(path)
             return _t
         except:
-            print(path)
+            print(path, task, domain)
             raise ValueError("Weird loader pickle shit")
     elif task == "d":
         if Path(path).suffix == ".npy":
