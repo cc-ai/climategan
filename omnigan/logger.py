@@ -344,6 +344,7 @@ class Logger:
             return
         curr_iter = self.global_step
         nb_per_log = im_per_row * rows_per_log
+        n_logs = len(image_outputs) // nb_per_log + 1
 
         header = None
         if len(legends) == im_per_row and all(isinstance(t, str) for t in legends):
@@ -351,11 +352,11 @@ class Logger:
             headers = all_texts_to_tensors(legends, width=header_width)
             header = torch.cat(headers, dim=-1)
 
-        for logidx in range(len(image_outputs) // nb_per_log + 1):
+        for logidx in range(n_logs):
             print(" " * 100, end="\r", flush=True)
             print(
                 "Creating images for {} {} {} {}/{}".format(
-                    mode, domain, task, logidx + 1, rows_per_log
+                    mode, domain, task, logidx + 1, n_logs
                 ),
                 end="...",
                 flush=True,
