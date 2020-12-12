@@ -507,7 +507,13 @@ class Trainer:
         # -----  Restore G  -----
         # -----------------------
         if inference:
-            self.G.load_state_dict(checkpoint["G"], strict=False)
+            incompatible_keys = self.G.load_state_dict(checkpoint["G"], strict=False)
+            if incompatible_keys.missing_keys:
+                print("WARNING: Missing keys in self.G.load_state_dict, keeping inits")
+                print(incompatible_keys.missing_keys)
+            if incompatible_keys.unexpected_keys:
+                print("WARNING: Ignoring Unexpected keys in self.G.load_state_dict")
+                print(incompatible_keys.unexpected_keys)
         else:
             self.G.load_state_dict(checkpoint["G"])
 
