@@ -139,7 +139,7 @@ def main(opts):
 
         # Merge and log tags
         if args.comet_tags or opts.comet.tags:
-            tags = set([opts.git_branch])
+            tags = set([f"branch:{opts.git_branch}"])
             if args.comet_tags:
                 tags.update(args.comet_tags)
             if opts.comet.tags:
