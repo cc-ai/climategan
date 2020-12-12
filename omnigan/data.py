@@ -346,6 +346,7 @@ def tensor_loader(path, task, domain, opts):
             return _t
         except:
             print(path)
+            raise ValueError("Weird loader pickle shit")
     elif task == "d":
         if Path(path).suffix == ".npy":
             arr = np.load(path)
