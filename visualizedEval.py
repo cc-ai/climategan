@@ -1,6 +1,5 @@
 from argparse import ArgumentParser
 from pathlib import Path
-from copy import deepcopy
 
 from addict import Dict
 from comet_ml import Experiment  # noqa: F401 -> keep even if unused
@@ -58,6 +57,7 @@ if __name__ == "__main__":
     overrides = Dict()
     overrides.data.loaders.batch_size = 1
     overrides.comet.rows_per_log = 1
+    overrides.tasks = args.tasks
     if args.val_r_json:
         val_r_json_path = Path(args.val_r_json).expanduser().resolve()
         assert val_r_json_path.exists()
@@ -66,11 +66,9 @@ if __name__ == "__main__":
     trainer = Trainer.resume_from_path(
         resume_path, overrides=overrides, inference=True, new_exp=True
     )
-    data_opts = deepcopy(trainer.opts)
-    data_opts.tasks = args.tasks
     trainer.exp.log_parameters(flatten_opts(trainer.opts))
     trainer.all_loaders = {
-        "val": {image_domain: get_loader("val", image_domain, data_opts)}
+        "val": {image_domain: get_loader("val", image_domain, trainer.opts)}
     }
     trainer.set_display_images(True)
     trainer.logger.log_comet_images("val", image_domain)

@@ -794,7 +794,7 @@ class Trainer:
             print_num_parameters(self)
             self.switch_data(to="base")
             if self.opts.train.resume:
-                self.resume()
+                self.resume(True)
             self.eval_mode()
             print("Trainer is in evaluation mode.")
             print("Setup done.")
