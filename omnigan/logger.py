@@ -351,7 +351,7 @@ class Logger:
             headers = all_texts_to_tensors(legends, width=header_width)
             header = torch.cat(headers, dim=-1)
 
-        for logidx in range(rows_per_log):
+        for logidx in range(len(image_outputs) // nb_per_log + 1):
             print(" " * 100, end="\r", flush=True)
             print(
                 "Creating images for {} {} {} {}/{}".format(
