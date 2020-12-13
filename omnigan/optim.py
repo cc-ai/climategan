@@ -107,7 +107,7 @@ def get_optimizer(net, opt_conf, tasks=None, is_disc=False, iterations=-1):
                 params.append({"params": parameters, "lr": lr})
 
     if opt_conf.optimizer.lower() == "extraadam":
-        opt = ExtraAdam(params, lr=lr, betas=(opt_conf.beta1, 0.999))
+        opt = ExtraAdam(params, lr=lr_default, betas=(opt_conf.beta1, 0.999))
     elif opt_conf.optimizer.lower() == "novograd":
         opt = NovoGrad(
             params, lr=lr_default, betas=(opt_conf.beta1, 0)
