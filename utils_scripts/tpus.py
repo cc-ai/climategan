@@ -3,6 +3,8 @@ import sys
 from argparse import ArgumentParser
 from pathlib import Path
 
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -165,7 +167,7 @@ def eval_folder(
                         xm.mark_step()
                     if to_cpu:
                         with Timer(store=to_cpu_time):
-                            fake_cpu = fake_flooded.cpu().numpy()
+                            _ = fake_flooded.cpu().numpy()
 
     batch_inference = np.array(masker_inference_time) + np.array(painter_inference_time)
 
