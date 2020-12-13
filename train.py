@@ -170,7 +170,7 @@ def main(opts):
     # -----  Train  -----
     # -------------------
 
-    trainer = Trainer(opts, comet_exp=exp)
+    trainer = Trainer(opts, comet_exp=exp, verbose=1)
     trainer.logger.time.start_time = time()
     trainer.setup()
     trainer.train()
