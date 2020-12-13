@@ -960,20 +960,22 @@ class Trainer:
         for self.logger.epoch in range(
             self.logger.epoch, self.logger.epoch + self.opts.train.epochs
         ):
-            if (
-                self.logger.epoch == self.opts.gen.p.pl4m_epoch
-                and get_num_params(self.G.painter) > 0
-            ):
-                self.use_pl4m = True
+
+            # backprop painter's disc loss to masker
+            if self.logger.epoch == self.opts.gen.p.pl4m_epoch:
+                if get_num_params(self.G.painter) > 0:
+                    self.use_pl4m = True
 
             self.run_epoch()
             self.run_evaluation(verbose=1)
             self.save()
 
+            # end vkitti2 pre-training
             if self.logger.epoch == self.opts.train.kitti.epochs - 1:
                 self.switch_data(to="base")
                 self.kitti_pretrain = False
 
+            # end pseudo training
             if self.logger.epoch == self.opts.train.pseudo.epochs - 1:
                 self.pseudo_training_tasks = set()
 
