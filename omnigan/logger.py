@@ -38,8 +38,12 @@ class Logger:
         # --------------------
         # -----  Masker  -----
         # --------------------
+        n_ims = len(trainer.display_images[mode][domain])
         if domain != "rf":
             for j, display_dict in enumerate(trainer.display_images[mode][domain]):
+
+                print(f"Inferring sample {mode} {domain} {j+1}/{n_ims}", end="\r")
+
                 x = display_dict["data"]["x"].unsqueeze(0).to(trainer.device)
                 z = trainer.G.encode(x)
 
@@ -366,7 +370,7 @@ class Logger:
         for logidx in range(n_logs):
             print(" " * 100, end="\r", flush=True)
             print(
-                "Creating images for {} {} {} {}/{}".format(
+                "Uploading images for {} {} {} {}/{}".format(
                     mode, domain, task, logidx + 1, n_logs
                 ),
                 end="...",
