@@ -46,6 +46,13 @@ def parsed_args():
         default=False,
         help="Only log smooth mask",
     )
+    parser.add_argument(
+        "-a",
+        "--all_only",
+        action="store_true",
+        default=False,
+        help="Only log smooth mask",
+    )
 
     return parser.parse_args()
 
@@ -79,4 +86,4 @@ if __name__ == "__main__":
         "val": {image_domain: get_loader("val", image_domain, trainer.opts)}
     }
     trainer.set_display_images(True)
-    trainer.logger.log_comet_images("val", image_domain, args.minimal)
+    trainer.logger.log_comet_images("val", image_domain, args.minimal, args.all_only)

@@ -24,7 +24,7 @@ class Logger:
         self.global_step = 0
         self.epoch = 0
 
-    def log_comet_images(self, mode, domain, minimal=False):
+    def log_comet_images(self, mode, domain, minimal=False, all_only=False):
         trainer = self.trainer
         save_images = {}
         all_images = []
@@ -139,17 +139,18 @@ class Logger:
                 if j == 0:
                     n_all_ims = len(all_images)
 
-            for task in save_images.keys():
-                # Write images:
-                self.upload_images(
-                    image_outputs=save_images[task],
-                    mode=mode,
-                    domain=domain,
-                    task=task,
-                    im_per_row=trainer.opts.comet.im_per_row.get(task, 4),
-                    rows_per_log=trainer.opts.comet.get("rows_per_log", 5),
-                    legends=task_legends[task],
-                )
+            if not all_only:
+                for task in save_images.keys():
+                    # Write images:
+                    self.upload_images(
+                        image_outputs=save_images[task],
+                        mode=mode,
+                        domain=domain,
+                        task=task,
+                        im_per_row=trainer.opts.comet.im_per_row.get(task, 4),
+                        rows_per_log=trainer.opts.comet.get("rows_per_log", 5),
+                        legends=task_legends[task],
+                    )
 
             if len(save_images) > 1:
                 self.upload_images(
