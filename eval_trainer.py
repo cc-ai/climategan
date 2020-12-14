@@ -1,3 +1,12 @@
+"""
+Run an evaluation procedure on a model: log inferences on a real dataset. eg:
+
+python eval_trainer.py \
+    --resume_path "/miniscratch/schmidtv/vicc/omnigan/runs/predoc7 (4)" \
+    --val_r_json "/miniscratch/_groups/ccai/data/jsons/val_r_full.json" \
+    -m -a --tasks m s d
+"""
+
 from argparse import ArgumentParser
 from pathlib import Path
 
