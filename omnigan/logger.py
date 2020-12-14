@@ -1,4 +1,3 @@
-print("Imports...", end="")
 from addict import Dict
 import torchvision.utils as vutils
 
@@ -15,8 +14,6 @@ from omnigan.tutils import (
 from omnigan.utils import flatten_opts
 from PIL import Image
 from pathlib import Path
-
-print("Ok.")
 
 
 class Logger:

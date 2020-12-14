@@ -6,7 +6,7 @@ python eval_trainer.py \
     --val_r_json "/miniscratch/_groups/ccai/data/jsons/val_r_full.json" \
     -m -a --tasks m s d
 """
-
+print("Imports...", end="")
 from argparse import ArgumentParser
 from pathlib import Path
 
@@ -16,6 +16,8 @@ from comet_ml import Experiment  # noqa: F401 -> keep even if unused
 from omnigan.data import get_loader
 from omnigan.trainer import Trainer
 from omnigan.utils import flatten_opts
+
+print("Ok.")
 
 
 def parsed_args():
@@ -72,7 +74,7 @@ if __name__ == "__main__":
     # -----------------------------
 
     args = parsed_args()
-    print("Args:\n", "\n".join(["    {k:20}: {v}" for k, v in vars(args).items()]))
+    print("Args:\n" + "\n".join([f"    {k:20}: {v}" for k, v in vars(args).items()]))
     resume_path = Path(args.resume_path).expanduser().resolve()
     assert resume_path.exists()
 
