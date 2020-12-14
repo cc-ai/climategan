@@ -1,4 +1,3 @@
-
 from argparse import ArgumentParser
 from pathlib import Path
 
@@ -40,6 +39,15 @@ def parsed_args():
         help="list of tasks to eval. eg: `-t m s`",
         default=["m"],
     )
+    parser.add_argument(
+        "-m",
+        "--minimal",
+        type=bool,
+        action="store_true",
+        default=False,
+        help="Only log smooth mask",
+    )
+
     return parser.parse_args()
 
 
@@ -72,4 +80,4 @@ if __name__ == "__main__":
         "val": {image_domain: get_loader("val", image_domain, trainer.opts)}
     }
     trainer.set_display_images(True)
-    trainer.logger.log_comet_images("val", image_domain)
+    trainer.logger.log_comet_images("val", image_domain, args.minimal)

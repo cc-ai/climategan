@@ -24,7 +24,7 @@ class Logger:
         self.global_step = 0
         self.epoch = 0
 
-    def log_comet_images(self, mode, domain):
+    def log_comet_images(self, mode, domain, minimal=False):
         trainer = self.trainer
         save_images = {}
         all_images = []
@@ -84,12 +84,21 @@ class Logger:
                     elif task == "m":
                         prediction = sigmoid(prediction).repeat(1, 3, 1, 1)
                         task_saves.append(x * (1.0 - prediction))
-                        task_saves.append(x * (1.0 - (prediction > 0.1).to(torch.int)))
-                        task_saves.append(x * (1.0 - (prediction > 0.5).to(torch.int)))
+                        if minimal:
+                            task_saves.append(
+                                x * (1.0 - (prediction > 0.1).to(torch.int))
+                            )
+                            task_saves.append(
+                                x * (1.0 - (prediction > 0.5).to(torch.int))
+                            )
+
                         task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
                         task_legend.append("Masked input")
-                        task_legend.append("Masked input (>0.1)")
-                        task_legend.append("Masked input (>0.5)")
+
+                        if minimal:
+                            task_legend.append("Masked input (>0.1)")
+                            task_legend.append("Masked input (>0.5)")
+
                         task_legend.append("Masked input (target)")
                         # dummy pixels to fool scaling and preserve mask range
                         prediction[:, :, 0, 0] = 1.0
