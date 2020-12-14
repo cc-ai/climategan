@@ -42,7 +42,6 @@ def parsed_args():
     parser.add_argument(
         "-m",
         "--minimal",
-        type=bool,
         action="store_true",
         default=False,
         help="Only log smooth mask",
