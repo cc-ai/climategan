@@ -72,6 +72,7 @@ if __name__ == "__main__":
     # -----------------------------
 
     args = parsed_args()
+    print("Args:\n", "\n".join(["    {k:20}: {v}" for k, v in vars(args).items()]))
     resume_path = Path(args.resume_path).expanduser().resolve()
     assert resume_path.exists()
 

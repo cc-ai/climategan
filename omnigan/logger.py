@@ -88,7 +88,7 @@ class Logger:
                     elif task == "m":
                         prediction = sigmoid(prediction).repeat(1, 3, 1, 1)
                         task_saves.append(x * (1.0 - prediction))
-                        if minimal:
+                        if not minimal:
                             task_saves.append(
                                 x * (1.0 - (prediction > 0.1).to(torch.int))
                             )
@@ -99,7 +99,7 @@ class Logger:
                         task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
                         task_legend.append("Masked input")
 
-                        if minimal:
+                        if not minimal:
                             task_legend.append("Masked input (>0.1)")
                             task_legend.append("Masked input (>0.5)")
 
