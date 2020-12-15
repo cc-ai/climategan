@@ -39,6 +39,7 @@ class Logger:
         # -----  Masker  -----
         # --------------------
         n_ims = len(trainer.display_images[mode][domain])
+        print(" " * 60, end="\r")
         if domain != "rf":
             for j, display_dict in enumerate(trainer.display_images[mode][domain]):
 
