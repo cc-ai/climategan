@@ -142,7 +142,7 @@ gen:
     upsample_featuremaps: False # upsamples from 80x80 to 160x160 intermediate feature maps
   p: # specific params for the SPADE painter
     <<: *default-gen
-    latent_dim: 512
+    latent_dim: 640
     loss: gan # gan or hinge
     no_z: true # <=> use_vae=False in the SPADE repo
     output_dim: 3 # output dimension
