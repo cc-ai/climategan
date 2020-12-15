@@ -447,10 +447,10 @@ class Trainer:
                 assert m_path.suffix == ".pth"
                 assert p_path.suffix == ".pth"
 
+                print(f"Resuming P+M model from \n  -{p_path} \nand \n  -{m_path}")
                 m_checkpoint = torch.load(m_path, map_location=map_loc)
                 p_checkpoint = torch.load(p_path, map_location=map_loc)
                 checkpoint = merge(m_checkpoint, p_checkpoint)
-                print(f"Resuming P+M model from \n  -{p_path} \nand \n  -{m_path}")
 
             else:
                 raise ValueError(
