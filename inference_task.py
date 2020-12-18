@@ -33,5 +33,5 @@ class OmniGAN(Task):
         return self._trainer
 
 @app.task(base=OmniGAN)
-def infer(images=None, output=None):
-    run_inference_from_trainer(infer.trainer, images_path='tests-v1/images', output_path='tests-v1/output', time_inference=True)
+def infer(container='test-images', input='input/', output='output/'):
+    run_inference_from_trainer(infer.trainer, container, path_on_container=input, output_path=output, time_inference=True)
