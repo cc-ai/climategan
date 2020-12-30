@@ -463,9 +463,6 @@ class DADADepthRegressionDecoder(nn.Module):
             )  # what we used in the transforms to resize input
         return depth
 
-    def __str__(self):
-        return strings.basedecoder(self)
-
 
 # --------------------------
 # -----  SPADE Blocks  -----

@@ -31,7 +31,7 @@ data:
       rf: train_rf.json
       kitti: train_kitti.json
     val:
-      r: val_r_full.json
+      r: val_r_full_with_labelbox.json
       s: val_s_full.json
       rf: val_rf.json
       kitti: val_kitti.json
