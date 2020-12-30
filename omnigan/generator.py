@@ -9,9 +9,14 @@ import torch.nn.functional as F
 
 import omnigan.strings as strings
 from omnigan.blocks import BaseDecoder, PainterSpadeDecoder, DADADepthRegressionDecoder
-from omnigan.deeplabv2 import DeepLabV2Decoder
-from omnigan.deeplabv3 import DeepLabV3Decoder, build_backbone
-from omnigan.encoder import BaseEncoder, DeeplabV2Encoder
+from omnigan.deeplab import (
+    DeepLabV2Decoder,
+    DeeplabV2Encoder,
+    DeepLabV3Decoder,
+    build_v3_backbone,
+)
+
+from omnigan.encoder import BaseEncoder
 from omnigan.tutils import init_weights
 
 
@@ -81,7 +86,7 @@ class OmniGenerator(nn.Module):
                 if self.verbose > 0:
                     print("  - Created Deeplabv2 Encoder")
             elif opts.gen.encoder.architecture == "deeplabv3":
-                self.encoder = build_backbone(opts, no_init)
+                self.encoder = build_v3_backbone(opts, no_init)
                 if self.verbose > 0:
                     print(
                         "  - Created Deeplabv3 ({}) Encoder".format(

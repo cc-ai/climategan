@@ -110,11 +110,11 @@ gen:
     pretrained_model: "/miniscratch/_groups/ccai/data/pretrained_models/deeplabv2/DeepLab_resnet_pretrained_imagenet.pth"
 
   deeplabv3:
-    backbone: resnet # resnet only
+    backbone: mobilenet # resnet or mobilenet
     output_stride: 8 # 8 or 16
     use_pretrained: true
     pretrained_model:
-      mobilenet: "/miniscratch/_groups/ccai/data/pretrained_models/deeplabv3/deeplab-mobilenet.pth"
+      mobilenet: "/miniscratch/_groups/ccai/data/pretrained_models/deeplabv3/deeplabv3_plus_mobilenetv2_segmentron.pth"
       resnet: "/miniscratch/_groups/ccai/data/pretrained_models/deeplabv3/model_CoinCheungDeepLab-v3-plus.pth"
 
   d: # specific params for the depth estimation decoder
