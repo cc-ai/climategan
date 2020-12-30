@@ -293,7 +293,7 @@ class MobileNetV2(nn.Module):
 
         # x = self.features(x)
         # x = self.classifier(x.view(x.size(0), x.size(1)))
-        return c1, c4
+        return c4, c1
 
     def _load_pretrained_model(self):
         assert self.pretrained_path is not None
