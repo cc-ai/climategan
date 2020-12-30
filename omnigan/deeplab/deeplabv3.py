@@ -15,8 +15,8 @@ class _DeepLabHead(nn.Module):
     ):
         super().__init__()
         last_channels = c4_channels
-        self.c1_block = _ConvBNReLU(c1_channels, 48, 1, norm_layer=norm_layer)
-        last_channels += 48
+        # self.c1_block = _ConvBNReLU(c1_channels, 48, 1, norm_layer=norm_layer)
+        # last_channels += 48
         self.block = nn.Sequential(
             SeparableConv2d(
                 last_channels, 256, 3, norm_layer=norm_layer, relu_first=False
@@ -161,7 +161,7 @@ class DeepLabV3Decoder(nn.Module):
 
             self.freeze_bn = freeze_bn
         else:
-            self.head = _DeepLabHead(num_classes)
+            self.head = _DeepLabHead(num_classes, c4_channels=320)
 
         self._target_size = None
 
