@@ -6,6 +6,27 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from omnigan.deeplab.mobilenetv2 import SeparableConv2d, _ConvBNReLU
+
+
+class _DeepLabHead(nn.Module):
+    def __init__(
+        self, nclass, c1_channels=256, c4_channels=2048, norm_layer=nn.BatchNorm2d
+    ):
+        super().__init__()
+        last_channels = c4_channels
+        self.c1_block = _ConvBNReLU(c1_channels, 48, 1, norm_layer=norm_layer)
+        last_channels += 48
+        self.block = nn.Sequential(
+            SeparableConv2d(
+                last_channels, 256, 3, norm_layer=norm_layer, relu_first=False
+            ),
+            SeparableConv2d(256, 256, 3, norm_layer=norm_layer, relu_first=False),
+            nn.Conv2d(256, nclass, 1),
+        )
+
+    def forward(self, x, c1):
+        return self.block(x)
 
 
 class ConvBNReLU(nn.Module):
@@ -132,36 +153,68 @@ class DeepLabV3Decoder(nn.Module):
         super().__init__()
 
         num_classes = opts.gen.s.output_dim
-        backbone = opts.gen.deeplabv3.backbone
+        self.backbone = opts.gen.deeplabv3.backbone
 
-        self.aspp = ASPPv3Plus(backbone, no_init)
-        self.decoder = Decoder(num_classes)
+        if self.backbone == "resnet":
+            self.aspp = ASPPv3Plus(self.backbone, no_init)
+            self.decoder = Decoder(num_classes)
 
-        self.freeze_bn = freeze_bn
+            self.freeze_bn = freeze_bn
+        else:
+            self.head = _DeepLabHead(num_classes)
 
         self._target_size = None
 
         if not no_init:
+            for m in self.modules():
+                if isinstance(m, nn.Conv2d):
+                    nn.init.kaiming_normal_(m.weight, mode="fan_out")
+                    if m.bias is not None:
+                        nn.init.zeros_(m.bias)
+                elif isinstance(m, nn.BatchNorm2d):
+                    nn.init.ones_(m.weight)
+                    nn.init.zeros_(m.bias)
+                elif isinstance(m, nn.Linear):
+                    nn.init.normal_(m.weight, 0, 0.01)
+                    nn.init.zeros_(m.bias)
+
             self.load_pretrained(opts)
 
     def load_pretrained(self, opts):
-        assert opts.gen.deeplabv3.backbone == "resnet"
+        assert opts.gen.deeplabv3.backbone in {"resnet", "mobilenet"}
         assert Path(opts.gen.deeplabv3.pretrained_model.resnet).exists()
-
-        std = torch.load(opts.gen.deeplabv3.pretrained_model.resnet)
-        self.aspp.load_state_dict(
-            {k.replace("aspp.", ""): v for k, v in std.items() if k.startswith("aspp.")}
-        )
-        self.decoder.load_state_dict(
-            {
-                k.replace("decoder.", ""): v
-                for k, v in std.items()
-                if k.startswith("decoder.")
-                and not (len(v.shape) > 2 and v.shape[0] == 19)
-            },
-            strict=False,
-        )
-        print("- Loaded pre-trained DeepLabv3+ Decoder & ASPP as Segmentation Decoder")
+        if opts.gen.deeplabv3.backbone == "resnet":
+            std = torch.load(opts.gen.deeplabv3.pretrained_model.resnet)
+            self.aspp.load_state_dict(
+                {
+                    k.replace("aspp.", ""): v
+                    for k, v in std.items()
+                    if k.startswith("aspp.")
+                }
+            )
+            self.decoder.load_state_dict(
+                {
+                    k.replace("decoder.", ""): v
+                    for k, v in std.items()
+                    if k.startswith("decoder.")
+                    and not (len(v.shape) > 2 and v.shape[0] == 19)
+                },
+                strict=False,
+            )
+            print(
+                "- Loaded pre-trained DeepLabv3+ (Resnet) Decoder & ASPP as Seg Decoder"
+            )
+        else:
+            std = torch.load(opts.gen.deeplabv3.pretrained_model.mobilenet)
+            self.load_state_dict(
+                {
+                    k: v
+                    for k, v in std.items()
+                    if k.startswith("head.") and not v.shape[0] == 19
+                },
+                strict=False,
+            )
+            print("- Loaded pre-trained DeepLabv3+ (MobileNetV2) Head as Seg Decoder")
 
     def set_target_size(self, size):
         """
@@ -183,8 +236,12 @@ class DeepLabV3Decoder(nn.Module):
             raise ValueError(error)
 
         x, low_level_feat = z
-        x = self.aspp(x)
-        x = self.decoder(x, low_level_feat)
+        if self.backbone == "resnet":
+            x = self.aspp(x)
+            x = self.decoder(x, low_level_feat)
+        else:
+            x = self.head(x)
+
         x = F.interpolate(
             x, size=self._target_size, mode="bilinear", align_corners=True
         )
@@ -195,3 +252,4 @@ class DeepLabV3Decoder(nn.Module):
         for m in self.modules():
             if isinstance(m, nn.BatchNorm2d):
                 m.eval()
+

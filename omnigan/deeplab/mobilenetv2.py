@@ -1,6 +1,68 @@
+"""
+from https://github.com/LikeLy-Journey/SegmenTron/blob/4bc605eedde7d680314f63d329277b73f83b1c5f/segmentron/modules/basic.py#L34
+"""
+
 import torch.nn as nn
 import torch
 from pathlib import Path
+from collections import OrderedDict
+
+
+class SeparableConv2d(nn.Module):
+    def __init__(
+        self,
+        inplanes,
+        planes,
+        kernel_size=3,
+        stride=1,
+        dilation=1,
+        relu_first=True,
+        bias=False,
+        norm_layer=nn.BatchNorm2d,
+    ):
+        super().__init__()
+        depthwise = nn.Conv2d(
+            inplanes,
+            inplanes,
+            kernel_size,
+            stride=stride,
+            padding=dilation,
+            dilation=dilation,
+            groups=inplanes,
+            bias=bias,
+        )
+        bn_depth = norm_layer(inplanes)
+        pointwise = nn.Conv2d(inplanes, planes, 1, bias=bias)
+        bn_point = norm_layer(planes)
+
+        if relu_first:
+            self.block = nn.Sequential(
+                OrderedDict(
+                    [
+                        ("relu", nn.ReLU()),
+                        ("depthwise", depthwise),
+                        ("bn_depth", bn_depth),
+                        ("pointwise", pointwise),
+                        ("bn_point", bn_point),
+                    ]
+                )
+            )
+        else:
+            self.block = nn.Sequential(
+                OrderedDict(
+                    [
+                        ("depthwise", depthwise),
+                        ("bn_depth", bn_depth),
+                        ("relu1", nn.ReLU(inplace=True)),
+                        ("pointwise", pointwise),
+                        ("bn_point", bn_point),
+                        ("relu2", nn.ReLU(inplace=True)),
+                    ]
+                )
+            )
+
+    def forward(self, x):
+        return self.block(x)
 
 
 class _ConvBNReLU(nn.Module):
@@ -231,7 +293,7 @@ class MobileNetV2(nn.Module):
 
         # x = self.features(x)
         # x = self.classifier(x.view(x.size(0), x.size(1)))
-        return c1, c2, c3, c4
+        return c1, c4
 
     def _load_pretrained_model(self):
         assert self.pretrained_path is not None
