@@ -1,3 +1,8 @@
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+
 import atexit
 import logging
 from argparse import ArgumentParser
@@ -255,6 +260,7 @@ if __name__ == "__main__":
             "gen.d.architecture": "base",
             "gen.d.classify.enable": True,
         },
+        {"__doc": "MSD Resnet V3+ backbone", "gen.deeplabv3.backbone": "resnet",},  # 13
     ]
 
     n_confs = len(test_scenarios)
