@@ -140,6 +140,8 @@ gen:
     use_minent: True
     architecture: "deeplabv3"
     upsample_featuremaps: False # upsamples from 80x80 to 160x160 intermediate feature maps
+    depth_feat_fusion: True
+    depth_dada_fusion: True
   p: # specific params for the SPADE painter
     <<: *default-gen
     latent_dim: 512

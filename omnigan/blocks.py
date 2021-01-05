@@ -408,6 +408,13 @@ class DADADepthRegressionDecoder(nn.Module):
 
         mid_dim = 512
 
+        self.do_feat_fusion = False
+        if "s" in opts.tasks and opts.gen.s.depth_feat_fusion:
+            self.do_feat_fusion = True
+            self.dec4 = nn.Conv2d(
+                128, res_dim, kernel_size=1, stride=1, padding=0, bias=True
+            )
+
         self.relu = nn.ReLU(inplace=True)
         self.enc4_1 = nn.Conv2d(
             res_dim, mid_dim, kernel_size=1, stride=1, padding=0, bias=True
@@ -446,6 +453,11 @@ class DADADepthRegressionDecoder(nn.Module):
         z4_enc = self.relu(z4_enc)
         z4_enc = self.enc4_3(z4_enc)
 
+        z_depth = None
+        if self.do_feat_fusion:
+            z_depth = self.dec4(z4_enc)
+            z_depth = self.relu(z_depth)
+
         if self.upsample is not None:
             z4_enc = self.upsample(z4_enc)
 
@@ -461,6 +473,10 @@ class DADADepthRegressionDecoder(nn.Module):
             depth = F.interpolate(
                 depth, (self.output_size, self.output_size), mode="nearest"
             )  # what we used in the transforms to resize input
+
+        if self.do_feat_fusion:
+            return depth, z_depth
+
         return depth
 
     def __str__(self):

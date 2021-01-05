@@ -35,6 +35,14 @@ class Logger:
         if domain not in trainer.display_images[mode]:
             return
 
+        use_feat_fusion = False
+        if (
+            "d" in self.trainer.opts.tasks
+            and "s" in self.trainer.opts.tasks
+            and self.trainer.opts.gen.s.depth_feat_fusion
+        ):
+            use_feat_fusion = True
+
         # --------------------
         # -----  Masker  -----
         # --------------------
@@ -42,6 +50,12 @@ class Logger:
             for j, display_dict in enumerate(trainer.display_images[mode][domain]):
                 x = display_dict["data"]["x"].unsqueeze(0).to(trainer.device)
                 z = trainer.G.encode(x)
+
+                depth_preds = None
+                z_feat_fusion = None
+                if use_feat_fusion:
+                    depth_preds, z_depth = trainer.G.decoders["d"](z)
+                    z_feat_fusion = z * z_depth
 
                 seg_pred = None
                 for k, task in enumerate(sorted(self.trainer.opts.tasks, reverse=True)):
@@ -59,7 +73,12 @@ class Logger:
                     if task not in save_images:
                         save_images[task] = []
 
-                    prediction = trainer.G.decoders[task](z)
+                    if task == "d" and use_feat_fusion:
+                        prediction = depth_preds
+                    elif task == "s" and use_feat_fusion:
+                        prediction = trainer.G.decoders[task](z_feat_fusion)
+                    else:
+                        prediction = trainer.G.decoders[task](z)
 
                     if task == "s":
                         # Log fire

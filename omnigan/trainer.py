@@ -1294,17 +1294,25 @@ class Trainer:
             # --------------------------------------
             # -----  task-specific losses (2)  -----
             # --------------------------------------
-            for task, target in batch["data"].items():
+            # Variables used for DADA
+            depth_preds = None
+            z_depth = None
+            # Stored dict so that we compute depth before seg for DADA
+            for task, target in sorted(batch["data"].items()):
                 if task == "m":
                     loss = self.masker_m_loss(x, z, target, domain, "G")
                     m_loss += loss
                     self.logger.losses.gen.task["m"][domain] = loss.item()
                 elif task == "s":
-                    loss = self.masker_s_loss(x, z, target, domain, "G")
+                    loss = self.masker_s_loss(
+                        x, z, depth_preds, z_depth, target, domain, "G"
+                    )
                     m_loss += loss
                     self.logger.losses.gen.task["s"][domain] = loss.item()
                 elif task == "d":
-                    loss = self.masker_d_loss(x, z, target, domain, "G")
+                    loss, depth_preds, z_depth = self.masker_d_loss(
+                        x, z, target, domain, "G"
+                    )
                     m_loss += loss
                     self.logger.losses.gen.task["d"][domain] = loss.item()
 
@@ -1469,7 +1477,11 @@ class Trainer:
         if domain == "r" and "d" not in self.pseudo_training_tasks:
             return full_loss
 
-        prediction = self.G.decoders["d"](z)
+        z_depth = None
+        if self.opts.gen.s.depth_feat_fusion:
+            prediction, z_depth = self.G.decoders["d"](z)
+        else:
+            prediction = self.G.decoders["d"](z)
 
         if self.opts.gen.d.classify.enable:
             target.squeeze_(1)
@@ -1479,9 +1491,12 @@ class Trainer:
 
         full_loss += loss
 
-        return full_loss
+        if not self.opts.gen.s.depth_dada_fusion:
+            prediction = None
 
-    def masker_s_loss(self, x, z, target, domain, for_="G"):
+        return full_loss, prediction, z_depth
+
+    def masker_s_loss(self, x, z, depth_preds, z_depth, target, domain, for_="G"):
         assert for_ in {"G", "D"}
         assert domain in {"r", "s"}
         self.assert_z_matches_x(x, z)
@@ -1532,6 +1547,8 @@ class Trainer:
                 logger = {}
                 loss_func = self.losses["D"]["advent"]
                 pred = pred.detach()
+                if depth_preds is not None:
+                    depth_preds = depth_preds.detach()
                 weight = self.opts.train.lambdas.advent.adv_main
             else:
                 domain_label = "s"
@@ -1546,6 +1563,7 @@ class Trainer:
                     softmax_preds,
                     self.domain_labels[domain_label],
                     self.D["s"]["Advent"],
+                    depth_preds,
                 )
                 loss *= weight
                 full_loss += loss
