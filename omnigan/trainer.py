@@ -1219,7 +1219,11 @@ class Trainer:
                         disc_loss["m"]["Advent"] += step_loss
 
                     if task == "s":
-                        step_loss = self.masker_s_loss(x, z, None, domain, for_="D")
+                        if self.opts.gen.s.depth_dada_fusion:
+                            depth_preds, z_depth = self.G.decoders["d"](z)
+                        step_loss = self.masker_s_loss(
+                            x, z, depth_preds, z_depth, None, domain, for_="D"
+                        )
                         step_loss *= self.opts.train.lambdas.advent.adv_main
                         disc_loss["s"]["Advent"] += step_loss
 
@@ -1294,9 +1298,6 @@ class Trainer:
             # --------------------------------------
             # -----  task-specific losses (2)  -----
             # --------------------------------------
-            # Variables used for DADA
-            depth_preds = None
-            z_depth = None
             # Stored dict so that we compute depth before seg for DADA
             for task, target in sorted(batch["data"].items()):
                 if task == "m":
@@ -1474,9 +1475,6 @@ class Trainer:
         if weight == 0:
             return full_loss
 
-        if domain == "r" and "d" not in self.pseudo_training_tasks:
-            return full_loss
-
         z_depth = None
         if self.opts.gen.s.depth_feat_fusion:
             prediction, z_depth = self.G.decoders["d"](z)
@@ -1486,10 +1484,10 @@ class Trainer:
         if self.opts.gen.d.classify.enable:
             target.squeeze_(1)
 
-        loss = self.losses["G"]["tasks"]["d"](prediction, target)
-        loss *= weight
-
-        full_loss += loss
+        if domain == "s" and "d" in self.pseudo_training_tasks:
+            loss = self.losses["G"]["tasks"]["d"](prediction, target)
+            loss *= weight
+            full_loss += loss
 
         if not self.opts.gen.s.depth_dada_fusion:
             prediction = None
@@ -1508,6 +1506,8 @@ class Trainer:
         # --------------------------
         pred = None
         if for_ == "G" or self.opts.gen.s.use_advent:
+            if z_depth is not None:
+                z = z * z_depth  # Feature fusion
             pred = self.G.decoders["s"](z)
 
         # Supervised segmentation loss: crossent for sim domain,
