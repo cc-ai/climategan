@@ -1219,6 +1219,8 @@ class Trainer:
                         disc_loss["m"]["Advent"] += step_loss
 
                     if task == "s":
+                        depth_preds = None
+                        z_depth = None
                         if self.opts.gen.s.depth_dada_fusion:
                             depth_preds, z_depth = self.G.decoders["d"](z)
                         step_loss = self.masker_s_loss(

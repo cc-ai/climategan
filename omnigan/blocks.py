@@ -453,7 +453,6 @@ class DADADepthRegressionDecoder(nn.Module):
         z4_enc = self.relu(z4_enc)
         z4_enc = self.enc4_3(z4_enc)
 
-        z_depth = None
         if self.do_feat_fusion:
             z_depth = self.dec4(z4_enc)
             z_depth = self.relu(z_depth)
