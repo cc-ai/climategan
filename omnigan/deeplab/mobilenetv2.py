@@ -241,6 +241,8 @@ class MobileNetV2(nn.Module):
         )
         self.last_inp_channels = self.planes
 
+        self.up2 = InterpolateNearest2d()
+
         # weight initialization
         if not no_init:
             self.pretrained_path = pretrained_path
@@ -290,7 +292,7 @@ class MobileNetV2(nn.Module):
         c1 = self.block2(x)
         c2 = self.block3(c1)
         c3 = self.block4(c2)
-        c4 = InterpolateNearest2d(self.block5(c3))
+        c4 = self.up2(self.block5(c3))
 
         # x = self.features(x)
         # x = self.classifier(x.view(x.size(0), x.size(1)))
