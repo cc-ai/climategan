@@ -838,7 +838,7 @@ class Trainer:
 
         if get_num_params(self.D) > 0:
             self.d_opt, self.d_scheduler, self.lr_names["D"] = get_optimizer(
-                self.D, self.opts.dis.opt, self.opts.tasks
+                self.D, self.opts.dis.opt, self.opts.tasks, True
             )
         else:
             self.d_opt, self.d_scheduler = None, None
