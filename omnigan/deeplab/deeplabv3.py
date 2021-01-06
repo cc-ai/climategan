@@ -25,7 +25,7 @@ class _DeepLabHead(nn.Module):
             nn.Conv2d(256, nclass, 1),
         )
 
-    def forward(self, x, c1):
+    def forward(self, x, c1=None):
         return self.block(x)
 
 
