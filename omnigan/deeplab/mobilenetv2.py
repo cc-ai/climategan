@@ -6,6 +6,7 @@ import torch.nn as nn
 import torch
 from pathlib import Path
 from collections import OrderedDict
+from omnigan.blocks import InterpolateNearest2d
 
 
 class SeparableConv2d(nn.Module):
@@ -289,7 +290,7 @@ class MobileNetV2(nn.Module):
         c1 = self.block2(x)
         c2 = self.block3(c1)
         c3 = self.block4(c2)
-        c4 = self.block5(c3)
+        c4 = InterpolateNearest2d(self.block5(c3))
 
         # x = self.features(x)
         # x = self.classifier(x.view(x.size(0), x.size(1)))
