@@ -27,12 +27,12 @@ data:
     base: /miniscratch/_groups/ccai/data/jsons
     train:
       r: train_r_full.json
-      s: train_s_full.json
+      s: train_s_fixedholes.json
       rf: train_rf.json
       kitti: train_kitti.json
     val:
       r: val_r_full.json
-      s: val_s_full.json
+      s: val_s_fixedholes.json
       rf: val_rf.json
       kitti: val_kitti.json
   check_samples: False
