@@ -137,7 +137,7 @@ def load_opts(
         assert opts.train.kitti.epochs > 0
 
     opts.domains = []
-    if "m" in opts.tasks or "s" in opts.tasks:
+    if "m" in opts.tasks or "s" in opts.tasks or "d" in opts.tasks:
         opts.domains.extend(["r", "s"])
     if "p" in opts.tasks:
         opts.domains.append("rf")
