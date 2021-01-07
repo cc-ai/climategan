@@ -464,7 +464,8 @@ class DADADepthRegressionDecoder(nn.Module):
         return depth
 
     def __str__(self):
-        return strings.basedecoder(self)
+        return "Depth_decoder"
+        # return strings.basedecoder(self)
 
 
 # --------------------------

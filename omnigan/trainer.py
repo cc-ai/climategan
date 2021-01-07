@@ -992,7 +992,6 @@ class Trainer:
                 batch["domain"][0]: self.batch_to_device(batch)
                 for batch in multi_batch_tuple
             }
-
             # ------------------------------
             # -----  Update Generator  -----
             # ------------------------------
@@ -1291,15 +1290,16 @@ class Trainer:
                 m_loss += loss
                 self.logger.losses.gen.classifier[domain] = loss.item()
 
+            batch_data = {}
+            for task in ["s", "d", "m"]:
+                if task in self.opts.tasks:
+                    batch_data[task] = batch["data"][task]
+
             # --------------------------------------
             # -----  task-specific losses (2)  -----
             # --------------------------------------
-            for task, target in batch["data"].items():
-                if task == "m":
-                    loss = self.masker_m_loss(x, z, target, domain, "G")
-                    m_loss += loss
-                    self.logger.losses.gen.task["m"][domain] = loss.item()
-                elif task == "s":
+            for task, target in batch_data.items():
+                if task == "s":
                     loss = self.masker_s_loss(x, z, target, domain, "G")
                     m_loss += loss
                     self.logger.losses.gen.task["s"][domain] = loss.item()
@@ -1307,6 +1307,10 @@ class Trainer:
                     loss = self.masker_d_loss(x, z, target, domain, "G")
                     m_loss += loss
                     self.logger.losses.gen.task["d"][domain] = loss.item()
+                elif task == "m":
+                    loss = self.masker_m_loss(x, z, target, domain, "G")
+                    m_loss += loss
+                    self.logger.losses.gen.task["m"][domain] = loss.item()
 
         return m_loss
 
@@ -1466,10 +1470,10 @@ class Trainer:
         if weight == 0:
             return full_loss
 
+        prediction = self.G.decoders["d"](z)
+
         if domain == "r" and "d" not in self.pseudo_training_tasks:
             return full_loss
-
-        prediction = self.G.decoders["d"](z)
 
         if self.opts.gen.d.classify.enable:
             target.squeeze_(1)
@@ -1478,7 +1482,6 @@ class Trainer:
         loss *= weight
 
         full_loss += loss
-
         return full_loss
 
     def masker_s_loss(self, x, z, target, domain, for_="G"):
@@ -1569,7 +1572,6 @@ class Trainer:
                         full_loss += gp_loss
                     else:
                         raise NotImplementedError
-
         return full_loss
 
     def masker_m_loss(self, x, z, target, domain, for_="G"):
@@ -1580,6 +1582,16 @@ class Trainer:
         full_loss = torch.tensor(0.0, device=self.device)
         # ? output features classifier
         pred_logits = self.G.mask(z=z, sigmoid=False)
+        if self.opts.gen.m.use_spade:
+            pre_seg = self.G.decoders["s"](z)
+            pre_dep = self.G.decoders["d"](z)
+            cond = torch.cat([pre_seg, pre_dep], axis=1)
+            cond = (
+                torch.cat([pre_seg, pre_dep], axis=1)
+                if self.opts.gen.m.spade_backprop
+                else torch.cat([pre_seg, pre_dep], axis=1).detach()
+            )
+            pred_logits = self.G.spade(pred_logits, cond)
         pred_prob = sigmoid(pred_logits)
         pred_prob_complementary = 1 - pred_prob
         prob = torch.cat([pred_prob, pred_prob_complementary], dim=1)

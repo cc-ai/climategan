@@ -8,7 +8,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 import omnigan.strings as strings
-from omnigan.blocks import BaseDecoder, PainterSpadeDecoder, DADADepthRegressionDecoder
+from omnigan.blocks import (
+    BaseDecoder,
+    PainterSpadeDecoder,
+    DADADepthRegressionDecoder,
+    SPADEResnetBlock,
+)
 from omnigan.deeplabv2 import DeepLabV2Decoder
 from omnigan.deeplabv3 import DeepLabV3Decoder, build_backbone
 from omnigan.encoder import BaseEncoder, DeeplabV2Encoder
@@ -73,7 +78,7 @@ class OmniGenerator(nn.Module):
         super().__init__()
         self.opts = opts
         self.verbose = verbose
-
+        self.spade = None
         self.encoder = None
         if any(t in opts.tasks for t in "msd"):
             if opts.gen.encoder.architecture == "deeplabv2":
@@ -122,6 +127,7 @@ class OmniGenerator(nn.Module):
             if self.verbose > 0:
                 print("  - Created Mask Decoder")
             self.decoders["m"] = MaskDecoder(opts)
+            self.spade = SPADEResnetBlock(512, 1, 12, True, "instance", 3)
 
         self.decoders = nn.ModuleDict(self.decoders)
 
