@@ -1615,7 +1615,10 @@ class Trainer:
         assert x.shape[0] == target.shape[0] if target is not None else True
         full_loss = torch.tensor(0.0, device=self.device)
         # ? output features classifier
-        pred_logits = self.G.mask(z=z, sigmoid=False)
+        if self.opts.gen.m.use_spade:
+            pred_logits = self.G.decoders["m"](z, cond)
+        else:
+            pred_logits = self.G.decoders["m"](z)
         pred_prob = sigmoid(pred_logits)
         pred_prob_complementary = 1 - pred_prob
         prob = torch.cat([pred_prob, pred_prob_complementary], dim=1)
