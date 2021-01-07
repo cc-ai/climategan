@@ -331,6 +331,7 @@ class MaskerSpadeDecoder(nn.Module):
         spade_kernel_size = 3
         self.num_layers = opts.gen.m.spade_opt.num_layers
         self.z_nc = latent_dim
+
         if (
             opts.gen.encoder.architecture == "deeplabv3"
             and opts.gen.deeplabv3.backbone == "mobilenet"
@@ -342,8 +343,10 @@ class MaskerSpadeDecoder(nn.Module):
             and opts.gen.deeplabv3.backbone == "resnet"
         ):
             self.input_dim = [2048, 256]
+            self.first_z_nc = [512, 256]
             self.fc_conv = [
-                nn.Conv2d(dim, self.z_nc, 3, padding=1) for dim in self.input_dim
+                nn.Conv2d(self.input_dim[k], self.first_z_nc[k], 3, padding=1).cuda()
+                for k in range(2)
             ]
         elif opts.gen.encoder.architecture == "deeplabv2":
             self.input_dim = 256
@@ -361,24 +364,33 @@ class MaskerSpadeDecoder(nn.Module):
                     spade_use_spectral_norm,
                     spade_param_free_norm,
                     spade_kernel_size,
-                )
+                ).cuda()
             )
         if (
             self.opts.gen.encoder.architecture == "deeplabv3"
             and opts.gen.deeplabv3.backbone == "resnet"
         ):
-            self.final_nc = int(self.z_nc / (2 ** (self.num_layers)))
+            self.final_nc = int(self.z_nc / (2 ** (self.num_layers - 1)))
         else:
-            self.final_nc = int(self.z_nc / (2 ** (self.num_layers + 1)))
+            self.final_nc = int(self.z_nc / (2 ** self.num_layers))
         self.mask_conv = nn.Conv2d(self.final_nc, 1, 3, padding=1)
         self.upsample = InterpolateNearest2d(scale_factor=2)
 
     def forward(self, z, cond):
-        if self.opts.gen.encoder.architecture == "deeplabv3":
+        if (
+            self.opts.gen.encoder.architecture == "deeplabv3"
+            and self.opts.gen.deeplabv3.backbone == "resnet"
+        ):
             w = [None, None]
-            for j in range(len(z)):
+            for j in range(
+                len(z)
+            ):  # iterate through 2 representations from dlv3p encoder
                 w[j] = self.fc_conv[j](z[j])
-                for i in range(self.num_layers):
+                for i in range(
+                    self.num_layers
+                ):  # the first representation shape is (bs, 2048, 80, 80),
+                    # the second is (bs, 256, 160, 160)
+                    # we need to skip the first spaderesnet for the 2nd one
                     if j == 1 and i == 0:
                         continue
                     w[j] = self.spaderesnets[i](w[j], cond)

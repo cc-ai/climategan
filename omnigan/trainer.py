@@ -1211,20 +1211,13 @@ class Trainer:
             # --------------------
             else:
                 z = self.G.encode(x)
-                for task, _ in batch["data"].items():
-                    if task == "m":
-                        if self.opts.gen.m.use_spade:
-                            step_loss, _ = self.masker_m_loss(
-                                x, z, None, domain, for_="D"
-                            )
-                        else:
-                            step_loss = self.masker_m_loss(x, z, None, domain, for_="D")
-                        step_loss *= self.opts.train.lambdas.advent.adv_main
-                        disc_loss["m"]["Advent"] += step_loss
+                for task in ["s", "m"]:
+                    if task not in batch["data"]:
+                        continue
 
                     if task == "s":
                         if self.opts.gen.m.use_spade:
-                            step_loss, _ = self.masker_s_loss(
+                            step_loss, pred_seg = self.masker_s_loss(
                                 x, z, None, domain, for_="D"
                             )
                         else:
@@ -1232,6 +1225,18 @@ class Trainer:
                         step_loss *= self.opts.train.lambdas.advent.adv_main
                         disc_loss["s"]["Advent"] += step_loss
 
+                    if task == "m":
+                        if self.opts.gen.m.use_spade:
+                            with torch.no_grad():
+                                pred_dep = self.G.decoders["d"](z)
+                            cond = torch.cat([pred_seg, pred_dep], axis=1)
+                            step_loss, _ = self.masker_m_loss(
+                                x, z, None, domain, for_="D", cond=cond
+                            )
+                        else:
+                            step_loss = self.masker_m_loss(x, z, None, domain, for_="D")
+                        step_loss *= self.opts.train.lambdas.advent.adv_main
+                        disc_loss["m"]["Advent"] += step_loss
         self.logger.losses.disc.update(
             {
                 dom: {
@@ -1292,8 +1297,6 @@ class Trainer:
 
             x = batch["data"]["x"]
             z = self.G.encode(x)
-            print(z[0].shape)
-            print(z[1].shape)
             # ---------------------------------
             # -----  classifier loss (1)  -----
             # ---------------------------------
@@ -1332,7 +1335,11 @@ class Trainer:
                             d_pred_normalized, d_pred_normalized.max()
                         )
                         cond = torch.cat(
-                            [softmax(s_pred, dim=1).detach(), d_pred_normalized], axis=1
+                            [
+                                softmax(s_pred, dim=1).detach(),
+                                d_pred_normalized.detach(),
+                            ],
+                            axis=1,
                         )
                         loss, _ = self.masker_m_loss(
                             x, z, target, domain, "G", cond=cond
