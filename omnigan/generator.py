@@ -54,6 +54,14 @@ def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
             verbose=verbose,
             caller=f"get_gen encoder",
         )
+    if self.opts.gen.m.use_spade:
+        init_weights(
+            G.spade,
+            init_type=opts.gen.encoder.init_type,
+            init_gain=opts.gen.encoder.init_gain,
+            verbose=verbose,
+            caller=f"get_gen spade",
+        )
     # Init painter weights
     init_weights(
         G.painter,
@@ -127,7 +135,8 @@ class OmniGenerator(nn.Module):
             if self.verbose > 0:
                 print("  - Created Mask Decoder")
             self.decoders["m"] = MaskDecoder(opts)
-            self.spade = SPADEResnetBlock(512, 1, 12, True, "instance", 3)
+            if self.opts.gen.m.use_spade:
+                self.spade = SPADEResnetBlock(512, 1, 12, True, "instance", 3)
 
         self.decoders = nn.ModuleDict(self.decoders)
 
