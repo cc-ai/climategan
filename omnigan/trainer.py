@@ -1290,25 +1290,25 @@ class Trainer:
                 m_loss += loss
                 self.logger.losses.gen.classifier[domain] = loss.item()
 
-            batch_data = {}
-            for task in ["s", "d", "m"]:
-                if task in self.opts.tasks:
-                    batch_data[task] = batch["data"][task]
-
             # --------------------------------------
             # -----  task-specific losses (2)  -----
             # --------------------------------------
-            for task, target in batch_data.items():
+            for task in ["d", "s", "m"]:
+                if task not in batch["data"]:
+                    continue
+
+                target = batch["data"][task]
+
                 if task == "s":
-                    loss = self.masker_s_loss(x, z, target, domain, "G")
+                    loss, s_pred = self.masker_s_loss(x, z, target, domain, "G")
                     m_loss += loss
                     self.logger.losses.gen.task["s"][domain] = loss.item()
                 elif task == "d":
-                    loss = self.masker_d_loss(x, z, target, domain, "G")
+                    loss, d_pred = self.masker_d_loss(x, z, target, domain, "G")
                     m_loss += loss
                     self.logger.losses.gen.task["d"][domain] = loss.item()
                 elif task == "m":
-                    loss = self.masker_m_loss(x, z, target, domain, "G")
+                    loss, _ = self.masker_m_loss(x, z, target, domain, "G")
                     m_loss += loss
                     self.logger.losses.gen.task["m"][domain] = loss.item()
 
