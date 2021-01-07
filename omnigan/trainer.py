@@ -1213,12 +1213,22 @@ class Trainer:
                 z = self.G.encode(x)
                 for task, _ in batch["data"].items():
                     if task == "m":
-                        step_loss = self.masker_m_loss(x, z, None, domain, for_="D")
+                        if self.opts.gen.m.use_spade:
+                            step_loss, _ = self.masker_m_loss(
+                                x, z, None, domain, for_="D"
+                            )
+                        else:
+                            step_loss = self.masker_m_loss(x, z, None, domain, for_="D")
                         step_loss *= self.opts.train.lambdas.advent.adv_main
                         disc_loss["m"]["Advent"] += step_loss
 
                     if task == "s":
-                        step_loss = self.masker_s_loss(x, z, None, domain, for_="D")
+                        if self.opts.gen.m.use_spade:
+                            step_loss, _ = self.masker_s_loss(
+                                x, z, None, domain, for_="D"
+                            )
+                        else:
+                            step_loss = self.masker_s_loss(x, z, None, domain, for_="D")
                         step_loss *= self.opts.train.lambdas.advent.adv_main
                         disc_loss["s"]["Advent"] += step_loss
 
@@ -1300,15 +1310,33 @@ class Trainer:
                 target = batch["data"][task]
 
                 if task == "s":
-                    loss, s_pred = self.masker_s_loss(x, z, target, domain, "G")
+                    if self.opts.gen.m.use_spade:
+                        loss, s_pred = self.masker_s_loss(x, z, target, domain, "G")
+                    else:
+                        loss = self.masker_s_loss(x, z, target, domain, "G")
                     m_loss += loss
                     self.logger.losses.gen.task["s"][domain] = loss.item()
                 elif task == "d":
-                    loss, d_pred = self.masker_d_loss(x, z, target, domain, "G")
+                    if self.opts.gen.m.use_spade:
+                        loss, d_pred = self.masker_d_loss(x, z, target, domain, "G")
+                    else:
+                        loss = self.masker_d_loss(x, z, target, domain, "G")
                     m_loss += loss
                     self.logger.losses.gen.task["d"][domain] = loss.item()
                 elif task == "m":
-                    loss, _ = self.masker_m_loss(x, z, target, domain, "G")
+                    if self.opts.gen.m.use_spade:
+                        d_pred_normalized = d_pred - d_pred.min()
+                        d_pred_normalized = torch.true_divide(
+                            d_pred_normalized, d_pred_normalized.max()
+                        )
+                        cond = torch.cat(
+                            [softmax(s_pred, dim=1).detach(), d_pred_normalized], axis=1
+                        )
+                        loss, _ = self.masker_m_loss(
+                            x, z, target, domain, "G", cond=cond
+                        )
+                    else:
+                        loss = self.masker_m_loss(x, z, target, domain, "G")
                     m_loss += loss
                     self.logger.losses.gen.task["m"][domain] = loss.item()
 
@@ -1473,6 +1501,8 @@ class Trainer:
         prediction = self.G.decoders["d"](z)
 
         if domain == "r" and "d" not in self.pseudo_training_tasks:
+            if self.opts.gen.m.use_spade:
+                return full_loss, prediction.detach()
             return full_loss
 
         if self.opts.gen.d.classify.enable:
@@ -1482,6 +1512,8 @@ class Trainer:
         loss *= weight
 
         full_loss += loss
+        if self.opts.gen.m.use_spade:
+            return full_loss, prediction.detach()
         return full_loss
 
     def masker_s_loss(self, x, z, target, domain, for_="G"):
@@ -1572,9 +1604,11 @@ class Trainer:
                         full_loss += gp_loss
                     else:
                         raise NotImplementedError
+        if self.opts.gen.m.use_spade:
+            return full_loss, softmax(pred, dim=1).detach()
         return full_loss
 
-    def masker_m_loss(self, x, z, target, domain, for_="G"):
+    def masker_m_loss(self, x, z, target, domain, for_="G", cond=None):
         assert for_ in {"G", "D"}
         assert domain in {"r", "s"}
         self.assert_z_matches_x(x, z)
@@ -1582,16 +1616,6 @@ class Trainer:
         full_loss = torch.tensor(0.0, device=self.device)
         # ? output features classifier
         pred_logits = self.G.mask(z=z, sigmoid=False)
-        if self.opts.gen.m.use_spade:
-            pre_seg = self.G.decoders["s"](z)
-            pre_dep = self.G.decoders["d"](z)
-            cond = torch.cat([pre_seg, pre_dep], axis=1)
-            cond = (
-                torch.cat([pre_seg, pre_dep], axis=1)
-                if self.opts.gen.m.spade_backprop
-                else torch.cat([pre_seg, pre_dep], axis=1).detach()
-            )
-            pred_logits = self.G.spade(pred_logits, cond)
         pred_prob = sigmoid(pred_logits)
         pred_prob_complementary = 1 - pred_prob
         prob = torch.cat([pred_prob, pred_prob_complementary], dim=1)
@@ -1683,7 +1707,7 @@ class Trainer:
                 else:
                     raise NotImplementedError
 
-        return full_loss
+        return full_loss, prob.detach()
 
     def painter_loss_for_masker(self, x, m):
         # pl4m loss

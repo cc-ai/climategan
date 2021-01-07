@@ -13,6 +13,7 @@ from omnigan.blocks import (
     PainterSpadeDecoder,
     DADADepthRegressionDecoder,
     SPADEResnetBlock,
+    InterpolateNearest2d,
 )
 from omnigan.deeplabv2 import DeepLabV2Decoder
 from omnigan.deeplabv3 import DeepLabV3Decoder, build_backbone
@@ -54,22 +55,6 @@ def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
             verbose=verbose,
             caller=f"get_gen encoder",
         )
-    if self.opts.gen.m.use_spade:
-        init_weights(
-            G.spade,
-            init_type=opts.gen.encoder.init_type,
-            init_gain=opts.gen.encoder.init_gain,
-            verbose=verbose,
-            caller=f"get_gen spade",
-        )
-    # Init painter weights
-    init_weights(
-        G.painter,
-        init_type=opts.gen.p.init_type,
-        init_gain=opts.gen.p.init_gain,
-        verbose=verbose,
-        caller=f"get_gen painter",
-    )
     return G
 
 
@@ -134,9 +119,10 @@ class OmniGenerator(nn.Module):
         if "m" in opts.tasks:
             if self.verbose > 0:
                 print("  - Created Mask Decoder")
-            self.decoders["m"] = MaskDecoder(opts)
             if self.opts.gen.m.use_spade:
-                self.spade = SPADEResnetBlock(512, 1, 12, True, "instance", 3)
+                self.decoders["m"] = MaskerSpadeDecoder(opts)
+            else:
+                self.decoders["m"] = MaskDecoder(opts)
 
         self.decoders = nn.ModuleDict(self.decoders)
 
@@ -314,3 +300,72 @@ class BaseDepthDecoder(BaseDecoder):
         return F.interpolate(
             d, size=self._target_size, mode="bilinear", align_corners=True
         )
+
+
+class MaskerSpadeDecoder(nn.Module):
+    def __init__(self, opts):
+        """Create a SPADE-based decoder, which forwards z and the conditioning
+        tensors seg (in the original paper, conditioning is on a semantic map only).
+        All along, z is conditioned on seg. First 3 SpadeResblocks (SRB) do not shrink
+        the channel dimension, and an upsampling is applied after each. Therefore
+        2 upsamplings at this point. Then, for each remaining upsamplings
+        (w.r.t. spade_n_up), the SRB shrinks channels by 2. Before final conv to get 3
+        channels, the number of channels is therefore:
+            final_nc = channels(z) * 2 ** (spade_n_up - 2)
+        Args:
+            latent_dim (tuple): z's shape (only the number of channels matters)
+            cond_nc (int): conditioning tensor's expected number of channels
+            spade_n_up (int): Number of total upsamplings from z
+            spade_use_spectral_norm (bool): use spectral normalization?
+            spade_param_free_norm (str): norm to use before SPADE de-normalization
+            spade_kernel_size (int): SPADE conv layers' kernel size
+        Returns:
+            [type]: [description]
+        """
+        super().__init__()
+
+        latent_dim = opts.gen.m.spade_opt.latent_dim
+        cond_nc = opts.gen.m.spade_opt.cond_nc
+        spade_use_spectral_norm = opts.gen.m.spade_opt.spade_use_spectral_norm
+        spade_param_free_norm = opts.gen.m.spade_opt.spade_param_free_norm
+        spade_kernel_size = 3
+        self.num_layers = opts.gen.m.spade_opt.num_layers
+        self.z_nc = latent_dim
+        if (
+            opts.gen.encoder.architecture == "deeplabv3"
+            and opts.gen.deeplabv3 == "mobilenet"
+        ):
+            self.input_dim = 320
+        elif opts.gen.encoder.architecture[:-1] == "deeplabv":
+            self.input_dim = 2048
+        else:
+            self.input_dim = opts.gen.default.res_dim
+        self.fc_conv = nn.Conv2d(self.input_dim, self.z_nc, 3, padding=1)
+        self.spaderesnets = []
+        for i in range(self.num_layers):
+            self.spaderesnets.append(
+                SPADEResnetBlock(
+                    int(self.z_nc / (2 ** i)),
+                    int(self.z_nc / (2 ** (i + 1))),
+                    cond_nc,
+                    spade_use_spectral_norm,
+                    spade_param_free_norm,
+                    spade_kernel_size,
+                )
+            )
+        self.final_nc = int(self.z_nc / (2 ** (self.num_layers + 1)))
+        self.mask_conv = nn.Conv2d(self.final_nc, 1, 3, padding=1)
+        self.upsample = InterpolateNearest2d(scale_factor=2)
+
+    def forward(self, z, cond):
+        y = self.fc_conv(z)
+        for i in range(self.num_layers):
+            y = self.spaderesnets[i](y, cond)
+            y = self.upsample(y)
+            y = self.mask_conv(y)
+            y = torch.tanh(y)
+        return y
+
+    def __str__(self):
+        return "masker SPADE decoder"
+        # return strings.spadedecoder(self)

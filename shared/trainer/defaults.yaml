@@ -16,7 +16,7 @@ load_paths:
 # -------------------
 # -----  Tasks  -----
 # -------------------
-tasks: [d, s, m, p] # [d, s, m, p] # [p] [m, s, d]
+tasks: [d, s, m] # [d, s, m, p] # [p] [m, s, d]
 
 # ----------------
 # ----- Data -----
@@ -158,7 +158,6 @@ gen:
   m: # specific params for the mask-generation decoder
     <<: *default-gen
     use_spade: True
-    spade_backprop: False
     output_dim: 1
     use_minent: True # directly minimize the entropy of the image
     use_minent_var: True # add variance of entropy map in the measure of entropy for a certain picture
@@ -167,6 +166,12 @@ gen:
     proj_dim: 64
     n_res: 3
     use_low_level_feats: False
+    spade_opt:
+      latent_dim: 512
+      cond_nc: 12
+      spade_use_spectral_norm: True
+      spade_param_free_norm: instance
+      num_layers: 3
 
 # -------------------------
 # ----- Discriminator -----
