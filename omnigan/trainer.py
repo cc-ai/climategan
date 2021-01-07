@@ -773,7 +773,9 @@ class Trainer:
         print("Sending to", self.device)
         self.G = self.G.to(self.device)
 
-        if self.input_shapes is None and ("s" in self.opts.tasks or use_painter):
+        if self.input_shapes is None and (
+            "s" in self.opts.tasks or "d" in self.opts.tasks or use_painter
+        ):
             if inference:
                 raise ValueError(
                     "Cannot auto-set input_shapes from loaders in inference mode."
