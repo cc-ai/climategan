@@ -1292,6 +1292,8 @@ class Trainer:
 
             x = batch["data"]["x"]
             z = self.G.encode(x)
+            print(z[0].shape)
+            print(z[1].shape)
             # ---------------------------------
             # -----  classifier loss (1)  -----
             # ---------------------------------

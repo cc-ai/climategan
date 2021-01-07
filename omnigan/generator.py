@@ -323,7 +323,7 @@ class MaskerSpadeDecoder(nn.Module):
             [type]: [description]
         """
         super().__init__()
-
+        self.opts = opts
         latent_dim = opts.gen.m.spade_opt.latent_dim
         cond_nc = opts.gen.m.spade_opt.cond_nc
         spade_use_spectral_norm = opts.gen.m.spade_opt.spade_use_spectral_norm
@@ -333,14 +333,24 @@ class MaskerSpadeDecoder(nn.Module):
         self.z_nc = latent_dim
         if (
             opts.gen.encoder.architecture == "deeplabv3"
-            and opts.gen.deeplabv3 == "mobilenet"
+            and opts.gen.deeplabv3.backbone == "mobilenet"
         ):
             self.input_dim = 320
-        elif opts.gen.encoder.architecture[:-1] == "deeplabv":
-            self.input_dim = 2048
+            self.fc_conv = nn.Conv2d(self.input_dim, self.z_nc, 3, padding=1)
+        elif (
+            opts.gen.encoder.architecture == "deeplabv3"
+            and opts.gen.deeplabv3.backbone == "resnet"
+        ):
+            self.input_dim = [2048, 256]
+            self.fc_conv = [
+                nn.Conv2d(dim, self.z_nc, 3, padding=1) for dim in self.input_dim
+            ]
+        elif opts.gen.encoder.architecture == "deeplabv2":
+            self.input_dim = 256
+            self.fc_conv = nn.Conv2d(self.input_dim, self.z_nc, 3, padding=1)
         else:
             self.input_dim = opts.gen.default.res_dim
-        self.fc_conv = nn.Conv2d(self.input_dim, self.z_nc, 3, padding=1)
+            self.fc_conv = nn.Conv2d(self.input_dim, self.z_nc, 3, padding=1)
         self.spaderesnets = []
         for i in range(self.num_layers):
             self.spaderesnets.append(
@@ -353,17 +363,34 @@ class MaskerSpadeDecoder(nn.Module):
                     spade_kernel_size,
                 )
             )
-        self.final_nc = int(self.z_nc / (2 ** (self.num_layers + 1)))
+        if (
+            self.opts.gen.encoder.architecture == "deeplabv3"
+            and opts.gen.deeplabv3.backbone == "resnet"
+        ):
+            self.final_nc = int(self.z_nc / (2 ** (self.num_layers)))
+        else:
+            self.final_nc = int(self.z_nc / (2 ** (self.num_layers + 1)))
         self.mask_conv = nn.Conv2d(self.final_nc, 1, 3, padding=1)
         self.upsample = InterpolateNearest2d(scale_factor=2)
 
     def forward(self, z, cond):
-        y = self.fc_conv(z)
-        for i in range(self.num_layers):
-            y = self.spaderesnets[i](y, cond)
-            y = self.upsample(y)
-            y = self.mask_conv(y)
-            y = torch.tanh(y)
+        if self.opts.gen.encoder.architecture == "deeplabv3":
+            w = [None, None]
+            for j in range(len(z)):
+                w[j] = self.fc_conv[j](z[j])
+                for i in range(self.num_layers):
+                    if j == 1 and i == 0:
+                        continue
+                    w[j] = self.spaderesnets[i](w[j], cond)
+                    w[j] = self.upsample(w[j])
+            y = torch.cat([w[0], w[1]], axis=1)
+        else:
+            y = self.fc_conv(z)
+            for i in range(self.num_layers):
+                y = self.spaderesnets[i](y, cond)
+                y = self.upsample(y)
+        y = self.mask_conv(y)
+        y = torch.tanh(y)
         return y
 
     def __str__(self):
