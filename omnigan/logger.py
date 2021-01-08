@@ -46,7 +46,7 @@ class Logger:
 
                 seg_pred = None
                 depth_pred = None
-                for k, task in ["d", "s", "m"]:
+                for k, task in enumerate(["d", "s", "m"]):
 
                     if (
                         task not in display_dict["data"]
