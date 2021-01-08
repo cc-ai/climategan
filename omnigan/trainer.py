@@ -263,19 +263,20 @@ class Trainer:
                 if xla:
                     xm.mark_step()
             with Timer(store=stores.get("mask", [])):
-                mask = self.G.mask(z=z)
+                cond = torch.cat(
+                    [softmax(segmentation, dim=1), normalize(depth)], dim=1
+                )
+                mask = self.G.mask(z=z, cond=cond)
                 if xla:
                     xm.mark_step()
 
             # apply events
             with Timer(store=stores.get("wildfire", [])):
-                wildfire = self.compute_fire(x, segmentation).detach().cpu()
+                wildfire = self.compute_fire(x, segmentation).cpu()
             with Timer(store=stores.get("smog", [])):
-                smog = self.compute_smog(x, d=depth, s=segmentation).detach().cpu()
+                smog = self.compute_smog(x, d=depth, s=segmentation).cpu()
             with Timer(store=stores.get("flood", [])):
-                flood = (
-                    self.compute_flood(x, m=mask, bin_value=bin_value).detach().cpu()
-                )
+                flood = self.compute_flood(x, m=mask, bin_value=bin_value).cpu()
 
         if xla:
             xm.mark_step()
@@ -1211,32 +1212,33 @@ class Trainer:
             # --------------------
             else:
                 z = self.G.encode(x)
+                pred_seg = None
                 for task in ["s", "m"]:
                     if task not in batch["data"]:
                         continue
 
                     if task == "s":
-                        if self.opts.gen.m.use_spade:
-                            step_loss, pred_seg = self.masker_s_loss(
-                                x, z, None, domain, for_="D"
-                            )
-                        else:
-                            step_loss = self.masker_s_loss(x, z, None, domain, for_="D")
+
+                        step_loss, pred_seg = self.masker_s_loss(
+                            x, z, None, domain, for_="D"
+                        )
                         step_loss *= self.opts.train.lambdas.advent.adv_main
                         disc_loss["s"]["Advent"] += step_loss
 
                     if task == "m":
+
+                        cond = None
                         if self.opts.gen.m.use_spade:
                             with torch.no_grad():
                                 pred_dep = self.G.decoders["d"](z)
                             cond = torch.cat([pred_seg, pred_dep], axis=1)
-                            step_loss, _ = self.masker_m_loss(
-                                x, z, None, domain, for_="D", cond=cond
-                            )
-                        else:
-                            step_loss = self.masker_m_loss(x, z, None, domain, for_="D")
+
+                        step_loss, _ = self.masker_m_loss(
+                            x, z, None, domain, for_="D", cond=cond
+                        )
                         step_loss *= self.opts.train.lambdas.advent.adv_main
                         disc_loss["m"]["Advent"] += step_loss
+
         self.logger.losses.disc.update(
             {
                 dom: {
@@ -1308,6 +1310,7 @@ class Trainer:
             # --------------------------------------
             # -----  task-specific losses (2)  -----
             # --------------------------------------
+            d_pred = s_pred = None
             for task in ["d", "s", "m"]:
                 if task not in batch["data"]:
                     continue
@@ -1315,37 +1318,26 @@ class Trainer:
                 target = batch["data"][task]
 
                 if task == "s":
-                    if self.opts.gen.m.use_spade:
-                        loss, s_pred = self.masker_s_loss(x, z, target, domain, "G")
-                    else:
-                        loss = self.masker_s_loss(x, z, target, domain, "G")
+                    loss, s_pred = self.masker_s_loss(x, z, target, domain, "G")
                     m_loss += loss
                     self.logger.losses.gen.task["s"][domain] = loss.item()
+
                 elif task == "d":
-                    if self.opts.gen.m.use_spade:
-                        loss, d_pred = self.masker_d_loss(x, z, target, domain, "G")
-                    else:
-                        loss = self.masker_d_loss(x, z, target, domain, "G")
+                    loss, d_pred = self.masker_d_loss(x, z, target, domain, "G")
                     m_loss += loss
                     self.logger.losses.gen.task["d"][domain] = loss.item()
+
                 elif task == "m":
+                    cond = None
                     if self.opts.gen.m.use_spade:
-                        d_pred_normalized = d_pred - d_pred.min()
-                        d_pred_normalized = torch.true_divide(
-                            d_pred_normalized, d_pred_normalized.max()
-                        )
                         cond = torch.cat(
                             [
                                 softmax(s_pred, dim=1).detach(),
-                                d_pred_normalized.detach(),
+                                normalize(d_pred).detach(),
                             ],
                             axis=1,
                         )
-                        loss, _ = self.masker_m_loss(
-                            x, z, target, domain, "G", cond=cond
-                        )
-                    else:
-                        loss = self.masker_m_loss(x, z, target, domain, "G")
+                    loss, _ = self.masker_m_loss(x, z, target, domain, "G", cond=cond)
                     m_loss += loss
                     self.logger.losses.gen.task["m"][domain] = loss.item()
 
@@ -1510,9 +1502,7 @@ class Trainer:
         prediction = self.G.decoders["d"](z)
 
         if domain == "r" and "d" not in self.pseudo_training_tasks:
-            if self.opts.gen.m.use_spade:
-                return full_loss, prediction.detach()
-            return full_loss
+            return full_loss, prediction.detach()
 
         if self.opts.gen.d.classify.enable:
             target.squeeze_(1)
@@ -1521,9 +1511,7 @@ class Trainer:
         loss *= weight
 
         full_loss += loss
-        if self.opts.gen.m.use_spade:
-            return full_loss, prediction.detach()
-        return full_loss
+        return full_loss, prediction.detach()
 
     def masker_s_loss(self, x, z, target, domain, for_="G"):
         assert for_ in {"G", "D"}
@@ -1613,9 +1601,8 @@ class Trainer:
                         full_loss += gp_loss
                     else:
                         raise NotImplementedError
-        if self.opts.gen.m.use_spade:
-            return full_loss, softmax(pred, dim=1).detach()
-        return full_loss
+
+        return full_loss, softmax(pred, dim=1).detach()
 
     def masker_m_loss(self, x, z, target, domain, for_="G", cond=None):
         assert for_ in {"G", "D"}
@@ -1623,11 +1610,9 @@ class Trainer:
         self.assert_z_matches_x(x, z)
         assert x.shape[0] == target.shape[0] if target is not None else True
         full_loss = torch.tensor(0.0, device=self.device)
+
         # ? output features classifier
-        if self.opts.gen.m.use_spade:
-            pred_logits = self.G.decoders["m"](z, cond)
-        else:
-            pred_logits = self.G.decoders["m"](z)
+        pred_logits = self.G.decoders["m"](z, cond)
         pred_prob = sigmoid(pred_logits)
         pred_prob_complementary = 1 - pred_prob
         prob = torch.cat([pred_prob, pred_prob_complementary], dim=1)
@@ -1832,8 +1817,33 @@ class Trainer:
             x = im_set["data"]["x"].unsqueeze(0).to(self.device)
             z = self.G.encode(x)
 
+            pred_seg = pred_depth = None
+
+            if "s" in metric_avg_scores:
+                pred_seg = self.G.decoders["s"](z).detach().cpu()
+                s = im_set["data"]["s"].unsqueeze(0).detach()
+
+                for metric in metric_funcs:
+                    metric_score = metric_funcs[metric](pred_seg, s)
+                    metric_avg_scores["s"][metric].append(metric_score)
+
+            if "d" in metric_avg_scores:
+                pred_depth = self.G.decoders["d"](z).detach().cpu()
+
+                if domain == "s":
+                    d = im_set["data"]["d"].unsqueeze(0).detach()
+
+                    for metric in metric_funcs:
+                        metric_score = metric_funcs[metric](pred_depth, d)
+                        metric_avg_scores["d"][metric].append(metric_score)
+
             if "m" in self.opts:
-                pred_mask = self.G.mask(z=z).detach().cpu()
+                cond = None
+                if pred_seg is not None and pred_depth is not None:
+                    cond = torch.cat(
+                        [softmax(pred_seg, dim=1), normalize(pred_depth)], dim=1
+                    )
+                pred_mask = self.G.mask(z=z, cond=cond).detach().cpu()
                 pred_mask = (pred_mask > 0.5).to(torch.float32)
                 pred_prob = torch.cat([1 - pred_mask, pred_mask], dim=1)
 
@@ -1846,22 +1856,6 @@ class Trainer:
                         metric_score = metric_funcs[metric](pred_prob, m)
 
                     metric_avg_scores["m"][metric].append(metric_score)
-
-            if "s" in self.opts.tasks:
-                pred_seg = self.G.decoders["s"](z).detach().cpu()
-                s = im_set["data"]["s"].unsqueeze(0).detach()
-
-                for metric in metric_funcs:
-                    metric_score = metric_funcs[metric](pred_seg, s)
-                    metric_avg_scores["s"][metric].append(metric_score)
-
-            if "d" in metric_avg_scores and domain == "s":
-                pred_depth = self.G.decoders["d"](z).detach().cpu()
-                d = im_set["data"]["d"].unsqueeze(0).detach()
-
-                for metric in metric_funcs:
-                    metric_score = metric_funcs[metric](pred_depth, d)
-                    metric_avg_scores["d"][metric].append(metric_score)
 
         metric_avg_scores = {
             task: {

@@ -6,19 +6,20 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch import softmax
 
 import omnigan.strings as strings
 from omnigan.blocks import (
     BaseDecoder,
-    PainterSpadeDecoder,
     DADADepthRegressionDecoder,
-    SPADEResnetBlock,
     InterpolateNearest2d,
+    PainterSpadeDecoder,
+    SPADEResnetBlock,
 )
 from omnigan.deeplabv2 import DeepLabV2Decoder
 from omnigan.deeplabv3 import DeepLabV3Decoder, build_backbone
 from omnigan.encoder import BaseEncoder, DeeplabV2Encoder
-from omnigan.tutils import init_weights
+from omnigan.tutils import init_weights, normalize
 
 
 def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
@@ -71,7 +72,6 @@ class OmniGenerator(nn.Module):
         super().__init__()
         self.opts = opts
         self.verbose = verbose
-        self.spade = None
         self.encoder = None
         if any(t in opts.tasks for t in "msd"):
             if opts.gen.encoder.architecture == "deeplabv2":
@@ -120,6 +120,7 @@ class OmniGenerator(nn.Module):
             if self.verbose > 0:
                 print("  - Created Mask Decoder")
             if self.opts.gen.m.use_spade:
+                assert "d" in self.opts.tasks or "s" in self.opts.tasks
                 self.decoders["m"] = MaskerSpadeDecoder(opts)
             else:
                 self.decoders["m"] = MaskDecoder(opts)
@@ -159,12 +160,27 @@ class OmniGenerator(nn.Module):
 
         return z
 
-    def mask(self, x=None, z=None, sigmoid=True):
+    def mask(self, x=None, z=None, cond=None, sigmoid=True):
         assert x is not None or z is not None
         assert not (x is not None and z is not None)
         if z is None:
             z = self.encode(x)
-        logits = self.decoders["m"](z)
+
+        if cond is None and self.opts.gen.m.use_spade:
+            assert "s" in self.opts.tasks and "d" in self.opts.tasks
+            with torch.no_grad():
+                cond = torch.cat(
+                    [
+                        softmax(self.decoders["s"](z), dim=1),
+                        normalize(self.decoders["d"](z)),
+                    ],
+                    dim=1,
+                )
+
+        if cond is not None:
+            cond = cond.to(z.device)
+
+        logits = self.decoders["m"](z, cond)
 
         if not sigmoid:
             return logits
@@ -289,7 +305,7 @@ class BaseDepthDecoder(BaseDecoder):
         else:
             self._target_size = (size, size)
 
-    def forward(self, z):
+    def forward(self, z, cond=None):
         if self._target_size is None:
             error = "self._target_size should be set with self.set_target_size()"
             error += "to interpolate depth to the target depth map's size"
