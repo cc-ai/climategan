@@ -255,6 +255,12 @@ if __name__ == "__main__":
             "gen.d.architecture": "base",
             "gen.d.classify.enable": True,
         },
+        {
+            "__use_comet": False,
+            "__doc": "MSD SPADE",
+            "__verbose": 1,
+            "gen.m.use_spade": True,
+        },  # 13
     ]
 
     n_confs = len(test_scenarios)
