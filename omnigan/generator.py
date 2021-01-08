@@ -359,11 +359,13 @@ class MaskerSpadeDecoder(nn.Module):
             and opts.gen.deeplabv3.backbone == "resnet"
         ):
             self.input_dim = [2048, 256]
-            self.first_z_nc = [512, 256]
-            self.fc_conv = [
-                nn.Conv2d(self.input_dim[k], self.first_z_nc[k], 3, padding=1).cuda()
-                for k in range(2)
-            ]
+            self.low_level_conv = nn.Conv2d(
+                self.input_dim[1], self.input_dim[0], 3, padding=1
+            )
+            self.merge_feats_conv = nn.Conv2d(
+                self.input_dim[0] * 2, self.z_nc, 3, padding=1
+            )
+
         elif opts.gen.encoder.architecture == "deeplabv2":
             self.input_dim = 256
             self.fc_conv = nn.Conv2d(self.input_dim, self.z_nc, 3, padding=1)
@@ -382,41 +384,24 @@ class MaskerSpadeDecoder(nn.Module):
                     spade_kernel_size,
                 ).cuda()
             )
-        if (
-            self.opts.gen.encoder.architecture == "deeplabv3"
-            and opts.gen.deeplabv3.backbone == "resnet"
-        ):
-            self.final_nc = int(self.z_nc / (2 ** (self.num_layers - 1)))
-        else:
-            self.final_nc = int(self.z_nc / (2 ** self.num_layers))
+
+        self.final_nc = int(self.z_nc / (2 ** self.num_layers))
         self.mask_conv = nn.Conv2d(self.final_nc, 1, 3, padding=1)
         self.upsample = InterpolateNearest2d(scale_factor=2)
 
     def forward(self, z, cond):
-        if (
-            self.opts.gen.encoder.architecture == "deeplabv3"
-            and self.opts.gen.deeplabv3.backbone == "resnet"
-        ):
-            w = [None, None]
-            for j in range(
-                len(z)
-            ):  # iterate through 2 representations from dlv3p encoder
-                w[j] = self.fc_conv[j](z[j])
-                for i in range(
-                    self.num_layers
-                ):  # the first representation shape is (bs, 2048, 80, 80),
-                    # the second is (bs, 256, 160, 160)
-                    # we need to skip the first spaderesnet for the 2nd one
-                    if j == 1 and i == 0:
-                        continue
-                    w[j] = self.spaderesnets[i](w[j], cond)
-                    w[j] = self.upsample(w[j])
-            y = torch.cat([w[0], w[1]], axis=1)
+        if isinstance(z, (list, tuple)):
+            z_h, z_l = z
+            z_l = self.low_level_conv(z_l)
+            z_l = F.interpolate(z_l, size=z_h.shape[-2:], mode="bilinear")
+            z = torch.cat([z_h, z_l], axis=1)
+            y = self.merge_feats_conv(z)
         else:
             y = self.fc_conv(z)
-            for i in range(self.num_layers):
-                y = self.spaderesnets[i](y, cond)
-                y = self.upsample(y)
+
+        for i in range(self.num_layers):
+            y = self.spaderesnets[i](y, cond)
+            y = self.upsample(y)
         y = self.mask_conv(y)
         y = torch.tanh(y)
         return y
