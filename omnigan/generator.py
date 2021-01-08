@@ -372,9 +372,9 @@ class MaskerSpadeDecoder(nn.Module):
         else:
             self.input_dim = opts.gen.default.res_dim
             self.fc_conv = nn.Conv2d(self.input_dim, self.z_nc, 3, padding=1)
-        self.spaderesnets = []
+        self.spade_blocks = []
         for i in range(self.num_layers):
-            self.spaderesnets.append(
+            self.spade_blocks.append(
                 SPADEResnetBlock(
                     int(self.z_nc / (2 ** i)),
                     int(self.z_nc / (2 ** (i + 1))),
@@ -384,6 +384,7 @@ class MaskerSpadeDecoder(nn.Module):
                     spade_kernel_size,
                 ).cuda()
             )
+        self.spade_blocks = nn.Sequential(*self.spade_blocks)
 
         self.final_nc = int(self.z_nc / (2 ** self.num_layers))
         self.mask_conv = nn.Conv2d(self.final_nc, 1, 3, padding=1)
@@ -400,12 +401,11 @@ class MaskerSpadeDecoder(nn.Module):
             y = self.fc_conv(z)
 
         for i in range(self.num_layers):
-            y = self.spaderesnets[i](y, cond)
+            y = self.spade_blocks[i](y, cond)
             y = self.upsample(y)
         y = self.mask_conv(y)
-        y = torch.tanh(y)
         return y
 
     def __str__(self):
-        return "masker SPADE decoder"
+        return "MaskerSpadeDecoder"
         # return strings.spadedecoder(self)
