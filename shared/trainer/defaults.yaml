@@ -305,7 +305,7 @@ train:
 # ----- Validation Params -----
 # -----------------------------
 val:
-  visualize: false # True if using visualizedEval.py to evaluate the masker. (Won't load any optimizers. Will load Generator state_dict unstrictly. Helpful to evaluate masker from multihead ckpt)
+  visualize: false # True if using visualizedEval.py to evaluate the masker. (Won't load any optimizers. Will load Generator state_dict unstrictly. Helpful to evaluate masker from multi§head ckpt)
   store_images: false # write to disk on top of comet logging
 # -----------------------------
 # ----- Comet Params ----------

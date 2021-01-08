@@ -685,7 +685,7 @@ def get_latest_path(path: Union[str, Path]) -> Path:
     files = list(p.parent.glob(f"{s}*(*){e}"))
     indices = list(p.parent.glob(f"{s}*(*){e}"))
     indices = list(map(lambda f: f.name, indices))
-    indices = list(map(lambda x: re.findall("\((.*?)\)", x)[-1], indices))
+    indices = list(map(lambda x: re.findall(r"\((.*?)\)", x)[-1], indices))
     indices = list(map(int, indices))
     if not indices:
         f = p
