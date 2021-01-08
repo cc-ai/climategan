@@ -739,22 +739,12 @@ class _ASPPModule(nn.Module):
         )
         self.bn = BatchNorm(planes)
         self.relu = nn.ReLU()
-        if not no_init:
-            self._init_weight()
 
     def forward(self, x):
         x = self.atrous_conv(x)
         x = self.bn(x)
 
         return self.relu(x)
-
-    def _init_weight(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                torch.nn.init.kaiming_normal_(m.weight)
-            elif isinstance(m, nn.BatchNorm2d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
 
 
 class ConvBNReLU(nn.Module):
