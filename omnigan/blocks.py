@@ -53,7 +53,7 @@ class Conv2dBlock(nn.Module):
         input_dim,
         output_dim,
         kernel_size,
-        stride,
+        stride=1,
         padding=0,
         dilation=1,
         norm="none",
