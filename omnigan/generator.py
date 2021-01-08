@@ -341,12 +341,12 @@ class MaskSpadeDecoder(nn.Module):
         """
         super().__init__()
         self.opts = opts
-        latent_dim = opts.gen.m.spade_opt.latent_dim
-        cond_nc = opts.gen.m.spade_opt.cond_nc
-        spade_use_spectral_norm = opts.gen.m.spade_opt.spade_use_spectral_norm
-        spade_param_free_norm = opts.gen.m.spade_opt.spade_param_free_norm
+        latent_dim = opts.gen.m.spade.latent_dim
+        cond_nc = opts.gen.m.spade.cond_nc
+        spade_use_spectral_norm = opts.gen.m.spade.spade_use_spectral_norm
+        spade_param_free_norm = opts.gen.m.spade.spade_param_free_norm
         spade_kernel_size = 3
-        self.num_layers = opts.gen.m.spade_opt.num_layers
+        self.num_layers = opts.gen.m.spade.num_layers
         self.z_nc = latent_dim
 
         if (
@@ -361,7 +361,7 @@ class MaskSpadeDecoder(nn.Module):
                 padding=1,
                 activation="lrelu",
                 pad_type="reflect",
-                norm="batch",
+                norm="spectral_batch",
             )
             self.merge_feats_conv = Conv2dBlock(
                 self.input_dim[0] * 2,
@@ -370,7 +370,7 @@ class MaskSpadeDecoder(nn.Module):
                 padding=1,
                 activation="lrelu",
                 pad_type="reflect",
-                norm="batch",
+                norm="spectral_batch",
             )
         elif (
             opts.gen.encoder.architecture == "deeplabv3"
@@ -384,7 +384,7 @@ class MaskSpadeDecoder(nn.Module):
                 padding=1,
                 activation="lrelu",
                 pad_type="reflect",
-                norm="batch",
+                norm="spectral_batch",
             )
             self.merge_feats_conv = Conv2dBlock(
                 self.input_dim[0] * 2,
@@ -393,7 +393,7 @@ class MaskSpadeDecoder(nn.Module):
                 padding=1,
                 activation="lrelu",
                 pad_type="reflect",
-                norm="batch",
+                norm="spectral_batch",
             )
 
         elif opts.gen.encoder.architecture == "deeplabv2":
@@ -405,7 +405,7 @@ class MaskSpadeDecoder(nn.Module):
                 padding=1,
                 activation="lrelu",
                 pad_type="reflect",
-                norm="batch",
+                norm="spectral_batch",
             )
         else:
             self.input_dim = opts.gen.default.res_dim
@@ -416,7 +416,7 @@ class MaskSpadeDecoder(nn.Module):
                 padding=1,
                 activation="lrelu",
                 pad_type="reflect",
-                norm="batch",
+                norm="spectral_batch",
             )
         self.spade_blocks = []
         for i in range(self.num_layers):
@@ -440,7 +440,7 @@ class MaskSpadeDecoder(nn.Module):
             padding=1,
             activation="lrelu",
             pad_type="reflect",
-            norm="batch",
+            norm="spectral_batch",
         )
         self.upsample = InterpolateNearest2d(scale_factor=2)
 

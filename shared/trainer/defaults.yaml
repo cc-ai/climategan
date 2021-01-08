@@ -166,11 +166,11 @@ gen:
     proj_dim: 64
     n_res: 3
     use_low_level_feats: False
-    spade_opt:
-      latent_dim: 512
+    spade:
+      latent_dim: 256
       cond_nc: 12
       spade_use_spectral_norm: True
-      spade_param_free_norm: instance
+      spade_param_free_norm: batch
       num_layers: 3
 
 # -------------------------
