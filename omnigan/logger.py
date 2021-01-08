@@ -3,9 +3,10 @@ import torchvision.utils as vutils
 
 import numpy as np
 import torch
-from torch.nn.functional import sigmoid, interpolate
+from torch.nn.functional import sigmoid, interpolate, softmax
 from omnigan.data import decode_segmap_merged_labels
 from omnigan.tutils import (
+    normalize,
     normalize_tensor,
     all_texts_to_tensors,
     decode_bucketed_depth,
@@ -44,11 +45,13 @@ class Logger:
                 z = trainer.G.encode(x)
 
                 seg_pred = None
-                for k, task in enumerate(sorted(self.trainer.opts.tasks, reverse=True)):
-                    if task == "p":
-                        continue
+                depth_pred = None
+                for k, task in ["d", "s", "m"]:
 
-                    if task not in display_dict["data"]:
+                    if (
+                        task not in display_dict["data"]
+                        or task not in trainer.opts.tasks
+                    ):
                         continue
 
                     task_legend = ["Input"]
@@ -59,7 +62,15 @@ class Logger:
                     if task not in save_images:
                         save_images[task] = []
 
-                    prediction = trainer.G.decoders[task](z)
+                    if task != "m":
+                        prediction = trainer.G.decoders[task](z)
+                    else:
+                        cond = None
+                        if seg_pred is not None and depth_pred is not None:
+                            cond = torch.cat(
+                                [softmax(seg_pred, dim=1), normalize(depth_pred)], dim=1
+                            )
+                        prediction = trainer.G.decoders[task](z, cond)
 
                     if task == "s":
                         # Log fire
@@ -97,6 +108,7 @@ class Logger:
 
                     elif task == "d":
                         # prediction is a log depth tensor
+                        depth_pred = prediction
                         target = normalize_tensor(target) * 255
                         if prediction.shape[1] > 1:
                             prediction = decode_bucketed_depth(
