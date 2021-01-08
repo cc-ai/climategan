@@ -77,6 +77,7 @@ class Logger:
                         task_saves.append(wildfire_tens)
                         task_legend.append("Wildfire")
                         # Log seg output
+                        seg_pred = prediction.clone()
                         target = (
                             decode_segmap_merged_labels(target, domain, True)
                             .float()
