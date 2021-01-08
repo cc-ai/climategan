@@ -409,22 +409,55 @@ class DADADepthRegressionDecoder(nn.Module):
         mid_dim = 512
 
         self.relu = nn.ReLU(inplace=True)
-        self.enc4_1 = nn.Conv2d(
-            res_dim, mid_dim, kernel_size=1, stride=1, padding=0, bias=True
+        self.enc4_1 = Conv2dBlock(
+            res_dim,
+            mid_dim,
+            1,
+            stride=1,
+            padding=0,
+            bias=False,
+            activation="lrelu",
+            pad_type="reflect",
+            norm="batch",
         )
-        self.enc4_2 = nn.Conv2d(
-            mid_dim, mid_dim, kernel_size=3, stride=1, padding=1, bias=True
+        self.enc4_2 = Conv2dBlock(
+            mid_dim,
+            mid_dim,
+            3,
+            stride=1,
+            padding=1,
+            bias=False,
+            activation="lrelu",
+            pad_type="reflect",
+            norm="batch",
         )
-        self.enc4_3 = nn.Conv2d(
-            mid_dim, 128, kernel_size=1, stride=1, padding=0, bias=True
+        self.enc4_3 = Conv2dBlock(
+            mid_dim,
+            128,
+            1,
+            stride=1,
+            padding=0,
+            bias=False,
+            activation="lrelu",
+            pad_type="reflect",
+            norm="batch",
         )
         self.upsample = None
         if opts.gen.d.upsample_featuremaps:
             self.upsample = nn.Sequential(
                 *[
                     InterpolateNearest2d(),
-                    nn.Conv2d(128, 32, kernel_size=3, stride=1, padding=1),
-                    nn.ReLU(True),
+                    Conv2dBlock(
+                        128,
+                        32,
+                        3,
+                        stride=1,
+                        padding=1,
+                        bias=False,
+                        activation="lrelu",
+                        pad_type="reflect",
+                        norm="batch",
+                    ),
                     nn.Conv2d(32, 1, kernel_size=1, stride=1, padding=0),
                 ]
             )
@@ -441,9 +474,7 @@ class DADADepthRegressionDecoder(nn.Module):
         if isinstance(z, (list, tuple)):
             z = z[0]
         z4_enc = self.enc4_1(z)
-        z4_enc = self.relu(z4_enc)
         z4_enc = self.enc4_2(z4_enc)
-        z4_enc = self.relu(z4_enc)
         z4_enc = self.enc4_3(z4_enc)
 
         if self.upsample is not None:

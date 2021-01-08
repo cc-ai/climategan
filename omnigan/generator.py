@@ -15,6 +15,7 @@ from omnigan.blocks import (
     InterpolateNearest2d,
     PainterSpadeDecoder,
     SPADEResnetBlock,
+    Conv2dBlock,
 )
 from omnigan.deeplabv2 import DeepLabV2Decoder
 from omnigan.deeplabv3 import DeepLabV3Decoder, build_backbone
@@ -121,9 +122,9 @@ class OmniGenerator(nn.Module):
                 print("  - Created Mask Decoder")
             if self.opts.gen.m.use_spade:
                 assert "d" in self.opts.tasks or "s" in self.opts.tasks
-                self.decoders["m"] = MaskerSpadeDecoder(opts)
+                self.decoders["m"] = MaskSpadeDecoder(opts)
             else:
-                self.decoders["m"] = MaskDecoder(opts)
+                self.decoders["m"] = MaskBaseDecoder(opts)
 
         self.decoders = nn.ModuleDict(self.decoders)
 
@@ -221,7 +222,7 @@ class OmniGenerator(nn.Module):
         return logits
 
 
-class MaskDecoder(BaseDecoder):
+class MaskBaseDecoder(BaseDecoder):
     def __init__(self, opts):
         low_level_feats_dim = -1
         use_v3 = opts.gen.encoder.architecture == "deeplabv3"
@@ -318,7 +319,7 @@ class BaseDepthDecoder(BaseDecoder):
         )
 
 
-class MaskerSpadeDecoder(nn.Module):
+class MaskSpadeDecoder(nn.Module):
     def __init__(self, opts):
         """Create a SPADE-based decoder, which forwards z and the conditioning
         tensors seg (in the original paper, conditioning is on a semantic map only).
@@ -352,26 +353,71 @@ class MaskerSpadeDecoder(nn.Module):
             opts.gen.encoder.architecture == "deeplabv3"
             and opts.gen.deeplabv3.backbone == "mobilenet"
         ):
-            self.input_dim = 320
-            self.fc_conv = nn.Conv2d(self.input_dim, self.z_nc, 3, padding=1)
+            self.input_dim = [320, 24]
+            self.low_level_conv = Conv2dBlock(
+                self.input_dim[1],
+                self.input_dim[0],
+                3,
+                padding=1,
+                activation="lrelu",
+                pad_type="reflect",
+                norm="batch",
+            )
+            self.merge_feats_conv = Conv2dBlock(
+                self.input_dim[0] * 2,
+                self.z_nc,
+                3,
+                padding=1,
+                activation="lrelu",
+                pad_type="reflect",
+                norm="batch",
+            )
         elif (
             opts.gen.encoder.architecture == "deeplabv3"
             and opts.gen.deeplabv3.backbone == "resnet"
         ):
             self.input_dim = [2048, 256]
-            self.low_level_conv = nn.Conv2d(
-                self.input_dim[1], self.input_dim[0], 3, padding=1
+            self.low_level_conv = Conv2dBlock(
+                self.input_dim[1],
+                self.input_dim[0],
+                3,
+                padding=1,
+                activation="lrelu",
+                pad_type="reflect",
+                norm="batch",
             )
-            self.merge_feats_conv = nn.Conv2d(
-                self.input_dim[0] * 2, self.z_nc, 3, padding=1
+            self.merge_feats_conv = Conv2dBlock(
+                self.input_dim[0] * 2,
+                self.z_nc,
+                3,
+                padding=1,
+                activation="lrelu",
+                pad_type="reflect",
+                norm="batch",
             )
 
         elif opts.gen.encoder.architecture == "deeplabv2":
             self.input_dim = 256
-            self.fc_conv = nn.Conv2d(self.input_dim, self.z_nc, 3, padding=1)
+            self.fc_conv = Conv2dBlock(
+                self.input_dim,
+                self.z_nc,
+                3,
+                padding=1,
+                activation="lrelu",
+                pad_type="reflect",
+                norm="batch",
+            )
         else:
             self.input_dim = opts.gen.default.res_dim
-            self.fc_conv = nn.Conv2d(self.input_dim, self.z_nc, 3, padding=1)
+            self.fc_conv = Conv2dBlock(
+                self.input_dim,
+                self.z_nc,
+                3,
+                padding=1,
+                activation="lrelu",
+                pad_type="reflect",
+                norm="batch",
+            )
         self.spade_blocks = []
         for i in range(self.num_layers):
             self.spade_blocks.append(
@@ -387,7 +433,15 @@ class MaskerSpadeDecoder(nn.Module):
         self.spade_blocks = nn.Sequential(*self.spade_blocks)
 
         self.final_nc = int(self.z_nc / (2 ** self.num_layers))
-        self.mask_conv = nn.Conv2d(self.final_nc, 1, 3, padding=1)
+        self.mask_conv = Conv2dBlock(
+            self.final_nc,
+            1,
+            3,
+            padding=1,
+            activation="lrelu",
+            pad_type="reflect",
+            norm="batch",
+        )
         self.upsample = InterpolateNearest2d(scale_factor=2)
 
     def forward(self, z, cond):
