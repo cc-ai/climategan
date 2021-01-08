@@ -161,6 +161,16 @@ class OmniGenerator(nn.Module):
 
         return z
 
+    def make_m_cond(self, d, s, x):
+        cats = [normalize(d), softmax(s, dim=1)]
+        if self.opts.gen.m.spade.cond_nc == 15:
+            assert x is not None
+            cats += [
+                F.interpolate(x, s.shape[-2:], mode="bilinear", align_corners=True)
+            ]
+
+        return torch.cat(cats, dim=1)
+
     def mask(self, x=None, z=None, cond=None, sigmoid=True):
         assert x is not None or z is not None
         assert not (x is not None and z is not None)
@@ -170,13 +180,7 @@ class OmniGenerator(nn.Module):
         if cond is None and self.opts.gen.m.use_spade:
             assert "s" in self.opts.tasks and "d" in self.opts.tasks
             with torch.no_grad():
-                cond = torch.cat(
-                    [
-                        softmax(self.decoders["s"](z), dim=1),
-                        normalize(self.decoders["d"](z)),
-                    ],
-                    dim=1,
-                )
+                cond = self.make_m_cond(self.decoders["d"](z), self.decoders["s"](z), x)
 
         if cond is not None:
             cond = cond.to(z.device)

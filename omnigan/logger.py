@@ -44,7 +44,7 @@ class Logger:
                 x = display_dict["data"]["x"].unsqueeze(0).to(trainer.device)
                 z = trainer.G.encode(x)
 
-                seg_pred = decoded_seg_pred = depth_pred = None
+                s_pred = decoded_s_pred = d_pred = None
                 for k, task in enumerate(["d", "s", "m"]):
 
                     if (
@@ -65,10 +65,9 @@ class Logger:
                         prediction = trainer.G.decoders[task](z)
                     else:
                         cond = None
-                        if seg_pred is not None and depth_pred is not None:
-                            cond = torch.cat(
-                                [softmax(seg_pred, dim=1), normalize(depth_pred)], dim=1
-                            )
+                        if s_pred is not None and d_pred is not None:
+                            cond = trainer.G.make_m_cond(d_pred, s_pred, x)
+
                         prediction = trainer.G.decoders[task](z, cond)
 
                     if task == "s":
@@ -77,7 +76,7 @@ class Logger:
                         task_saves.append(wildfire_tens)
                         task_legend.append("Wildfire")
                         # Log seg output
-                        seg_pred = prediction.clone()
+                        s_pred = prediction.clone()
                         target = (
                             decode_segmap_merged_labels(target, domain, True)
                             .float()
@@ -88,7 +87,7 @@ class Logger:
                             .float()
                             .to(trainer.device)
                         )
-                        decoded_seg_pred = prediction
+                        decoded_s_pred = prediction
                         task_saves.append(target)
                         task_legend.append("Target Segmentation")
 
@@ -108,14 +107,14 @@ class Logger:
 
                     elif task == "d":
                         # prediction is a log depth tensor
-                        depth_pred = prediction
+                        d_pred = prediction
                         target = normalize_tensor(target) * 255
                         if prediction.shape[1] > 1:
                             prediction = decode_bucketed_depth(
                                 prediction, self.trainer.opts
                             )
                         smogged = self.trainer.compute_smog(
-                            x, d=prediction, s=decoded_seg_pred, use_sky_seg=False
+                            x, d=prediction, s=decoded_s_pred, use_sky_seg=False
                         )
                         prediction = normalize_tensor(prediction)
                         prediction = prediction.repeat(1, 3, 1, 1)

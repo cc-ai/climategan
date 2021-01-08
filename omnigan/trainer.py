@@ -263,9 +263,7 @@ class Trainer:
                 if xla:
                     xm.mark_step()
             with Timer(store=stores.get("mask", [])):
-                cond = torch.cat(
-                    [softmax(segmentation, dim=1), normalize(depth)], dim=1
-                )
+                cond = self.G.make_m_cond(depth, segmentation, x)
                 mask = self.G.mask(z=z, cond=cond)
                 if xla:
                     xm.mark_step()
@@ -1212,14 +1210,14 @@ class Trainer:
             # --------------------
             else:
                 z = self.G.encode(x)
-                pred_seg = None
+                s_pred = None
                 for task in ["s", "m"]:
                     if task not in batch["data"]:
                         continue
 
                     if task == "s":
 
-                        step_loss, pred_seg = self.masker_s_loss(
+                        step_loss, s_pred = self.masker_s_loss(
                             x, z, None, domain, for_="D"
                         )
                         step_loss *= self.opts.train.lambdas.advent.adv_main
@@ -1230,8 +1228,8 @@ class Trainer:
                         cond = None
                         if self.opts.gen.m.use_spade:
                             with torch.no_grad():
-                                pred_dep = self.G.decoders["d"](z)
-                            cond = torch.cat([pred_seg, pred_dep], axis=1)
+                                d_pred = self.G.decoders["d"](z)
+                            cond = self.G.make_m_cond(d_pred, s_pred, x)
 
                         step_loss, _ = self.masker_m_loss(
                             x, z, None, domain, for_="D", cond=cond
@@ -1330,13 +1328,8 @@ class Trainer:
                 elif task == "m":
                     cond = None
                     if self.opts.gen.m.use_spade:
-                        cond = torch.cat(
-                            [
-                                softmax(s_pred, dim=1).detach(),
-                                normalize(d_pred).detach(),
-                            ],
-                            axis=1,
-                        )
+                        cond = self.G.make_m_cond(d_pred, s_pred, x)
+
                     loss, _ = self.masker_m_loss(x, z, target, domain, "G", cond=cond)
                     m_loss += loss
                     self.logger.losses.gen.task["m"][domain] = loss.item()
@@ -1602,7 +1595,7 @@ class Trainer:
                     else:
                         raise NotImplementedError
 
-        return full_loss, softmax(pred, dim=1).detach()
+        return full_loss, pred.detach()
 
     def masker_m_loss(self, x, z, target, domain, for_="G", cond=None):
         assert for_ in {"G", "D"}
@@ -1817,32 +1810,30 @@ class Trainer:
             x = im_set["data"]["x"].unsqueeze(0).to(self.device)
             z = self.G.encode(x)
 
-            pred_seg = pred_depth = None
+            s_pred = d_pred = None
 
             if "s" in metric_avg_scores:
-                pred_seg = self.G.decoders["s"](z).detach().cpu()
+                s_pred = self.G.decoders["s"](z).detach().cpu()
                 s = im_set["data"]["s"].unsqueeze(0).detach()
 
                 for metric in metric_funcs:
-                    metric_score = metric_funcs[metric](pred_seg, s)
+                    metric_score = metric_funcs[metric](s_pred, s)
                     metric_avg_scores["s"][metric].append(metric_score)
 
             if "d" in metric_avg_scores:
-                pred_depth = self.G.decoders["d"](z).detach().cpu()
+                d_pred = self.G.decoders["d"](z).detach().cpu()
 
                 if domain == "s":
                     d = im_set["data"]["d"].unsqueeze(0).detach()
 
                     for metric in metric_funcs:
-                        metric_score = metric_funcs[metric](pred_depth, d)
+                        metric_score = metric_funcs[metric](d_pred, d)
                         metric_avg_scores["d"][metric].append(metric_score)
 
             if "m" in self.opts:
                 cond = None
-                if pred_seg is not None and pred_depth is not None:
-                    cond = torch.cat(
-                        [softmax(pred_seg, dim=1), normalize(pred_depth)], dim=1
-                    )
+                if s_pred is not None and d_pred is not None:
+                    cond = self.G.make_m_cond(d_pred, s_pred, x)
                 pred_mask = self.G.mask(z=z, cond=cond).detach().cpu()
                 pred_mask = (pred_mask > 0.5).to(torch.float32)
                 pred_prob = torch.cat([1 - pred_mask, pred_mask], dim=1)
