@@ -44,8 +44,7 @@ class Logger:
                 x = display_dict["data"]["x"].unsqueeze(0).to(trainer.device)
                 z = trainer.G.encode(x)
 
-                seg_pred = None
-                depth_pred = None
+                seg_pred = decoded_seg_pred = depth_pred = None
                 for k, task in enumerate(["d", "s", "m"]):
 
                     if (
@@ -88,7 +87,7 @@ class Logger:
                             .float()
                             .to(trainer.device)
                         )
-                        seg_pred = prediction
+                        decoded_seg_pred = prediction
                         task_saves.append(target)
                         task_legend.append("Target Segmentation")
 
@@ -115,7 +114,7 @@ class Logger:
                                 prediction, self.trainer.opts
                             )
                         smogged = self.trainer.compute_smog(
-                            x, d=prediction, s=seg_pred, use_sky_seg=False
+                            x, d=prediction, s=decoded_seg_pred, use_sky_seg=False
                         )
                         prediction = normalize_tensor(prediction)
                         prediction = prediction.repeat(1, 3, 1, 1)
