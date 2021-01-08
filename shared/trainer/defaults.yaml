@@ -82,7 +82,7 @@ gen:
   default:
     &default-gen # default parameters for the generator (encoder and decoders)
     activ: lrelu # activation function [relu/lrelu/prelu/selu/tanh]
-    init_gain: 0.2
+    init_gain: 0.02
     init_type: xavier
     n_res: 1 # number of residual blocks before upsampling
     n_downsample: &n_downsample 3 # number of downsampling layers in encoder | dim 32 + down 3 => z = 256 x 32 x 32
@@ -119,8 +119,6 @@ gen:
 
   d: # specific params for the depth estimation decoder
     <<: *default-gen
-    init_type: normal
-    init_gain: 0.01
     output_dim: 1
     norm: batch
     loss: dada # dada or sigm | /!\ ignored if classify.enable
