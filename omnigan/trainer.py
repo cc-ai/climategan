@@ -1471,11 +1471,8 @@ class Trainer:
         assert for_ in {"G", "D"}
         self.assert_z_matches_x(x, z)
         assert x.shape[0] == target.shape[0]
-        full_loss = torch.tensor(0.0, device=self.device)
+        zero_loss = torch.tensor(0.0, device=self.device)
         weight = self.opts.train.lambdas.G.d.main
-
-        if weight == 0:
-            return full_loss
 
         z_depth = None
         if self.opts.gen.s.depth_feat_fusion:
@@ -1486,13 +1483,14 @@ class Trainer:
         if self.opts.gen.d.classify.enable:
             target.squeeze_(1)
 
-        if domain == "s" and "d" in self.pseudo_training_tasks:
-            loss = self.losses["G"]["tasks"]["d"](prediction, target)
-            loss *= weight
-            full_loss += loss
+        full_loss = self.losses["G"]["tasks"]["d"](prediction, target)
+        full_loss *= weight
 
         if not self.opts.gen.s.depth_dada_fusion:
             prediction = None
+
+        if weight == 0 or (domain == "r" and "d" not in self.pseudo_training_tasks):
+            return zero_loss, prediction, z_depth
 
         return full_loss, prediction, z_depth
 
