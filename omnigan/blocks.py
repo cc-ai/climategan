@@ -59,10 +59,10 @@ class Conv2dBlock(nn.Module):
         norm="none",
         activation="relu",
         pad_type="zero",
-        use_bias=True,
+        bias=True,
     ):
         super().__init__()
-        self.use_bias = use_bias
+        self.use_bias = bias
         # initialize padding
         if pad_type == "reflect":
             self.pad = nn.ReflectionPad2d(padding)
