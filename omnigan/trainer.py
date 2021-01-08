@@ -33,6 +33,7 @@ from omnigan.fid import compute_val_fid
 from omnigan.generator import OmniGenerator, get_gen
 from omnigan.losses import get_losses
 from omnigan.optim import get_optimizer
+from omnigan.transforms import DiffTransforms
 from omnigan.tutils import (
     divide_pred,
     domains_to_class_tensor,
@@ -100,6 +101,7 @@ class Trainer:
         self.exp = None
 
         self.current_mode = "train"
+        self.diff_transforms = None
         self.kitti_pretrain = self.opts.train.kitti.pretrain
         self.pseudo_training_tasks = set(self.opts.train.pseudo.tasks)
 
@@ -845,6 +847,9 @@ class Trainer:
 
         self.losses = get_losses(self.opts, verbose, device=self.device)
 
+        if "p" in self.opts.tasks and self.opts.gen.p.apply_diff_augment:
+            self.diff_transforms = DiffTransforms(self.opts.gen.p.diff_augm)
+
         if verbose > 0:
             for mode, mode_dict in self.all_loaders.items():
                 for domain, domain_loader in mode_dict.items():
@@ -1180,6 +1185,9 @@ class Trainer:
                 with torch.no_grad():
                     # see spade compute_discriminator_loss
                     fake = self.G.paint(m, x)
+                    if self.opts.gen.p.apply_diff_augment:
+                        fake = self.diff_transforms(fake)
+                        x = self.diff_transforms(x)
                     fake = fake.detach()
                     fake.requires_grad_()
 
@@ -1384,6 +1392,10 @@ class Trainer:
         # -------------------------------------
         # -----  Local & Global GAN Loss  -----
         # -------------------------------------
+        if self.opts.gen.p.apply_diff_augment:
+            fake_flooded = self.diff_transforms(fake_flooded)
+            x = self.diff_transforms(x)
+
         if self.opts.dis.p.use_local_discriminator:
             fake_d_global = self.D["p"]["global"](fake_flooded)
             fake_d_local = self.D["p"]["local"](fake_flooded * m)
