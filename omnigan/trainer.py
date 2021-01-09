@@ -1301,6 +1301,8 @@ class Trainer:
             # -----  task-specific losses (2)  -----
             # --------------------------------------
             # Stored dict so that we compute depth before seg for DADA
+            depth_preds = None
+            z_depth = None
             for task, target in sorted(batch["data"].items()):
                 if task == "m":
                     loss = self.masker_m_loss(x, z, target, domain, "G")
