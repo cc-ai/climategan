@@ -253,7 +253,7 @@ if __name__ == "__main__":
             "domains": ["kitti", "r", "s"],
             "train.kitti.batch_size": 2,
         },
-        {"__doc": "Depth Dada archi", "gen.d.architecture": "data"},  # 10
+        {"__doc": "Depth Dada archi", "gen.d.architecture": "dada"},  # 10
         {"__doc": "Depth Base archi", "gen.d.architecture": "base"},  # 11
         {
             "__doc": "Depth Base Classification",  # 12
