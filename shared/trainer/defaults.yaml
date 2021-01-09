@@ -29,12 +29,10 @@ data:
       r: train_r_full.json
       s: train_s_full.json
       rf: train_rf.json
-      kitti: train_kitti.json
     val:
       r: val_r_full.json
       s: val_s_full.json
       rf: val_rf.json
-      kitti: val_kitti.json
   check_samples: False
   loaders:
     batch_size: 3
@@ -52,6 +50,12 @@ data:
       ignore: false
       height: 600
       width: 600
+    - name: brightness
+      ignore: false
+    - name: saturation
+      ignore: false
+    - name: contrast
+      ignore: false
     - name: resize # ? this or change generator's output? Or resize larger then crop to 256?
       ignore: false
       new_size:
@@ -152,6 +156,12 @@ gen:
     spade_param_free_norm: instance # what param-free normalization to apply in SPADE normalization
     spade_use_spectral_norm: true
     use_final_shortcut: False # if true, the last spade block does not get the masked input as conditioning but the prediction of the previous layer (passed through a conv to match dims) in order to lighten the masking restrictions and have smoother edges
+    diff_augm:
+      do_color_jittering: false
+      do_cutout: false
+      cutout_ratio: 0.5
+      do_translation: false
+      translation_ratio: 0.125
 
   m: # specific params for the mask-generation decoder
     <<: *default-gen
@@ -319,9 +329,9 @@ comet:
 events:
   fire:
     color:
-      r: 250
-      g: 0
-      b: 0
+      r: 244
+      g: 141
+      b: 48
     blur_radius: 150
   smog:
     airlight: 0.76
