@@ -183,7 +183,8 @@ class OmniGenerator(nn.Module):
                 cond = self.make_m_cond(self.decoders["d"](z), self.decoders["s"](z), x)
 
         if cond is not None:
-            cond = cond.to(z.device)
+            device = z[0].device if isinstance(z, (tuple, list)) else z.device
+            cond = cond.to(device)
 
         logits = self.decoders["m"](z, cond)
 
@@ -401,7 +402,7 @@ class MaskSpadeDecoder(nn.Module):
             )
 
         elif opts.gen.encoder.architecture == "deeplabv2":
-            self.input_dim = 256
+            self.input_dim = 2048
             self.fc_conv = Conv2dBlock(
                 self.input_dim,
                 self.z_nc,
