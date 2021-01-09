@@ -207,6 +207,11 @@ def load_opts(
                 "opts.gen.m.use_spade is True so tasks MUST include"
                 + "both d and s, but received {}".format(opts.tasks)
             )
+        if opts.gen.d.classify.enable:
+            raise ValueError(
+                "opts.gen.m.use_spade is True but using D as a classifier"
+                + " which is a non-implemented combination"
+            )
 
     return set_data_paths(opts)
 
