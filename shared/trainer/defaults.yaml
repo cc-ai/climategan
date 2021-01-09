@@ -37,8 +37,8 @@ data:
       kitti: val_kitti.json
   check_samples: False
   loaders:
-    batch_size: 3
-    num_workers: 8
+    batch_size: 6
+    num_workers: 6
   normalization: default # can be "default" or "HRNet" for now. # default: mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]; HRNet: mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
   transforms:
     - name: hflip
@@ -127,8 +127,8 @@ gen:
     <<: *default-gen
     output_dim: 1
     norm: batch
-    loss: dada # dada or sigm | /!\ ignored if classify.enable
-    upsample_featuremaps: False # upsamples from 80x80 to 160x160 intermediate feature maps
+    loss: sigm # dada or sigm | /!\ ignored if classify.enable
+    upsample_featuremaps: True # upsamples from 80x80 to 160x160 intermediate feature maps
     architecture: dada # dada or base | must be base for classif
     classify: # classify log-depth instead of regression
       enable: False
@@ -142,7 +142,7 @@ gen:
     output_dim: 11
     use_advent: True
     use_minent: True
-    architecture: "deeplabv3"
+    architecture: deeplabv3
     upsample_featuremaps: False # upsamples from 80x80 to 160x160 intermediate feature maps
   p: # specific params for the SPADE painter
     <<: *default-gen
@@ -176,7 +176,7 @@ gen:
     use_ground_intersection: True
     proj_dim: 64
     n_res: 3
-    use_low_level_feats: False
+    use_low_level_feats: True
     spade:
       latent_dim: 256
       cond_nc: 12 # 12 without x, 15 with x
@@ -260,8 +260,8 @@ classifier:
 train:
   kitti:
     pretrain: False
-    epochs: 30
-    batch_size: 20
+    epochs: 10
+    batch_size: 6
   amp: False
   pseudo:
     tasks: [] # list of tasks for which to use pseudo labels (empty list to disable)
