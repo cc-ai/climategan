@@ -53,16 +53,16 @@ class Conv2dBlock(nn.Module):
         input_dim,
         output_dim,
         kernel_size,
-        stride,
+        stride=1,
         padding=0,
         dilation=1,
         norm="none",
         activation="relu",
         pad_type="zero",
-        use_bias=True,
+        bias=True,
     ):
         super().__init__()
-        self.use_bias = use_bias
+        self.use_bias = bias
         # initialize padding
         if pad_type == "reflect":
             self.pad = nn.ReflectionPad2d(padding)
@@ -362,7 +362,7 @@ class BaseDecoder(nn.Module):
         ]
         self.model = nn.Sequential(*self.model)
 
-    def forward(self, z):
+    def forward(self, z, cond=None):
         low_level_feat = None
         if isinstance(z, (list, tuple)):
             if self.low_level_conv is None:
@@ -409,22 +409,55 @@ class DADADepthRegressionDecoder(nn.Module):
         mid_dim = 512
 
         self.relu = nn.ReLU(inplace=True)
-        self.enc4_1 = nn.Conv2d(
-            res_dim, mid_dim, kernel_size=1, stride=1, padding=0, bias=True
+        self.enc4_1 = Conv2dBlock(
+            res_dim,
+            mid_dim,
+            1,
+            stride=1,
+            padding=0,
+            bias=False,
+            activation="lrelu",
+            pad_type="reflect",
+            norm="batch",
         )
-        self.enc4_2 = nn.Conv2d(
-            mid_dim, mid_dim, kernel_size=3, stride=1, padding=1, bias=True
+        self.enc4_2 = Conv2dBlock(
+            mid_dim,
+            mid_dim,
+            3,
+            stride=1,
+            padding=1,
+            bias=False,
+            activation="lrelu",
+            pad_type="reflect",
+            norm="batch",
         )
-        self.enc4_3 = nn.Conv2d(
-            mid_dim, 128, kernel_size=1, stride=1, padding=0, bias=True
+        self.enc4_3 = Conv2dBlock(
+            mid_dim,
+            128,
+            1,
+            stride=1,
+            padding=0,
+            bias=False,
+            activation="lrelu",
+            pad_type="reflect",
+            norm="batch",
         )
         self.upsample = None
         if opts.gen.d.upsample_featuremaps:
             self.upsample = nn.Sequential(
                 *[
                     InterpolateNearest2d(),
-                    nn.Conv2d(128, 32, kernel_size=3, stride=1, padding=1),
-                    nn.ReLU(True),
+                    Conv2dBlock(
+                        128,
+                        32,
+                        3,
+                        stride=1,
+                        padding=1,
+                        bias=False,
+                        activation="lrelu",
+                        pad_type="reflect",
+                        norm="batch",
+                    ),
                     nn.Conv2d(32, 1, kernel_size=1, stride=1, padding=0),
                 ]
             )
@@ -441,9 +474,7 @@ class DADADepthRegressionDecoder(nn.Module):
         if isinstance(z, (list, tuple)):
             z = z[0]
         z4_enc = self.enc4_1(z)
-        z4_enc = self.relu(z4_enc)
         z4_enc = self.enc4_2(z4_enc)
-        z4_enc = self.relu(z4_enc)
         z4_enc = self.enc4_3(z4_enc)
 
         if self.upsample is not None:
@@ -464,7 +495,8 @@ class DADADepthRegressionDecoder(nn.Module):
         return depth
 
     def __str__(self):
-        return strings.basedecoder(self)
+        return "Depth_decoder"
+        # return strings.basedecoder(self)
 
 
 # --------------------------
@@ -707,22 +739,12 @@ class _ASPPModule(nn.Module):
         )
         self.bn = BatchNorm(planes)
         self.relu = nn.ReLU()
-        if not no_init:
-            self._init_weight()
 
     def forward(self, x):
         x = self.atrous_conv(x)
         x = self.bn(x)
 
         return self.relu(x)
-
-    def _init_weight(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                torch.nn.init.kaiming_normal_(m.weight)
-            elif isinstance(m, nn.BatchNorm2d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
 
 
 class ConvBNReLU(nn.Module):

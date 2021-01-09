@@ -436,12 +436,12 @@ def rand_translation(tensor, ratio=0.125):
 
 
 class DiffTransforms:
-    def __init__(self, diff_augm_opts):
-        self.do_color_jittering = diff_augm_opts.do_color_jittering
-        self.do_cutout = diff_augm_opts.do_cutout
-        self.do_translation = diff_augm_opts.do_translation
-        self.cutout_ratio = diff_augm_opts.cutout_ratio
-        self.translation_ratio = diff_augm_opts.translation_ratio
+    def __init__(self, diff_aug_opts):
+        self.do_color_jittering = diff_aug_opts.do_color_jittering
+        self.do_cutout = diff_aug_opts.do_cutout
+        self.do_translation = diff_aug_opts.do_translation
+        self.cutout_ratio = diff_aug_opts.cutout_ratio
+        self.translation_ratio = diff_aug_opts.translation_ratio
 
     def __call__(self, tensor):
         if self.do_color_jittering:

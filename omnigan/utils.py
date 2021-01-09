@@ -201,6 +201,18 @@ def load_opts(
                 )
                 opts.gen.d.res_dim = 320
 
+    if opts.gen.m.use_spade:
+        if "d" not in opts.tasks or "s" not in opts.tasks:
+            raise ValueError(
+                "opts.gen.m.use_spade is True so tasks MUST include"
+                + "both d and s, but received {}".format(opts.tasks)
+            )
+        if opts.gen.d.classify.enable:
+            raise ValueError(
+                "opts.gen.m.use_spade is True but using D as a classifier"
+                + " which is a non-implemented combination"
+            )
+
     return set_data_paths(opts)
 
 
@@ -685,7 +697,7 @@ def get_latest_path(path: Union[str, Path]) -> Path:
     files = list(p.parent.glob(f"{s}*(*){e}"))
     indices = list(p.parent.glob(f"{s}*(*){e}"))
     indices = list(map(lambda f: f.name, indices))
-    indices = list(map(lambda x: re.findall("\((.*?)\)", x)[-1], indices))
+    indices = list(map(lambda x: re.findall(r"\((.*?)\)", x)[-1], indices))
     indices = list(map(int, indices))
     if not indices:
         f = p
