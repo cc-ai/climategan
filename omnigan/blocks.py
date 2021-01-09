@@ -362,7 +362,7 @@ class BaseDecoder(nn.Module):
         ]
         self.model = nn.Sequential(*self.model)
 
-    def forward(self, z):
+    def forward(self, z, cond=None):
         low_level_feat = None
         if isinstance(z, (list, tuple)):
             if self.low_level_conv is None:
