@@ -73,11 +73,10 @@ class Logger:
                     if task not in save_images:
                         save_images[task] = []
 
-                    if use_feat_fusion:
-                        if task == "d":
-                            prediction = depth_preds
-                        elif task == "s":
-                            prediction = trainer.G.decoders[task](z_feat_fusion)
+                    if use_feat_fusion and task == "d":
+                        prediction = depth_preds
+                    elif use_feat_fusion and task == "s":
+                        prediction = trainer.G.decoders[task](z_feat_fusion)
                     else:
                         prediction = trainer.G.decoders[task](z)
 
