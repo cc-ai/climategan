@@ -269,6 +269,14 @@ if __name__ == "__main__":
             "gen.m.use_spade": True,
             "gen.m.spade.cond_nc": 15,
         },  # 14
+        {
+            "__use_comet": False,
+            "__doc": "Painter With Diff Augment",
+            "__verbose": 1,
+            "domains": ["rf"],
+            "tasks": ["p"],
+            "gen.p.diff_aug.use": True,
+        },  # 15
     ]
 
     n_confs = len(test_scenarios)

@@ -156,7 +156,8 @@ gen:
     spade_param_free_norm: instance # what param-free normalization to apply in SPADE normalization
     spade_use_spectral_norm: true
     use_final_shortcut: False # if true, the last spade block does not get the masked input as conditioning but the prediction of the previous layer (passed through a conv to match dims) in order to lighten the masking restrictions and have smoother edges
-    diff_augm:
+    diff_aug:
+      use: False
       do_color_jittering: false
       do_cutout: false
       cutout_ratio: 0.5

@@ -846,8 +846,8 @@ class Trainer:
 
         self.losses = get_losses(self.opts, verbose, device=self.device)
 
-        if "p" in self.opts.tasks and self.opts.gen.p.apply_diff_augment:
-            self.diff_transforms = DiffTransforms(self.opts.gen.p.diff_augm)
+        if "p" in self.opts.tasks and self.opts.gen.p.diff_aug.use:
+            self.diff_transforms = DiffTransforms(self.opts.gen.p.diff_aug)
 
         if verbose > 0:
             for mode, mode_dict in self.all_loaders.items():
@@ -1183,7 +1183,7 @@ class Trainer:
                 with torch.no_grad():
                     # see spade compute_discriminator_loss
                     fake = self.G.paint(m, x)
-                    if self.opts.gen.p.apply_diff_augment:
+                    if self.opts.gen.p.diff_aug.use:
                         fake = self.diff_transforms(fake)
                         x = self.diff_transforms(x)
                     fake = fake.detach()
@@ -1407,7 +1407,7 @@ class Trainer:
         # -------------------------------------
         # -----  Local & Global GAN Loss  -----
         # -------------------------------------
-        if self.opts.gen.p.apply_diff_augment:
+        if self.opts.gen.p.diff_aug.use:
             fake_flooded = self.diff_transforms(fake_flooded)
             x = self.diff_transforms(x)
 
