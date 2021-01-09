@@ -88,7 +88,7 @@ class C:
 
 def escape_path(path):
     p = str(path)
-    return p.replace(" ", "\ ").replace("(", "\(").replace(")", "\)")
+    return p.replace(" ", "\ ").replace("(", "\(").replace(")", "\)")  # noqa: W605
 
 
 def warn(*args, **kwargs):
@@ -543,7 +543,8 @@ def get_template_params(template):
         list(str): Args required to format the template string
     """
     return map(
-        lambda s: s.replace("{", "").replace("}", ""), re.findall("\{.*?\}", template)
+        lambda s: s.replace("{", "").replace("}", ""),
+        re.findall("\{.*?\}", template),  # noqa: W605
     )
 
 

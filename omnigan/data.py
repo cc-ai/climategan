@@ -501,7 +501,7 @@ def get_loader(mode, domain, opts):
             mode,
             domain,
             opts,
-            transform=transforms.Compose(get_transforms(opts, domain)),
+            transform=transforms.Compose(get_transforms(opts, mode, domain)),
         ),
         batch_size=batch_size,
         shuffle=True,

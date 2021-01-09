@@ -37,7 +37,7 @@ data:
       kitti: val_kitti.json
   check_samples: False
   loaders:
-    batch_size: 6
+    batch_size: 3
     num_workers: 8
   normalization: default # can be "default" or "HRNet" for now. # default: mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]; HRNet: mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
   transforms:
@@ -52,6 +52,12 @@ data:
       ignore: false
       height: 600
       width: 600
+    - name: brightness
+      ignore: false
+    - name: saturation
+      ignore: false
+    - name: contrast
+      ignore: false
     - name: resize # ? this or change generator's output? Or resize larger then crop to 256?
       ignore: false
       new_size:
@@ -82,7 +88,7 @@ gen:
   default:
     &default-gen # default parameters for the generator (encoder and decoders)
     activ: lrelu # activation function [relu/lrelu/prelu/selu/tanh]
-    init_gain: 0.2
+    init_gain: 0.02
     init_type: xavier
     n_res: 1 # number of residual blocks before upsampling
     n_downsample: &n_downsample 3 # number of downsampling layers in encoder | dim 32 + down 3 => z = 256 x 32 x 32
@@ -119,8 +125,6 @@ gen:
 
   d: # specific params for the depth estimation decoder
     <<: *default-gen
-    init_type: normal
-    init_gain: 0.01
     output_dim: 1
     norm: batch
     loss: dada # dada or sigm | /!\ ignored if classify.enable
@@ -154,9 +158,17 @@ gen:
     spade_param_free_norm: instance # what param-free normalization to apply in SPADE normalization
     spade_use_spectral_norm: true
     use_final_shortcut: False # if true, the last spade block does not get the masked input as conditioning but the prediction of the previous layer (passed through a conv to match dims) in order to lighten the masking restrictions and have smoother edges
+    diff_aug:
+      use: False
+      do_color_jittering: false
+      do_cutout: false
+      cutout_ratio: 0.5
+      do_translation: false
+      translation_ratio: 0.125
 
   m: # specific params for the mask-generation decoder
     <<: *default-gen
+    use_spade: False
     output_dim: 1
     use_minent: True # directly minimize the entropy of the image
     use_minent_var: True # add variance of entropy map in the measure of entropy for a certain picture
@@ -165,6 +177,12 @@ gen:
     proj_dim: 64
     n_res: 3
     use_low_level_feats: False
+    spade:
+      latent_dim: 256
+      cond_nc: 12 # 12 without x, 15 with x
+      spade_use_spectral_norm: True
+      spade_param_free_norm: batch
+      num_layers: 3
 
 # -------------------------
 # ----- Discriminator -----
@@ -194,8 +212,8 @@ dis:
     ndf: 64
     n_layers: 4
     norm: instance
-    init_type: kaiming
-    init_gain: 0.2
+    init_type: xavier
+    init_gain: 0.02
     use_sigmoid: false
     num_D: 1 #Number of discriminators to use (>1 means multi-scale)
     get_intermediate_features: false
@@ -313,9 +331,9 @@ comet:
 events:
   fire:
     color:
-      r: 250
-      g: 0
-      b: 0
+      r: 244
+      g: 141
+      b: 48
     blur_radius: 150
   smog:
     airlight: 0.76

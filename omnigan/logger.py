@@ -3,9 +3,10 @@ import torchvision.utils as vutils
 
 import numpy as np
 import torch
-from torch.nn.functional import sigmoid, interpolate
+from torch.nn.functional import sigmoid, interpolate, softmax
 from omnigan.data import decode_segmap_merged_labels
 from omnigan.tutils import (
+    normalize,
     normalize_tensor,
     all_texts_to_tensors,
     decode_bucketed_depth,
@@ -48,12 +49,13 @@ class Logger:
                 x = display_dict["data"]["x"].unsqueeze(0).to(trainer.device)
                 z = trainer.G.encode(x)
 
-                seg_pred = None
-                for k, task in enumerate(sorted(self.trainer.opts.tasks, reverse=True)):
-                    if task == "p":
-                        continue
+                s_pred = decoded_s_pred = d_pred = None
+                for k, task in enumerate(["d", "s", "m"]):
 
-                    if task not in display_dict["data"]:
+                    if (
+                        task not in display_dict["data"]
+                        or task not in trainer.opts.tasks
+                    ):
                         continue
 
                     task_legend = ["Input"]
@@ -64,14 +66,25 @@ class Logger:
                     if task not in save_images:
                         save_images[task] = []
 
-                    prediction = trainer.G.decoders[task](z)
+                    if task != "m":
+                        prediction = trainer.G.decoders[task](z)
+                    else:
+                        cond = None
+                        if s_pred is not None and d_pred is not None:
+                            cond = trainer.G.make_m_cond(d_pred, s_pred, x)
+
+                        prediction = trainer.G.decoders[task](z, cond)
 
                     if task == "s":
                         # Log fire
                         wildfire_tens = trainer.compute_fire(x, prediction)
+                        # dummy pixels to fool scaling and preserve range
+                        wildfire_tens[:, :, 0, 0] = 255.0
+                        wildfire_tens[:, :, -1, -1] = 0.0
                         task_saves.append(wildfire_tens)
                         task_legend.append("Wildfire")
                         # Log seg output
+                        s_pred = prediction.clone()
                         target = (
                             decode_segmap_merged_labels(target, domain, True)
                             .float()
@@ -82,7 +95,7 @@ class Logger:
                             .float()
                             .to(trainer.device)
                         )
-                        seg_pred = prediction
+                        decoded_s_pred = prediction
                         task_saves.append(target)
                         task_legend.append("Target Segmentation")
 
@@ -111,13 +124,14 @@ class Logger:
 
                     elif task == "d":
                         # prediction is a log depth tensor
+                        d_pred = prediction
                         target = normalize_tensor(target) * 255
                         if prediction.shape[1] > 1:
                             prediction = decode_bucketed_depth(
                                 prediction, self.trainer.opts
                             )
                         smogged = self.trainer.compute_smog(
-                            x, d=prediction, s=seg_pred, use_sky_seg=False
+                            x, d=prediction, s=decoded_s_pred, use_sky_seg=False
                         )
                         prediction = normalize_tensor(prediction)
                         prediction = prediction.repeat(1, 3, 1, 1)

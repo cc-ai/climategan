@@ -32,6 +32,7 @@ from omnigan.generator import OmniGenerator, get_gen
 from omnigan.logger import Logger
 from omnigan.losses import get_losses
 from omnigan.optim import get_optimizer
+from omnigan.transforms import DiffTransforms
 from omnigan.tutils import (
     divide_pred,
     domains_to_class_tensor,
@@ -99,6 +100,7 @@ class Trainer:
         self.exp = None
 
         self.current_mode = "train"
+        self.diff_transforms = None
         self.kitti_pretrain = self.opts.train.kitti.pretrain
         self.pseudo_training_tasks = set(self.opts.train.pseudo.tasks)
 
@@ -262,19 +264,18 @@ class Trainer:
                 if xla:
                     xm.mark_step()
             with Timer(store=stores.get("mask", [])):
-                mask = self.G.mask(z=z)
+                cond = self.G.make_m_cond(depth, segmentation, x)
+                mask = self.G.mask(z=z, cond=cond)
                 if xla:
                     xm.mark_step()
 
             # apply events
             with Timer(store=stores.get("wildfire", [])):
-                wildfire = self.compute_fire(x, segmentation).detach().cpu()
+                wildfire = self.compute_fire(x, segmentation).cpu()
             with Timer(store=stores.get("smog", [])):
-                smog = self.compute_smog(x, d=depth, s=segmentation).detach().cpu()
+                smog = self.compute_smog(x, d=depth, s=segmentation).cpu()
             with Timer(store=stores.get("flood", [])):
-                flood = (
-                    self.compute_flood(x, m=mask, bin_value=bin_value).detach().cpu()
-                )
+                flood = self.compute_flood(x, m=mask, bin_value=bin_value).cpu()
 
         if xla:
             xm.mark_step()
@@ -854,6 +855,9 @@ class Trainer:
 
         self.losses = get_losses(self.opts, verbose, device=self.device)
 
+        if "p" in self.opts.tasks and self.opts.gen.p.diff_aug.use:
+            self.diff_transforms = DiffTransforms(self.opts.gen.p.diff_aug)
+
         if verbose > 0:
             for mode, mode_dict in self.all_loaders.items():
                 for domain, domain_loader in mode_dict.items():
@@ -1012,7 +1016,6 @@ class Trainer:
                 batch["domain"][0]: self.batch_to_device(batch)
                 for batch in multi_batch_tuple
             }
-
             # ------------------------------
             # -----  Update Generator  -----
             # ------------------------------
@@ -1200,6 +1203,9 @@ class Trainer:
                 with torch.no_grad():
                     # see spade compute_discriminator_loss
                     fake = self.G.paint(m, x)
+                    if self.opts.gen.p.diff_aug.use:
+                        fake = self.diff_transforms(fake)
+                        x = self.diff_transforms(x)
                     fake = fake.detach()
                     fake.requires_grad_()
 
@@ -1232,16 +1238,32 @@ class Trainer:
             # --------------------
             else:
                 z = self.G.encode(x)
-                for task, _ in batch["data"].items():
-                    if task == "m":
-                        step_loss = self.masker_m_loss(x, z, None, domain, for_="D")
-                        step_loss *= self.opts.train.lambdas.advent.adv_main
-                        disc_loss["m"]["Advent"] += step_loss
+                s_pred = None
+                for task in ["s", "m"]:
+                    if task not in batch["data"]:
+                        continue
 
                     if task == "s":
-                        step_loss = self.masker_s_loss(x, z, None, domain, for_="D")
+
+                        step_loss, s_pred = self.masker_s_loss(
+                            x, z, None, domain, for_="D"
+                        )
                         step_loss *= self.opts.train.lambdas.advent.adv_main
                         disc_loss["s"]["Advent"] += step_loss
+
+                    if task == "m":
+
+                        cond = None
+                        if self.opts.gen.m.use_spade:
+                            with torch.no_grad():
+                                d_pred = self.G.decoders["d"](z)
+                            cond = self.G.make_m_cond(d_pred, s_pred, x)
+
+                        step_loss, _ = self.masker_m_loss(
+                            x, z, None, domain, for_="D", cond=cond
+                        )
+                        step_loss *= self.opts.train.lambdas.advent.adv_main
+                        disc_loss["m"]["Advent"] += step_loss
 
         self.logger.losses.disc.update(
             {
@@ -1314,19 +1336,31 @@ class Trainer:
             # --------------------------------------
             # -----  task-specific losses (2)  -----
             # --------------------------------------
-            for task, target in batch["data"].items():
-                if task == "m":
-                    loss = self.masker_m_loss(x, z, target, domain, "G")
-                    m_loss += loss
-                    self.logger.losses.gen.task["m"][domain] = loss.item()
-                elif task == "s":
-                    loss = self.masker_s_loss(x, z, target, domain, "G")
+            d_pred = s_pred = None
+            for task in ["d", "s", "m"]:
+                if task not in batch["data"]:
+                    continue
+
+                target = batch["data"][task]
+
+                if task == "s":
+                    loss, s_pred = self.masker_s_loss(x, z, target, domain, "G")
                     m_loss += loss
                     self.logger.losses.gen.task["s"][domain] = loss.item()
+
                 elif task == "d":
-                    loss = self.masker_d_loss(x, z, target, domain, "G")
+                    loss, d_pred = self.masker_d_loss(x, z, target, domain, "G")
                     m_loss += loss
                     self.logger.losses.gen.task["d"][domain] = loss.item()
+
+                elif task == "m":
+                    cond = None
+                    if self.opts.gen.m.use_spade:
+                        cond = self.G.make_m_cond(d_pred, s_pred, x)
+
+                    loss, _ = self.masker_m_loss(x, z, target, domain, "G", cond=cond)
+                    m_loss += loss
+                    self.logger.losses.gen.task["m"][domain] = loss.item()
 
         return m_loss
 
@@ -1393,6 +1427,10 @@ class Trainer:
         # -------------------------------------
         # -----  Local & Global GAN Loss  -----
         # -------------------------------------
+        if self.opts.gen.p.diff_aug.use:
+            fake_flooded = self.diff_transforms(fake_flooded)
+            x = self.diff_transforms(x)
+
         if self.opts.dis.p.use_local_discriminator:
             fake_d_global = self.D["p"]["global"](fake_flooded)
             fake_d_local = self.D["p"]["local"](fake_flooded * m)
@@ -1486,10 +1524,10 @@ class Trainer:
         if weight == 0:
             return full_loss
 
-        if domain == "r" and "d" not in self.pseudo_training_tasks:
-            return full_loss
-
         prediction = self.G.decoders["d"](z)
+
+        if domain == "r" and "d" not in self.pseudo_training_tasks:
+            return full_loss, prediction.detach()
 
         if self.opts.gen.d.classify.enable:
             target.squeeze_(1)
@@ -1498,8 +1536,7 @@ class Trainer:
         loss *= weight
 
         full_loss += loss
-
-        return full_loss
+        return full_loss, prediction.detach()
 
     def masker_s_loss(self, x, z, target, domain, for_="G"):
         assert for_ in {"G", "D"}
@@ -1590,16 +1627,17 @@ class Trainer:
                     else:
                         raise NotImplementedError
 
-        return full_loss
+        return full_loss, pred.detach()
 
-    def masker_m_loss(self, x, z, target, domain, for_="G"):
+    def masker_m_loss(self, x, z, target, domain, for_="G", cond=None):
         assert for_ in {"G", "D"}
         assert domain in {"r", "s"}
         self.assert_z_matches_x(x, z)
         assert x.shape[0] == target.shape[0] if target is not None else True
         full_loss = torch.tensor(0.0, device=self.device)
+
         # ? output features classifier
-        pred_logits = self.G.mask(z=z, sigmoid=False)
+        pred_logits = self.G.decoders["m"](z, cond)
         pred_prob = sigmoid(pred_logits)
         pred_prob_complementary = 1 - pred_prob
         prob = torch.cat([pred_prob, pred_prob_complementary], dim=1)
@@ -1691,7 +1729,7 @@ class Trainer:
                 else:
                     raise NotImplementedError
 
-        return full_loss
+        return full_loss, prob.detach()
 
     def painter_loss_for_masker(self, x, m):
         # pl4m loss
@@ -1804,8 +1842,31 @@ class Trainer:
             x = im_set["data"]["x"].unsqueeze(0).to(self.device)
             z = self.G.encode(x)
 
+            s_pred = d_pred = None
+
+            if "s" in metric_avg_scores:
+                s_pred = self.G.decoders["s"](z).detach().cpu()
+                s = im_set["data"]["s"].unsqueeze(0).detach()
+
+                for metric in metric_funcs:
+                    metric_score = metric_funcs[metric](s_pred, s)
+                    metric_avg_scores["s"][metric].append(metric_score)
+
+            if "d" in metric_avg_scores:
+                d_pred = self.G.decoders["d"](z).detach().cpu()
+
+                if domain == "s":
+                    d = im_set["data"]["d"].unsqueeze(0).detach()
+
+                    for metric in metric_funcs:
+                        metric_score = metric_funcs[metric](d_pred, d)
+                        metric_avg_scores["d"][metric].append(metric_score)
+
             if "m" in self.opts:
-                pred_mask = self.G.mask(z=z).detach().cpu()
+                cond = None
+                if s_pred is not None and d_pred is not None:
+                    cond = self.G.make_m_cond(d_pred, s_pred, x)
+                pred_mask = self.G.mask(z=z, cond=cond).detach().cpu()
                 pred_mask = (pred_mask > 0.5).to(torch.float32)
                 pred_prob = torch.cat([1 - pred_mask, pred_mask], dim=1)
 
@@ -1818,22 +1879,6 @@ class Trainer:
                         metric_score = metric_funcs[metric](pred_prob, m)
 
                     metric_avg_scores["m"][metric].append(metric_score)
-
-            if "s" in self.opts.tasks:
-                pred_seg = self.G.decoders["s"](z).detach().cpu()
-                s = im_set["data"]["s"].unsqueeze(0).detach()
-
-                for metric in metric_funcs:
-                    metric_score = metric_funcs[metric](pred_seg, s)
-                    metric_avg_scores["s"][metric].append(metric_score)
-
-            if "d" in metric_avg_scores and domain == "s":
-                pred_depth = self.G.decoders["d"](z).detach().cpu()
-                d = im_set["data"]["d"].unsqueeze(0).detach()
-
-                for metric in metric_funcs:
-                    metric_score = metric_funcs[metric](pred_depth, d)
-                    metric_avg_scores["d"][metric].append(metric_score)
 
         metric_avg_scores = {
             task: {
