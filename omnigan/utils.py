@@ -201,6 +201,13 @@ def load_opts(
                 )
                 opts.gen.d.res_dim = 320
 
+    if opts.gen.m.use_spade:
+        if "d" not in opts.tasks or "s" not in opts.tasks:
+            raise ValueError(
+                "opts.gen.m.use_spade is True so tasks MUST include"
+                + "both d and s, but received {}".format(opts.tasks)
+            )
+
     return set_data_paths(opts)
 
 

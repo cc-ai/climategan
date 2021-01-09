@@ -155,7 +155,7 @@ gen:
 
   m: # specific params for the mask-generation decoder
     <<: *default-gen
-    use_spade: True
+    use_spade: False
     output_dim: 1
     use_minent: True # directly minimize the entropy of the image
     use_minent_var: True # add variance of entropy map in the measure of entropy for a certain picture
