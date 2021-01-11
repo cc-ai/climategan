@@ -77,6 +77,7 @@ def mIOU(pred, label):
     pred is a tensor N x C x H x W with logits (softmax will be applied)
     and label is a N x H  x W tensor with int labels per pixel
 
+    this does the same as sklearn's jaccard_score function if you choose average="macro"
     Args:
         pred (torch.tensor): predicted logits
         label (torch.tensor): labels
@@ -100,7 +101,7 @@ def mIOU(pred, label):
     for sem_class in interesting_classes:
         pred_inds = pred == sem_class
         target_inds = label == sem_class
-        if target_inds.long().sum().item() > 0:
+        if (target_inds.long().sum().item() > 0) or (pred_inds.long().sum().item() > 0):
             intersection_now = (pred_inds[target_inds]).long().sum().item()
             union_now = (
                 pred_inds.long().sum().item()
