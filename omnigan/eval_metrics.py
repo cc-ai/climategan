@@ -68,7 +68,7 @@ def accuracy(pred_im, gt_im):
     return float((pred == gt).sum()) / gt.size
 
 
-def mIOU(pred, label):
+def mIOU(pred, label, average="macro"):
     """
     Adapted from:
     https://stackoverflow.com/questions/62461379/multiclass-semantic-segmentation-model-evaluation
@@ -81,6 +81,7 @@ def mIOU(pred, label):
     Args:
         pred (torch.tensor): predicted logits
         label (torch.tensor): labels
+        average: "macro" or "weighted"
 
     Returns:
         float: mIOU, can be nan
@@ -97,6 +98,7 @@ def mIOU(pred, label):
     interesting_classes = (
         [*range(num_classes)] if num_classes > 2 else [int(label.max().item())]
     )
+    weights = []
 
     for sem_class in interesting_classes:
         pred_inds = pred == sem_class
@@ -108,6 +110,13 @@ def mIOU(pred, label):
                 + target_inds.long().sum().item()
                 - intersection_now
             )
+            weights.append(pred_inds.long().sum().item())
             iou_now = float(intersection_now) / float(union_now)
             present_iou_list.append(iou_now)
-    return np.mean(present_iou_list) if present_iou_list else float("nan")
+    if not present_iou_list:
+        return float("nan")
+    elif average == "weighted":
+        weighted_avg = np.sum(np.multiply(weights, present_iou_list) / np.sum(weights))
+        return weighted_avg
+    else:
+        return np.mean(present_iou_list)
