@@ -255,6 +255,28 @@ if __name__ == "__main__":
             "gen.d.architecture": "base",
             "gen.d.classify.enable": True,
         },
+        {
+            "__use_comet": False,
+            "__doc": "MSD SPADE 12 (without x)",
+            "__verbose": 1,
+            "gen.m.use_spade": True,
+            "gen.m.spade.cond_nc": 12,
+        },  # 13
+        {
+            "__use_comet": False,
+            "__doc": "MSD SPADE 15 (with x)",
+            "__verbose": 1,
+            "gen.m.use_spade": True,
+            "gen.m.spade.cond_nc": 15,
+        },  # 14
+        {
+            "__use_comet": False,
+            "__doc": "Painter With Diff Augment",
+            "__verbose": 1,
+            "domains": ["rf"],
+            "tasks": ["p"],
+            "gen.p.diff_aug.use": True,
+        },  # 15
     ]
 
     n_confs = len(test_scenarios)

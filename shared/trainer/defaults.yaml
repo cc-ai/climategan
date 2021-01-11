@@ -27,15 +27,17 @@ data:
     base: /miniscratch/_groups/ccai/data/jsons
     train:
       r: train_r_full.json
-      s: train_s_full.json
+      s: train_s_fixedholes.json
       rf: train_rf.json
+      kitti: train_kitti.json
     val:
       r: val_r_full.json
-      s: val_s_full.json
+      s: val_s_fixedholes.json
       rf: val_rf.json
+      kitti: val_kitti.json
   check_samples: False
   loaders:
-    batch_size: 6
+    batch_size: 3
     num_workers: 8
   normalization: default # can be "default" or "HRNet" for now. # default: mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]; HRNet: mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
   transforms:
@@ -86,7 +88,7 @@ gen:
   default:
     &default-gen # default parameters for the generator (encoder and decoders)
     activ: lrelu # activation function [relu/lrelu/prelu/selu/tanh]
-    init_gain: 0.2
+    init_gain: 0.02
     init_type: xavier
     n_res: 1 # number of residual blocks before upsampling
     n_downsample: &n_downsample 3 # number of downsampling layers in encoder | dim 32 + down 3 => z = 256 x 32 x 32
@@ -123,8 +125,6 @@ gen:
 
   d: # specific params for the depth estimation decoder
     <<: *default-gen
-    init_type: normal
-    init_gain: 0.01
     output_dim: 1
     norm: batch
     loss: dada # dada or sigm | /!\ ignored if classify.enable
@@ -160,7 +160,8 @@ gen:
     spade_param_free_norm: instance # what param-free normalization to apply in SPADE normalization
     spade_use_spectral_norm: true
     use_final_shortcut: False # if true, the last spade block does not get the masked input as conditioning but the prediction of the previous layer (passed through a conv to match dims) in order to lighten the masking restrictions and have smoother edges
-    diff_augm:
+    diff_aug:
+      use: False
       do_color_jittering: false
       do_cutout: false
       cutout_ratio: 0.5
@@ -169,6 +170,7 @@ gen:
 
   m: # specific params for the mask-generation decoder
     <<: *default-gen
+    use_spade: False
     output_dim: 1
     use_minent: True # directly minimize the entropy of the image
     use_minent_var: True # add variance of entropy map in the measure of entropy for a certain picture
@@ -177,6 +179,12 @@ gen:
     proj_dim: 64
     n_res: 3
     use_low_level_feats: False
+    spade:
+      latent_dim: 256
+      cond_nc: 12 # 12 without x, 15 with x
+      spade_use_spectral_norm: True
+      spade_param_free_norm: batch
+      num_layers: 3
 
 # -------------------------
 # ----- Discriminator -----
@@ -206,8 +214,8 @@ dis:
     ndf: 64
     n_layers: 4
     norm: instance
-    init_type: kaiming
-    init_gain: 0.2
+    init_type: xavier
+    init_gain: 0.02
     use_sigmoid: false
     num_D: 1 #Number of discriminators to use (>1 means multi-scale)
     get_intermediate_features: false
@@ -310,7 +318,7 @@ train:
 # ----- Validation Params -----
 # -----------------------------
 val:
-  visualize: false # True if using visualizedEval.py to evaluate the masker. (Won't load any optimizers. Will load Generator state_dict unstrictly. Helpful to evaluate masker from multihead ckpt)
+  visualize: false # True if using visualizedEval.py to evaluate the masker. (Won't load any optimizers. Will load Generator state_dict unstrictly. Helpful to evaluate masker from multi§head ckpt)
   store_images: false # write to disk on top of comet logging
 # -----------------------------
 # ----- Comet Params ----------
