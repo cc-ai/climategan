@@ -447,9 +447,8 @@ class MaskSpadeDecoder(nn.Module):
             1,
             3,
             padding=1,
-            activation="lrelu",
-            pad_type="reflect",
-            norm="spectral_batch",
+            norm="none",
+            activation="none",
         )
         self.upsample = InterpolateNearest2d(scale_factor=2)
 
