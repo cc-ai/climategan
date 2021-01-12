@@ -257,7 +257,7 @@ class Trainer:
 
             # predict from masker
             with Timer(store=stores.get("depth", [])):
-                depth = self.G.decoders["d"](z)
+                depth, _ = self.G.decoders["d"](z)
                 if xla:
                     xm.mark_step()
             with Timer(store=stores.get("segmentation", [])):
@@ -1219,17 +1219,18 @@ class Trainer:
             else:
                 z = self.G.encode(x)
                 s_pred = None
+                d_pred = None
                 for task in ["s", "m"]:
                     if task not in batch["data"]:
                         continue
 
                     if task == "s":
-                        d_pred = None
-                        z_depth = None
+                        depth_preds = None
+                        d_pred, z_depth = self.G.decoders["d"](z)
                         if self.opts.gen.s.depth_dada_fusion:
-                            d_pred, z_depth = self.G.decoders["d"](z)
+                            depth_preds = d_pred
                         step_loss, s_pred = self.masker_s_loss(
-                            x, z, d_pred, z_depth, None, domain, for_="D"
+                            x, z, depth_preds, z_depth, None, domain, for_="D"
                         )
                         step_loss *= self.opts.train.lambdas.advent.adv_main
                         disc_loss["s"]["Advent"] += step_loss
@@ -1238,12 +1239,9 @@ class Trainer:
 
                         cond = None
                         if self.opts.gen.m.use_spade:
-                            with torch.no_grad():
-                                if d_pred is None:
-                                    if self.opts.gen.s.depth_feat_fusion:
-                                        d_pred, z_depth = self.G.decoders["d"](z)
-                                    else:
-                                        d_pred = self.G.decoders["d"](z)
+                            if d_pred is None:
+                                d_pred, _ = self.G.decoders["d"](z)
+                            d_pred = d_pred.detach()
                             cond = self.G.make_m_cond(d_pred, s_pred, x)
 
                         step_loss, _ = self.masker_m_loss(
@@ -1326,7 +1324,6 @@ class Trainer:
             z_depth = None
             d_pred = s_pred = None
             for task in ["d", "s", "m"]:
-                # for task, target in sorted(batch["data"].items()):
                 if task not in batch["data"]:
                     continue
 
@@ -1515,11 +1512,7 @@ class Trainer:
         zero_loss = torch.tensor(0.0, device=self.device)
         weight = self.opts.train.lambdas.G.d.main
 
-        z_depth = None
-        if self.opts.gen.s.depth_feat_fusion:
-            prediction, z_depth = self.G.decoders["d"](z)
-        else:
-            prediction = self.G.decoders["d"](z)
+        prediction, z_depth = self.G.decoders["d"](z)
 
         if self.opts.gen.d.classify.enable:
             target.squeeze_(1)
@@ -1854,11 +1847,8 @@ class Trainer:
                     metric_avg_scores["s"][metric].append(metric_score)
 
             if "d" in metric_avg_scores:
-                if self.opts.gen.s.depth_feat_fusion:
-                    d_pred, _ = self.G.decoders["d"](z)
-                    d_pred = d_pred.detach().cpu()
-                else:
-                    d_pred = self.G.decoders["d"](z).detach().cpu()
+                d_pred, _ = self.G.decoders["d"](z)
+                d_pred = d_pred.detach().cpu()
 
                 if domain == "s":
                     d = im_set["data"]["d"].unsqueeze(0).detach()
@@ -2005,7 +1995,7 @@ class Trainer:
             if z is None:
                 z = self.G.encode(x)
             if d is None:
-                d = self.G.decoders["d"](z)
+                d, _ = self.G.decoders["d"](z)
             if use_sky_seg and s is None:
                 if "s" not in self.opts.tasks:
                     raise ValueError(

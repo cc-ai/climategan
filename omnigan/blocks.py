@@ -484,6 +484,7 @@ class DADADepthRegressionDecoder(nn.Module):
         z4_enc = self.enc4_2(z4_enc)
         z4_enc = self.enc4_3(z4_enc)
 
+        z_depth = None
         if self.do_feat_fusion:
             z_depth = self.dec4(z4_enc)
             z_depth = self.relu(z_depth)
@@ -504,10 +505,7 @@ class DADADepthRegressionDecoder(nn.Module):
                 depth, (self.output_size, self.output_size), mode="nearest"
             )  # what we used in the transforms to resize input
 
-        if self.do_feat_fusion:
-            return depth, z_depth
-
-        return depth
+        return depth, z_depth
 
     def __str__(self):
         return "Depth_decoder"

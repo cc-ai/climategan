@@ -319,9 +319,11 @@ class BaseDepthDecoder(BaseDecoder):
 
         d = super().forward(z)
 
-        return F.interpolate(
+        preds = F.interpolate(
             d, size=self._target_size, mode="bilinear", align_corners=True
         )
+
+        return preds, None
 
 
 class MaskSpadeDecoder(nn.Module):
