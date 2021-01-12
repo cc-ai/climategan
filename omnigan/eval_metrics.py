@@ -63,6 +63,9 @@ def f1_score(pred_im, gt_im):
 def accuracy(pred_im, gt_im):
     pred = np.array(pred_im)
     gt = np.array(gt_im)
+    if len(gt_im.shape) == 4:
+        assert gt_im.shape[1] == 1
+        gt_im = gt_im[:, 0, :, :]
     if len(pred.shape) > len(gt_im.shape):
         pred = np.argmax(pred, axis=1)
     return float((pred == gt).sum()) / gt.size
