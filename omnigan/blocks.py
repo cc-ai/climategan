@@ -411,8 +411,15 @@ class DADADepthRegressionDecoder(nn.Module):
         self.do_feat_fusion = False
         if "s" in opts.tasks and opts.gen.s.depth_feat_fusion:
             self.do_feat_fusion = True
-            self.dec4 = nn.Conv2d(
-                128, res_dim, kernel_size=1, stride=1, padding=0, bias=True
+            self.dec4 = Conv2dBlock(
+                128,
+                res_dim,
+                1,
+                stride=1,
+                padding=0,
+                bias=True,
+                activation="lrelu",
+                norm="none",
             )
 
         self.relu = nn.ReLU(inplace=True)

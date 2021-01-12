@@ -1218,37 +1218,29 @@ class Trainer:
             # --------------------
             else:
                 z = self.G.encode(x)
-                s_pred = None
-                d_pred = None
-                for task in ["s", "m"]:
-                    if task not in batch["data"]:
-                        continue
+                s_pred = d_pred = cond = depth_preds = None
 
-                    if task == "s":
-                        depth_preds = None
-                        d_pred, z_depth = self.G.decoders["d"](z)
-                        if self.opts.gen.s.depth_dada_fusion:
-                            depth_preds = d_pred
-                        step_loss, s_pred = self.masker_s_loss(
-                            x, z, depth_preds, z_depth, None, domain, for_="D"
-                        )
-                        step_loss *= self.opts.train.lambdas.advent.adv_main
-                        disc_loss["s"]["Advent"] += step_loss
+                if "s" in batch["data"]:
+                    d_pred, z_depth = self.G.decoders["d"](z)
+                    if self.opts.gen.s.depth_dada_fusion:
+                        depth_preds = d_pred
+                    step_loss, s_pred = self.masker_s_loss(
+                        x, z, depth_preds, z_depth, None, domain, for_="D"
+                    )
+                    step_loss *= self.opts.train.lambdas.advent.adv_main
+                    disc_loss["s"]["Advent"] += step_loss
 
-                    elif task == "m":
+                if "m" in batch["data"]:
+                    if self.opts.gen.m.use_spade:
+                        if d_pred is None:
+                            d_pred, _ = self.G.decoders["d"](z)
+                        cond = self.G.make_m_cond(d_pred.detach(), s_pred.detach(), x)
 
-                        cond = None
-                        if self.opts.gen.m.use_spade:
-                            if d_pred is None:
-                                d_pred, _ = self.G.decoders["d"](z)
-                            d_pred = d_pred.detach()
-                            cond = self.G.make_m_cond(d_pred, s_pred, x)
-
-                        step_loss, _ = self.masker_m_loss(
-                            x, z, None, domain, for_="D", cond=cond
-                        )
-                        step_loss *= self.opts.train.lambdas.advent.adv_main
-                        disc_loss["m"]["Advent"] += step_loss
+                    step_loss, _ = self.masker_m_loss(
+                        x, z, None, domain, for_="D", cond=cond
+                    )
+                    step_loss *= self.opts.train.lambdas.advent.adv_main
+                    disc_loss["m"]["Advent"] += step_loss
 
         self.logger.losses.disc.update(
             {
@@ -1346,8 +1338,7 @@ class Trainer:
                 elif task == "m":
                     cond = None
                     if self.opts.gen.m.use_spade:
-                        d_pred = d_pred.detach()
-                        cond = self.G.make_m_cond(d_pred, s_pred, x)
+                        cond = self.G.make_m_cond(d_pred.detach(), s_pred.detach(), x)
 
                     loss, _ = self.masker_m_loss(x, z, target, domain, "G", cond=cond)
                     m_loss += loss
@@ -1621,7 +1612,7 @@ class Trainer:
                     else:
                         raise NotImplementedError
 
-        return full_loss, pred.detach()
+        return full_loss, pred
 
     def masker_m_loss(self, x, z, target, domain, for_="G", cond=None):
         assert for_ in {"G", "D"}
@@ -1723,7 +1714,7 @@ class Trainer:
                 else:
                     raise NotImplementedError
 
-        return full_loss, prob.detach()
+        return full_loss, prob
 
     def painter_loss_for_masker(self, x, m):
         # pl4m loss
