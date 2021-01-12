@@ -607,7 +607,7 @@ class HingeLoss(nn.Module):
 
 class DADADepthLoss:
     """ Defines the reverse Huber loss from DADA paper for depth prediction
-        - Samples with larger residuals are penalized more by l2 term 
+        - Samples with larger residuals are penalized more by l2 term
         - Samples with smaller residuals are penalized more by l1 term
         From https://github.com/valeoai/DADA/blob/master/dada/utils/func.py
     """

@@ -3,10 +3,9 @@ import torchvision.utils as vutils
 
 import numpy as np
 import torch
-from torch.nn.functional import sigmoid, interpolate, softmax
+from torch.nn.functional import sigmoid, interpolate
 from omnigan.data import decode_segmap_merged_labels
 from omnigan.tutils import (
-    normalize,
     normalize_tensor,
     all_texts_to_tensors,
     decode_bucketed_depth,
