@@ -43,8 +43,7 @@ class Logger:
                 x = display_dict["data"]["x"].unsqueeze(0).to(trainer.device)
                 z = trainer.G.encode(x)
 
-                s_pred = decoded_s_pred = d_pred = None
-                z_feat_fusion = z_depth = None
+                s_pred = decoded_s_pred = d_pred = z_depth = None
                 for k, task in enumerate(["d", "s", "m"]):
 
                     if (
@@ -61,6 +60,7 @@ class Logger:
                     if task not in save_images:
                         save_images[task] = []
 
+                    prediction = None
                     if task == "m":
                         cond = None
                         if s_pred is not None and d_pred is not None:
@@ -69,12 +69,8 @@ class Logger:
                         prediction = trainer.G.decoders[task](z, cond)
                     elif task == "d":
                         prediction, z_depth = trainer.G.decoders[task](z)
-                        if z_depth is not None:
-                            z_feat_fusion = z * z_depth
-                    elif task == "s" and z_feat_fusion is not None:
-                        prediction = trainer.G.decoders[task](z_feat_fusion)
-                    else:
-                        prediction = trainer.G.decoders[task](z)
+                    elif task == "s":
+                        prediction = trainer.G.decoders[task](z, z_depth)
 
                     if task == "s":
                         # Log fire

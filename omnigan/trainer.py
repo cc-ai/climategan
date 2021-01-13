@@ -257,11 +257,11 @@ class Trainer:
 
             # predict from masker
             with Timer(store=stores.get("depth", [])):
-                depth, _ = self.G.decoders["d"](z)
+                depth, z_depth = self.G.decoders["d"](z)
                 if xla:
                     xm.mark_step()
             with Timer(store=stores.get("segmentation", [])):
-                segmentation = self.G.decoders["s"](z)
+                segmentation = self.G.decoders["s"](z, z_depth)
                 if xla:
                     xm.mark_step()
             with Timer(store=stores.get("mask", [])):
@@ -1234,7 +1234,7 @@ class Trainer:
                     if self.opts.gen.m.use_spade:
                         if d_pred is None:
                             d_pred, _ = self.G.decoders["d"](z)
-                        cond = self.G.make_m_cond(d_pred.detach(), s_pred.detach(), x)
+                        cond = self.G.make_m_cond(d_pred, s_pred, x)
 
                     step_loss, _ = self.masker_m_loss(
                         x, z, None, domain, for_="D", cond=cond
@@ -1338,7 +1338,7 @@ class Trainer:
                 elif task == "m":
                     cond = None
                     if self.opts.gen.m.use_spade:
-                        cond = self.G.make_m_cond(d_pred.detach(), s_pred.detach(), x)
+                        cond = self.G.make_m_cond(d_pred, s_pred, x)
 
                     loss, _ = self.masker_m_loss(x, z, target, domain, "G", cond=cond)
                     m_loss += loss
@@ -1528,9 +1528,7 @@ class Trainer:
         # --------------------------
         pred = None
         if for_ == "G" or self.opts.gen.s.use_advent:
-            if z_depth is not None:
-                z = z * z_depth  # Feature fusion
-            pred = self.G.decoders["s"](z)
+            pred = self.G.decoders["s"](z, z_depth)
 
         # Supervised segmentation loss: crossent for sim domain,
         # crossent_pseudo for real ; loss is crossent in any case
@@ -1827,18 +1825,10 @@ class Trainer:
             x = im_set["data"]["x"].unsqueeze(0).to(self.device)
             z = self.G.encode(x)
 
-            s_pred = d_pred = None
-
-            if "s" in metric_avg_scores:
-                s_pred = self.G.decoders["s"](z).detach().cpu()
-                s = im_set["data"]["s"].unsqueeze(0).detach()
-
-                for metric in metric_funcs:
-                    metric_score = metric_funcs[metric](s_pred, s)
-                    metric_avg_scores["s"][metric].append(metric_score)
+            s_pred = d_pred = z_depth = None
 
             if "d" in metric_avg_scores:
-                d_pred, _ = self.G.decoders["d"](z)
+                d_pred, z_depth = self.G.decoders["d"](z)
                 d_pred = d_pred.detach().cpu()
 
                 if domain == "s":
@@ -1847,6 +1837,14 @@ class Trainer:
                     for metric in metric_funcs:
                         metric_score = metric_funcs[metric](d_pred, d)
                         metric_avg_scores["d"][metric].append(metric_score)
+
+            if "s" in metric_avg_scores:
+                s_pred = self.G.decoders["s"](z, z_depth).detach().cpu()
+                s = im_set["data"]["s"].unsqueeze(0).detach()
+
+                for metric in metric_funcs:
+                    metric_score = metric_funcs[metric](s_pred, s)
+                    metric_avg_scores["s"][metric].append(metric_score)
 
             if "m" in self.opts:
                 cond = None
@@ -1913,7 +1911,7 @@ class Trainer:
         if (Path(self.opts.output_path) / "is_functional.test").exists() or force:
             shutil.rmtree(self.opts.output_path)
 
-    def compute_fire(self, x, seg_preds=None, z=None):
+    def compute_fire(self, x, seg_preds=None, z=None, z_depth=None):
         """
         Transforms input tensor given wildfires event
         Args:
@@ -1929,7 +1927,7 @@ class Trainer:
         if seg_preds is None:
             if z is None:
                 z = self.G.encode(x)
-            seg_preds = self.G.decoders["s"](z)
+            seg_preds = self.G.decoders["s"](z, z_depth)
         fire_color = (
             self.opts.events.fire.color.r,
             self.opts.events.fire.color.g,

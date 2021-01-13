@@ -180,6 +180,7 @@ gen:
     n_res: 3
     use_low_level_feats: False
     spade:
+      detach: True # detach s_pred and d_pred conditionning tensors
       latent_dim: 256
       cond_nc: 12 # 12 without x, 15 with x
       spade_use_spectral_norm: True
@@ -267,7 +268,7 @@ train:
   amp: False
   pseudo:
     tasks: [] # list of tasks for which to use pseudo labels (empty list to disable)
-    epochs: 30 # disable pseudo training after n epochs (set to -1 to never disable)
+    epochs: 10 # disable pseudo training after n epochs (set to -1 to never disable)
   epochs: 300
   fid:
     n_images: 57 # val_rf.json has 57 images

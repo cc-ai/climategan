@@ -98,13 +98,13 @@ class Conv2dBlock(nn.Module):
 
         # initialize activation
         if activation == "relu":
-            self.activation = nn.ReLU(inplace=True)
+            self.activation = nn.ReLU(inplace=False)
         elif activation == "lrelu":
-            self.activation = nn.LeakyReLU(0.2, inplace=True)
+            self.activation = nn.LeakyReLU(0.2, inplace=False)
         elif activation == "prelu":
             self.activation = nn.PReLU()
         elif activation == "selu":
-            self.activation = nn.SELU(inplace=True)
+            self.activation = nn.SELU(inplace=False)
         elif activation == "tanh":
             self.activation = nn.Tanh()
         elif activation == "sigmoid":
@@ -494,7 +494,6 @@ class DADADepthRegressionDecoder(nn.Module):
         z_depth = None
         if self.do_feat_fusion:
             z_depth = self.dec4(z4_enc)
-            z_depth = self.relu(z_depth)
 
         if self.upsample is not None:
             z4_enc = self.upsample(z4_enc)
