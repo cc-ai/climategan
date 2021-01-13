@@ -317,6 +317,7 @@ train:
 # -----------------------------
 val:
   store_images: false # write to disk on top of comet logging
+  val_painter: /miniscratch/_groups/ccai/checkpoints/painter/victor/good_large_lr
 # -----------------------------
 # ----- Comet Params ----------
 # -----------------------------

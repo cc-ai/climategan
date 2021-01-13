@@ -770,12 +770,12 @@ class Trainer:
         __t = time()
         print("Creating generator...")
         self.G: OmniGenerator = get_gen(self.opts, verbose=verbose, no_init=inference)
-        use_painter = get_num_params(self.G.painter)
+        self.has_painter = get_num_params(self.G.painter) or self.G.load_val_painter()
         print("Sending to", self.device)
         self.G = self.G.to(self.device)
 
         if self.input_shapes is None and (
-            "s" in self.opts.tasks or "d" in self.opts.tasks or use_painter
+            "s" in self.opts.tasks or "d" in self.opts.tasks or self.has_painter
         ):
             if inference:
                 raise ValueError(
@@ -792,7 +792,7 @@ class Trainer:
             assert "d" in self.input_shapes
             self.G.decoders["d"].set_target_size(self.input_shapes["d"][-2:])
 
-        if use_painter:
+        if self.has_painter:
             assert "x" in self.input_shapes
             self.G.painter.set_latent_shape(self.input_shapes["x"], True)
 
@@ -1795,11 +1795,7 @@ class Trainer:
             self.logger.log_comet_images("train", d)
             self.logger.log_comet_images("val", d)
 
-        if (
-            "m" in self.opts.tasks
-            and "p" in self.opts.tasks
-            and not self.kitti_pretrain
-        ):
+        if "m" in self.opts.tasks and self.has_painter and not self.kitti_pretrain:
             self.logger.log_comet_combined_images("train", "r")
             self.logger.log_comet_combined_images("val", "r")
 

@@ -26,6 +26,9 @@ from omnigan.deeplab import (
 from omnigan.encoder import BaseEncoder
 from omnigan.tutils import init_weights, normalize
 
+from pathlib import Path
+import yaml
+
 
 def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
     G = OmniGenerator(opts, latent_shape, verbose, no_init)
@@ -229,6 +232,25 @@ class OmniGenerator(nn.Module):
             logits = logits / logits.max()
 
         return logits
+
+    def load_val_painter(self):
+        try:
+            assert self.opts.val.val_painter
+            ckpt_path = Path(self.opts.val.val_painter).resolve()
+            assert ckpt_path.exists()
+            opts_path = ckpt_path.parent.parent / "opts.yaml"
+            assert opts_path.exists()
+            with opts_path.open("r") as f:
+                val_painter_opts = yaml.safe_load(f)
+            state_dict = torch.load(ckpt_path)
+            painter = PainterSpadeDecoder(val_painter_opts)
+            painter.load_state_dict(state_dict)
+            self.painter = painter
+            return True
+        except Exception as e:
+            print(e)
+            print("Aborting load_val_painter.")
+            return False
 
 
 class MaskBaseDecoder(BaseDecoder):
@@ -443,12 +465,7 @@ class MaskSpadeDecoder(nn.Module):
 
         self.final_nc = int(self.z_nc / (2 ** self.num_layers))
         self.mask_conv = Conv2dBlock(
-            self.final_nc,
-            1,
-            3,
-            padding=1,
-            norm="none",
-            activation="none",
+            self.final_nc, 1, 3, padding=1, norm="none", activation="none",
         )
         self.upsample = InterpolateNearest2d(scale_factor=2)
 
