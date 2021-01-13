@@ -420,16 +420,8 @@ class MaskSpadeDecoder(nn.Module):
                 norm="spectral_batch",
             )
         else:
-            self.input_dim = opts.gen.default.res_dim
-            self.fc_conv = Conv2dBlock(
-                self.input_dim,
-                self.z_nc,
-                3,
-                padding=1,
-                activation="lrelu",
-                pad_type="reflect",
-                norm="spectral_batch",
-            )
+            raise ValueError("Unknown encoder type")
+
         self.spade_blocks = []
         for i in range(self.num_layers):
             self.spade_blocks.append(
