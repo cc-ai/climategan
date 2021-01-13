@@ -401,11 +401,6 @@ class DADADepthRegressionDecoder(nn.Module):
         else:
             res_dim = 2048
 
-        # if res_dim == 2048:
-        #     mid_dim = 512
-        # else:
-        #     mid_dim = 256
-
         mid_dim = 512
 
         self.do_feat_fusion = False
