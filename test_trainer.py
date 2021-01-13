@@ -277,6 +277,13 @@ if __name__ == "__main__":
             "tasks": ["p"],
             "gen.p.diff_aug.use": True,
         },  # 15
+        {
+            "__use_comet": False,
+            "__doc": "MSD DADA",
+            "__verbose": 1,
+            "gen.s.depth_feat_fusion": True,
+            "gen.s.depth_depth_fusion": True,
+        },  # 16
     ]
 
     n_confs = len(test_scenarios)
