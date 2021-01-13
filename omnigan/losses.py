@@ -263,13 +263,13 @@ class SIGMLoss(nn.Module):
         # get gradient map with sobel filters
         batch_size = prediction.size()[0]
         num_pix = prediction.size()[-1] * prediction.size()[-2]
-        self.sobelx = (self.sobelx).expand((batch_size, 1, -1, -1))
-        self.sobely = (self.sobely).expand((batch_size, 1, -1, -1))
+        sobelx = (self.sobelx).expand((batch_size, 1, -1, -1))
+        sobely = (self.sobely).expand((batch_size, 1, -1, -1))
         gmLoss = 0  # gradient matching term
         for k in range(self.scale):
             R_ = F.interpolate(R, scale_factor=1 / 2 ** k)
-            Rx = F.conv2d(R_, self.sobelx, stride=1)
-            Ry = F.conv2d(R_, self.sobely, stride=1)
+            Rx = F.conv2d(R_, sobelx, stride=1)
+            Ry = F.conv2d(R_, sobely, stride=1)
             gmLoss += torch.sum(torch.abs(Rx) + torch.abs(Ry))
         gmLoss = self.gmweight / num_pix * gmLoss
         # scale invariant MSE
