@@ -175,6 +175,7 @@ gen:
     use_advent: True # minimize the entropy of the image by adversarial training
     use_ground_intersection: True
     proj_dim: 64
+    use_pl4m: False
     n_res: 3
     use_low_level_feats: False
     spade:
@@ -183,6 +184,10 @@ gen:
       spade_use_spectral_norm: True
       spade_param_free_norm: batch
       num_layers: 3
+      activations:
+        all_lrelu: False
+        last2_lrelu: False
+        last_tanh: False
 
 # -------------------------
 # ----- Discriminator -----

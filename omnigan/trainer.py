@@ -95,7 +95,7 @@ class Trainer:
         self.input_shapes = None
         self.G = self.D = self.C = None
         self.real_val_fid_stats = None
-        self.use_pl4m = False
+        self.use_pl4m = self.opts.gen.m.use_pl4m
         self.is_setup = False
         self.loaders = self.all_loaders = None
         self.exp = None
@@ -952,8 +952,6 @@ class Trainer:
                 self.logger.epoch == self.opts.gen.p.pl4m_epoch
                 and get_num_params(self.G.painter) > 0
             ):
-                self.use_pl4m = True
-
             self.run_epoch()
             self.run_evaluation(verbose=1)
             self.save()

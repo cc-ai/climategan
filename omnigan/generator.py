@@ -462,7 +462,16 @@ class MaskSpadeDecoder(nn.Module):
         for i in range(self.num_layers):
             y = self.spade_blocks[i](y, cond)
             y = self.upsample(y)
+            if self.opts.gen.m.spade.activations.all_lrelu:
+                y = F.leaky_relu(y, 2e-1)
+        if (
+            self.opts.gen.m.spade.activations.last2_lrelu
+            and not self.opts.gen.m.spade.activations.all_lrelu
+        ):
+            y = F.leaky_relu(y, 2e-1)
         y = self.mask_conv(y)
+        if self.opts.gen.m.spade.activations.last_tanh:
+            y = torch.tanh(y)
         return y
 
     def __str__(self):
