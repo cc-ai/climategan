@@ -96,6 +96,7 @@ class Trainer:
         self.G = self.D = self.C = None
         self.real_val_fid_stats = None
         self.use_pl4m = self.opts.gen.m.use_pl4m
+
         self.is_setup = False
         self.loaders = self.all_loaders = None
         self.exp = None
@@ -948,10 +949,10 @@ class Trainer:
         for self.logger.epoch in range(
             self.logger.epoch, self.logger.epoch + self.opts.train.epochs
         ):
-            if (
-                self.logger.epoch == self.opts.gen.p.pl4m_epoch
-                and get_num_params(self.G.painter) > 0
-            ):
+            # if (
+            #     self.logger.epoch == self.opts.gen.p.pl4m_epoch
+            #     and get_num_params(self.G.painter) > 0
+            # ):
             self.run_epoch()
             self.run_evaluation(verbose=1)
             self.save()

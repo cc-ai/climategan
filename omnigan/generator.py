@@ -382,24 +382,54 @@ class MaskSpadeDecoder(nn.Module):
             and opts.gen.deeplabv3.backbone == "resnet"
         ):
             self.input_dim = [2048, 256]
-            self.low_level_conv = Conv2dBlock(
-                self.input_dim[1],
-                self.input_dim[0],
-                3,
-                padding=1,
-                activation="lrelu",
-                pad_type="reflect",
-                norm="spectral_batch",
-            )
-            self.merge_feats_conv = Conv2dBlock(
-                self.input_dim[0] * 2,
-                self.z_nc,
-                3,
-                padding=1,
-                activation="lrelu",
-                pad_type="reflect",
-                norm="spectral_batch",
-            )
+            if self.opts.gen.m.use_proj:
+                num_proj = self.opts.gen.m.proj_dim
+                self.low_level_conv = Conv2dBlock(
+                    self.input_dim[1],
+                    num_proj,
+                    3,
+                    padding=1,
+                    activation="lrelu",
+                    pad_type="reflect",
+                    norm="spectral_batch",
+                )
+                self.high_level_conv = Conv2dBlock(
+                    self.input_dim[0],
+                    num_proj,
+                    3,
+                    padding=1,
+                    activation="lrelu",
+                    pad_type="reflect",
+                    norm="spectral_batch",
+                )
+                self.merge_feats_conv = Conv2dBlock(
+                    num_proj * 2,
+                    self.z_nc,
+                    3,
+                    padding=1,
+                    activation="lrelu",
+                    pad_type="reflect",
+                    norm="spectral_batch",
+                )
+            else:
+                self.low_level_conv = Conv2dBlock(
+                    self.input_dim[1],
+                    self.input_dim[0],
+                    3,
+                    padding=1,
+                    activation="lrelu",
+                    pad_type="reflect",
+                    norm="spectral_batch",
+                )
+                self.merge_feats_conv = Conv2dBlock(
+                    self.input_dim[0] * 2,
+                    self.z_nc,
+                    3,
+                    padding=1,
+                    activation="lrelu",
+                    pad_type="reflect",
+                    norm="spectral_batch",
+                )
 
         elif opts.gen.encoder.architecture == "deeplabv2":
             self.input_dim = 2048
@@ -452,8 +482,13 @@ class MaskSpadeDecoder(nn.Module):
     def forward(self, z, cond):
         if isinstance(z, (list, tuple)):
             z_h, z_l = z
-            z_l = self.low_level_conv(z_l)
-            z_l = F.interpolate(z_l, size=z_h.shape[-2:], mode="bilinear")
+            if self.opts.gen.m.use_proj:
+                z_l = self.low_level_conv(z_l)
+                z_l = F.interpolate(z_l, size=z_h.shape[-2:], mode="bilinear")
+                z_h = self.high_level_conv(z_h)
+            else:
+                z_l = self.low_level_conv(z_l)
+                z_l = F.interpolate(z_l, size=z_h.shape[-2:], mode="bilinear")
             z = torch.cat([z_h, z_l], axis=1)
             y = self.merge_feats_conv(z)
         else:
