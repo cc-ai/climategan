@@ -245,7 +245,7 @@ class OmniGenerator(nn.Module):
                 val_painter_opts = Dict(yaml.safe_load(f))
             state_dict = torch.load(ckpt_path)
             painter = PainterSpadeDecoder(val_painter_opts)
-            painter.load_state_dict(state_dict)
+            painter.load_state_dict(state_dict["G"])
             self.painter = painter
             return True
         except Exception as e:

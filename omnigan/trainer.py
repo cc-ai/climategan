@@ -1239,31 +1239,27 @@ class Trainer:
             else:
                 z = self.G.encode(x)
                 s_pred = None
-                for task in ["s", "m"]:
-                    if task not in batch["data"]:
-                        continue
 
-                    if task == "s":
+                if "s" in batch["data"]:
 
-                        step_loss, s_pred = self.masker_s_loss(
-                            x, z, None, domain, for_="D"
-                        )
-                        step_loss *= self.opts.train.lambdas.advent.adv_main
-                        disc_loss["s"]["Advent"] += step_loss
+                    step_loss, s_pred = self.masker_s_loss(x, z, None, domain, for_="D")
+                    step_loss *= self.opts.train.lambdas.advent.adv_main
+                    disc_loss["s"]["Advent"] += step_loss
 
-                    if task == "m":
+                if "m" in batch["data"]:
 
-                        cond = None
-                        if self.opts.gen.m.use_spade:
-                            with torch.no_grad():
-                                d_pred = self.G.decoders["d"](z)
-                            cond = self.G.make_m_cond(d_pred, s_pred, x)
+                    cond = None
+                    if self.opts.gen.m.use_spade:
+                        assert s_pred is not None
+                        with torch.no_grad():
+                            d_pred = self.G.decoders["d"](z)
+                        cond = self.G.make_m_cond(d_pred, s_pred, x)
 
-                        step_loss, _ = self.masker_m_loss(
-                            x, z, None, domain, for_="D", cond=cond
-                        )
-                        step_loss *= self.opts.train.lambdas.advent.adv_main
-                        disc_loss["m"]["Advent"] += step_loss
+                    step_loss, _ = self.masker_m_loss(
+                        x, z, None, domain, for_="D", cond=cond
+                    )
+                    step_loss *= self.opts.train.lambdas.advent.adv_main
+                    disc_loss["m"]["Advent"] += step_loss
 
         self.logger.losses.disc.update(
             {
