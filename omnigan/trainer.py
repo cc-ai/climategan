@@ -1839,6 +1839,9 @@ class Trainer:
                         metric_avg_scores["d"][metric].append(metric_score)
 
             if "s" in metric_avg_scores:
+                if z_depth is None:
+                    if "d" in self.opts.tasks and self.opts.gen.s.depth_feat_fusion:
+                        _, z_depth = self.G.decoders["d"](z)
                 s_pred = self.G.decoders["s"](z, z_depth).detach().cpu()
                 s = im_set["data"]["s"].unsqueeze(0).detach()
 
