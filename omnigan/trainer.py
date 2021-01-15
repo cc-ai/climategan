@@ -1197,7 +1197,7 @@ class Trainer:
             # ---------------------
             # -----  Painter  -----
             # ---------------------
-            if domain == "rf":
+            if domain == "rf" and self.has_painter:
                 m = batch["data"]["m"]
                 # sample vector
                 with torch.no_grad():
