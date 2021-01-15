@@ -138,7 +138,6 @@ gen:
         buckets: 256
   s: # specific params for the semantic segmentation decoder
     <<: *default-gen
-    num_classes: 11
     output_dim: 11
     use_advent: True
     use_minent: True

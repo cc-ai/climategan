@@ -22,6 +22,59 @@ IMG_EXTENSIONS = set(
     [".jpg", ".JPG", ".jpeg", ".JPEG", ".png", ".PNG", ".ppm", ".PPM", ".bmp", ".BMP"]
 )
 
+decoding_reduced_mapping = {
+    "s": {
+        0: [0, 0, 255, 255],  # Water
+        1: [55, 55, 55, 255],  # Ground, Terrain
+        2: [204, 102, 0, 255],  # Building
+        3: [255, 212, 0, 255],  # Traffic items, People, Others, Cars
+        4: [60, 180, 60, 255],  # Trees, Vegetation
+        5: [0, 0, 204, 255],  # Sky
+    },
+    "r": {
+        0: [0, 0, 255, 255],  # Water
+        1: [55, 55, 55, 255],  # Ground
+        2: [204, 102, 0, 255],  # Building
+        3: [255, 212, 0, 255],  #
+        4: [60, 180, 60, 255],  #
+        5: [55, 55, 55, 255],  #
+        6: [255, 212, 0, 255],  # Car
+        7: [60, 180, 60, 255],  # Trees
+        8: [255, 212, 0, 255],  # Person
+        9: [0, 0, 204, 255],  # Sky
+        10: [255, 212, 0, 255],  # Others
+    },
+}
+
+encoding_reduced_mapping = {
+    "s": {
+        (0, 0, 255, 255): 0,
+        (55, 55, 55, 255): 1,
+        (0, 255, 255, 255): 2,
+        (255, 212, 0, 255): 3,
+        (0, 255, 0, 255): 4,
+        (255, 97, 0, 255): 1,
+        (255, 0, 0, 255): 3,  # Cars
+        (0, 0, 0, 0): 4,  # Trees
+        (255, 0, 255, 255): 3,  # People
+        (0, 0, 0, 255): 5,  # Sky
+        (255, 255, 255, 255): 3,  # Others
+    },
+    "r": {
+        (0, 0, 255, 255): 0,
+        (55, 55, 55, 255): 1,
+        (0, 255, 255, 255): 2,
+        (255, 212, 0, 255): 3,
+        (0, 255, 0, 255): 4,
+        (255, 97, 0, 255): 1,
+        (255, 0, 0, 255): 3,  # Cars
+        (220, 20, 60, 255): 3,  # People
+        (8, 19, 49, 255): 5,  # Sky
+        (0, 80, 100, 255): 3,  # Others
+    },
+}
+
+
 classes_dict = {
     "s": {  # unity
         0: [0, 0, 255, 255],  # Water
@@ -155,13 +208,17 @@ def decode_segmap_merged_labels(tensor, domain, is_target, nc=11):
     Returns:
         RGB tensor of size (1) x (3) x (H) x (W)
     # """
+    if nc == 6:
+        dict_classes = decoding_reduced_mapping[domain]
+    else:
+        dict_classes = classes_dict["s"]
 
     if is_target:  # Target is size 1 x 1 x H x W
         idx = tensor.squeeze(0).squeeze(0)
     else:  # Prediction is size 1 x nc x H x W
         idx = torch.argmax(tensor.squeeze(0), dim=0)
 
-    indexer = torch.tensor(list(classes_dict[domain].values()))[:, :3]
+    indexer = torch.tensor(list(dict_classes.values()))[:, :3]
     return indexer[idx.long()].permute(2, 0, 1).to(torch.float32).unsqueeze(0)
 
 
@@ -227,7 +284,7 @@ def find_closest_class(pixel, dict_classes):
     return closest_pixel
 
 
-def encode_segmap(arr, domain):
+def encode_segmap(arr, domain, reduced_labelling):
     """Change a segmentation RGBA array to a segmentation array
                             with each pixel being the index of the class
     Arguments:
@@ -236,10 +293,13 @@ def encode_segmap(arr, domain):
         numpy array of size (1) x (H) x (W) with each pixel being the index of the class
     """
     new_arr = np.zeros((1, arr.shape[0], arr.shape[1]))
-    dict_classes = {
-        tuple(rgba_value): class_id
-        for (class_id, rgba_value) in classes_dict[domain].items()
-    }
+    if reduced_labelling:
+        dict_classes = encoding_reduced_mapping[domain]
+    else:
+        dict_classes = {
+            tuple(rgba_value): class_id
+            for (class_id, rgba_value) in classes_dict[domain].items()
+        }
     for i in range(arr.shape[0]):
         for j in range(arr.shape[1]):
             pixel_rgba = tuple(arr[i, j, :])
@@ -251,19 +311,19 @@ def encode_segmap(arr, domain):
     return new_arr
 
 
-def transform_segmap_image_to_tensor(path, domain):
+def transform_segmap_image_to_tensor(path, domain, reduced_labelling):
     """
         Transforms a segmentation image to a tensor of size (1) x (1) x (H) x (W)
         with each pixel being the index of the class
     """
     arr = np.array(Image.open(path).convert("RGBA"))
-    arr = encode_segmap(arr, domain)
+    arr = encode_segmap(arr, domain, reduced_labelling)
     arr = torch.from_numpy(arr).float()
     arr = arr.unsqueeze(0)
     return arr
 
 
-def save_segmap_tensors(path_to_json, path_to_dir, domain):
+def save_segmap_tensors(path_to_json, path_to_dir, domain, reduced_labelling):
     """
     Loads the segmentation images mentionned in a json file, transforms them to
     tensors and save the tensors in the wanted directory
@@ -293,7 +353,9 @@ def save_segmap_tensors(path_to_json, path_to_dir, domain):
             if task_name == "s":
                 file_name = os.path.splitext(path)[0]  # remove extension
                 file_name = file_name.rsplit("/", 1)[-1]  # keep only the file_name
-                tensor = transform_segmap_image_to_tensor(path, domain)
+                tensor = transform_segmap_image_to_tensor(
+                    path, domain, reduced_labelling
+                )
                 torch.save(tensor, path_to_dir + file_name + ".pt")
 
 

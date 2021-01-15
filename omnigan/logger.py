@@ -81,12 +81,19 @@ class Logger:
                         # Log seg output
                         s_pred = prediction.clone()
                         target = (
-                            decode_segmap_merged_labels(target, domain, True)
+                            decode_segmap_merged_labels(
+                                target, domain, True, nc=trainer.opts.gen.s.output_dim
+                            )
                             .float()
                             .to(trainer.device)
                         )
                         prediction = (
-                            decode_segmap_merged_labels(prediction, domain, False)
+                            decode_segmap_merged_labels(
+                                prediction,
+                                domain,
+                                False,
+                                nc=trainer.opts.gen.s.output_dim,
+                            )
                             .float()
                             .to(trainer.device)
                         )

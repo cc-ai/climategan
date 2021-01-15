@@ -19,10 +19,13 @@ parser.add_argument(
     help="path to the directory where to save the tensors as tensor_name.pt",
 )
 parser.add_argument(
-    "--domain", type=str, required=True, help="domain of the images (r or s)"
+    "-d", "--domain", type=str, required=True, help="domain of the images (r or s)"
+)
+parser.add_argument(
+    "-r", "--reduced", type=bool, default=False, help="Whether to use reduced labelling"
 )
 args = parser.parse_args()
 
 
 if __name__ == "__main__":
-    save_segmap_tensors(args.path_json, args.path_dir, args.domain)
+    save_segmap_tensors(args.path_json, args.path_dir, args.domain, args.reduced)

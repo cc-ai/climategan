@@ -314,11 +314,19 @@ class OmniDiscriminator(nn.ModuleDict):
             if opts.gen.s.use_advent:
                 if opts.dis.s.gan_type == "WGAN_norm":
                     self["s"] = nn.ModuleDict(
-                        {"Advent": get_fc_discriminator(num_classes=11, use_norm=True)}
+                        {
+                            "Advent": get_fc_discriminator(
+                                num_classes=opts.gen.s.output_dim, use_norm=True
+                            )
+                        }
                     )
                 else:
                     self["s"] = nn.ModuleDict(
-                        {"Advent": get_fc_discriminator(num_classes=11, use_norm=False)}
+                        {
+                            "Advent": get_fc_discriminator(
+                                num_classes=opts.gen.s.output_dim, use_norm=False
+                            )
+                        }
                     )
 
 
