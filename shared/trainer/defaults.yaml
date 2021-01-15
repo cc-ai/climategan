@@ -33,7 +33,7 @@ data:
     val:
       r: val_r_full.json
       s: val_s_fixedholes.json
-      rf: val_rf.json
+      rf: val_rf_labelbox.json
       kitti: val_kitti.json
   check_samples: False
   loaders:
@@ -178,7 +178,7 @@ gen:
     n_res: 3
     use_low_level_feats: True
     spade:
-      latent_dim: 256
+      latent_dim: 128
       cond_nc: 12 # 12 without x, 15 with x
       spade_use_spectral_norm: True
       spade_param_free_norm: batch
