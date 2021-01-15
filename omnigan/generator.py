@@ -249,6 +249,7 @@ class OmniGenerator(nn.Module):
                 {k.replace("painter.", ""): v for k, v in state_dict["G"].items()}
             )
             self.painter = painter
+            print("    Loaded validation-only painter")
             return True
         except Exception as e:
             print(e)

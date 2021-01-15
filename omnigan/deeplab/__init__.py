@@ -31,7 +31,9 @@ def build_v3_backbone(opts, no_init, verbose=0):
                         if k.startswith("backbone.")
                     }
                 )
-                print("- Loaded pre-trained DeepLabv3+ Resnet101 Backbone as Encoder")
+                print(
+                    "    - Loaded pre-trained DeepLabv3+ Resnet101 Backbone as Encoder"
+                )
         return resnet
 
     elif opts.gen.deeplabv3.backbone == "mobilenet":
@@ -40,7 +42,7 @@ def build_v3_backbone(opts, no_init, verbose=0):
             no_init=no_init,
             pretrained_path=opts.gen.deeplabv3.pretrained_model.mobilenet,
         )
-        print("- Loaded pre-trained DeepLabv3+ MobileNetV2 Backbone as Encoder")
+        print("    - Loaded pre-trained DeepLabv3+ MobileNetV2 Backbone as Encoder")
         return mobilenet
 
     else:

@@ -215,7 +215,9 @@ class DeepLabV3Decoder(nn.Module):
                 },
                 strict=False,
             )
-            print("- Loaded pre-trained DeepLabv3+ (MobileNetV2) Head as Seg Decoder")
+            print(
+                "    - Loaded pre-trained DeepLabv3+ (MobileNetV2) Head as Seg Decoder"
+            )
 
     def set_target_size(self, size):
         """
