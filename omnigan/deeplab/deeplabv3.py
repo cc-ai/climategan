@@ -253,4 +253,3 @@ class DeepLabV3Decoder(nn.Module):
         for m in self.modules():
             if isinstance(m, nn.BatchNorm2d):
                 m.eval()
-

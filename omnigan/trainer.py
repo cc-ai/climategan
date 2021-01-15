@@ -1736,6 +1736,8 @@ class Trainer:
         # painter should not be updated
         for param in self.G.painter.parameters():
             param.requires_grad = False
+        # TODO for param in self.D.painter.parameters():
+        #     param.requires_grad = False
 
         fake_flooded = self.G.paint(m, x)
 
