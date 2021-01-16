@@ -1922,8 +1922,8 @@ class Trainer:
                         + "(use_sky_seg is True and s is None and 's' not in tasks)"
                     )
                 s = self.G.decoders["s"](z)
-                # todo: s to sky mask
-                # todo: interpolate to d's size
+                # TODO: s to sky mask
+                # TODO: interpolate to d's size
 
         params = self.opts.events.smog
 
