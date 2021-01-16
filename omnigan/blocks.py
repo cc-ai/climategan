@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from omnigan.norms import SPADE, SpectralNorm, LayerNorm, AdaptiveInstanceNorm2d
 import omnigan.strings as strings
+from omnigan.utils import find_target_size
 
 # TODO: Organise file
 
@@ -461,14 +462,24 @@ class DADADepthRegressionDecoder(nn.Module):
                     nn.Conv2d(32, 1, kernel_size=1, stride=1, padding=0),
                 ]
             )
-        if isinstance(opts.data.transforms[-1].new_size, int):
-            self.output_size = opts.data.transforms[-1].new_size
+        self._target_size = find_target_size(opts, "d")
+        print(
+            "    -{}:  setting target size to {}".format(
+                self.__class__.__name__, self._target_size
+            )
+        )
+
+    def set_target_size(self, size):
+        """
+        Set final interpolation's target size
+
+        Args:
+            size (int, list, tuple): target size (h, w). If int, target will be (i, i)
+        """
+        if isinstance(size, (list, tuple)):
+            self._target_size = size[:2]
         else:
-            if "d" in opts.data.transforms[-1].new_size:
-                self.output_size = opts.data.transforms[-1].new_size["d"]
-            else:
-                assert "default" in opts.data.transforms[-1].new_size
-                self.output_size = opts.data.transforms[-1].new_size["default"]
+            self._target_size = (size, size)
 
     def forward(self, z):
         if isinstance(z, (list, tuple)):
@@ -481,7 +492,7 @@ class DADADepthRegressionDecoder(nn.Module):
             z4_enc = self.upsample(z4_enc)
 
         depth = torch.mean(z4_enc, dim=1, keepdim=True)  # DADA paper decoder
-        if depth.shape[-1] != self.output_size:
+        if depth.shape[-1] != self._target_size:
             depth = F.interpolate(
                 depth,
                 size=(384, 384),  # size used in MiDaS inference
@@ -490,7 +501,7 @@ class DADADepthRegressionDecoder(nn.Module):
             )
 
             depth = F.interpolate(
-                depth, (self.output_size, self.output_size), mode="nearest"
+                depth, (self._target_size, self._target_size), mode="nearest"
             )  # what we used in the transforms to resize input
         return depth
 
@@ -678,9 +689,13 @@ class PainterSpadeDecoder(nn.Module):
             shape (tuple): The shape to start sampling from.
             is_input (bool, optional): Whether to divide shape by 2 ** spade_n_up
         """
-
-        self.z_h = shape[-2]
-        self.z_w = shape[-1]
+        if isinstance(shape, (list, tuple)):
+            self.z_h = shape[-2]
+            self.z_w = shape[-1]
+        elif isinstance(shape, int):
+            self.z_h = self.z_w = shape
+        else:
+            raise ValueError("Unknown shape type:", shape)
 
         if is_input:
             self.z_h = self.z_h // (2 ** self.spade_n_up)

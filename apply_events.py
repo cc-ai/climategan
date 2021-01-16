@@ -246,12 +246,7 @@ if __name__ == "__main__":
             device = xm.xla_device()
 
         trainer = Trainer.resume_from_path(
-            resume_path,
-            setup=True,
-            inference=True,
-            new_exp=None,
-            input_shapes=(3, 640, 640),
-            device=device,
+            resume_path, setup=True, inference=True, new_exp=None, device=device,
         )
         print()
         print_num_parameters(trainer, True)

@@ -6,7 +6,8 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from omnigan.deeplab.mobilenetv2 import SeparableConv2d, _ConvBNReLU
+from omnigan.deeplab.mobilenetv2 import SeparableConv2d  # , _ConvBNReLU
+from omnigan.utils import find_target_size
 
 
 class _DeepLabHead(nn.Module):
@@ -163,7 +164,12 @@ class DeepLabV3Decoder(nn.Module):
         else:
             self.head = _DeepLabHead(num_classes, c4_channels=320)
 
-        self._target_size = None
+        self._target_size = find_target_size(opts, "s")
+        print(
+            "    -{}:  setting target size to {}".format(
+                self.__class__.__name__, self._target_size
+            )
+        )
 
         if not no_init:
             for m in self.modules():

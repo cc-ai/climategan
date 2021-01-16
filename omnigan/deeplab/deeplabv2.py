@@ -2,6 +2,7 @@ import torch.nn as nn
 import torch
 from omnigan.blocks import InterpolateNearest2d
 import torch.nn.functional as F
+from omnigan.utils import find_target_size
 
 
 class _ASPPModule(nn.Module):
@@ -155,19 +156,13 @@ class DeepLabV2Decoder(nn.Module):
             nn.Conv2d(256, opts.gen.s.output_dim, kernel_size=1, stride=1),
         ]
         self.conv = nn.Sequential(*conv_modules)
-        self._target_size = None
-        if not no_init:
-            self._init_weight()
 
-    def _init_weight(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                # n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-                # m.weight.data.normal_(0, math.sqrt(2. / n))
-                torch.nn.init.kaiming_normal_(m.weight)
-            elif isinstance(m, nn.BatchNorm2d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
+        self._target_size = find_target_size(opts, "s")
+        print(
+            "    -{}:  setting target size to {}".format(
+                self.__class__.__name__, self._target_size
+            )
+        )
 
     def set_target_size(self, size):
         """

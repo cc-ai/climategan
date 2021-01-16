@@ -25,6 +25,7 @@ from omnigan.deeplab import (
 )
 from omnigan.encoder import BaseEncoder
 from omnigan.tutils import init_weights, normalize
+from omnigan.utils import find_target_size
 
 from pathlib import Path
 import yaml
@@ -169,7 +170,7 @@ class OmniGenerator(nn.Module):
 
         return z
 
-    def make_m_cond(self, d, s, x):
+    def make_m_cond(self, d, s, x=None):
         cats = [normalize(d), softmax(s, dim=1)]
         if self.opts.gen.m.spade.cond_nc == 15:
             assert x is not None
@@ -314,7 +315,12 @@ class BaseDepthDecoder(BaseDecoder):
             else opts.gen.d.classify.linspace.buckets
         )
 
-        self._target_size = None
+        self._target_size = find_target_size(opts, "d")
+        print(
+            "    -{}:  setting target size to {}".format(
+                self.__class__.__name__, self._target_size
+            )
+        )
 
         super().__init__(
             n_upsample=n_upsample,

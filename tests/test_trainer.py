@@ -183,20 +183,8 @@ if __name__ == "__main__":
     base_opts.train.epochs = 1
     if isinstance(base_opts.data.transforms[-1].new_size, int):
         base_opts.data.transforms[-1].new_size = 256
-        input_shapes = {
-            "x": (3, 256, 256),
-            "s": (base_opts.gen.s.num_classes, 256, 256),
-        }
     else:
         base_opts.data.transforms[-1].new_size.default = 256
-        input_shapes = {
-            "x": (3, 256, 256),
-            "s": (
-                base_opts.gen.s.num_classes,
-                base_opts.data.transforms[-1].new_size.get("s", 256),
-                base_opts.data.transforms[-1].new_size.get("s", 256),
-            ),
-        }
 
     # --------------------------------------
     # -----  Configure Test Scenarios  -----
@@ -334,10 +322,6 @@ if __name__ == "__main__":
             # set (or not) painter loss for masker (= end-to-end)
             if pl4m:
                 trainer.use_pl4m = True
-
-            # set input_shape for inference-only
-            if inference:
-                trainer.set_data_shapes(input_shapes)
 
             # test training procedure
             trainer.setup(inference=inference)

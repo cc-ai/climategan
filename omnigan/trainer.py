@@ -51,11 +51,11 @@ from omnigan.utils import (
     Timer,
     comet_kwargs,
     div_dict,
+    find_target_size,
     flatten_opts,
     get_display_indices,
     get_existing_comet_id,
     get_latest_opts,
-    get_loader_output_shape_from_opts,
     merge,
     sum_dict,
 )
@@ -91,7 +91,6 @@ class Trainer:
         self.logger = Logger(self)
 
         self.losses = None
-        self.input_shapes = None
         self.G = self.D = self.C = None
         self.real_val_fid_stats = None
         self.use_pl4m = False
@@ -307,7 +306,6 @@ class Trainer:
         setup=True,
         inference=False,
         new_exp=False,
-        input_shapes=None,
         device=None,
     ):
         """
@@ -324,9 +322,6 @@ class Trainer:
                 Defaults to False.
             new_exp (bool, optional): Re-use existing comet exp in path or create
                 a new one? Defaults to False.
-            input_shapes (tuple, optional): In inference mode the trainer does not have
-                loaders and cannot therefore set the final interpolation's target size
-                for the segmentation and depth decoders.
             device (torch.device, optional): Device to use
 
         Returns:
@@ -357,11 +352,6 @@ class Trainer:
         trainer = cls(opts, comet_exp=exp, device=device)
 
         if setup:
-            if input_shapes is not None:
-                trainer.set_data_shapes(input_shapes)
-            else:
-                if inference:
-                    trainer.set_data_shapes(get_loader_output_shape_from_opts(opts))
             trainer.setup(inference=inference)
         return trainer
 
@@ -655,36 +645,6 @@ class Trainer:
         z = self.G.encode(x)
         return z.shape[1:] if not isinstance(z, (list, tuple)) else z[0].shape[1:]
 
-    def compute_input_shapes(self) -> dict:
-        """Compute the input shape, i.e. the data's post-transform shape,
-        from a batch, as a dict per task.
-
-        Raises:
-            ValueError: If no loader, the latent_shape cannot be inferred
-
-        Returns:
-            dict(tuple): {task: (c, h, w) for task in self.opts.tasks}
-        """
-        if self.opts.train.kitti.pretrain is True:
-            domain = "kitti"
-        elif any(t in self.opts.tasks for t in "msd"):
-            domain = "r"
-        else:
-            domain = "rf"
-
-        if "train" in self.all_loaders:
-            mode = "train"
-        else:
-            assert "val" in self.all_loaders, "no data loader found"
-            mode = "val"
-
-        return {
-            task: tensor.shape
-            for task, tensor in self.all_loaders[mode][domain]
-            .dataset[0]["data"]
-            .items()
-        }
-
     def g_opt_step(self):
         """Run an optimizing step ; if using ExtraAdam, there needs to be an extrapolation
         step every other step
@@ -726,30 +686,6 @@ class Trainer:
         if self.c_scheduler is not None:
             self.c_scheduler.step()
 
-    def set_data_shapes(self, shapes):
-        """
-        Sets the input shapes for the Segmentation Decoder and the Painter
-
-        Args:
-            shapes (tuple | dict): If tuple, should be (c, h, w) and the same
-            value will be used for all tasks. If dict, should map task to shape.
-            The painter requires an `x` key and the seg requires an `s` key
-
-        Raises:
-            NotImplementedError: Cannot handle types other than tuple/list  or dict
-        """
-        if isinstance(shapes, (tuple, list)):
-            self.input_shapes = {t: shapes for t in self.opts.tasks + ["x"]}
-        elif isinstance(shapes, dict):
-            assert "x" in shapes
-            if "s" in self.opts.tasks:
-                assert "s" in shapes
-            self.input_shapes = shapes
-        else:
-            raise NotImplementedError(
-                "Unknown `shapes`type: {} -> {}".format(type(shapes), shapes)
-            )
-
     def setup(self, inference=False):
         """Prepare the trainer before it can be used to train the models:
         * initialize G and D
@@ -777,27 +713,8 @@ class Trainer:
         print("Sending to", self.device)
         self.G = self.G.to(self.device)
 
-        if self.input_shapes is None and (
-            "s" in self.opts.tasks or "d" in self.opts.tasks or self.has_painter
-        ):
-            if inference:
-                raise ValueError(
-                    "Cannot auto-set input_shapes from loaders in inference mode."
-                    + " It  has to  be set prior to setup()."
-                )
-            print("Computing latent & input shapes...", end="", flush=True)
-            self.input_shapes = self.compute_input_shapes()
-
-        if "s" in self.opts.tasks:
-            assert "s" in self.input_shapes
-            self.G.decoders["s"].set_target_size(self.input_shapes["s"][-2:])
-        if "d" in self.opts.tasks and self.opts.gen.d.architecture == "base":
-            assert "d" in self.input_shapes
-            self.G.decoders["d"].set_target_size(self.input_shapes["d"][-2:])
-
         if self.has_painter:
-            assert "x" in self.input_shapes
-            self.G.painter.set_latent_shape(self.input_shapes["x"], True)
+            self.G.painter.set_latent_shape(find_target_size(self.opts, "x"), True)
 
         print(f"Generator OK in {time() - __t:.1f}s.")
 

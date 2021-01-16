@@ -283,7 +283,6 @@ if __name__ == "__main__":
     torch.set_grad_enabled(False)
     device = xm.xla_device()
     trainer = Trainer(opts, device=device)
-    trainer.input_shape = (3, 640, 640)
     trainer.setup(inference=True)
     trainer.resume(inference=True)
 

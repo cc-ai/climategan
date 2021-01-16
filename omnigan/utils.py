@@ -925,3 +925,16 @@ def get_loader_output_shape_from_opts(opts):
     new_size = (t.new_size, t.new_size)
     return {task: new_size for task in opts.tasks + ["x"]}
 
+
+def find_target_size(opts, task):
+    target_size = None
+    if isinstance(opts.data.transforms[-1].new_size, int):
+        target_size = opts.data.transforms[-1].new_size
+    else:
+        if task in opts.data.transforms[-1].new_size:
+            target_size = opts.data.transforms[-1].new_size[task]
+        else:
+            assert "default" in opts.data.transforms[-1].new_size
+            target_size = opts.data.transforms[-1].new_size["default"]
+
+    return target_size
