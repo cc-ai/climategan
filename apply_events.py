@@ -169,6 +169,12 @@ def parse_args():
         default=False,
         help="disable writing the apply_events hash and command in the output folder",
     )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        default=False,
+        help="Do not check for existing outdir",
+    )
 
     return parser.parse_args()
 
@@ -199,6 +205,14 @@ if __name__ == "__main__":
     xla_purge_samples = args.xla_purge_samples
 
     if outdir is not None:
+        if outdir.exists() and not args.overwrite:
+            print(
+                f"WARNING: outdir ({str(outdir)}) already exists."
+                + " Files with existing names will be overwritten"
+            )
+            if "y" in input("Stop applying events? [y/n] (default: n): "):
+                print("Interrupting execution from user input.")
+                sys.exit()
         outdir.mkdir(exist_ok=True, parents=True)
 
     # -------------------------------
@@ -313,7 +327,7 @@ if __name__ == "__main__":
     # ----------------------------------------------
     # -----  Write events to output directory  -----
     # ----------------------------------------------
-    if outdir:
+    if outdir is not None:
         print("\n• Writing")
         with Timer(store=stores.get("write", [])):
             for b, events in enumerate(all_events):
@@ -341,5 +355,5 @@ if __name__ == "__main__":
             report = met.metrics_report()
             print(report, file=f)
 
-    if not args.no_conf:
+    if not args.no_conf and outdir is not None:
         write_apply_config(outdir)
