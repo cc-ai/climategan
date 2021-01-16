@@ -140,7 +140,7 @@ class Resize:
 
 
 class RandomCrop:
-    def __init__(self, size):
+    def __init__(self, size, center=False):
         assert isinstance(size, (int, tuple, list))
         if not isinstance(size, int):
             self.h, self.w = size
@@ -150,11 +150,18 @@ class RandomCrop:
 
         self.h = int(self.h)
         self.w = int(self.w)
+        self.center = center
 
     def __call__(self, data):
-        h, w = data["x"].size()[-2:]
-        top = np.random.randint(0, h - self.h)
-        left = np.random.randint(0, w - self.w)
+        H, W = data["x"].size()[-2:]
+
+        if not self.center:
+            top = np.random.randint(0, H - self.h)
+            left = np.random.randint(0, W - self.w)
+        else:
+            top = (H - self.h) // 2
+            left = (W - self.w) // 2
+
         return {
             task: tensor[:, :, top : top + self.h, left : left + self.w]
             for task, tensor in data.items()
@@ -272,33 +279,48 @@ class BucketizeDepth:
         }
 
 
-def get_transform(transform_item):
+def get_transform(transform_item, mode):
     """Returns the torchivion transform function associated to a
     transform_item listed in opts.data.transforms ; transform_item is
     an addict.Dict
     """
 
-    if transform_item.name == "crop" and not transform_item.ignore:
-        return RandomCrop((transform_item.height, transform_item.width))
+    if transform_item.name == "crop" and not (
+        transform_item.ignore is True or transform_item.ignore == mode
+    ):
+        return RandomCrop(
+            (transform_item.height, transform_item.width),
+            center=transform_item.center == mode,
+        )
 
-    elif transform_item.name == "resize" and not transform_item.ignore:
+    elif transform_item.name == "resize" and not (
+        transform_item.ignore is True or transform_item.ignore == mode
+    ):
         return Resize(
             transform_item.new_size, transform_item.get("keep_aspect_ratio", False)
         )
 
-    elif transform_item.name == "hflip" and not transform_item.ignore:
+    elif transform_item.name == "hflip" and not (
+        transform_item.ignore is True or transform_item.ignore == mode
+    ):
         return RandomHorizontalFlip(p=transform_item.p or 0.5)
 
-    elif transform_item.name == "brightness" and not transform_item.ignore:
+    elif transform_item.name == "brightness" and not (
+        transform_item.ignore is True or transform_item.ignore == mode
+    ):
         return RandBrightness()
 
-    elif transform_item.name == "saturation" and not transform_item.ignore:
+    elif transform_item.name == "saturation" and not (
+        transform_item.ignore is True or transform_item.ignore == mode
+    ):
         return RandSaturation()
 
-    elif transform_item.name == "contrast" and not transform_item.ignore:
+    elif transform_item.name == "contrast" and not (
+        transform_item.ignore is True or transform_item.ignore == mode
+    ):
         return RandContrast()
 
-    elif transform_item.ignore:
+    elif transform_item.ignore is True or transform_item.ignore == mode:
         return None
 
     raise ValueError("Unknown transform_item {}".format(transform_item))
@@ -306,21 +328,22 @@ def get_transform(transform_item):
 
 def get_transforms(opts, mode, domain):
     """Get all the transform functions listed in opts.data.transforms
-    using get_transform(transform_item)
+    using get_transform(transform_item, mode)
     """
     transforms = []
-    color_jittering = ["brightness", "saturation", "contrast"]
+    color_jittering_transforms = ["brightness", "saturation", "contrast"]
 
     for t in opts.data.transforms:
-        if t.name not in color_jittering and get_transform(t) is not None:
-            transforms.append(get_transform(t))
+        if t.name not in color_jittering_transforms:
+            transforms.append(get_transform(t, mode))
 
     if "p" not in opts.tasks and mode == "train":
         for t in opts.data.transforms:
-            if t.name in color_jittering and get_transform(t) is not None:
-                transforms.append(get_transform(t))
+            if t.name in color_jittering_transforms:
+                transforms.append(get_transform(t, mode))
 
     transforms += [Normalize(opts), BucketizeDepth(opts, domain)]
+    transforms = [t for t in transforms if t is not None]
 
     return transforms
 
