@@ -142,13 +142,6 @@ def parse_args():
         help="Binary flag to use half precision (float16). Defaults to False.",
     )
     parser.add_argument(
-        "--val_painter",
-        "-v",
-        action="store_true",
-        default=False,
-        help="Use the opts.val.val_painter model for the painter",
-    )
-    parser.add_argument(
         "-n",
         "--n_images",
         default=-1,
@@ -207,12 +200,13 @@ if __name__ == "__main__":
     if outdir is not None:
         if outdir.exists() and not args.overwrite:
             print(
-                f"WARNING: outdir ({str(outdir)}) already exists."
+                f"\nWARNING: outdir ({str(outdir)}) already exists."
                 + " Files with existing names will be overwritten"
             )
-            if "y" in input("Stop applying events? [y/n] (default: n): "):
+            if "y" in input("\nStop applying events? [y/n] (default: n): "):
                 print("Interrupting execution from user input.")
                 sys.exit()
+            print()
         outdir.mkdir(exist_ok=True, parents=True)
 
     # -------------------------------
