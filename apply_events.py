@@ -204,7 +204,7 @@ if __name__ == "__main__":
                 f"\nWARNING: outdir ({str(outdir)}) already exists."
                 + " Files with existing names will be overwritten"
             )
-            if "n" in input("\nContinue anyway? [y / n] (default: y) > "):
+            if "n" in input(">>> Continue anyway? [y / n] (default: y) : "):
                 print("Interrupting execution from user input.")
                 sys.exit()
             print()
