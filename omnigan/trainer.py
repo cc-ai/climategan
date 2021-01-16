@@ -769,8 +769,11 @@ class Trainer:
         # -----------------------
         __t = time()
         print("Creating generator...")
+
         self.G: OmniGenerator = get_gen(self.opts, verbose=verbose, no_init=inference)
+
         self.has_painter = get_num_params(self.G.painter) or self.G.load_val_painter()
+
         print("Sending to", self.device)
         self.G = self.G.to(self.device)
 

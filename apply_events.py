@@ -121,7 +121,7 @@ def parse_args():
         "-m",
         "--flood_mask_binarization",
         type=float,
-        default=-1,
+        default=0.5,
         help="Value to use to binarize masks (mask > value). "
         + "Set to -1 (default) to use soft masks (not binarized)",
     )
@@ -130,6 +130,13 @@ def parse_args():
         action="store_true",
         default=False,
         help="Binary flag to use half precision (float16). Defaults to False.",
+    )
+    parser.add_argument(
+        "--val_painter",
+        "-v",
+        action="store_true",
+        default=False,
+        help="Use the opts.val.val_painter model for the painter",
     )
     parser.add_argument(
         "-n",
