@@ -10,6 +10,7 @@ from pathlib import Path
 
 import numpy as np
 import skimage.io as io
+from skimage.color import rgba2rgb
 from skimage.transform import resize
 
 from omnigan.data import is_image_file
@@ -277,6 +278,8 @@ if __name__ == "__main__":
     with Timer(store=stores.get("data pre-processing", [])):
         # read images to numpy arrays
         data = [io.imread(str(d)) for d in data_paths]
+        # rgba to rgb
+        data = [im if im.shape[-1] == 3 else rgba2rgb(im) for im in data]
         # resize to standard input size 640 x 640
         data = [resize(d, (640, 640), anti_aliasing=True) for d in data]
         # normalize to -1:1
