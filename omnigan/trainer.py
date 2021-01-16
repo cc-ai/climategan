@@ -307,6 +307,7 @@ class Trainer:
         inference=False,
         new_exp=False,
         device=None,
+        verbose=1
     ):
         """
         Resume and optionally setup a trainer from a specific path,
@@ -349,7 +350,7 @@ class Trainer:
             comet_id = get_existing_comet_id(p)
             exp = ExistingExperiment(previous_experiment=comet_id, **comet_kwargs)
 
-        trainer = cls(opts, comet_exp=exp, device=device)
+        trainer = cls(opts, comet_exp=exp, device=device, verbose=verbose)
 
         if setup:
             trainer.setup(inference=inference)

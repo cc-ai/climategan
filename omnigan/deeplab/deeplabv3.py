@@ -166,7 +166,7 @@ class DeepLabV3Decoder(nn.Module):
 
         self._target_size = find_target_size(opts, "s")
         print(
-            "    -{}:  setting target size to {}".format(
+            "      - {}:  setting target size to {}".format(
                 self.__class__.__name__, self._target_size
             )
         )
