@@ -180,14 +180,14 @@ if __name__ == "__main__":
         base_opts.data.transforms[-1].new_size = 256
         input_shapes = {
             "x": (3, 256, 256),
-            "s": (base_opts.gen.s.num_classes, 256, 256),
+            "s": (base_opts.gen.s.output_dim, 256, 256),
         }
     else:
         base_opts.data.transforms[-1].new_size.default = 256
         input_shapes = {
             "x": (3, 256, 256),
             "s": (
-                base_opts.gen.s.num_classes,
+                base_opts.gen.s.output_dim,
                 base_opts.data.transforms[-1].new_size.get("s", 256),
                 base_opts.data.transforms[-1].new_size.get("s", 256),
             ),
