@@ -2,6 +2,7 @@ print("\n• Imports\n")
 import time
 
 import_time = time.time()
+import sys
 import argparse
 from collections import OrderedDict
 from datetime import datetime
@@ -14,7 +15,7 @@ from skimage.transform import resize
 from omnigan.data import is_image_file
 from omnigan.trainer import Trainer
 from omnigan.tutils import normalize, print_num_parameters
-from omnigan.utils import Timer
+from omnigan.utils import Timer, get_git_revision_hash
 
 import_time = time.time() - import_time
 
@@ -76,6 +77,15 @@ def print_store(store, purge=-1):
     for k in multiples:
         print_time(k, multiples[k], purge)
     print()
+
+
+def write_apply_config(out):
+    command = " ".join(sys.argv)
+    git_hash = get_git_revision_hash()
+    with (out / "command.txt").open("w") as f:
+        f.write(command)
+    with (out / "hash.txt").open("w") as f:
+        f.write(git_hash)
 
 
 def parse_args():
@@ -152,6 +162,12 @@ def parse_args():
         default=-1,
         help="XLA compile time induces extra computations."
         + " Ignore -x samples when computing time averages",
+    )
+    parser.add_argument(
+        "--no_conf",
+        action="store_true",
+        default=False,
+        help="disable writing the apply_events hash and command in the output folder",
     )
 
     return parser.parse_args()
@@ -324,3 +340,6 @@ if __name__ == "__main__":
         with open(metrics_dir / f"xla_metrics_{now}.txt", "w",) as f:
             report = met.metrics_report()
             print(report, file=f)
+
+    if not args.no_conf:
+        write_apply_config(outdir)
