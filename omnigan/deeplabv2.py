@@ -187,7 +187,7 @@ class DeepLabV2Decoder(BaseDecoder):
         else:
             self._target_size = (size, size)
 
-    def forward(self, z):
+    def forward(self, z, z_depth=None):
         if self._target_size is None:
             error = "self._target_size should be set with self.set_target_size()"
             error += "to interpolate logits to the target seg map's size"
@@ -198,6 +198,8 @@ class DeepLabV2Decoder(BaseDecoder):
             raise Exception(
                 "Segmentation decoder will only work with 2048 channels for z"
             )
+        if z_depth is not None:
+            z = z * z_depth
         y = self.aspp(z)
         y = self.conv(y)
         return F.interpolate(y, self._target_size, mode="bilinear", align_corners=True)

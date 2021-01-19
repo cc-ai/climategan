@@ -33,7 +33,7 @@ data:
     val:
       r: val_r_full.json
       s: val_s_fixedholes.json
-      rf: val_rf.json
+      rf: val_rf_labelbox.json
       kitti: val_kitti.json
   check_samples: False
   loaders:
@@ -94,17 +94,12 @@ gen:
     n_downsample: &n_downsample 3 # number of downsampling layers in encoder | dim 32 + down 3 => z = 256 x 32 x 32
     n_upsample: *n_downsample # upsampling in spade decoder ; should match encoder.n_downsample
     pad_type: reflect # padding type [zero/reflect]
-    res_dim: 2048 # Resblock number of channels (=latent space's)
-    # res_dim should be
-    # * 2048 if using deeplabv2 or deeplabv3 with resnet backbone
-    # * 320 if using deeplabv3 with mobilenet backbone
-    # * anything, like 256, otherwise
     norm: spectral # ResBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
     proj_dim: 32 # Dim of projection from latent space
   encoder: # specific params for the encoder
     <<: *default-gen
     dim: 32
-    architecture: deeplabv3 # [deeplabv2/3 (res_dim = 2048) | base (res_dim = 256)]
+    architecture: deeplabv3 # [deeplabv2/v3 resnet -> res_dim=2048) | dlv3 mobilenet -> res_dim=320
     input_dim: 3 # input number of channels
     n_res: 0 # number of residual blocks in content encoder/decoder
     norm: spectral # ConvBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
@@ -143,6 +138,8 @@ gen:
     use_minent: True
     architecture: "deeplabv3"
     upsample_featuremaps: False # upsamples from 80x80 to 160x160 intermediate feature maps
+    depth_feat_fusion: True
+    depth_dada_fusion: True
   p: # specific params for the SPADE painter
     <<: *default-gen
     latent_dim: 512
@@ -177,6 +174,7 @@ gen:
     n_res: 3
     use_low_level_feats: False
     spade:
+      detach: True # detach s_pred and d_pred conditionning tensors
       latent_dim: 256
       cond_nc: 12 # 12 without x, 15 with x
       spade_use_spectral_norm: True
@@ -264,7 +262,7 @@ train:
   amp: False
   pseudo:
     tasks: [] # list of tasks for which to use pseudo labels (empty list to disable)
-    epochs: 30 # disable pseudo training after n epochs (set to -1 to never disable)
+    epochs: 10 # disable pseudo training after n epochs (set to -1 to never disable)
   epochs: 300
   fid:
     n_images: 57 # val_rf.json has 57 images

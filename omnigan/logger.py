@@ -3,10 +3,9 @@ import torchvision.utils as vutils
 
 import numpy as np
 import torch
-from torch.nn.functional import sigmoid, interpolate, softmax
+from torch.nn.functional import sigmoid, interpolate
 from omnigan.data import decode_segmap_merged_labels
 from omnigan.tutils import (
-    normalize,
     normalize_tensor,
     all_texts_to_tensors,
     decode_bucketed_depth,
@@ -44,7 +43,7 @@ class Logger:
                 x = display_dict["data"]["x"].unsqueeze(0).to(trainer.device)
                 z = trainer.G.encode(x)
 
-                s_pred = decoded_s_pred = d_pred = None
+                s_pred = decoded_s_pred = d_pred = z_depth = None
                 for k, task in enumerate(["d", "s", "m"]):
 
                     if (
@@ -61,14 +60,17 @@ class Logger:
                     if task not in save_images:
                         save_images[task] = []
 
-                    if task != "m":
-                        prediction = trainer.G.decoders[task](z)
-                    else:
+                    prediction = None
+                    if task == "m":
                         cond = None
                         if s_pred is not None and d_pred is not None:
                             cond = trainer.G.make_m_cond(d_pred, s_pred, x)
 
                         prediction = trainer.G.decoders[task](z, cond)
+                    elif task == "d":
+                        prediction, z_depth = trainer.G.decoders[task](z)
+                    elif task == "s":
+                        prediction = trainer.G.decoders[task](z, z_depth)
 
                     if task == "s":
                         # Log fire
