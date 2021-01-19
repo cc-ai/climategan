@@ -99,13 +99,13 @@ class Conv2dBlock(nn.Module):
 
         # initialize activation
         if activation == "relu":
-            self.activation = nn.ReLU(inplace=True)
+            self.activation = nn.ReLU(inplace=False)
         elif activation == "lrelu":
-            self.activation = nn.LeakyReLU(0.2, inplace=True)
+            self.activation = nn.LeakyReLU(0.2, inplace=False)
         elif activation == "prelu":
             self.activation = nn.PReLU()
         elif activation == "selu":
-            self.activation = nn.SELU(inplace=True)
+            self.activation = nn.SELU(inplace=False)
         elif activation == "tanh":
             self.activation = nn.Tanh()
         elif activation == "sigmoid":
@@ -402,12 +402,21 @@ class DADADepthRegressionDecoder(nn.Module):
         else:
             res_dim = 2048
 
-        # if res_dim == 2048:
-        #     mid_dim = 512
-        # else:
-        #     mid_dim = 256
-
         mid_dim = 512
+
+        self.do_feat_fusion = False
+        if "s" in opts.tasks and opts.gen.s.depth_feat_fusion:
+            self.do_feat_fusion = True
+            self.dec4 = Conv2dBlock(
+                128,
+                res_dim,
+                1,
+                stride=1,
+                padding=0,
+                bias=True,
+                activation="lrelu",
+                norm="none",
+            )
 
         self.relu = nn.ReLU(inplace=True)
         self.enc4_1 = Conv2dBlock(
@@ -488,6 +497,10 @@ class DADADepthRegressionDecoder(nn.Module):
         z4_enc = self.enc4_2(z4_enc)
         z4_enc = self.enc4_3(z4_enc)
 
+        z_depth = None
+        if self.do_feat_fusion:
+            z_depth = self.dec4(z4_enc)
+
         if self.upsample is not None:
             z4_enc = self.upsample(z4_enc)
 
@@ -503,7 +516,8 @@ class DADADepthRegressionDecoder(nn.Module):
             depth = F.interpolate(
                 depth, (self._target_size, self._target_size), mode="nearest"
             )  # what we used in the transforms to resize input
-        return depth
+
+        return depth, z_depth
 
     def __str__(self):
         return "Depth_decoder"

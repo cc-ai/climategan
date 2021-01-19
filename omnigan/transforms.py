@@ -348,7 +348,7 @@ def get_transforms(opts, mode, domain):
     return transforms
 
 
-# --------- Adapted functions from https://github.com/mit-han-lab/data-efficient-gans ---------#
+# ----- Adapted functions from https://github.com/mit-han-lab/data-efficient-gans -----#
 def rand_brightness(tensor, is_diff_augment=False):
     if is_diff_augment:
         assert len(tensor.shape) == 4

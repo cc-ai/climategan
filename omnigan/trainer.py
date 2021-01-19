@@ -264,11 +264,11 @@ class Trainer:
 
             # predict from masker
             with Timer(store=stores.get("depth", [])):
-                depth = self.G.decoders["d"](z)
+                depth, z_depth = self.G.decoders["d"](z)
                 if xla:
                     xm.mark_step()
             with Timer(store=stores.get("segmentation", [])):
-                segmentation = self.G.decoders["s"](z)
+                segmentation = self.G.decoders["s"](z, z_depth)
                 if xla:
                     xm.mark_step()
             with Timer(store=stores.get("mask", [])):
@@ -1170,21 +1170,22 @@ class Trainer:
             # --------------------
             else:
                 z = self.G.encode(x)
-                s_pred = None
+                s_pred = d_pred = cond = depth_preds = None
 
                 if "s" in batch["data"]:
-
-                    step_loss, s_pred = self.masker_s_loss(x, z, None, domain, for_="D")
+                    d_pred, z_depth = self.G.decoders["d"](z)
+                    if self.opts.gen.s.depth_dada_fusion:
+                        depth_preds = d_pred
+                    step_loss, s_pred = self.masker_s_loss(
+                        x, z, depth_preds, z_depth, None, domain, for_="D"
+                    )
                     step_loss *= self.opts.train.lambdas.advent.adv_main
                     disc_loss["s"]["Advent"] += step_loss
 
                 if "m" in batch["data"]:
-
-                    cond = None
                     if self.opts.gen.m.use_spade:
-                        assert s_pred is not None
-                        with torch.no_grad():
-                            d_pred = self.G.decoders["d"](z)
+                        if d_pred is None:
+                            d_pred, _ = self.G.decoders["d"](z)
                         cond = self.G.make_m_cond(d_pred, s_pred, x)
 
                     step_loss, _ = self.masker_m_loss(
@@ -1264,6 +1265,7 @@ class Trainer:
             # --------------------------------------
             # -----  task-specific losses (2)  -----
             # --------------------------------------
+            z_depth = None
             d_pred = s_pred = None
             for task in ["d", "s", "m"]:
                 if task not in batch["data"]:
@@ -1272,12 +1274,16 @@ class Trainer:
                 target = batch["data"][task]
 
                 if task == "s":
-                    loss, s_pred = self.masker_s_loss(x, z, target, domain, "G")
+                    loss, s_pred = self.masker_s_loss(
+                        x, z, d_pred, z_depth, target, domain, "G"
+                    )
                     m_loss += loss
                     self.logger.losses.gen.task["s"][domain] = loss.item()
 
                 elif task == "d":
-                    loss, d_pred = self.masker_d_loss(x, z, target, domain, "G")
+                    loss, d_pred, z_depth = self.masker_d_loss(
+                        x, z, target, domain, "G"
+                    )
                     m_loss += loss
                     self.logger.losses.gen.task["d"][domain] = loss.item()
 
@@ -1446,27 +1452,23 @@ class Trainer:
         assert for_ in {"G", "D"}
         self.assert_z_matches_x(x, z)
         assert x.shape[0] == target.shape[0]
-        full_loss = torch.tensor(0.0, device=self.device)
+        zero_loss = torch.tensor(0.0, device=self.device)
         weight = self.opts.train.lambdas.G.d.main
 
-        if weight == 0:
-            return full_loss
-
-        prediction = self.G.decoders["d"](z)
-
-        if domain == "r" and "d" not in self.pseudo_training_tasks:
-            return full_loss, prediction.detach()
+        prediction, z_depth = self.G.decoders["d"](z)
 
         if self.opts.gen.d.classify.enable:
             target.squeeze_(1)
 
-        loss = self.losses["G"]["tasks"]["d"](prediction, target)
-        loss *= weight
+        full_loss = self.losses["G"]["tasks"]["d"](prediction, target)
+        full_loss *= weight
 
-        full_loss += loss
-        return full_loss, prediction.detach()
+        if weight == 0 or (domain == "r" and "d" not in self.pseudo_training_tasks):
+            return zero_loss, prediction, z_depth
 
-    def masker_s_loss(self, x, z, target, domain, for_="G"):
+        return full_loss, prediction, z_depth
+
+    def masker_s_loss(self, x, z, depth_preds, z_depth, target, domain, for_="G"):
         assert for_ in {"G", "D"}
         assert domain in {"r", "s"}
         self.assert_z_matches_x(x, z)
@@ -1478,7 +1480,7 @@ class Trainer:
         # --------------------------
         pred = None
         if for_ == "G" or self.opts.gen.s.use_advent:
-            pred = self.G.decoders["s"](z)
+            pred = self.G.decoders["s"](z, z_depth)
 
         # Supervised segmentation loss: crossent for sim domain,
         # crossent_pseudo for real ; loss is crossent in any case
@@ -1517,6 +1519,10 @@ class Trainer:
                 logger = {}
                 loss_func = self.losses["D"]["advent"]
                 pred = pred.detach()
+                if self.opts.gen.s.depth_dada_fusion:
+                    depth_preds = depth_preds.detach()
+                else:
+                    depth_preds = None
                 weight = self.opts.train.lambdas.advent.adv_main
             else:
                 domain_label = "s"
@@ -1531,6 +1537,7 @@ class Trainer:
                     softmax_preds,
                     self.domain_labels[domain_label],
                     self.D["s"]["Advent"],
+                    depth_preds,
                 )
                 loss *= weight
                 full_loss += loss
@@ -1555,7 +1562,7 @@ class Trainer:
                     else:
                         raise NotImplementedError
 
-        return full_loss, pred.detach()
+        return full_loss, pred
 
     def masker_m_loss(self, x, z, target, domain, for_="G", cond=None):
         assert for_ in {"G", "D"}
@@ -1657,7 +1664,7 @@ class Trainer:
                 else:
                     raise NotImplementedError
 
-        return full_loss, prob.detach()
+        return full_loss, prob
 
     def painter_loss_for_masker(self, x, m):
         # pl4m loss
@@ -1768,18 +1775,11 @@ class Trainer:
             x = im_set["data"]["x"].unsqueeze(0).to(self.device)
             z = self.G.encode(x)
 
-            s_pred = d_pred = None
-
-            if "s" in metric_avg_scores:
-                s_pred = self.G.decoders["s"](z).detach().cpu()
-                s = im_set["data"]["s"].unsqueeze(0).detach()
-
-                for metric in metric_funcs:
-                    metric_score = metric_funcs[metric](s_pred, s)
-                    metric_avg_scores["s"][metric].append(metric_score)
+            s_pred = d_pred = z_depth = None
 
             if "d" in metric_avg_scores:
-                d_pred = self.G.decoders["d"](z).detach().cpu()
+                d_pred, z_depth = self.G.decoders["d"](z)
+                d_pred = d_pred.detach().cpu()
 
                 if domain == "s":
                     d = im_set["data"]["d"].unsqueeze(0).detach()
@@ -1787,6 +1787,17 @@ class Trainer:
                     for metric in metric_funcs:
                         metric_score = metric_funcs[metric](d_pred, d)
                         metric_avg_scores["d"][metric].append(metric_score)
+
+            if "s" in metric_avg_scores:
+                if z_depth is None:
+                    if "d" in self.opts.tasks and self.opts.gen.s.depth_feat_fusion:
+                        _, z_depth = self.G.decoders["d"](z)
+                s_pred = self.G.decoders["s"](z, z_depth).detach().cpu()
+                s = im_set["data"]["s"].unsqueeze(0).detach()
+
+                for metric in metric_funcs:
+                    metric_score = metric_funcs[metric](s_pred, s)
+                    metric_avg_scores["s"][metric].append(metric_score)
 
             if "m" in self.opts:
                 cond = None
@@ -1853,7 +1864,7 @@ class Trainer:
         if (Path(self.opts.output_path) / "is_functional.test").exists() or force:
             shutil.rmtree(self.opts.output_path)
 
-    def compute_fire(self, x, seg_preds=None, z=None):
+    def compute_fire(self, x, seg_preds=None, z=None, z_depth=None):
         """
         Transforms input tensor given wildfires event
         Args:
@@ -1869,7 +1880,7 @@ class Trainer:
         if seg_preds is None:
             if z is None:
                 z = self.G.encode(x)
-            seg_preds = self.G.decoders["s"](z)
+            seg_preds = self.G.decoders["s"](z, z_depth)
         fire_color = (
             self.opts.events.fire.color.r,
             self.opts.events.fire.color.g,
@@ -1930,7 +1941,7 @@ class Trainer:
             if z is None:
                 z = self.G.encode(x)
             if d is None:
-                d = self.G.decoders["d"](z)
+                d, _ = self.G.decoders["d"](z)
             if use_sky_seg and s is None:
                 if "s" not in self.opts.tasks:
                     raise ValueError(

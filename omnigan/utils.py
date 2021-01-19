@@ -89,7 +89,6 @@ def load_opts(
     default: Optional[Union[str, Path, dict, Dict]] = None,
     commandline_opts: Optional[Union[Dict, dict]] = None,
 ) -> Dict:
-    # TODO add assert: if deeplabv2 then res_dim = 2048
     """Loadsize a configuration Dict from 2 files:
     1. default files with shared values across runs and users
     2. an overriding file with run- and user-specific values
@@ -156,51 +155,6 @@ def load_opts(
                     opts.gen.encoder.architecture, opts.gen.s.architecture
                 )
             )
-        if opts.gen.encoder.architecture == "deeplabv2" or (
-            opts.gen.encoder.architecture == "deeplabv3"
-            and opts.gen.deeplabv3.backbone == "resnet"
-        ):
-            if opts.gen.m.res_dim != 2048:
-                print(
-                    "WARNING: overriding config's gen.m.res_dim",
-                    "to match encoder architecture {}".format(
-                        opts.gen.encoder.architecture
-                    ),
-                    "(res_dim was {} now is 2048".format(opts.gen.m.res_dim),
-                )
-                opts.gen.m.res_dim = 2048
-            if opts.gen.d.res_dim != 2048:
-                print(
-                    "WARNING: overriding config's gen.d.res_dim",
-                    "to match encoder architecture {}".format(
-                        opts.gen.encoder.architecture
-                    ),
-                    "(res_dim was {} now is 2048".format(opts.gen.m.res_dim),
-                )
-                opts.gen.d.res_dim = 2048
-        if (
-            opts.gen.encoder.architecture == "deeplabv3"
-            and opts.gen.deeplabv3.backbone == "mobilenet"
-        ):
-            if opts.gen.m.res_dim != 320:
-                print(
-                    "WARNING: overriding config's gen.m.res_dim",
-                    "to match encoder architecture {}".format(
-                        opts.gen.encoder.architecture
-                    ),
-                    "(res_dim was {} now is 320".format(opts.gen.m.res_dim),
-                )
-                opts.gen.m.res_dim = 320
-            if opts.gen.d.res_dim != 320:
-                print(
-                    "WARNING: overriding config's gen.m.res_dim",
-                    "to match encoder architecture {}".format(
-                        opts.gen.encoder.architecture
-                    ),
-                    "(res_dim was {} now is 320".format(opts.gen.m.res_dim),
-                )
-                opts.gen.d.res_dim = 320
-
     if opts.gen.m.use_spade:
         if "d" not in opts.tasks or "s" not in opts.tasks:
             raise ValueError(
