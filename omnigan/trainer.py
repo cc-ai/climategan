@@ -210,7 +210,16 @@ class Trainer:
             print(*args, **kwargs)
 
     @torch.no_grad()
-    def infer_all(self, x, numpy=True, stores={}, bin_value=-1, half=False, xla=False):
+    def infer_all(
+        self,
+        x,
+        numpy=True,
+        stores={},
+        bin_value=-1,
+        half=False,
+        xla=False,
+        cloudy=False,
+    ):
         """
         Create a dictionnary of events from a numpy or tensor,
         single or batch image data.
@@ -274,7 +283,9 @@ class Trainer:
             with Timer(store=stores.get("smog", [])):
                 smog = self.compute_smog(x, d=depth, s=segmentation).cpu()
             with Timer(store=stores.get("flood", [])):
-                flood = self.compute_flood(x, m=mask, bin_value=bin_value).cpu()
+                flood = self.compute_flood(
+                    x, m=mask, s=segmentation, cloudy=cloudy, bin_value=bin_value
+                ).cpu()
 
         if xla:
             xm.mark_step()
@@ -307,7 +318,7 @@ class Trainer:
         inference=False,
         new_exp=False,
         device=None,
-        verbose=1
+        verbose=1,
     ):
         """
         Resume and optionally setup a trainer from a specific path,
@@ -1880,7 +1891,7 @@ class Trainer:
 
         return add_fire(x, seg_preds, fire_color, blur_radius)
 
-    def compute_flood(self, x, z=None, m=None, bin_value=-1):
+    def compute_flood(self, x, z=None, m=None, s=None, cloudy=None, bin_value=-1):
         """
         Applies a flood (mask + paint) to an input image, with optionally
         pre-computed masker z or mask
@@ -1904,6 +1915,10 @@ class Trainer:
 
         if bin_value >= 0:
             m = (m > bin_value).to(m.dtype)
+
+        if cloudy:
+            assert s is not None
+            return self.G.paint_cloudy(m, x, s)
 
         return self.G.paint(m, x)
 

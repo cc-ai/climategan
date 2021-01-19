@@ -169,6 +169,13 @@ def parse_args():
         default=False,
         help="Do not check for existing outdir",
     )
+    parser.add_argument(
+        "-c",
+        "--cloudy",
+        action="store_true",
+        default=False,
+        help="Use the cloudy intermediate image to create the flood image",
+    )
 
     return parser.parse_args()
 
@@ -310,6 +317,7 @@ if __name__ == "__main__":
                 bin_value=bin_value,
                 half=half,
                 xla=XLA,
+                cloudy=args.cloudy
             )
 
             # store events to write after inference loop

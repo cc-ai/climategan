@@ -24,7 +24,7 @@ from omnigan.deeplab import (
     build_v3_backbone,
 )
 from omnigan.encoder import BaseEncoder
-from omnigan.tutils import init_weights, normalize
+from omnigan.tutils import init_weights, normalize, mix_noise
 from omnigan.utils import find_target_size
 
 from pathlib import Path
@@ -202,7 +202,7 @@ class OmniGenerator(nn.Module):
 
         return torch.sigmoid(logits)
 
-    def paint(self, m, x):
+    def paint(self, m, x, no_paste=False):
         """
         Paints given a mask and an image
         calls painter(z, x * (1.0 - m))
@@ -218,9 +218,20 @@ class OmniGenerator(nn.Module):
         z_paint = self.sample_painter_z(x.shape[0], x.device)
         m = m.to(x.dtype)
         fake = self.painter(z_paint, x * (1.0 - m))
-        if self.opts.gen.p.paste_original_content:
+        if self.opts.gen.p.paste_original_content and not no_paste:
             return x * (1.0 - m) + fake * m
         return fake
+
+    def paint_cloudy(self, m, x, s, sky_idx=9, res=(8, 8), weight=0.8):
+        sky_mask = (
+            torch.argmax(
+                F.interpolate(s, x.shape[-2:], mode="bilinear"), dim=1, keepdim=True
+            )
+            == sky_idx
+        ).to(x.dtype)
+        noised_x = mix_noise(x, sky_mask, res=res, weight=weight).to(x.dtype)
+        fake = self.paint(m, noised_x, no_paste=True)
+        return x * (1.0 - m) + fake * m
 
     def depth_image(self, x=None, z=None):
         assert x is not None or z is not None
