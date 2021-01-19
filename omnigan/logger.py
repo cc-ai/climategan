@@ -98,6 +98,12 @@ class Logger:
                             .to(trainer.device)
                         )
                         decoded_s_pred = prediction
+                        # dummy pixels to fool scaling and preserve range
+                        for c in range(3):
+                            prediction[:, c, 0, 0] = 255.0
+                            prediction[:, c, -1, -1] = 0
+                            target[:, c, 0, 0] = 255.0
+                            target[:, c, -1, -1] = 0
                         task_saves.append(target)
                         task_legend.append("Target Segmentation")
 

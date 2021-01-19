@@ -22,38 +22,45 @@ IMG_EXTENSIONS = set(
     [".jpg", ".JPG", ".jpeg", ".JPEG", ".png", ".PNG", ".ppm", ".PPM", ".bmp", ".BMP"]
 )
 
+water_class = [0, 0, 255, 255]
+ground_class = [128, 64, 128, 255]
+building_class = [70, 70, 70, 255]
+other_class = [220, 220, 0, 255]
+tree_class = [107, 142, 35, 255]
+sky_class = [70, 130, 180, 255]
+
 decoding_reduced_mapping = {
     "s": {
-        0: [0, 0, 255, 255],  # Water
-        1: [55, 55, 55, 255],  # Ground, Terrain
-        2: [204, 102, 0, 255],  # Building
-        3: [255, 212, 0, 255],  # Traffic items, People, Others, Cars
-        4: [60, 180, 60, 255],  # Trees, Vegetation
-        5: [0, 0, 204, 255],  # Sky
+        0: water_class,  # Water
+        1: ground_class,  # Ground, Terrain
+        2: building_class,  # Building
+        3: other_class,  # Traffic items, People, Others, Cars
+        4: tree_class,  # Trees, Vegetation
+        5: sky_class,  # Sky
     },
     "r": {
-        0: [0, 0, 255, 255],  # Water
-        1: [55, 55, 55, 255],  # Ground
-        2: [204, 102, 0, 255],  # Building
-        3: [255, 212, 0, 255],  #
-        4: [60, 180, 60, 255],  #
-        5: [55, 55, 55, 255],  #
-        6: [255, 212, 0, 255],  # Car
-        7: [60, 180, 60, 255],  # Trees
-        8: [255, 212, 0, 255],  # Person
-        9: [0, 0, 204, 255],  # Sky
-        10: [255, 212, 0, 255],  # Others
+        0: water_class,  # Water
+        1: ground_class,  # Ground
+        2: building_class,  # Building
+        3: other_class,  # Traffic items
+        4: tree_class,  # Vegetation
+        5: ground_class,  # Terrain
+        6: other_class,  # Car
+        7: tree_class,  # Trees
+        8: other_class,  # Person
+        9: sky_class,  # Sky
+        10: other_class,  # Others
     },
 }
 
 encoding_reduced_mapping = {
     "s": {
-        (0, 0, 255, 255): 0,
-        (55, 55, 55, 255): 1,
-        (0, 255, 255, 255): 2,
-        (255, 212, 0, 255): 3,
-        (0, 255, 0, 255): 4,
-        (255, 97, 0, 255): 1,
+        (0, 0, 255, 255): 0,  # Water
+        (55, 55, 55, 255): 1,  # Ground
+        (0, 255, 255, 255): 2,  # Building
+        (255, 212, 0, 255): 3,  # Traffic items
+        (0, 255, 0, 255): 4,  # Vegetation
+        (255, 97, 0, 255): 1,  # Terrain
         (255, 0, 0, 255): 3,  # Cars
         (0, 0, 0, 0): 4,  # Trees
         (255, 0, 255, 255): 3,  # People
@@ -61,12 +68,12 @@ encoding_reduced_mapping = {
         (255, 255, 255, 255): 3,  # Others
     },
     "r": {
-        (0, 0, 255, 255): 0,
-        (55, 55, 55, 255): 1,
-        (0, 255, 255, 255): 2,
-        (255, 212, 0, 255): 3,
-        (0, 255, 0, 255): 4,
-        (255, 97, 0, 255): 1,
+        (0, 0, 255, 255): 0,  # Water
+        (55, 55, 55, 255): 1,  # Ground
+        (0, 255, 255, 255): 2,  # Building
+        (255, 212, 0, 255): 3,  # Traffic items
+        (0, 255, 0, 255): 4,  # Vegetation
+        (255, 97, 0, 255): 1,  # Terrain
         (255, 0, 0, 255): 3,  # Cars
         (220, 20, 60, 255): 3,  # People
         (8, 19, 49, 255): 5,  # Sky
@@ -209,7 +216,10 @@ def decode_segmap_merged_labels(tensor, domain, is_target, nc=11):
         RGB tensor of size (1) x (3) x (H) x (W)
     # """
     if nc == 6:
-        dict_classes = decoding_reduced_mapping[domain]
+        if domain == "r" and not is_target:
+            dict_classes = decoding_reduced_mapping["s"]
+        else:
+            dict_classes = decoding_reduced_mapping[domain]
     else:
         dict_classes = classes_dict["s"]
 
