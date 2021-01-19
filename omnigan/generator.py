@@ -162,6 +162,9 @@ class OmniGenerator(nn.Module):
         return z
 
     def make_m_cond(self, d, s, x):
+        if self.opts.gen.m.spade.detach:
+            d = d.detach()
+            s = s.detach()
         cats = [normalize(d), softmax(s, dim=1)]
         if self.opts.gen.m.spade.cond_nc == 15:
             assert x is not None
@@ -180,7 +183,9 @@ class OmniGenerator(nn.Module):
         if cond is None and self.opts.gen.m.use_spade:
             assert "s" in self.opts.tasks and "d" in self.opts.tasks
             with torch.no_grad():
-                cond = self.make_m_cond(self.decoders["d"](z), self.decoders["s"](z), x)
+                d_pred, z_depth = self.decoders["d"](z)
+                s_pred = self.decoders["s"](z, z_depth)
+                cond = self.make_m_cond(d_pred, s_pred, x)
 
         if cond is not None:
             device = z[0].device if isinstance(z, (tuple, list)) else z.device
@@ -319,9 +324,11 @@ class BaseDepthDecoder(BaseDecoder):
 
         d = super().forward(z)
 
-        return F.interpolate(
+        preds = F.interpolate(
             d, size=self._target_size, mode="bilinear", align_corners=True
         )
+
+        return preds, None
 
 
 class MaskSpadeDecoder(nn.Module):
@@ -413,16 +420,8 @@ class MaskSpadeDecoder(nn.Module):
                 norm="spectral_batch",
             )
         else:
-            self.input_dim = opts.gen.default.res_dim
-            self.fc_conv = Conv2dBlock(
-                self.input_dim,
-                self.z_nc,
-                3,
-                padding=1,
-                activation="lrelu",
-                pad_type="reflect",
-                norm="spectral_batch",
-            )
+            raise ValueError("Unknown encoder type")
+
         self.spade_blocks = []
         for i in range(self.num_layers):
             self.spade_blocks.append(

@@ -321,21 +321,25 @@ class DeepLabV3Decoder(nn.Module):
         else:
             self._target_size = (size, size)
 
-    def forward(self, z):
+    def forward(self, z, z_depth=None):
         assert isinstance(z, (tuple, list))
         if self._target_size is None:
             error = "self._target_size should be set with self.set_target_size()"
             error += "to interpolate logits to the target seg map's size"
             raise ValueError(error)
 
-        x, low_level_feat = z
-        x = self.aspp(x)
-        x = self.decoder(x, low_level_feat)
-        x = F.interpolate(
-            x, size=self._target_size, mode="bilinear", align_corners=True
+        z_high, z_low = z
+
+        if z_depth is not None:
+            z_high = z_high * z_depth
+
+        z_high = self.aspp(z_high)
+        out = self.decoder(z_high, z_low)
+        out = F.interpolate(
+            out, size=self._target_size, mode="bilinear", align_corners=True
         )
 
-        return x
+        return out
 
     def freeze_bn(self):
         for m in self.modules():
