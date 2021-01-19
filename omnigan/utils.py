@@ -892,3 +892,15 @@ def find_target_size(opts, task):
             target_size = opts.data.transforms[-1].new_size["default"]
 
     return target_size
+
+
+def to_128(im, w_target=-1):
+    h, w = im.shape[:2]
+    aspect_ratio = h / w
+    if w_target < 0:
+        w_target = w
+
+    nw = int(w_target / 128) * 128
+    nh = int(nw * aspect_ratio / 128) * 128
+
+    return nh, nw

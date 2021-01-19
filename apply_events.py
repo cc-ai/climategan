@@ -16,7 +16,7 @@ from skimage.transform import resize
 from omnigan.data import is_image_file
 from omnigan.trainer import Trainer
 from omnigan.tutils import normalize, print_num_parameters
-from omnigan.utils import Timer, get_git_revision_hash
+from omnigan.utils import Timer, get_git_revision_hash, to_128
 
 import_time = time.time() - import_time
 
@@ -176,6 +176,18 @@ def parse_args():
         default=False,
         help="Use the cloudy intermediate image to create the flood image",
     )
+    parser.add_argument(
+        "--keep_ratio_128",
+        action="store_true",
+        default=False,
+        help="Keeps approximately the aspect ratio to match multiples of 128",
+    )
+    parser.add_argument(
+        "--max_im_width",
+        type=int,
+        default=-1,
+        help="Maximum image width: will downsample larger images",
+    )
 
     return parser.parse_args()
 
@@ -204,6 +216,19 @@ if __name__ == "__main__":
     time_inference = args.time
     n_images = args.n_images
     xla_purge_samples = args.xla_purge_samples
+    if args.keep_ratio_128:
+        if batch_size != 1:
+            print("\nWARNING: batch_size overwritten to 1 when using keep_ratio_128")
+            batch_size = 1
+        if args.max_im_width > 0 and args.max_im_width % 128 != 0:
+            new_im_width = int(args.max_im_width / 128) * 128
+            print("\WARNING: max_im_width should be <0 or a multiple of 128.")
+            print(
+                "          Was {} but is now overwritten to {}".format(
+                    args.max_im_width, new_im_width
+                )
+            )
+            args.max_im_width = new_im_width
 
     if outdir is not None:
         if outdir.exists() and not args.overwrite:
@@ -283,7 +308,11 @@ if __name__ == "__main__":
         # rgba to rgb
         data = [im if im.shape[-1] == 3 else rgba2rgb(im) for im in data]
         # resize to standard input size 640 x 640
-        data = [resize(d, (640, 640), anti_aliasing=True) for d in data]
+        if args.keep_ratio_128:
+            new_sizes = [to_128(d, args.max_im_width) for d in data]
+            data = [resize(d, ns, anti_aliasing=True) for d, ns in zip(data, new_sizes)]
+        else:
+            data = [resize(d, (640, 640), anti_aliasing=True) for d in data]
         # normalize to -1:1
         data = [(normalize(d.astype(np.float32)) - 0.5) * 2 for d in data]
 
@@ -317,7 +346,7 @@ if __name__ == "__main__":
                 bin_value=bin_value,
                 half=half,
                 xla=XLA,
-                cloudy=args.cloudy
+                cloudy=args.cloudy,
             )
 
             # store events to write after inference loop
