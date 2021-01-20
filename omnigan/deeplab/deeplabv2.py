@@ -176,7 +176,7 @@ class DeepLabV2Decoder(nn.Module):
         else:
             self._target_size = (size, size)
 
-    def forward(self, z):
+    def forward(self, z, z_depth=None):
         if self._target_size is None:
             error = "self._target_size should be set with self.set_target_size()"
             error += "to interpolate logits to the target seg map's size"
