@@ -363,18 +363,28 @@ if __name__ == "__main__":
     # ----------------------------------------------
     if outdir is not None:
         print("\n• Writing")
+        n_written = 0
         with Timer(store=stores.get("write", [])):
             for b, events in enumerate(all_events):
-                print(" " * 30, end="\r", flush=True)
-                print(f"{b+1}/{len(all_events)} ...", end="\r", flush=True)
                 for i in range(len(list(events.values())[0])):
+
+                    print(" " * 30, end="\r", flush=True)
+                    print(
+                        f"{n_written+1}/{len(base_data_paths)} ...",
+                        end="\r",
+                        flush=True,
+                    )
+
                     idx = b * batch_size + i
                     idx = idx % len(base_data_paths)
                     stem = Path(data_paths[idx]).stem
+
                     for event in events:
                         im_path = outdir / f"{stem}_{event}.png"
                         im_data = events[event][i]
                         io.imsave(im_path, im_data)
+
+                    n_written += 1
 
     # ---------------------------
     # -----  Print timings  -----
