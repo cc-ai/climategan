@@ -283,13 +283,13 @@ class Trainer:
 
             # apply events
             with Timer(store=stores.get("wildfire", [])):
-                wildfire = self.compute_fire(x, segmentation).cpu()
+                wildfire = self.compute_fire(x, segmentation)
             with Timer(store=stores.get("smog", [])):
-                smog = self.compute_smog(x, d=depth, s=segmentation).cpu()
+                smog = self.compute_smog(x, d=depth, s=segmentation)
             with Timer(store=stores.get("flood", [])):
                 flood = self.compute_flood(
                     x, m=mask, s=segmentation, cloudy=cloudy, bin_value=bin_value
-                ).cpu()
+                )
 
         if xla:
             xm.mark_step()
@@ -297,9 +297,9 @@ class Trainer:
         if numpy:
             with Timer(store=stores.get("numpy", [])):
                 # normalize to 0-1
-                flood = normalize(flood)
-                smog = normalize(smog)
-                wildfire = normalize(wildfire)
+                flood = normalize(flood).cpu()
+                smog = normalize(smog).cpu()
+                wildfire = normalize(wildfire).cpu()
 
                 # convert to numpy
                 flood = flood.permute(0, 2, 3, 1).numpy()
