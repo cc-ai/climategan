@@ -292,9 +292,10 @@ class PrepareInference:
       - rescale to -1:1
     """
 
-    def __init__(self, target_size=640):
+    def __init__(self, target_size=640, half=False):
         self.resize = Resize(target_size, keep_aspect_ratio=True)
         self.crop = RandomCrop((target_size, target_size), center=True)
+        self.half = half
 
     def process(self, t):
         if isinstance(t, (str, Path)):
@@ -306,6 +307,8 @@ class PrepareInference:
 
         if len(t.shape) == 3:
             t = t.unsqueeze(0)
+
+        t = t.to(torch.float16) if self.half else t.to(torch.float32)
 
         t = normalize(t)
         t = (t - 0.5) * 2
