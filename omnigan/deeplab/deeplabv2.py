@@ -187,6 +187,10 @@ class DeepLabV2Decoder(nn.Module):
             raise Exception(
                 "Segmentation decoder will only work with 2048 channels for z"
             )
+
+        if z_depth is not None:
+            z = z * z_depth
+
         y = self.aspp(z)
         y = self.conv(y)
         return F.interpolate(y, self._target_size, mode="bilinear", align_corners=True)

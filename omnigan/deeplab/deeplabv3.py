@@ -244,18 +244,22 @@ class DeepLabV3Decoder(nn.Module):
             error += "to interpolate logits to the target seg map's size"
             raise ValueError(error)
 
-        x, low_level_feat = z
-        if self.backbone == "resnet":
-            x = self.aspp(x)
-            x = self.decoder(x, low_level_feat)
-        else:
-            x = self.head(x)
+        z_high, z_low = z
 
-        x = F.interpolate(
-            x, size=self._target_size, mode="bilinear", align_corners=True
+        if z_depth is not None:
+            z_high = z_high * z_depth
+
+        if self.backbone == "resnet":
+            z_high = self.aspp(z_high)
+            s = self.decoder(z_high, z_low)
+        else:
+            s = self.head(z_high)
+
+        s = F.interpolate(
+            s, size=self._target_size, mode="bilinear", align_corners=True
         )
 
-        return x
+        return s
 
     def freeze_bn(self):
         for m in self.modules():
