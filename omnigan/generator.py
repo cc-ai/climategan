@@ -463,6 +463,7 @@ class MaskSpadeDecoder(nn.Module):
                     spade_use_spectral_norm,
                     spade_param_free_norm,
                     spade_kernel_size,
+                    "lrelu",
                 ).cuda()
             )
         self.spade_blocks = nn.Sequential(*self.spade_blocks)
