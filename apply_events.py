@@ -12,6 +12,7 @@ import numpy as np
 import skimage.io as io
 from skimage.color import rgba2rgb
 from skimage.transform import resize
+import comet_ml  # noqa: F401
 
 from omnigan.trainer import Trainer
 from omnigan.tutils import normalize, print_num_parameters
@@ -364,6 +365,8 @@ if __name__ == "__main__":
         print("\n• Writing")
         with Timer(store=stores.get("write", [])):
             for b, events in enumerate(all_events):
+                print(" " * 30, end="\r", flush=True)
+                print(f"{b+1}/{len(all_events)} ...", end="\r", flush=True)
                 for i in range(len(list(events.values())[0])):
                     idx = b * batch_size + i
                     idx = idx % len(base_data_paths)
