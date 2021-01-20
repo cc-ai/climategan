@@ -219,7 +219,7 @@ class Trainer:
         half=False,
         xla=False,
         cloudy=False,
-        auto_resize_640=False
+        auto_resize_640=False,
     ):
         """
         Create a dictionnary of events from a numpy or tensor,
@@ -302,9 +302,9 @@ class Trainer:
                 wildfire = wildfire.permute(0, 2, 3, 1).numpy()
 
                 # normalize to 0-1
-                flood = (flood + 1) / 2
-                smog = (smog + 1) / 2
-                wildfire = (wildfire + 1) / 2
+                flood = normalize(flood)
+                smog = normalize(smog)
+                wildfire = normalize(wildfire)
 
                 # convert to 0-255 uint8
                 flood = (flood * 255).astype(np.uint8)
