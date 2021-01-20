@@ -22,6 +22,10 @@ comet_kwargs = {
     "display_summary_level": 0,
 }
 
+IMG_EXTENSIONS = set(
+    [".jpg", ".JPG", ".jpeg", ".JPEG", ".png", ".PNG", ".ppm", ".PPM", ".bmp", ".BMP"]
+)
+
 
 def copy_run_files(opts: Dict) -> None:
     """
@@ -904,3 +908,29 @@ def to_128(im, w_target=-1):
     nh = int(nw * aspect_ratio / 128) * 128
 
     return nh, nw
+
+
+def is_image_file(filename):
+    """Check that a file's name points to a known image format
+    """
+    if isinstance(filename, Path):
+        return filename.suffix in IMG_EXTENSIONS
+
+    return Path(filename).suffix in IMG_EXTENSIONS
+
+
+def find_images(path, recursive=False):
+    """
+    Get a list of all images contained in a directory:
+
+    - path.glob("*") if not recursive
+    - path.glob("**/*") if recursive
+    """
+    p = Path(path)
+    assert p.exists()ƒ
+    assert p.is_dir()
+    pattern = "*"
+    if recursive:
+        pattern += "*/*"
+
+    return [i for i in p.glob(pattern) if i.is_file() and is_image_file(i)]
