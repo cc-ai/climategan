@@ -554,7 +554,7 @@ class SPADEResnetBlock(nn.Module):
         dx = self.conv_1(self.activation(self.norm_1(dx, seg)))
 
         out = x_s + dx
-        return out
+        return self.activation(out)
 
     def shortcut(self, x, seg):
         if self.learned_shortcut:
