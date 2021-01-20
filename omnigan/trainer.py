@@ -949,10 +949,12 @@ class Trainer:
         for self.logger.epoch in range(
             self.logger.epoch, self.logger.epoch + self.opts.train.epochs
         ):
-            # if (
-            #     self.logger.epoch == self.opts.gen.p.pl4m_epoch
-            #     and get_num_params(self.G.painter) > 0
-            # ):
+            if (
+                self.logger.epoch == self.opts.gen.p.pl4m_epoch
+                and get_num_params(self.G.painter) > 0
+            ):
+                self.use_pl4m = True
+
             self.run_epoch()
             self.run_evaluation(verbose=1)
             self.save()
