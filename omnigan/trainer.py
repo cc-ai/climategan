@@ -952,6 +952,7 @@ class Trainer:
             if (
                 self.logger.epoch == self.opts.gen.p.pl4m_epoch
                 and get_num_params(self.G.painter) > 0
+                and self.opts.gen.m.use_pl4m
             ):
                 self.use_pl4m = True
 
