@@ -174,7 +174,7 @@ class OmniGenerator(nn.Module):
 
         return torch.cat(cats, dim=1)
 
-    def mask(self, x=None, z=None, cond=None, sigmoid=True):
+    def mask(self, x=None, z=None, cond=None, z_depth=None, sigmoid=True):
         assert x is not None or z is not None
         assert not (x is not None and z is not None)
         if z is None:
@@ -191,7 +191,7 @@ class OmniGenerator(nn.Module):
             device = z[0].device if isinstance(z, (tuple, list)) else z.device
             cond = cond.to(device)
 
-        logits = self.decoders["m"](z, cond)
+        logits = self.decoders["m"](z, cond, z_depth)
 
         if not sigmoid:
             return logits
@@ -448,14 +448,18 @@ class MaskSpadeDecoder(nn.Module):
         )
         self.upsample = InterpolateNearest2d(scale_factor=2)
 
-    def forward(self, z, cond):
+    def forward(self, z, cond, z_depth=None):
         if isinstance(z, (list, tuple)):
             z_h, z_l = z
+            if z_depth is not None:
+                z_h = z_h * z_depth
             z_l = self.low_level_conv(z_l)
             z_l = F.interpolate(z_l, size=z_h.shape[-2:], mode="bilinear")
             z = torch.cat([z_h, z_l], axis=1)
             y = self.merge_feats_conv(z)
         else:
+            if z_depth is not None:
+                z = z * z_depth
             y = self.fc_conv(z)
 
         for i in range(self.num_layers):

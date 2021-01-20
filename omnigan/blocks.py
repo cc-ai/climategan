@@ -362,7 +362,7 @@ class BaseDecoder(nn.Module):
         ]
         self.model = nn.Sequential(*self.model)
 
-    def forward(self, z, cond=None):
+    def forward(self, z, cond=None, z_depth=None):
         low_level_feat = None
         if isinstance(z, (list, tuple)):
             if self.low_level_conv is None:
@@ -373,6 +373,9 @@ class BaseDecoder(nn.Module):
                 low_level_feat = F.interpolate(
                     low_level_feat, size=z.shape[-2:], mode="bilinear"
                 )
+
+        if z_depth is not None:
+            z = z * z_depth
 
         if self.proj_conv is not None:
             z = self.proj_conv(z)
@@ -404,7 +407,9 @@ class DADADepthRegressionDecoder(nn.Module):
         mid_dim = 512
 
         self.do_feat_fusion = False
-        if "s" in opts.tasks and opts.gen.s.depth_feat_fusion:
+        if opts.gen.m.depth_feat_fusion or (
+            "s" in opts.tasks and opts.gen.s.depth_feat_fusion
+        ):
             self.do_feat_fusion = True
             self.dec4 = Conv2dBlock(
                 128,

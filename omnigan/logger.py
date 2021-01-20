@@ -66,11 +66,17 @@ class Logger:
                         if s_pred is not None and d_pred is not None:
                             cond = trainer.G.make_m_cond(d_pred, s_pred, x)
 
-                        prediction = trainer.G.decoders[task](z, cond)
+                        if trainer.opts.gen.m.depth_feat_fusion:
+                            prediction = trainer.G.decoders[task](z, cond, z_depth)
+                        else:
+                            prediction = trainer.G.decoders[task](z, cond)
                     elif task == "d":
                         prediction, z_depth = trainer.G.decoders[task](z)
                     elif task == "s":
-                        prediction = trainer.G.decoders[task](z, z_depth)
+                        if trainer.opts.gen.s.depth_feat_fusion:
+                            prediction = trainer.G.decoders[task](z, z_depth)
+                        else:
+                            prediction = trainer.G.decoders[task](z)
 
                     if task == "s":
                         # Log fire

@@ -181,6 +181,8 @@ gen:
       spade_use_spectral_norm: True
       spade_param_free_norm: batch
       num_layers: 3
+    depth_feat_fusion: True
+    depth_dada_fusion: True
 
 # -------------------------
 # ----- Discriminator -----
