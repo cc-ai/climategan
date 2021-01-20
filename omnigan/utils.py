@@ -927,7 +927,7 @@ def find_images(path, recursive=False):
     - path.glob("**/*") if recursive
     """
     p = Path(path)
-    assert p.exists()ƒ
+    assert p.exists()
     assert p.is_dir()
     pattern = "*"
     if recursive:
