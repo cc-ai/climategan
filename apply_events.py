@@ -15,7 +15,12 @@ from skimage.transform import resize
 
 from omnigan.trainer import Trainer
 from omnigan.tutils import normalize, print_num_parameters
-from omnigan.utils import Timer, get_git_revision_hash, to_128, is_image_file
+from omnigan.utils import (
+    Timer,
+    get_git_revision_hash,
+    to_128,
+    find_images,
+)
 
 import_time = time.time() - import_time
 
@@ -221,9 +226,9 @@ if __name__ == "__main__":
             batch_size = 1
         if args.max_im_width > 0 and args.max_im_width % 128 != 0:
             new_im_width = int(args.max_im_width / 128) * 128
-            print("\WARNING: max_im_width should be <0 or a multiple of 128.")
+            print("\nWARNING: max_im_width should be <0 or a multiple of 128.")
             print(
-                "          Was {} but is now overwritten to {}".format(
+                "            Was {} but is now overwritten to {}".format(
                     args.max_im_width, new_im_width
                 )
             )
@@ -290,7 +295,7 @@ if __name__ == "__main__":
     print("\n• Reading & Pre-processing Data\n")
 
     # find all images
-    data_paths = [i for i in images_paths.glob("*") if is_image_file(i)]
+    data_paths = find_images(images_paths)
     base_data_paths = data_paths
     # filter images
     if 0 < n_images < len(data_paths):
