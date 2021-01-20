@@ -219,6 +219,7 @@ class Trainer:
         half=False,
         xla=False,
         cloudy=False,
+        auto_resize_640=False
     ):
         """
         Create a dictionnary of events from a numpy or tensor,
@@ -249,11 +250,14 @@ class Trainer:
             x = x.to(self.device)
 
         # interpolate to standard input size
-        if x.shape[-1] != 640 or x.shape[-2] != 640:
+        if auto_resize_640 and (x.shape[-1] != 640 or x.shape[-2] != 640):
             x = torch.nn.functional.interpolate(x, (640, 640), mode="bilinear")
 
         if half:
             x = x.half()
+
+        # adjust painter's latent vector
+        self.G.painter.set_latent_shape(x.shape, True)
 
         with Timer(store=stores.get("all events", [])):
             # encode
