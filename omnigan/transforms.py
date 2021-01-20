@@ -146,7 +146,7 @@ class RandomCrop:
     def __init__(self, size, center=False):
         assert isinstance(size, (int, tuple, list))
         if not isinstance(size, int):
-            assert len(size == 2)
+            assert len(size) == 2
             self.h, self.w = size
         else:
             self.h = self.w = size
