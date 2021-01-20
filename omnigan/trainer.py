@@ -296,15 +296,15 @@ class Trainer:
 
         if numpy:
             with Timer(store=stores.get("numpy", [])):
-                # convert to numpy
-                flood = flood.permute(0, 2, 3, 1).numpy()
-                smog = smog.permute(0, 2, 3, 1).numpy()
-                wildfire = wildfire.permute(0, 2, 3, 1).numpy()
-
                 # normalize to 0-1
                 flood = normalize(flood)
                 smog = normalize(smog)
                 wildfire = normalize(wildfire)
+
+                # convert to numpy
+                flood = flood.permute(0, 2, 3, 1).numpy()
+                smog = smog.permute(0, 2, 3, 1).numpy()
+                wildfire = wildfire.permute(0, 2, 3, 1).numpy()
 
                 # convert to 0-255 uint8
                 flood = (flood * 255).astype(np.uint8)
