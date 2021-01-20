@@ -13,10 +13,9 @@ import skimage.io as io
 from skimage.color import rgba2rgb
 from skimage.transform import resize
 
-from omnigan.data import is_image_file
 from omnigan.trainer import Trainer
 from omnigan.tutils import normalize, print_num_parameters
-from omnigan.utils import Timer, get_git_revision_hash, to_128
+from omnigan.utils import Timer, get_git_revision_hash, to_128, is_image_file
 
 import_time = time.time() - import_time
 
