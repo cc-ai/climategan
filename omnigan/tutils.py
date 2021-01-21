@@ -575,13 +575,14 @@ def normalize(t, mini=0, maxi=1):
     return mini + (maxi - mini) * t
 
 
-def retrieve_sky_mask(seg):
+def retrieve_sky_mask(seg, nc):
     """
     get the binary mask for the sky given a segmentation tensor
     of logits (N x C x H x W) or labels (N x H x W)
 
     Args:
         seg (torch.Tensor): Segmentation map
+        nc (int): number of channels of the segmentation output
 
     Returns:
         torch.Tensor: Sky mask
@@ -591,7 +592,10 @@ def retrieve_sky_mask(seg):
     else:
         seg_ind = seg
 
-    sky_mask = seg_ind == 9
+    if nc == 6:
+        sky_mask = seg_ind == 5
+    else:
+        sky_mask = seg_ind == 9
     return sky_mask
 
 

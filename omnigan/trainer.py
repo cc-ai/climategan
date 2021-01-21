@@ -1945,12 +1945,15 @@ class Trainer:
                         seg_preds[i].unsqueeze(0),
                         fire_color,
                         blur_radius,
+                        self.opts.gen.s.output_dim,
                     )
                     for i in range(x.shape[0])
                 ]
             )
 
-        return add_fire(x, seg_preds, fire_color, blur_radius)
+        return add_fire(
+            x, seg_preds, fire_color, blur_radius, self.opts.gen.s.output_dim
+        )
 
     def compute_flood(self, x, z=None, m=None, bin_value=-1):
         """

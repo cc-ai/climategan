@@ -59,7 +59,7 @@ def paste_filter(x, filter_, mask):
     return x
 
 
-def add_fire(x, seg_preds, filter_color, blur_radius):
+def add_fire(x, seg_preds, filter_color, blur_radius, nc):
     """
     Transforms input tensor given wildfires event
     Args:
@@ -68,6 +68,7 @@ def add_fire(x, seg_preds, filter_color, blur_radius):
         filter_color (tuple): (r,g,b) tuple for the color of the sky
         blur_radius (float): radius of the Gaussian blur that smooths
             the transition between sky and foreground
+        nc (int): number of channels of the segmentation output (6 or 11)
     Returns:
         torch.Tensor: Wildfire version of input tensor
     """
@@ -86,7 +87,7 @@ def add_fire(x, seg_preds, filter_color, blur_radius):
     wildfire_tens = adjust_brightness(wildfire_tens, brightness_factor=0.7)
 
     # Find sky proportion in picture
-    sky_mask = retrieve_sky_mask(seg_preds)
+    sky_mask = retrieve_sky_mask(seg_preds, nc)
     sky_mask = F.interpolate(
         sky_mask.unsqueeze(0).unsqueeze(0).type(torch.float),
         (wildfire_tens.shape[-2], wildfire_tens.shape[-1]),
