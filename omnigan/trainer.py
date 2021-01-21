@@ -1250,7 +1250,7 @@ class Trainer:
                         for_="D",
                         cond=cond,
                         z_depth=z_depth,
-                        d_pred=d_pred,
+                        depth_preds=d_pred,
                     )
                     step_loss *= self.opts.train.lambdas.advent.adv_main
                     disc_loss["m"]["Advent"] += step_loss
@@ -1326,8 +1326,7 @@ class Trainer:
             # --------------------------------------
             # -----  task-specific losses (2)  -----
             # --------------------------------------
-            z_depth = None
-            d_pred = s_pred = None
+            d_pred = s_pred = z_depth = None
             for task in ["d", "s", "m"]:
                 if task not in batch["data"]:
                     continue
@@ -1353,7 +1352,16 @@ class Trainer:
                     if self.opts.gen.m.use_spade:
                         cond = self.G.make_m_cond(d_pred, s_pred, x)
 
-                    loss, _ = self.masker_m_loss(x, z, target, domain, "G", cond=cond)
+                    loss, _ = self.masker_m_loss(
+                        x,
+                        z,
+                        target,
+                        domain,
+                        "G",
+                        cond=cond,
+                        z_depth=z_depth,
+                        depth_preds=d_pred,
+                    )
                     m_loss += loss
                     self.logger.losses.gen.task["m"][domain] = loss.item()
 
@@ -1689,15 +1697,19 @@ class Trainer:
 
         if self.opts.gen.m.use_advent:
             # AdvEnt loss
+            if self.opts.gen.m.depth_dada_fusion:
+                depth_preds = depth_preds.detach()
+                depth_preds = torch.nn.functional.interpolate(
+                    depth_preds, size=x.shape[-2:], mode="nearest"
+                )
+            else:
+                depth_preds = None
+
             if for_ == "D":
                 domain_label = domain
                 logger = {}
                 loss_func = self.losses["D"]["advent"]
                 prob = prob.detach()
-                if self.opts.gen.m.depth_dada_fusion:
-                    depth_preds = depth_preds.detach()
-                else:
-                    depth_preds = None
                 weight = self.opts.train.lambdas.advent.adv_main
             else:
                 domain_label = "s"
