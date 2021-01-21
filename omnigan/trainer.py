@@ -1237,6 +1237,12 @@ class Trainer:
                     disc_loss["s"]["Advent"] += step_loss
 
                 if "m" in batch["data"]:
+                    if (
+                        self.opts.gen.m.depth_dada_fusion
+                        or self.opts.gen.m.depth_feat_fusion
+                    ):
+                        if d_pred is None:
+                            d_pred, z_depth = self.G.decoders["d"](z)
                     if self.opts.gen.m.use_spade:
                         if d_pred is None:
                             d_pred, z_depth = self.G.decoders["d"](z)
@@ -1549,7 +1555,10 @@ class Trainer:
         # --------------------------
         pred = None
         if for_ == "G" or self.opts.gen.s.use_advent:
-            pred = self.G.decoders["s"](z, z_depth)
+            if self.opts.gen.s.depth_feat_fusion:
+                pred = self.G.decoders["s"](z, z_depth)
+            else:
+                pred = self.G.decoders["s"](z)
 
         # Supervised segmentation loss: crossent for sim domain,
         # crossent_pseudo for real ; loss is crossent in any case
@@ -1972,7 +1981,10 @@ class Trainer:
         if seg_preds is None:
             if z is None:
                 z = self.G.encode(x)
-            seg_preds = self.G.decoders["s"](z, z_depth)
+            if self.opts.gen.s.depth_feat_fusion:
+                seg_preds = self.G.decoders["s"](z, z_depth)
+            else:
+                seg_preds = self.G.decoders["s"](z)
         fire_color = (
             self.opts.events.fire.color.r,
             self.opts.events.fire.color.g,
