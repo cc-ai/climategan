@@ -350,6 +350,10 @@ class MaskSpadeDecoder(nn.Module):
         cond_nc = opts.gen.m.spade.cond_nc
         spade_use_spectral_norm = opts.gen.m.spade.spade_use_spectral_norm
         spade_param_free_norm = opts.gen.m.spade.spade_param_free_norm
+        if self.opts.gen.m.spade.activations.all_lrelu:
+            spade_activation = "lrelu"
+        else:
+            spade_activation = None
         spade_kernel_size = 3
         self.num_layers = opts.gen.m.spade.num_layers
         self.z_nc = latent_dim
@@ -454,6 +458,7 @@ class MaskSpadeDecoder(nn.Module):
                 norm="spectral_batch",
             )
         self.spade_blocks = []
+
         for i in range(self.num_layers):
             self.spade_blocks.append(
                 SPADEResnetBlock(
@@ -463,7 +468,7 @@ class MaskSpadeDecoder(nn.Module):
                     spade_use_spectral_norm,
                     spade_param_free_norm,
                     spade_kernel_size,
-                    "lrelu",
+                    spade_activation,
                 ).cuda()
             )
         self.spade_blocks = nn.Sequential(*self.spade_blocks)
