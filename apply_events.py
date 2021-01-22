@@ -321,8 +321,8 @@ if __name__ == "__main__":
         # normalize to -1:1
         data = [(normalize(d.astype(np.float32)) - 0.5) * 2 for d in data]
 
-    n_batchs = len(data) // args.batch_size
-    if len(data) % args.batch_size != 0:
+    n_batchs = len(data) // batch_size
+    if len(data) % batch_size != 0:
         n_batchs += 1
 
     print("Found", len(base_data_paths), "images. Inferring on", len(data), "images.")
