@@ -13,6 +13,7 @@ import random
 import traceback
 from pathlib import Path
 from skimage.io import imread
+from skimage.color import rgba2rgb
 from omnigan.tutils import normalize
 
 
@@ -303,6 +304,9 @@ class PrepareInference:
 
         if isinstance(t, np.ndarray):
             t = torch.from_numpy(t)
+            if t.shape[-1] == 4:
+                t = rgba2rgb(t)
+
             t = t.permute(2, 0, 1)
 
         if len(t.shape) == 3:
