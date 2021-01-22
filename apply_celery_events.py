@@ -208,6 +208,7 @@ def run_inference_from_trainer(trainer, container, path_on_container='input/', o
                 bin_value=bin_value,
                 half=half,
                 xla=XLA,
+                cloudy=cloudy,
             )
 
             # store events to write after inference loop
