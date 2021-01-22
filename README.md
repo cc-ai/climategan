@@ -1,6 +1,7 @@
 # omnigan
 - [omnigan](#omnigan)
   - [Setup](#setup)
+  - [Coding conventions](#coding-conventions)
     - [Resuming](#resuming)
 - [⚠️ Deprecated](#️-deprecated)
   - [Current Model](#current-model)
@@ -14,7 +15,6 @@
       - [json files](#json-files)
     - [losses](#losses)
   - [Logging on comet](#logging-on-comet)
-    - [Parameters](#parameters)
     - [Tests](#tests)
   - [Resources](#resources)
   - [Model Architecture](#model-architecture)
@@ -41,6 +41,48 @@ Configuration files use the **YAML** syntax. If you don't know what `&` and `<<`
 ```
 $ pip install comet_ml scipy opencv-python torch torchvision omegaconf==1.4.1 hydra-core==0.11.3 scikit-image imageio addict tqdm torch_optimizer
 ```
+
+## Coding conventions
+
+* Tasks
+  * `x` is an input image, in [-1, 1]
+  * `s` is a segmentation target with `long` classes
+  * `d` is a depth map target in R, may be actually `log(depth)` or `1/depth`
+  * `m` is a binary mask with 1s where water is/should be
+* Domains
+  * `r` is the *real* domain for the masker. Input images are real pictures of urban/suburban/rural areas
+  * `s` is the *simulated* domain for the masker. Input images are taken from our Unity world
+  * `rf` is the *real flooded* domain for the painter. Training images are pairs `(x, m)` of flooded scenes for which the water should be reconstructed, in the validation data input images are not flooded and we provide a manually labeled mask `m`
+  * `kitti` is a special `s` domain to pre-train the masker on [Virtual Kitti 2](https://europe.naverlabs.com/research/computer-vision/proxy-virtual-worlds-vkitti-2/)
+    * it alters the `trainer.loaders` dict to select relevant data sources from `trainer.all_loaders` in `trainer.switch_data()`. The rest of the code is identical.
+* Flow
+  * This describes the call stack for the trainers standard training procedure
+  * `train()`
+    * `run_epoch()`
+      * `update_G()`
+        * `zero_grad(G)`
+        * `get_G_loss()`
+          * `get_masker_loss()`
+            * `masker_m_loss()`  -> masking loss
+            * `masker_s_loss()`  -> segmentation loss
+            * `masker_d_loss()`  -> depth estimation loss
+          * `get_painter_loss()` -> painter's loss
+        * `g_loss.backward()`
+        * `g_opt_step()`
+      * `update_D()`
+        * `zero_grad(D)`
+        * `get_D_loss()`
+          * painter's disc losses
+          * `masker_m_loss()` -> masking AdvEnt disc loss
+          * `masker_s_loss()` -> segmentation AdvEnt disc loss
+        * `d_loss.backward()`
+        * `d_opt_step()`
+      * `update_learning_rates()` -> update learning rates according to schedules defined in `opts.gen.opt` and `opts.dis.opt`
+    * `run_validation()`
+      * compute val losses
+      * `eval_images()` -> compute metrics
+      * `log_comet_images()` -> compute and upload inferences
+    * `save()`
 
 ### Resuming
 
@@ -171,6 +213,8 @@ batch = Dict({
 | train_r_full_midas.json, val_r_full_midas.json |   r    | MiDaS+ Segmentation (HRNet + Cityscapes)                                   | Mélisande |
 | train_r_full_old.json, val_r_full_old.json     |   r    | MegaDepth+ Segmentation (HRNet + Cityscapes)                               |    ***    |
 | train_r_nopeople.json, val_r_nopeople.json     |   r    | Same training data as above with people removed                            |   Sasha   |
+| train_rf_with_sim.json                         |   rf   | Doubled train_rf's size with sim data  (randomly chosen)                   |  Victor   |
+| train_rf.json                                  |   rf   | UPDATE (12/12/20): added 50 ims & masks from ADE20K Outdoors               |  Victor   |
 
 We provide the script `process_data.py` for the preprocessing task. Given a source folder the script will create the appropriate JSON. In the default mode, only one JSON for the whole data folder will be created. If you want to split the dataset into train and validation you can use the `--train_size` argument and specify the percentage, therefore two JSONs (train and val) will be created.
 
@@ -266,19 +310,11 @@ workspace=vict0rsch
 rest_api_key=<rest_api_key>
 ```
 
-### Parameters
-
-Set `train.log_level` in your configuration file to control the amount of logging on comet:
-
-* `0`: no logging on comet
-* `1`: only aggregated losses (representational loss, translation loss, total loss)
-* `2`: all losses (aggregated + task losses + auto-encoding losses)
-
 ### Tests
 
-There's a `test_comet.py` test which will automatically start and stop an experiment, check that logging works and so on. Not to pollute your workspace, such functional tests are deleted when the test is passed through Comet's REST API which is why you need to specify this `rest_api_key` field.
+Run tests by executing `python test_trainer.py`. You can add `--no_delete` not to delete the comet experiment at exit and inspect uploads.
 
-Set `should_delete` to False in the file not to delete the test experiment once it has ended. You'll be able to find all your test experiments which were not deleted using the `is_functional_test` parameter on Comet's web interface.
+Write tests as scenarios by adding to the list `test_scenarios` in the file. A scenario is a dict of overrides over the base opts in `shared/trainer/defaults.yaml`. You can create special flags for the scenario by adding keys which start with `__`. For instance, `__doc` is a mandatory key in any scenario describing it succinctly.
 
 ## Resources
 

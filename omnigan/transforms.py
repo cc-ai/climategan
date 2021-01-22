@@ -3,9 +3,17 @@
 import torch
 import torch.nn.functional as F
 from torchvision import transforms as trsfs
+from torchvision.transforms.functional import (
+    adjust_brightness,
+    adjust_contrast,
+    adjust_saturation,
+)
 import numpy as np
-from PIL import Image
+import random
 import traceback
+from pathlib import Path
+from skimage.io import imread
+from omnigan.tutils import normalize
 
 
 def interpolation(task):
@@ -135,21 +143,28 @@ class Resize:
 
 
 class RandomCrop:
-    def __init__(self, size):
+    def __init__(self, size, center=False):
         assert isinstance(size, (int, tuple, list))
         if not isinstance(size, int):
+            assert len(size) == 2
             self.h, self.w = size
         else:
-            assert len(size == 2)
             self.h = self.w = size
 
         self.h = int(self.h)
         self.w = int(self.w)
+        self.center = center
 
     def __call__(self, data):
-        h, w = data["x"].size()[-2:]
-        top = np.random.randint(0, h - self.h)
-        left = np.random.randint(0, w - self.w)
+        H, W = data["x"].size()[-2:]
+
+        if not self.center:
+            top = np.random.randint(0, H - self.h)
+            left = np.random.randint(0, W - self.w)
+        else:
+            top = (H - self.h) // 2
+            left = (W - self.w) // 2
+
         return {
             task: tensor[:, :, top : top + self.h, left : left + self.w]
             for task, tensor in data.items()
@@ -197,7 +212,7 @@ class Normalize:
             )
         else:
             self.normImage = trsfs.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-        self.normDepth = lambda x: x  # trsfs.Normalize([1 / 255], [1 / 3])
+        self.normDepth = lambda x: x
         self.normMask = lambda x: x
         self.normSeg = lambda x: x
 
@@ -215,38 +230,305 @@ class Normalize:
         }
 
 
-def get_transform(transform_item):
+class RandBrightness:  # Input need to be between -1 and 1
+    def __call__(self, data):
+        return {
+            task: rand_brightness(tensor) if task == "x" else tensor
+            for task, tensor in data.items()
+        }
+
+
+class RandSaturation:
+    def __call__(self, data):
+        return {
+            task: rand_saturation(tensor) if task == "x" else tensor
+            for task, tensor in data.items()
+        }
+
+
+class RandContrast:
+    def __call__(self, data):
+        return {
+            task: rand_contrast(tensor) if task == "x" else tensor
+            for task, tensor in data.items()
+        }
+
+
+class BucketizeDepth:
+    def __init__(self, opts, domain):
+        self.domain = domain
+
+        if opts.gen.d.classify.enable and domain in {"s", "kitti"}:
+            self.buckets = torch.linspace(
+                *[
+                    opts.gen.d.classify.linspace.min,
+                    opts.gen.d.classify.linspace.max,
+                    opts.gen.d.classify.linspace.buckets - 1,
+                ]
+            )
+
+            self.transforms = {
+                "d": lambda tensor: torch.bucketize(
+                    tensor, self.buckets, out_int32=True, right=True
+                )
+            }
+        else:
+            self.transforms = {}
+
+    def __call__(self, data):
+        return {
+            task: self.transforms.get(task, lambda x: x)(tensor)
+            for task, tensor in data.items()
+        }
+
+
+class PrepareInference:
+    """
+    Transform which:
+      - transforms a str or an array into a tensor
+      - resizes the image to keep the aspect ratio
+      - crops in the center of the resized image
+      - normalize to 0:1
+      - rescale to -1:1
+    """
+
+    def __init__(self, target_size=640, half=False):
+        self.resize = Resize(target_size, keep_aspect_ratio=True)
+        self.crop = RandomCrop((target_size, target_size), center=True)
+        self.half = half
+
+    def process(self, t):
+        if isinstance(t, (str, Path)):
+            t = imread(str(t))
+
+        if isinstance(t, np.ndarray):
+            t = torch.from_numpy(t)
+            t = t.permute(2, 0, 1)
+
+        if len(t.shape) == 3:
+            t = t.unsqueeze(0)
+
+        t = t.to(torch.float16) if self.half else t.to(torch.float32)
+
+        t = normalize(t)
+        t = (t - 0.5) * 2
+        t = {"x": t}
+        t = self.resize(t)
+        t = self.crop(t)
+        t = t["x"]
+
+        return t
+
+    def __call__(self, x):
+        """
+        normalize, rescale, resize, crop in the center
+
+        x can be: dict {"task": data} list [data, ..] or data
+        data ^ can be a str, a Path, a numpy arrray or a Tensor
+        """
+        if isinstance(x, dict):
+            return {k: self.process(v) for k, v in x.items()}
+
+        if isinstance(x, list):
+            return [self.process(t) for t in x]
+
+        return self.process(x)
+
+
+def get_transform(transform_item, mode):
     """Returns the torchivion transform function associated to a
     transform_item listed in opts.data.transforms ; transform_item is
     an addict.Dict
     """
 
-    if transform_item.name == "crop" and not transform_item.ignore:
-        return RandomCrop((transform_item.height, transform_item.width))
+    if transform_item.name == "crop" and not (
+        transform_item.ignore is True or transform_item.ignore == mode
+    ):
+        return RandomCrop(
+            (transform_item.height, transform_item.width),
+            center=transform_item.center == mode,
+        )
 
-    if transform_item.name == "resize" and not transform_item.ignore:
+    elif transform_item.name == "resize" and not (
+        transform_item.ignore is True or transform_item.ignore == mode
+    ):
         return Resize(
             transform_item.new_size, transform_item.get("keep_aspect_ratio", False)
         )
 
-    if transform_item.name == "hflip" and not transform_item.ignore:
+    elif transform_item.name == "hflip" and not (
+        transform_item.ignore is True or transform_item.ignore == mode
+    ):
         return RandomHorizontalFlip(p=transform_item.p or 0.5)
 
-    if transform_item.ignore:
+    elif transform_item.name == "brightness" and not (
+        transform_item.ignore is True or transform_item.ignore == mode
+    ):
+        return RandBrightness()
+
+    elif transform_item.name == "saturation" and not (
+        transform_item.ignore is True or transform_item.ignore == mode
+    ):
+        return RandSaturation()
+
+    elif transform_item.name == "contrast" and not (
+        transform_item.ignore is True or transform_item.ignore == mode
+    ):
+        return RandContrast()
+
+    elif transform_item.ignore is True or transform_item.ignore == mode:
         return None
 
     raise ValueError("Unknown transform_item {}".format(transform_item))
 
 
-def get_transforms(opts):
+def get_transforms(opts, mode, domain):
     """Get all the transform functions listed in opts.data.transforms
-    using get_transform(transform_item)
+    using get_transform(transform_item, mode)
     """
-    last_transforms = [Normalize(opts)]
+    transforms = []
+    color_jittering_transforms = ["brightness", "saturation", "contrast"]
 
-    conf_transforms = []
     for t in opts.data.transforms:
-        if get_transform(t) is not None:
-            conf_transforms.append(get_transform(t))
+        if t.name not in color_jittering_transforms:
+            transforms.append(get_transform(t, mode))
 
-    return conf_transforms + last_transforms
+    if "p" not in opts.tasks and mode == "train":
+        for t in opts.data.transforms:
+            if t.name in color_jittering_transforms:
+                transforms.append(get_transform(t, mode))
+
+    transforms += [Normalize(opts), BucketizeDepth(opts, domain)]
+    transforms = [t for t in transforms if t is not None]
+
+    return transforms
+
+
+# ----- Adapted functions from https://github.com/mit-han-lab/data-efficient-gans -----#
+def rand_brightness(tensor, is_diff_augment=False):
+    if is_diff_augment:
+        assert len(tensor.shape) == 4
+        type_ = tensor.dtype
+        device_ = tensor.device
+        rand_tens = torch.rand(tensor.size(0), 1, 1, 1, dtype=type_, device=device_)
+        return tensor + (rand_tens - 0.5)
+    else:
+        factor = random.uniform(0.5, 1.5)
+        tensor = adjust_brightness(tensor, brightness_factor=factor)
+        # dummy pixels to fool scaling and preserve range
+        tensor[:, :, 0, 0] = 1.0
+        tensor[:, :, -1, -1] = 0.0
+        return tensor
+
+
+def rand_saturation(tensor, is_diff_augment=False):
+    if is_diff_augment:
+        assert len(tensor.shape) == 4
+        type_ = tensor.dtype
+        device_ = tensor.device
+        rand_tens = torch.rand(tensor.size(0), 1, 1, 1, dtype=type_, device=device_)
+        x_mean = tensor.mean(dim=1, keepdim=True)
+        return (tensor - x_mean) * (rand_tens * 2) + x_mean
+    else:
+        factor = random.uniform(0.5, 1.5)
+        tensor = adjust_saturation(tensor, saturation_factor=factor)
+        # dummy pixels to fool scaling and preserve range
+        tensor[:, :, 0, 0] = 1.0
+        tensor[:, :, -1, -1] = 0.0
+        return tensor
+
+
+def rand_contrast(tensor, is_diff_augment=False):
+    if is_diff_augment:
+        assert len(tensor.shape) == 4
+        type_ = tensor.dtype
+        device_ = tensor.device
+        rand_tens = torch.rand(tensor.size(0), 1, 1, 1, dtype=type_, device=device_)
+        x_mean = tensor.mean(dim=[1, 2, 3], keepdim=True)
+        return (tensor - x_mean) * (rand_tens + 0.5) + x_mean
+    else:
+        factor = random.uniform(0.5, 1.5)
+        tensor = adjust_contrast(tensor, contrast_factor=factor)
+        # dummy pixels to fool scaling and preserve range
+        tensor[:, :, 0, 0] = 1.0
+        tensor[:, :, -1, -1] = 0.0
+        return tensor
+
+
+def rand_cutout(tensor, ratio=0.5):
+    assert len(tensor.shape) == 4, "For rand cutout, tensor must be 4D."
+    type_ = tensor.dtype
+    device_ = tensor.device
+    cutout_size = int(tensor.size(-2) * ratio + 0.5), int(tensor.size(-1) * ratio + 0.5)
+    grid_batch, grid_x, grid_y = torch.meshgrid(
+        torch.arange(tensor.size(0), dtype=torch.long, device=device_),
+        torch.arange(cutout_size[0], dtype=torch.long, device=device_),
+        torch.arange(cutout_size[1], dtype=torch.long, device=device_),
+    )
+    size_ = [tensor.size(0), 1, 1]
+    offset_x = torch.randint(
+        0, tensor.size(-2) + (1 - cutout_size[0] % 2), size=size_, device=device_,
+    )
+    offset_y = torch.randint(
+        0, tensor.size(-1) + (1 - cutout_size[1] % 2), size=size_, device=device_,
+    )
+    grid_x = torch.clamp(
+        grid_x + offset_x - cutout_size[0] // 2, min=0, max=tensor.size(-2) - 1
+    )
+    grid_y = torch.clamp(
+        grid_y + offset_y - cutout_size[1] // 2, min=0, max=tensor.size(-1) - 1
+    )
+    mask = torch.ones(
+        tensor.size(0), tensor.size(2), tensor.size(3), dtype=type_, device=device_
+    )
+    mask[grid_batch, grid_x, grid_y] = 0
+    return tensor * mask.unsqueeze(1)
+
+
+def rand_translation(tensor, ratio=0.125):
+    assert len(tensor.shape) == 4, "For rand translation, tensor must be 4D."
+    device_ = tensor.device
+    shift_x, shift_y = (
+        int(tensor.size(2) * ratio + 0.5),
+        int(tensor.size(3) * ratio + 0.5),
+    )
+    translation_x = torch.randint(
+        -shift_x, shift_x + 1, size=[tensor.size(0), 1, 1], device=device_
+    )
+    translation_y = torch.randint(
+        -shift_y, shift_y + 1, size=[tensor.size(0), 1, 1], device=device_
+    )
+    grid_batch, grid_x, grid_y = torch.meshgrid(
+        torch.arange(tensor.size(0), dtype=torch.long, device=device_),
+        torch.arange(tensor.size(2), dtype=torch.long, device=device_),
+        torch.arange(tensor.size(3), dtype=torch.long, device=device_),
+    )
+    grid_x = torch.clamp(grid_x + translation_x + 1, 0, tensor.size(2) + 1)
+    grid_y = torch.clamp(grid_y + translation_y + 1, 0, tensor.size(3) + 1)
+    x_pad = F.pad(tensor, [1, 1, 1, 1, 0, 0, 0, 0])
+    tensor = (
+        x_pad.permute(0, 2, 3, 1)
+        .contiguous()[grid_batch, grid_x, grid_y]
+        .permute(0, 3, 1, 2)
+    )
+    return tensor
+
+
+class DiffTransforms:
+    def __init__(self, diff_aug_opts):
+        self.do_color_jittering = diff_aug_opts.do_color_jittering
+        self.do_cutout = diff_aug_opts.do_cutout
+        self.do_translation = diff_aug_opts.do_translation
+        self.cutout_ratio = diff_aug_opts.cutout_ratio
+        self.translation_ratio = diff_aug_opts.translation_ratio
+
+    def __call__(self, tensor):
+        if self.do_color_jittering:
+            tensor = rand_brightness(tensor, is_diff_augment=True)
+            tensor = rand_contrast(tensor, is_diff_augment=True)
+            tensor = rand_saturation(tensor, is_diff_augment=True)
+        if self.do_translation:
+            tensor = rand_translation(tensor, ratio=self.translation_ratio)
+        if self.do_cutout:
+            tensor = rand_cutout(tensor, ratio=self.cutout_ratio)
+        return tensor

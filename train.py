@@ -54,13 +54,23 @@ def main(opts):
 
     hydra_opts = Dict(OmegaConf.to_container(opts))
     args = hydra_opts.pop("args", None)
+
+    config_path = args.config
+
+    if hydra_opts.train.resume:
+        out_ = str(env_to_path(hydra_opts.output_path))
+        config_path = Path(out_) / "opts.yaml"
+        if not config_path.exists():
+            config_path = None
+            print("WARNING: could not reuse the opts in {}".format(out_))
+
     default = args.default or Path(__file__).parent / "shared/trainer/defaults.yaml"
 
     # -----------------------
     # -----  Load opts  -----
     # -----------------------
 
-    opts = load_opts(args.config, default=default, commandline_opts=hydra_opts)
+    opts = load_opts(config_path, default=default, commandline_opts=hydra_opts)
     if args.resume:
         opts.train.resume = True
 
@@ -129,7 +139,7 @@ def main(opts):
 
         # Merge and log tags
         if args.comet_tags or opts.comet.tags:
-            tags = set([opts.git_branch])
+            tags = set([f"branch:{opts.git_branch}"])
             if args.comet_tags:
                 tags.update(args.comet_tags)
             if opts.comet.tags:
@@ -160,7 +170,7 @@ def main(opts):
     # -----  Train  -----
     # -------------------
 
-    trainer = Trainer(opts, comet_exp=exp)
+    trainer = Trainer(opts, comet_exp=exp, verbose=1)
     trainer.logger.time.start_time = time()
     trainer.setup()
     trainer.train()

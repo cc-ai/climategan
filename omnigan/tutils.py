@@ -1,6 +1,8 @@
 """Tensor-utils
 """
 from pathlib import Path
+import io
+from contextlib import redirect_stdout
 
 # from copy import copy
 from threading import Thread
@@ -12,6 +14,7 @@ from skimage import io as skio
 from torch.nn import init
 import torch.nn as nn
 from omnigan.utils import all_texts_to_array
+import math
 
 
 def transforms_string(ts):
@@ -46,30 +49,34 @@ def init_weights(net, init_type="normal", init_gain=0.02, verbose=0, caller=""):
         )
         init_gain = 0.02
 
-    def init_func(m):  # define the initialization function
+    def init_func(m):
         classname = m.__class__.__name__
-        if hasattr(m, "weight") and (
+        if classname.find("BatchNorm2d") != -1:
+            if hasattr(m, "weight") and m.weight is not None:
+                init.normal_(m.weight.data, 1.0, init_gain)
+            if hasattr(m, "bias") and m.bias is not None:
+                init.constant_(m.bias.data, 0.0)
+        elif hasattr(m, "weight") and (
             classname.find("Conv") != -1 or classname.find("Linear") != -1
         ):
             if init_type == "normal":
                 init.normal_(m.weight.data, 0.0, init_gain)
             elif init_type == "xavier":
                 init.xavier_normal_(m.weight.data, gain=init_gain)
+            elif init_type == "xavier_uniform":
+                init.xavier_uniform_(m.weight.data, gain=1.0)
             elif init_type == "kaiming":
                 init.kaiming_normal_(m.weight.data, a=0, mode="fan_in")
             elif init_type == "orthogonal":
                 init.orthogonal_(m.weight.data, gain=init_gain)
+            elif init_type == "none":  # uses pytorch's default init method
+                m.reset_parameters()
             else:
                 raise NotImplementedError(
                     "initialization method [%s] is not implemented" % init_type
                 )
             if hasattr(m, "bias") and m.bias is not None:
                 init.constant_(m.bias.data, 0.0)
-        elif classname.find("BatchNorm2d") != -1:
-            # BatchNorm Layer's weight is not a matrix;
-            # only normal distribution applies.
-            init.normal_(m.weight.data, 1.0, init_gain)
-            init.constant_(m.bias.data, 0.0)
 
     if verbose > 0:
         print("initialize %s with %s" % (net.__class__.__name__, init_type))
@@ -183,23 +190,46 @@ def normalize_tensor(t):
     return t
 
 
-def get_normalized_depth_t(tensor, domain, normalize=False):
+def get_normalized_depth_t(tensor, domain, normalize=False, log=True):
+    assert not (normalize and log)
     if domain == "r":
         # megadepth depth
         tensor = tensor.unsqueeze(0)
-        if normalize:
-            tensor = tensor - torch.min(tensor)
-            tensor = torch.true_divide(tensor, torch.max(tensor))
+        tensor = tensor - torch.min(tensor)
+        tensor = torch.true_divide(tensor, torch.max(tensor))
+
     elif domain == "s":
         # from 3-channel depth encoding from Unity simulator to 1-channel [0-1] values
-        tensor = decode_unity_depth_t(tensor, log=False, normalize=normalize)
+        tensor = decode_unity_depth_t(tensor, log=log, normalize=normalize)
+
     elif domain == "kitti":
-        tensor = 1 / (tensor / 100)
-        if normalize:
-            tensor = tensor - tensor.min()
-            tensor = tensor / tensor.max()
+        tensor = tensor / 100
+        if not log:
+            tensor = 1 / tensor
+            if normalize:
+                tensor = tensor - tensor.min()
+                tensor = tensor / tensor.max()
+        else:
+            tensor = torch.log(tensor)
+
         tensor = tensor.unsqueeze(0)
+
     return tensor
+
+
+def decode_bucketed_depth(tensor, opts):
+    # tensor is size 1 x C x H x W
+    assert tensor.shape[0] == 1
+    idx = torch.argmax(tensor.squeeze(0), dim=0)  # channels become dim 0 with squeeze
+    linspace_args = (
+        opts.gen.d.classify.linspace.min,
+        opts.gen.d.classify.linspace.max,
+        opts.gen.d.classify.linspace.buckets,
+    )
+    indexer = torch.linspace(*linspace_args)
+    log_depth = indexer[idx.long()].to(torch.float32)  # H x W
+    depth = torch.exp(log_depth)
+    return depth.unsqueeze(0).unsqueeze(0).to(tensor.device)
 
 
 def decode_unity_depth_t(unity_depth, log=True, normalize=False, numpy=False, far=1000):
@@ -246,7 +276,8 @@ def decode_unity_depth_t(unity_depth, log=True, normalize=False, numpy=False, fa
     B = (255 - B).type(torch.IntTensor)
     depth = ((R * 256 * 31 + G * 256 + B).type(torch.FloatTensor)) / (256 * 31 * 31 - 1)
     depth = depth * far
-    depth = 1 / depth
+    if not log:
+        depth = 1 / depth
     depth = depth.unsqueeze(0)  # (depth * far).unsqueeze(0)
 
     if log:
@@ -538,9 +569,10 @@ def normalize(t, mini=0, maxi=1):
     if len(t.shape) == 3:
         return mini + (maxi - mini) * (t - t.min()) / (t.max() - t.min())
 
-    min_t = t.reshape(len(t), -1).min(1)[0].reshape(len(t), 1, 1, 1)
+    batch_size = t.shape[0]
+    min_t = t.reshape(batch_size, -1).min(1)[0].reshape(batch_size, 1, 1, 1)
     t = t - min_t
-    max_t = t.reshape(len(t), -1).max(1)[0].reshape(len(t), 1, 1, 1)
+    max_t = t.reshape(batch_size, -1).max(1)[0].reshape(batch_size, 1, 1, 1)
     t = t / max_t
     return mini + (maxi - mini) * t
 
@@ -580,3 +612,84 @@ def all_texts_to_tensors(texts, width=640, height=40):
     arrays = all_texts_to_array(texts, width, height)
     arrays = [array.transpose(2, 0, 1) for array in arrays]
     return [torch.tensor(array) for array in arrays]
+
+
+def write_architecture(trainer):
+    stem = "archi"
+    out = Path(trainer.opts.output_path)
+
+    # encoder
+    with open(out / f"{stem}_encoder.txt", "w") as f:
+        f.write(str(trainer.G.encoder))
+
+    # decoders
+    for k, v in trainer.G.decoders.items():
+        with open(out / f"{stem}_decoder_{k}.txt", "w") as f:
+            f.write(str(v))
+
+    # painter
+    if get_num_params(trainer.G.painter) > 0:
+        with open(out / f"{stem}_painter.txt", "w") as f:
+            f.write(str(trainer.G.painter))
+
+    # discriminators
+    if get_num_params(trainer.D) > 0:
+        for k, v in trainer.D.items():
+            with open(out / f"{stem}_discriminator_{k}.txt", "w") as f:
+                f.write(str(v))
+
+    with io.StringIO() as buf, redirect_stdout(buf):
+        print_num_parameters(trainer)
+        output = buf.getvalue()
+        with open(out / "archi_num_params.txt", "w") as f:
+            f.write(output)
+
+
+def rand_perlin_2d(shape, res, fade=lambda t: 6 * t ** 5 - 15 * t ** 4 + 10 * t ** 3):
+    delta = (res[0] / shape[0], res[1] / shape[1])
+    d = (shape[0] // res[0], shape[1] // res[1])
+
+    grid = (
+        torch.stack(
+            torch.meshgrid(
+                torch.arange(0, res[0], delta[0]), torch.arange(0, res[1], delta[1])
+            ),
+            dim=-1,
+        )
+        % 1
+    )
+    angles = 2 * math.pi * torch.rand(res[0] + 1, res[1] + 1)
+    gradients = torch.stack((torch.cos(angles), torch.sin(angles)), dim=-1)
+
+    tile_grads = (
+        lambda slice1, slice2: gradients[slice1[0] : slice1[1], slice2[0] : slice2[1]]
+        .repeat_interleave(d[0], 0)
+        .repeat_interleave(d[1], 1)
+    )
+    dot = lambda grad, shift: (  # noqa: E731
+        torch.stack(
+            (
+                grid[: shape[0], : shape[1], 0] + shift[0],
+                grid[: shape[0], : shape[1], 1] + shift[1],
+            ),
+            dim=-1,
+        )
+        * grad[: shape[0], : shape[1]]
+    ).sum(dim=-1)
+
+    n00 = dot(tile_grads([0, -1], [0, -1]), [0, 0])
+    n10 = dot(tile_grads([1, None], [0, -1]), [-1, 0])
+    n01 = dot(tile_grads([0, -1], [1, None]), [0, -1])
+    n11 = dot(tile_grads([1, None], [1, None]), [-1, -1])
+    t = fade(grid[: shape[0], : shape[1]])
+    return math.sqrt(2) * torch.lerp(
+        torch.lerp(n00, n10, t[..., 0]), torch.lerp(n01, n11, t[..., 0]), t[..., 1]
+    )
+
+
+def mix_noise(x, mask, res=(8, 3), weight=0.1):
+    noise = rand_perlin_2d(x.shape[-2:], res).unsqueeze(0).unsqueeze(0).to(x.device)
+    noise = noise - noise.min()
+    mask = mask.repeat(1, 3, 1, 1).to(x.device).to(torch.float16)
+    y = mask * (weight * noise + (1 - weight) * x) + (1 - mask) * x
+    return y

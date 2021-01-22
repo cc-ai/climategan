@@ -44,7 +44,7 @@ class C:
 
 def escape_path(path):
     p = str(path)
-    return p.replace(" ", "\ ").replace("(", "\(").replace(")", "\)")
+    return p.replace(" ", "\ ").replace("(", "\(").replace(")", "\)")  # noqa: W605
 
 
 def warn(*args, **kwargs):
@@ -499,7 +499,8 @@ def get_template_params(template):
         list(str): Args required to format the template string
     """
     return map(
-        lambda s: s.replace("{", "").replace("}", ""), re.findall("\{.*?\}", template)
+        lambda s: s.replace("{", "").replace("}", ""),
+        re.findall("\{.*?\}", template),  # noqa: W605
     )
 
 
@@ -617,7 +618,7 @@ if __name__ == "__main__":
     escape = False
     verbose = False
     template_name = None
-    hp_search_name = None
+    hp_exp_name = None
     hp_search_nb = None
     exp_path = None
     resume = None
@@ -668,8 +669,8 @@ if __name__ == "__main__":
         elif k == "template":
             template_name = v
 
-        elif k == "search":
-            hp_search_name = v
+        elif k == "exp":
+            hp_exp_name = v
 
         elif k == "n_search":
             hp_search_nb = int(v)
@@ -694,8 +695,8 @@ if __name__ == "__main__":
     # -----  Load Experiment Config  -----
     # ------------------------------------
 
-    if hp_search_name is not None:
-        exp_path, exp_conf = read_exp_conf(hp_search_name)
+    if hp_exp_name is not None:
+        exp_path, exp_conf = read_exp_conf(hp_exp_name)
         if "n_search" in exp_conf and hp_search_nb is None:
             hp_search_nb = exp_conf["n_search"]
 
@@ -759,7 +760,9 @@ if __name__ == "__main__":
         # create sbatch file where required
         tmp_sbatch_path = None
         if sbatch_path == "hash":
-            tmp_sbatch_path = Path(home) / "omnigan_sbatchs" / (now() + ".sh")
+            tmp_sbatch_name = "" if hp_exp_name is None else hp_exp_name[:5] + "_"
+            tmp_sbatch_name += now() + ".sh"
+            tmp_sbatch_path = Path(home) / "omnigan_sbatchs" / tmp_sbatch_name
             tmp_sbatch_path.parent.mkdir(parents=True, exist_ok=True)
             tmp_train_args_dict["sbatch_file"] = str(tmp_sbatch_path)
             tmp_train_args_dict["exp_file"] = str(exp_path)

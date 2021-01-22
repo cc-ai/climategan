@@ -1,7 +1,6 @@
 import torch.nn as nn
-import torch
-from omnigan.blocks import ResBlocks, InterpolateNearest2d, BaseDecoder, ASPP
-import torch.nn.functional as F
+
+from omnigan.blocks import ResBlocks
 
 affine_par = True
 
@@ -60,15 +59,10 @@ class Bottleneck(nn.Module):
 
 class ResNetMulti(nn.Module):
     def __init__(
-        self,
-        block,
-        layers,
-        n_res=4,
-        res_norm="instance",
-        activ="lrelu",
-        pad_type="reflect",
+        self, layers, n_res=4, res_norm="instance", activ="lrelu", pad_type="reflect",
     ):
         self.inplanes = 64
+        block = Bottleneck
         super(ResNetMulti, self).__init__()
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1 = nn.BatchNorm2d(64, affine=affine_par)
@@ -136,68 +130,3 @@ class ResNetMulti(nn.Module):
         x = self.layer4(x)
         x = self.layer_res(x)
         return x
-
-
-class DeepLabV2Decoder(BaseDecoder):
-    # https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/decoder.py
-    # https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/deeplab.py
-    def __init__(self, opts, no_init=False):
-        super().__init__()
-        self.aspp = ASPP("resnet", 16, nn.BatchNorm2d, no_init)
-        conv_modules = [
-            nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.BatchNorm2d(256),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.BatchNorm2d(256),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-        ]
-        if opts.gen.s.upsample_featuremaps:
-            conv_modules = [InterpolateNearest2d(scale_factor=2)] + conv_modules
-
-        conv_modules += [
-            nn.Conv2d(256, opts.gen.s.output_dim, kernel_size=1, stride=1),
-        ]
-        self.conv = nn.Sequential(*conv_modules)
-        self._target_size = None
-        if not no_init:
-            self._init_weight()
-
-    def _init_weight(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                # n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-                # m.weight.data.normal_(0, math.sqrt(2. / n))
-                torch.nn.init.kaiming_normal_(m.weight)
-            elif isinstance(m, nn.BatchNorm2d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
-
-    def set_target_size(self, size):
-        """
-        Set final interpolation's target size
-
-        Args:
-            size (int, list, tuple): target size (h, w). If int, target will be (i, i)
-        """
-        if isinstance(size, (list, tuple)):
-            self._target_size = size[:2]
-        else:
-            self._target_size = (size, size)
-
-    def forward(self, z):
-        if self._target_size is None:
-            error = "self._target_size should be set with self.set_target_size()"
-            error += "to interpolate logits to the target seg map's size"
-            raise Exception(error)
-        if isinstance(z, (list, tuple)):
-            z = z[0]
-        if z.shape[1] != 2048:
-            raise Exception(
-                "Segmentation decoder will only work with 2048 channels for z"
-            )
-        y = self.aspp(z)
-        y = self.conv(y)
-        return F.interpolate(y, self._target_size, mode="bilinear", align_corners=True)
