@@ -303,10 +303,10 @@ class PrepareInference:
             t = imread(str(t))
 
         if isinstance(t, np.ndarray):
-            t = torch.from_numpy(t)
             if t.shape[-1] == 4:
                 t = rgba2rgb(t)
 
+            t = torch.from_numpy(t)
             t = t.permute(2, 0, 1)
 
         if len(t.shape) == 3:
