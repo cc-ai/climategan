@@ -39,6 +39,8 @@ def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
 
     for model in G.decoders:
         net = G.decoders[model]
+        if model == "s":
+            continue
         if isinstance(net, nn.ModuleDict):
             for domain, domain_model in net.items():
                 init_weights(
@@ -56,7 +58,7 @@ def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
                 verbose=verbose,
                 caller=f"get_gen decoder {model}",
             )
-    if G.encoder is not None and opts.gen.encoder.architecture != "deeplabv2":
+    if G.encoder is not None and opts.gen.encoder.architecture == "base":
         init_weights(
             G.encoder,
             init_type=opts.gen.encoder.init_type,
@@ -102,9 +104,13 @@ class OmniGenerator(nn.Module):
         self.decoders = {}
 
         if "d" in opts.tasks:
-            self.decoders["d"] = DepthDecoder(opts)
+            if opts.gen.d.architecture == "base":
+                self.decoders["d"] = BaseDepthDecoder(opts)
+            else:
+                self.decoders["d"] = DADADepthRegressionDecoder(opts)
+
             if self.verbose > 0:
-                print("  - Created Depth Decoder")
+                print(f"  - Created {self.decoders['d'].__class__.__name__}")
 
         if "s" in opts.tasks:
             if opts.gen.s.architecture == "deeplabv2":
@@ -215,6 +221,7 @@ class OmniGenerator(nn.Module):
             torch.Tensor: painted image
         """
         z_paint = self.sample_painter_z(x.shape[0], x.device)
+        m = m.to(x.dtype)
         fake = self.painter(z_paint, x * (1.0 - m))
         if self.opts.gen.p.paste_original_content and not no_paste:
             return x * (1.0 - m) + fake * m
@@ -291,7 +298,7 @@ class MaskBaseDecoder(BaseDecoder):
             input_dim=input_dim,
             proj_dim=opts.gen.m.proj_dim,
             output_dim=opts.gen.m.output_dim,
-            res_norm=opts.gen.m.res_norm,
+            norm=opts.gen.m.norm,
             activ=opts.gen.m.activ,
             pad_type=opts.gen.m.pad_type,
             output_activ="none",

@@ -11,6 +11,50 @@ import numpy as np
 import yaml
 
 
+def flatten_conf(conf, to={}, parents=[]):
+    """
+    Flattens a configuration dict: nested dictionaries are flattened
+    as key1.key2.key3 = value
+
+    conf.yaml:
+    ```yaml
+    a: 1
+    b:
+        c: 2
+        d:
+            e: 3
+        g:
+            sample: sequential
+            from: [4, 5]
+    ```
+
+    Is flattened to
+
+    {
+        "a": 1,
+        "b.c": 2,
+        "b.d.e": 3,
+        "b.g": {
+            "sample": "sequential",
+            "from": [4, 5]
+        }
+    }
+
+    Does not affect sampling dicts.
+
+    Args:
+        conf (dict): the configuration to flatten
+        new (dict, optional): the target flatenned dict. Defaults to {}.
+        parents (list, optional): a final value's list of parents. Defaults to [].
+    """
+    for k, v in conf.items():
+        if isinstance(v, dict) and "sample" not in v:
+            flatten_conf(v, to, parents + [k])
+        else:
+            new_k = ".".join([str(p) for p in parents + [k]])
+            to[new_k] = v
+
+
 def env_to_path(path):
     """Transorms an environment variable mention in a json
     into its actual value. E.g. $HOME/clouds -> /home/vsch/clouds
@@ -542,7 +586,12 @@ def read_exp_conf(name):
         print("Using {}".format(paths[-1]))
 
     with paths[-1].open("r") as f:
-        return (paths[-1], yaml.safe_load(f))
+        conf = yaml.safe_load(f)
+
+    flat_conf = {}
+    flatten_conf(conf, to=flat_conf)
+
+    return (paths[-1], flat_conf)
 
 
 def read_template(name):

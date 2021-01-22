@@ -54,7 +54,7 @@ def print_time(text, time_series, purge=-1):
     s = np.std(time_series)
 
     print(
-        f"{text.capitalize() + ' ':.<30}  {m:.5f}"
+        f"{text.capitalize() + ' ':.<26}  {m:.5f}"
         + (f" +/- {s:.5f}" if len(time_series) > 1 else "")
     )
 
@@ -194,7 +194,7 @@ def parse_args():
     )
 
     return parser.parse_args()
-    
+
 
 if __name__ == "__main__":
 
@@ -256,10 +256,7 @@ if __name__ == "__main__":
             {
                 "imports": [import_time],
                 "setup": [],
-                "data 1: read": [],
-                "data 2: resize": [],
-                "data 3: normalize": [],
-                "data 4: full pre-processing": [],
+                "data pre-processing": [],
                 "encode": [],
                 "mask": [],
                 "flood": [],
