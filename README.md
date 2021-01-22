@@ -67,7 +67,7 @@ $ pip install comet_ml scipy opencv-python torch torchvision omegaconf==1.4.1 hy
           * `masker_s_loss()` -> segmentation AdvEnt disc loss
         * `d_loss.backward()`
         * `d_opt_step()`
-      * `update_learning_rates()` -> update learning rates according to schedules defined in `otps.gen.opt` and `opts.dis.opt`
+      * `update_learning_rates()` -> update learning rates according to schedules defined in `opts.gen.opt` and `opts.dis.opt`
     * `run_validation()`
       * compute val losses
       * `eval_images()` -> compute metrics

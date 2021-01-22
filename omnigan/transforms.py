@@ -11,6 +11,9 @@ from torchvision.transforms.functional import (
 import numpy as np
 import random
 import traceback
+from pathlib import Path
+from skimage.io import imread
+from omnigan.tutils import normalize
 
 
 def interpolation(task):
@@ -140,21 +143,28 @@ class Resize:
 
 
 class RandomCrop:
-    def __init__(self, size):
+    def __init__(self, size, center=False):
         assert isinstance(size, (int, tuple, list))
         if not isinstance(size, int):
+            assert len(size) == 2
             self.h, self.w = size
         else:
-            assert len(size == 2)
             self.h = self.w = size
 
         self.h = int(self.h)
         self.w = int(self.w)
+        self.center = center
 
     def __call__(self, data):
-        h, w = data["x"].size()[-2:]
-        top = np.random.randint(0, h - self.h)
-        left = np.random.randint(0, w - self.w)
+        H, W = data["x"].size()[-2:]
+
+        if not self.center:
+            top = np.random.randint(0, H - self.h)
+            left = np.random.randint(0, W - self.w)
+        else:
+            top = (H - self.h) // 2
+            left = (W - self.w) // 2
+
         return {
             task: tensor[:, :, top : top + self.h, left : left + self.w]
             for task, tensor in data.items()
@@ -272,33 +282,101 @@ class BucketizeDepth:
         }
 
 
-def get_transform(transform_item):
+class PrepareInference:
+    """
+    Transform which:
+      - transforms a str or an array into a tensor
+      - resizes the image to keep the aspect ratio
+      - crops in the center of the resized image
+      - normalize to 0:1
+      - rescale to -1:1
+    """
+
+    def __init__(self, target_size=640, half=False):
+        self.resize = Resize(target_size, keep_aspect_ratio=True)
+        self.crop = RandomCrop((target_size, target_size), center=True)
+        self.half = half
+
+    def process(self, t):
+        if isinstance(t, (str, Path)):
+            t = imread(str(t))
+
+        if isinstance(t, np.ndarray):
+            t = torch.from_numpy(t)
+            t = t.permute(2, 0, 1)
+
+        if len(t.shape) == 3:
+            t = t.unsqueeze(0)
+
+        t = t.to(torch.float16) if self.half else t.to(torch.float32)
+
+        t = normalize(t)
+        t = (t - 0.5) * 2
+        t = {"x": t}
+        t = self.resize(t)
+        t = self.crop(t)
+        t = t["x"]
+
+        return t
+
+    def __call__(self, x):
+        """
+        normalize, rescale, resize, crop in the center
+
+        x can be: dict {"task": data} list [data, ..] or data
+        data ^ can be a str, a Path, a numpy arrray or a Tensor
+        """
+        if isinstance(x, dict):
+            return {k: self.process(v) for k, v in x.items()}
+
+        if isinstance(x, list):
+            return [self.process(t) for t in x]
+
+        return self.process(x)
+
+
+def get_transform(transform_item, mode):
     """Returns the torchivion transform function associated to a
     transform_item listed in opts.data.transforms ; transform_item is
     an addict.Dict
     """
 
-    if transform_item.name == "crop" and not transform_item.ignore:
-        return RandomCrop((transform_item.height, transform_item.width))
+    if transform_item.name == "crop" and not (
+        transform_item.ignore is True or transform_item.ignore == mode
+    ):
+        return RandomCrop(
+            (transform_item.height, transform_item.width),
+            center=transform_item.center == mode,
+        )
 
-    elif transform_item.name == "resize" and not transform_item.ignore:
+    elif transform_item.name == "resize" and not (
+        transform_item.ignore is True or transform_item.ignore == mode
+    ):
         return Resize(
             transform_item.new_size, transform_item.get("keep_aspect_ratio", False)
         )
 
-    elif transform_item.name == "hflip" and not transform_item.ignore:
+    elif transform_item.name == "hflip" and not (
+        transform_item.ignore is True or transform_item.ignore == mode
+    ):
         return RandomHorizontalFlip(p=transform_item.p or 0.5)
 
-    elif transform_item.name == "brightness" and not transform_item.ignore:
+    elif transform_item.name == "brightness" and not (
+        transform_item.ignore is True or transform_item.ignore == mode
+    ):
         return RandBrightness()
 
-    elif transform_item.name == "saturation" and not transform_item.ignore:
+    elif transform_item.name == "saturation" and not (
+        transform_item.ignore is True or transform_item.ignore == mode
+    ):
         return RandSaturation()
 
-    elif transform_item.name == "contrast" and not transform_item.ignore:
+    elif transform_item.name == "contrast" and not (
+        transform_item.ignore is True or transform_item.ignore == mode
+    ):
         return RandContrast()
 
-    elif transform_item.ignore:
+    elif transform_item.ignore is True or transform_item.ignore == mode:
         return None
 
     raise ValueError("Unknown transform_item {}".format(transform_item))
@@ -306,21 +384,22 @@ def get_transform(transform_item):
 
 def get_transforms(opts, mode, domain):
     """Get all the transform functions listed in opts.data.transforms
-    using get_transform(transform_item)
+    using get_transform(transform_item, mode)
     """
     transforms = []
-    color_jittering = ["brightness", "saturation", "contrast"]
+    color_jittering_transforms = ["brightness", "saturation", "contrast"]
 
     for t in opts.data.transforms:
-        if t.name not in color_jittering and get_transform(t) is not None:
-            transforms.append(get_transform(t))
+        if t.name not in color_jittering_transforms:
+            transforms.append(get_transform(t, mode))
 
     if "p" not in opts.tasks and mode == "train":
         for t in opts.data.transforms:
-            if t.name in color_jittering and get_transform(t) is not None:
-                transforms.append(get_transform(t))
+            if t.name in color_jittering_transforms:
+                transforms.append(get_transform(t, mode))
 
     transforms += [Normalize(opts), BucketizeDepth(opts, domain)]
+    transforms = [t for t in transforms if t is not None]
 
     return transforms
 
