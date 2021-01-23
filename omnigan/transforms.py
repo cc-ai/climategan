@@ -322,7 +322,7 @@ class PrepareInference:
         t = t["x"]
 
         if self.half:
-            t = t.half
+            t = t.half()
 
         return t.squeeze(0)
 
