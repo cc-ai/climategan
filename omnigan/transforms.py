@@ -312,7 +312,7 @@ class PrepareInference:
         if len(t.shape) == 3:
             t = t.unsqueeze(0)
 
-        t = t.to(torch.float16) if self.half else t.to(torch.float32)
+        t = t.to(torch.float32)
 
         t = normalize(t)
         t = (t - 0.5) * 2
@@ -321,7 +321,7 @@ class PrepareInference:
         t = self.crop(t)
         t = t["x"]
 
-        return t
+        return t if not self.half else t.half()
 
     def __call__(self, x):
         """
