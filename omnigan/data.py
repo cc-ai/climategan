@@ -14,9 +14,9 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 
-from omnigan.transforms import get_transforms
+from omnigan.transforms import get_transforms, PrepareInference
 from omnigan.tutils import get_normalized_depth_t
-from omnigan.utils import env_to_path, is_image_file
+from omnigan.utils import env_to_path, find_images, is_image_file
 
 classes_dict = {
     "s": {  # unity
@@ -375,6 +375,20 @@ def tensor_loader(path, task, domain, opts):
     return torch.from_numpy(arr).unsqueeze(0)
 
 
+class InferenceDataset(Dataset):
+    def __init__(self, path, target_size=640, half=False) -> None:
+        super().__init__()
+        self.transform = PrepareInference(target_size=target_size, half=half)
+
+        self.paths = find_images(path)
+
+    def __len__(self):
+        return len(self.paths)
+
+    def __getitem__(self, i):
+        return self.transform(self.paths[i])
+
+
 class OmniListDataset(Dataset):
     def __init__(self, mode, domain, opts, transform=None):
 
@@ -510,3 +524,15 @@ def get_all_loaders(opts):
                 if domain in opts.data.files[mode]:
                     loaders[mode][domain] = get_loader(mode, domain, opts)
     return loaders
+
+
+def get_inference_loader(path, batch_size, target_size, half, num_workers):
+    return DataLoader(
+        InferenceDataset(path, target_size=target_size, half=half),
+        batch_size=batch_size,
+        num_workers=num_workers,
+        shuffle=False,
+        pin_memory=True,
+        drop_last=False,
+    )
+

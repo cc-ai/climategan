@@ -15,6 +15,7 @@ from skimage.transform import resize
 import comet_ml  # noqa: F401
 
 from omnigan.trainer import Trainer
+from omnigan.data import get_inference_loader
 from omnigan.tutils import normalize, print_num_parameters
 from omnigan.utils import (
     Timer,
@@ -187,6 +188,12 @@ def parse_args():
         help="Keeps approximately the aspect ratio to match multiples of 128",
     )
     parser.add_argument(
+        "--data_loader",
+        action="store_true",
+        default=False,
+        help="Use a DataLoader to load data",
+    )
+    parser.add_argument(
         "--max_im_width",
         type=int,
         default=-1,
@@ -212,6 +219,7 @@ if __name__ == "__main__":
     cloudy = not args.no_cloudy
     images_paths = Path(args.images_paths).expanduser().resolve()
     bin_value = args.flood_mask_binarization
+    loader = data_iter = data = None
     outdir = (
         Path(args.output_path).expanduser().resolve()
         if args.output_path is not None
@@ -308,22 +316,30 @@ if __name__ == "__main__":
         data_paths = data_paths[:n_images]
 
     with Timer(store=stores.get("data pre-processing", [])):
-        # read images to numpy arrays
-        data = [io.imread(str(d)) for d in data_paths]
-        # rgba to rgb
-        data = [im if im.shape[-1] == 3 else rgba2rgb(im) for im in data]
-        # resize to standard input size 640 x 640
-        if args.keep_ratio_128:
-            new_sizes = [to_128(d, args.max_im_width) for d in data]
-            data = [resize(d, ns, anti_aliasing=True) for d, ns in zip(data, new_sizes)]
+        if not args.data_loader:
+            # read images to numpy arrays
+            data = [io.imread(str(d)) for d in data_paths]
+            # rgba to rgb
+            data = [im if im.shape[-1] == 3 else rgba2rgb(im) for im in data]
+            # resize to standard input size 640 x 640
+            if args.keep_ratio_128:
+                new_sizes = [to_128(d, args.max_im_width) for d in data]
+                data = [
+                    resize(d, ns, anti_aliasing=True) for d, ns in zip(data, new_sizes)
+                ]
+            else:
+                data = [resize(d, (640, 640), anti_aliasing=True) for d in data]
+            # normalize to -1:1
+            data = [(normalize(d.astype(np.float32)) - 0.5) * 2 for d in data]
+            n_batchs = len(data) // batch_size
+            if len(data) % batch_size != 0:
+                n_batchs += 1
         else:
-            data = [resize(d, (640, 640), anti_aliasing=True) for d in data]
-        # normalize to -1:1
-        data = [(normalize(d.astype(np.float32)) - 0.5) * 2 for d in data]
-
-    n_batchs = len(data) // batch_size
-    if len(data) % batch_size != 0:
-        n_batchs += 1
+            loader = get_inference_loader(images_paths, batch_size, 640, args.half, 4)
+            data_iter = iter(loader)
+            n_batchs = len(loader.dataset) // batch_size
+            if len(loader.dataset) % batch_size != 0:
+                n_batchs += 1
 
     print("Found", len(base_data_paths), "images. Inferring on", len(data), "images.")
 
@@ -337,11 +353,16 @@ if __name__ == "__main__":
     with Timer(store=stores.get("inference on all images", [])):
         for b in range(n_batchs):
             print(f"Batch {b + 1}/{n_batchs}", end="\r")
-            images = data[b * batch_size : (b + 1) * batch_size]
+            images = (
+                data[b * batch_size : (b + 1) * batch_size]
+                if loader is not None
+                else next(data_iter)
+            )
             if not images:
                 continue
             # concatenate images in a batch batch_size x height x width x 3
-            images = np.stack(images)
+            if isinstance(images, list):
+                images = np.stack(images)
 
             # Retreive numpy events as a dict {event: array}
             events = trainer.infer_all(
