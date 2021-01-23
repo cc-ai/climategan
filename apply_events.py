@@ -360,7 +360,7 @@ if __name__ == "__main__":
                 if loader is None
                 else next(data_iter)
             )
-            if not images:
+            if isinstance(images, list) and len(images) == 0:
                 continue
             # concatenate images in a batch batch_size x height x width x 3
             if isinstance(images, list):
