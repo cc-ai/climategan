@@ -321,7 +321,10 @@ class PrepareInference:
         t = self.crop(t)
         t = t["x"]
 
-        return t if not self.half else t.half()
+        if self.half:
+            t = t.half
+
+        return t.squeeze(0)
 
     def __call__(self, x):
         """
