@@ -355,7 +355,7 @@ if __name__ == "__main__":
             print(f"Batch {b + 1}/{n_batchs}", end="\r")
             images = (
                 data[b * batch_size : (b + 1) * batch_size]
-                if loader is not None
+                if loader is None
                 else next(data_iter)
             )
             if not images:
