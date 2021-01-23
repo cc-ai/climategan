@@ -1174,11 +1174,11 @@ class Trainer:
             # --------------------
             else:
                 z = self.G.encode(x)
-                s_pred = d_pred = cond = depth_preds = None
+                s_pred = d_pred = cond = depth_preds = z_depth = None
 
                 if "s" in batch["data"]:
-                    d_pred, z_depth = self.G.decoders["d"](z)
                     if self.opts.gen.s.depth_dada_fusion:
+                        d_pred, z_depth = self.G.decoders["d"](z)
                         depth_preds = d_pred
                     step_loss, s_pred = self.masker_s_loss(
                         x, z, depth_preds, z_depth, None, domain, for_="D"
