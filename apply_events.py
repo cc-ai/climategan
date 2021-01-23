@@ -334,14 +334,16 @@ if __name__ == "__main__":
             n_batchs = len(data) // batch_size
             if len(data) % batch_size != 0:
                 n_batchs += 1
+            n_ims = len(data)
         else:
             loader = get_inference_loader(images_paths, batch_size, 640, args.half, 4)
             data_iter = iter(loader)
             n_batchs = len(loader.dataset) // batch_size
             if len(loader.dataset) % batch_size != 0:
                 n_batchs += 1
+            n_ims = len(loader.dataset)
 
-    print("Found", len(base_data_paths), "images. Inferring on", len(data), "images.")
+    print("Found", len(base_data_paths), "images. Inferring on", n_ims, "images.")
 
     # --------------------------------------------
     # -----  Batch-process images to events  -----
