@@ -62,6 +62,11 @@ classes_dict = {
         13: [0, 139, 139],  # Van
         14: [0, 0, 0],  # Undefined
     },
+    "flood": {
+        0: [255, 0, 0],  # Cannot flood
+        1: [0, 0, 255],  # Must flood
+        2: [0, 0, 0],  # May flood
+    },
 }
 
 kitti_mapping = {
@@ -150,7 +155,7 @@ def decode_segmap_merged_labels(tensor, domain, is_target, nc=11):
             if prediction, or size (1) x (1) x (H) x (W) if target
     Returns:
         RGB tensor of size (1) x (3) x (H) x (W)
-    # """
+    #"""
 
     if is_target:  # Target is size 1 x 1 x H x W
         idx = tensor.squeeze(0).squeeze(0)
@@ -204,25 +209,6 @@ def decode_segmap_cityscapes_labels(image, nc=19):
     return rgb
 
 
-def find_closest_class(pixel, dict_classes):
-    """Takes a pixel as input and finds the closest known pixel value corresponding
-    to a class in dict_classes
-
-    Arguments:
-        pixel -- tuple pixel (R,G,B,A)
-    Returns:
-        tuple pixel (R,G,B,A) corresponding to a key (a class) in dict_classes
-    """
-    min_dist = float("inf")
-    closest_pixel = None
-    for pixel_value in dict_classes.keys():
-        dist = np.sqrt(np.sum(np.square(np.subtract(pixel, pixel_value))))
-        if dist < min_dist:
-            min_dist = dist
-            closest_pixel = pixel_value
-    return closest_pixel
-
-
 def encode_segmap(arr, domain):
     """Change a segmentation RGBA array to a segmentation array
                             with each pixel being the index of the class
@@ -231,26 +217,18 @@ def encode_segmap(arr, domain):
     Returns:
         numpy array of size (1) x (H) x (W) with each pixel being the index of the class
     """
-    new_arr = np.zeros((1, arr.shape[0], arr.shape[1]))
-    dict_classes = {
-        tuple(rgba_value): class_id
-        for (class_id, rgba_value) in classes_dict[domain].items()
-    }
-    for i in range(arr.shape[0]):
-        for j in range(arr.shape[1]):
-            pixel_rgba = tuple(arr[i, j, :])
-            if pixel_rgba in dict_classes.keys():
-                new_arr[0, i, j] = dict_classes[pixel_rgba]
-            else:
-                pixel_rgba_closest = find_closest_class(pixel_rgba, dict_classes)
-                new_arr[0, i, j] = dict_classes[pixel_rgba_closest]
-    return new_arr
+    diff = np.zeros((len(classes_dict[domain].keys()), arr.shape[0], arr.shape[1]))
+    for cindex, cvalue in classes_dict[domain].items():
+        diff[cindex, :, :] = np.sum(
+            np.abs(arr - np.tile(cvalue, (arr.shape[0], arr.shape[1], 1))), axis=2
+        )
+    return np.expand_dims(np.argmin(diff, axis=0), axis=0)
 
 
 def transform_segmap_image_to_tensor(path, domain):
     """
-        Transforms a segmentation image to a tensor of size (1) x (1) x (H) x (W)
-        with each pixel being the index of the class
+    Transforms a segmentation image to a tensor of size (1) x (1) x (H) x (W)
+    with each pixel being the index of the class
     """
     arr = np.array(Image.open(path).convert("RGBA"))
     arr = encode_segmap(arr, domain)
@@ -444,7 +422,10 @@ class OmniListDataset(Dataset):
             "data": self.transform(
                 {
                     task: tensor_loader(
-                        env_to_path(path), task, self.domain, self.opts,
+                        env_to_path(path),
+                        task,
+                        self.domain,
+                        self.opts,
                     )
                     for task, path in paths.items()
                 }
