@@ -219,8 +219,11 @@ def encode_segmap(arr, domain):
     """
     diff = np.zeros((len(classes_dict[domain].keys()), arr.shape[0], arr.shape[1]))
     for cindex, cvalue in classes_dict[domain].items():
-        diff[cindex, :, :] = np.sum(
-            np.abs(arr - np.tile(cvalue, (arr.shape[0], arr.shape[1], 1))), axis=2
+        diff[cindex, :, :] = np.sqrt(
+            np.sum(
+                np.square(arr - np.tile(cvalue, (arr.shape[0], arr.shape[1], 1))),
+                axis=2,
+            )
         )
     return np.expand_dims(np.argmin(diff, axis=0), axis=0)
 
