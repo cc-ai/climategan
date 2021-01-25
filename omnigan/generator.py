@@ -387,10 +387,10 @@ class MaskSpadeDecoder(nn.Module):
         ):
             self.input_dim = [2048, 256]
             if self.opts.gen.m.use_proj:
-                num_proj = self.opts.gen.m.proj_dim
+                proj_dim = self.opts.gen.m.proj_dim
                 self.low_level_conv = Conv2dBlock(
                     self.input_dim[1],
-                    num_proj,
+                    proj_dim,
                     3,
                     padding=1,
                     activation="lrelu",
@@ -399,7 +399,7 @@ class MaskSpadeDecoder(nn.Module):
                 )
                 self.high_level_conv = Conv2dBlock(
                     self.input_dim[0],
-                    num_proj,
+                    proj_dim,
                     3,
                     padding=1,
                     activation="lrelu",
@@ -407,7 +407,7 @@ class MaskSpadeDecoder(nn.Module):
                     norm="spectral_batch",
                 )
                 self.merge_feats_conv = Conv2dBlock(
-                    num_proj * 2,
+                    proj_dim * 2,
                     self.z_nc,
                     3,
                     padding=1,
