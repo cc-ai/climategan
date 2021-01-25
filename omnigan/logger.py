@@ -1,19 +1,20 @@
-from addict import Dict
-import torchvision.utils as vutils
+from pathlib import Path
 
 import numpy as np
 import torch
-from torch.nn.functional import sigmoid, interpolate
+import torchvision.utils as vutils
+from addict import Dict
+from PIL import Image
+from torch.nn.functional import interpolate, sigmoid
+
 from omnigan.data import decode_segmap_merged_labels
 from omnigan.tutils import (
-    normalize_tensor,
     all_texts_to_tensors,
     decode_bucketed_depth,
+    normalize_tensor,
     write_architecture,
 )
 from omnigan.utils import flatten_opts
-from PIL import Image
-from pathlib import Path
 
 
 class Logger:

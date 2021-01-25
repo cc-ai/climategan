@@ -24,11 +24,11 @@ from tqdm import tqdm
 
 from omnigan.classifier import OmniClassifier, get_classifier
 from omnigan.data import get_all_loaders
-from omnigan.discriminator import OmniDiscriminator, get_dis
+from omnigan.discriminator import OmniDiscriminator, create_discriminator
 from omnigan.eval_metrics import accuracy, mIOU
 from omnigan.fid import compute_val_fid
 from omnigan.fire import add_fire
-from omnigan.generator import OmniGenerator, get_gen
+from omnigan.generator import OmniGenerator, create_generator
 from omnigan.logger import Logger
 from omnigan.losses import get_losses
 from omnigan.optim import get_optimizer
@@ -61,7 +61,7 @@ from omnigan.utils import (
 )
 
 try:
-    import torch_xla.core.xla_model as xm
+    import torch_xla.core.xla_model as xm  # type: ignore
 except ImportError:
     pass
 
@@ -722,7 +722,9 @@ class Trainer:
         __t = time()
         print("Creating generator...")
 
-        self.G: OmniGenerator = get_gen(self.opts, verbose=verbose, no_init=inference)
+        self.G: OmniGenerator = create_generator(
+            self.opts, verbose=verbose, no_init=inference
+        )
 
         self.has_painter = get_num_params(self.G.painter) or self.G.load_val_painter()
 
@@ -750,7 +752,9 @@ class Trainer:
         # -----  Discriminator  -----
         # ---------------------------
 
-        self.D: OmniDiscriminator = get_dis(self.opts, verbose=verbose).to(self.device)
+        self.D: OmniDiscriminator = create_discriminator(self.opts, verbose=verbose).to(
+            self.device
+        )
         print("Discriminator OK.")
 
         # ------------------------

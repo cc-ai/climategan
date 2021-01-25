@@ -1,8 +1,9 @@
 import torch
 import torch.nn.functional as F
-from torchvision.transforms.functional import adjust_brightness, adjust_contrast
-from torchvision.transforms import ToTensor
 from PIL import Image, ImageFilter
+from torchvision.transforms import ToTensor
+from torchvision.transforms.functional import adjust_brightness, adjust_contrast
+
 from omnigan.tutils import normalize, retrieve_sky_mask
 
 

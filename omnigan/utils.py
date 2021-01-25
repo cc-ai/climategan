@@ -1,18 +1,19 @@
 """All non-tensor utils
 """
+import contextlib
+import json
 import os
 import re
-import subprocess
-import json
-from pathlib import Path
 import shutil
+import subprocess
+import time
+import traceback
+from pathlib import Path
+from typing import Any, List, Optional, Union
+
+import numpy as np
 import yaml
 from addict import Dict
-import contextlib
-import numpy as np
-from typing import Union, Optional, List, Any
-import traceback
-import time
 from comet_ml import Experiment
 
 comet_kwargs = {

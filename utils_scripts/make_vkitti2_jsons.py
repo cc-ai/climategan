@@ -1,7 +1,7 @@
-from pathlib import Path
-import json
 import datetime
+import json
 import os
+from pathlib import Path
 
 
 def make_kitti_jsons(
@@ -34,8 +34,11 @@ def make_kitti_jsons(
     SceneX/Y/pose.txt
 
     where X ∈ {01, 02, 06, 18, 20} and represent one of 5 different locations.
-    Y ∈ {15-deg-left, 15-deg-right, 30-deg-left, 30-deg-right, clone, fog, morning, overcast, rain, sunset} and represent the different variations.
-    Z ∈ [0, 1] and represent the left (same as in virtual kitti) or right camera (offset by 0.532725m to the right).
+    Y ∈ {15-deg-left, 15-deg-right, 30-deg-left, 30-deg-right,
+        clone, fog, morning, overcast, rain, sunset}
+        and represent the different variations.
+    Z ∈ [0, 1] and represent the left (same as in virtual kitti)
+        or right camera (offset by 0.532725m to the right).
     Note that our indexes always start from 0.
     """
 

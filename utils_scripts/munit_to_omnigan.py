@@ -1,5 +1,5 @@
-from pathlib import Path
 import json
+from pathlib import Path
 
 root = "/network/tmp1/ccai/data/munit_dataset"
 lists = """
@@ -13,7 +13,7 @@ data_folder_test_b: ./
 data_list_test_b: /network/tmp1/ccai/data/munit_dataset/testB.txt
 data_list_train_a_seg: /network/tmp1/ccai/data/munit_dataset/trainA_seg.txt
 data_list_train_b_seg: /network/tmp1/ccai/data/munit_dataset/trainB_seg.txt
-data_list_train_a_synth: /network/tmp1/ccai/data/munit_dataset/simdata/Unity1000R_broken_water/txt_files/normal.txt
+data_list_train_a_synth: /network/tmp1/ccai/data/munit_dataset/simdata/Unity1000R_broken_water/txt_files/normal.txt # noqa E501
 data_list_train_b_synth: /network/tmp1/ccai/data/munit_dataset/simdata/Unity1000R_broken_water/txt_files/flood.txt
 data_list_train_b_seg_synth: /network/tmp1/ccai/data/munit_dataset/simdata/Unity1000R_broken_water/txt_files/mask.txt #binary mask
 seg_list_a: /network/tmp1/ccai/data/munit_dataset/simdata/Unity1000R_broken_water/txt_files/seg.txt
@@ -65,8 +65,8 @@ if __name__ == "__main__":
             "x": munit_data_lists["data_list_test_a"],
             "s": munit_data_lists["TODO"],
         },
-        # "val_sf": {"x": munit_data_lists["data_list_test_b_synth"], "s": munit_data_lists["data_list_train_b"]},
-        # "val_sn": {"x": munit_data_lists["data_list_test_a_synth"], "s": munit_data_lists["data_list_train_b"]},
+        # "val_sf": {"x": munit_data_lists["data_list_test_b_synth"], "s": munit_data_lists["data_list_train_b"]}, # noqa E501
+        # "val_sn": {"x": munit_data_lists["data_list_test_a_synth"], "s": munit_data_lists["data_list_train_b"]}, # noqa E501
     }
 
     omnigan_data = {k: get_lines(v) for k, v in omnigan_data_lists.items()}

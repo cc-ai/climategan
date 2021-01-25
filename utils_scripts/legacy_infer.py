@@ -1,16 +1,17 @@
-import torch
-import numpy as np
-from omnigan.utils import load_opts
-from pathlib import Path
-from argparse import ArgumentParser
-from omnigan.trainer import Trainer
-from omnigan.data import tensor_loader
-from torchvision import transforms as trsfs
-import torchvision.utils as vutils
-import torch.nn.functional as F
 import os
-from tqdm import tqdm
+from argparse import ArgumentParser
+from pathlib import Path
+
+import numpy as np
+import torch
+import torch.nn.functional as F
+import torchvision.utils as vutils
+from omnigan.data import tensor_loader
+from omnigan.trainer import Trainer
+from omnigan.utils import load_opts
 from PIL import ImageFile
+from torchvision import transforms as trsfs
+from tqdm import tqdm
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
@@ -102,7 +103,7 @@ def eval_folder(
         img = img.unsqueeze(0).to(device)
 
         if not masker and paint:
-            mask = tensor_loader(masks[i], task="m", domain="val")
+            mask = tensor_loader(masks[i], task="m", domain="val")  # type: ignore
             # mask = F.interpolate(mask, (new_size, new_size), mode="nearest")
             mask = mask.squeeze()
             mask = mask.unsqueeze(0).to(device)
@@ -139,11 +140,11 @@ def eval_folder(
                 )
 
         if paint:
-            fake_flooded = model.paint(mask, img)
+            fake_flooded = model.paint(mask, img)  # type: ignore
             vutils.save_image(fake_flooded, output_dir / img_path.name, normalize=True)
             if apply_mask:
                 vutils.save_image(
-                    img * (1.0 - mask) + mask,
+                    img * (1.0 - mask) + mask,  # type: ignore
                     output_dir / (img_path.stem + "_masked" + ".jpg"),
                     normalize=True,
                 )

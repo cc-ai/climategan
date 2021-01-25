@@ -8,10 +8,9 @@ import logging
 from argparse import ArgumentParser
 from copy import deepcopy
 
-from comet_ml import Experiment
-from comet_ml.api import API
-
+import comet_ml
 import omnigan
+from comet_ml.api import API
 from omnigan.trainer import Trainer
 from omnigan.utils import get_comet_rest_api_key
 
@@ -161,7 +160,9 @@ if __name__ == "__main__":
     # -----  Create global experiment  -----
     # --------------------------------------
 
-    global_exp = Experiment(project_name="omnigan-test", display_summary_level=0)
+    global_exp = comet_ml.Experiment(
+        project_name="omnigan-test", display_summary_level=0
+    )
     if not args.no_delete:
         delete_on_exit(global_exp)
 

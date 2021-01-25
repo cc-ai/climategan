@@ -1,31 +1,29 @@
-from pathlib import Path
-from time import time, sleep
+import logging
 import os
+from pathlib import Path
+from time import sleep, time
 
 import hydra
 import yaml
 from addict import Dict
-from comet_ml import Experiment, ExistingExperiment
+from comet_ml import ExistingExperiment, Experiment
 from omegaconf import OmegaConf
 
 from omnigan.trainer import Trainer
-
 from omnigan.utils import (
     comet_kwargs,
-    env_to_path,
-    flatten_opts,
-    get_git_revision_hash,
-    get_git_branch,
-    get_increased_path,
-    load_opts,
     copy_run_files,
+    env_to_path,
     find_existing_training,
-    kill_job,
-    pprint,
+    flatten_opts,
     get_existing_comet_id,
+    get_git_branch,
+    get_git_revision_hash,
+    get_increased_path,
+    kill_job,
+    load_opts,
+    pprint,
 )
-
-import logging
 
 logging.basicConfig()
 logging.getLogger().setLevel(logging.ERROR)

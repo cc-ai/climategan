@@ -2,33 +2,28 @@ print("\n• Imports\n")
 import time
 
 import_time = time.time()
-import sys
 import argparse
+import sys
 from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
 
+import comet_ml  # noqa: F401
 import numpy as np
 import skimage.io as io
 from skimage.color import rgba2rgb
 from skimage.transform import resize
-import comet_ml  # noqa: F401
 
 from omnigan.trainer import Trainer
 from omnigan.tutils import normalize, print_num_parameters
-from omnigan.utils import (
-    Timer,
-    get_git_revision_hash,
-    to_128,
-    find_images,
-)
+from omnigan.utils import Timer, find_images, get_git_revision_hash, to_128
 
 import_time = time.time() - import_time
 
 XLA = False
 try:
-    import torch_xla.core.xla_model as xm
-    import torch_xla.debug.metrics as met
+    import torch_xla.core.xla_model as xm  # type: ignore
+    import torch_xla.debug.metrics as met  # type: ignore
 
     XLA = True
 except ImportError:
@@ -280,7 +275,7 @@ if __name__ == "__main__":
 
         device = None
         if XLA:
-            device = xm.xla_device()
+            device = xm.xla_device()  # type: ignore
 
         trainer = Trainer.resume_from_path(
             resume_path, setup=True, inference=True, new_exp=None, device=device,
@@ -398,7 +393,7 @@ if __name__ == "__main__":
         metrics_dir.mkdir(exist_ok=True, parents=True)
         now = str(datetime.now()).replace(" ", "_")
         with open(metrics_dir / f"xla_metrics_{now}.txt", "w",) as f:
-            report = met.metrics_report()
+            report = met.metrics_report()  # type: ignore
             print(report, file=f)
 
     if not args.no_conf and outdir is not None:

@@ -1,7 +1,7 @@
 """custom __str__ methods for OmniGAN's classes
 """
-import torch.nn as nn
 import torch
+import torch.nn as nn
 
 
 def title(name, color="\033[94m"):
