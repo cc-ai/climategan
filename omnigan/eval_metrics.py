@@ -134,18 +134,18 @@ def pred_cannot(pred, label, label_cannot=0):
     ----------
     pred : array-like
         Mask prediction
-	
+
     label : array-like
         Mask ground truth labels
-	
+
     label_cannot : int
         The label index of "cannot flood"
-	
+
     Returns
     -------
     fp_map : array-like
         The map of false positives: predicted mask on cannot flood
-        
+
     fpr : float
         False positive rate: rate of predicted mask on cannot flood
     """
@@ -163,22 +163,22 @@ def missed_must(pred, label, label_must=1):
     ----------
     pred : array-like
         Mask prediction
-	
+
     label : array-like
         Mask ground truth labels
-	
+
     label_must : int
         The label index of "must flood"
-	
+
     Returns
     -------
     fn_map : array-like
         The map of false negatives: missed mask on must flood
-        
+
     fnr : float
         False negative rate: rate of missed mask on must flood
     """
-    fn_map = (1. - pred) * np.asarray(label == label_must, dtype=int)
+    fn_map = (1.0 - pred) * np.asarray(label == label_must, dtype=int)
     fnr = np.sum(fn_map) / np.sum(label == label_must)
     return fn_map, fnr
 
@@ -192,28 +192,28 @@ def may_flood(pred, label, label_may=2):
     ----------
     pred : array-like
         Mask prediction
-	
+
     label : array-like
         Mask ground truth labels
-	
+
     label_may : int
         The label index of "may flood"
-	
+
     Returns
     -------
     may_neg_map : array-like
         The map of "may" negatives
-    
+
     may_pos_map : array-like
         The map of "may" positives
-        
+
     mnr : float
         "May" negative rate
-        
+
     mpr : float
         "May" positive rate
     """
-    may_neg_map = (1. - pred) * np.asarray(label == label_may, dtype=int)
+    may_neg_map = (1.0 - pred) * np.asarray(label == label_may, dtype=int)
     may_pos_map = pred * np.asarray(label == label_may, dtype=int)
     mnr = np.sum(may_neg_map) / np.sum(label == label_may)
     mpr = np.sum(may_pos_map) / np.sum(label == label_may)
@@ -228,13 +228,13 @@ def masker_metrics(pred, label, label_cannot=0, label_must=1):
     ----------
     pred : array-like
         Mask prediction
-	
+
     label : array-like
         Mask ground truth labels
-	
+
     label_must : int
         The label index of "must flood"
-	
+
     label_cannot : int
         The label index of "cannot flood"
 
@@ -242,22 +242,22 @@ def masker_metrics(pred, label, label_cannot=0, label_must=1):
     -------
     tpr : float
         True positive rate
-    
+
     tnr : float
         True negative rate
-    
+
     precision : precision
         Precision, considering only cannot and must flood labels
-        
+
     f1 : precision
         F1 score, considering only cannot and must flood labels
     """
     tp_map = pred * np.asarray(label == label_must, dtype=int)
     tpr = np.sum(tp_map) / np.sum(label == label_must)
-    tn_map = (1. - pred) * np.asarray(label == label_cannot, dtype=int)
+    tn_map = (1.0 - pred) * np.asarray(label == label_cannot, dtype=int)
     tnr = np.sum(tn_map) / np.sum(label == label_cannot)
     fp_map = pred * np.asarray(label == label_cannot, dtype=int)
-    fn_map = (1. - pred) * np.asarray(label == label_must, dtype=int)
+    fn_map = (1.0 - pred) * np.asarray(label == label_must, dtype=int)
     precision = np.sum(tp_map) / (np.sum(tp_map) + np.sum(fp_map))
     f1 = 2 * (precision * tpr) / (precision + tpr)
     return tpr, tnr, precision, f1
@@ -271,22 +271,22 @@ def confusion_matrix(tpr, tnr, fpr, fnr, mpr, mnr):
     ----------
     tpr : vector-like
         True positive rate
-	
+
     tnr : vector-like
         True negative rate
-	
+
     fpr : vector-like
         False positive rate
-	
+
     fnr : vector-like
         False negative rate
-	
+
     mpr : vector-like
         "May" positive rate
-	
+
     mnr : vector-like
         "May" negative rate
-	
+
     Returns
     -------
     confusion_matrix : 3x3 array
@@ -311,12 +311,12 @@ def confusion_matrix(tpr, tnr, fpr, fnr, mpr, mnr):
     mpr_s = np.std(mpr)
     mnr_m = np.mean(mnr)
     mnr_s = np.std(mnr)
-    
+
     # Assertions
-    assert np.isclose(tpr_m, 1. - fnr_m)
-    assert np.isclose(tnr_m, 1. - fpr_m)
-    assert np.isclose(mpr_m, 1. - mnr_m)
-    
+    assert np.isclose(tpr_m, 1.0 - fnr_m)
+    assert np.isclose(tnr_m, 1.0 - fpr_m)
+    assert np.isclose(mpr_m, 1.0 - mnr_m)
+
     # Fill confusion matrix
     confusion_matrix = np.zeros((3, 3))
     confusion_matrix[0, 0] = tnr_m
@@ -325,8 +325,8 @@ def confusion_matrix(tpr, tnr, fpr, fnr, mpr, mnr):
     confusion_matrix[1, 0] = fpr_m
     confusion_matrix[1, 1] = tpr_m
     confusion_matrix[1, 2] = mpr_m
-    confusion_matrix[2, 2] = 0.
-    
+    confusion_matrix[2, 2] = 0.0
+
     # Standard deviation
     confusion_matrix_std = np.zeros((3, 3))
     confusion_matrix_std[0, 0] = tnr_s
@@ -335,5 +335,5 @@ def confusion_matrix(tpr, tnr, fpr, fnr, mpr, mnr):
     confusion_matrix_std[1, 0] = fpr_s
     confusion_matrix_std[1, 1] = tpr_s
     confusion_matrix_std[1, 2] = mpr_s
-    confusion_matrix_std[2, 2] = 0.
+    confusion_matrix_std[2, 2] = 0.0
     return confusion_matrix, confusion_matrix_std
