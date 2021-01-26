@@ -163,7 +163,7 @@ if __name__ == "__main__":
     # --------------------------------------
     # -----  Create global experiment  -----
     # --------------------------------------
-    print("Creating comet Experiment", end="", flush=True)
+    print("Creating comet Experiment...", end="", flush=True)
     global_exp = comet_ml.Experiment(
         project_name="omnigan-test", display_summary_level=0
     )
