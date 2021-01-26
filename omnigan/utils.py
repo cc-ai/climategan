@@ -938,12 +938,32 @@ def find_images(path, recursive=False):
     return [i for i in p.glob(pattern) if i.is_file() and is_image_file(i)]
 
 
-def upload_images_to_exp(path, exp=None, project_name="omnigan-eval", sleep=-1):
+def cols():
+    try:
+        col = os.get_terminal_size().columns
+    except Exception:
+        col = 50
+    return col
+
+
+def upload_images_to_exp(
+    path, exp=None, project_name="omnigan-eval", sleep=-1, verbose=0
+):
     ims = find_images(path)
+    end = None
+    c = cols()
+    if verbose == 1:
+        end = "\r"
+    if verbose > 1:
+        end = "\n"
     if exp is None:
         exp = Experiment(project_name=project_name)
     for im in ims:
         exp.log_image(str(im))
+        if verbose > 0:
+            if verbose == 1:
+                print(" " * (c - 1), end="\r", flush=True)
+            print(str(im), end=end, flush=True)
         if sleep > 0:
             time.sleep(sleep)
     return exp
