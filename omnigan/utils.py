@@ -938,10 +938,12 @@ def find_images(path, recursive=False):
     return [i for i in p.glob(pattern) if i.is_file() and is_image_file(i)]
 
 
-def upload_images_to_exp(path, exp=None, project_name="omnigan-eval"):
+def upload_images_to_exp(path, exp=None, project_name="omnigan-eval", sleep=-1):
     ims = find_images(path)
     if exp is None:
         exp = Experiment(project_name=project_name)
     for im in ims:
         exp.log_image(str(im))
+        if sleep > 0:
+            time.sleep(sleep)
     return exp

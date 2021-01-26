@@ -14,7 +14,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     exp = upload_images_to_exp(
-        Path(args.images_path).resolve(), exp=None, project_name=args.project_name
+        Path(args.images_path).resolve(),
+        exp=None,
+        project_name=args.project_name,
+        sleep=0.25,
     )
 
     exp.end()
