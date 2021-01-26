@@ -7,7 +7,7 @@ from omnigan.blocks import InterpolateNearest2d, SPADEResnetBlock
 from omnigan.norms import SpectralNorm
 
 
-def create_painter(opts, verbose=0):
+def create_painter(opts, no_init=False, verbose=0):
     if verbose > 0:
         print("  - Add PainterSpadeDecoder Painter")
     return PainterSpadeDecoder(opts)

@@ -10,7 +10,7 @@ from omnigan.blocks import (
 )
 
 
-def create_mask_decoder(opts, verbose=0):
+def create_mask_decoder(opts, no_init=False, verbose=0):
     if opts.gen.m.use_spade:
         if verbose > 0:
             print("  - Add Spade Mask Decoder")

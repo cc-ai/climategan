@@ -20,10 +20,11 @@ from omnigan.painter import create_painter
 from omnigan.tutils import init_weights, mix_noise, normalize
 
 
-def create_generator(opts, latent_shape=None, verbose=0, no_init=False):
+def create_generator(opts, device="cpu", latent_shape=None, no_init=False, verbose=0):
     G = OmniGenerator(opts, latent_shape, verbose, no_init)
     if no_init:
-        return G
+        print("Sending to", device)
+        return G.to(device)
 
     for model in G.decoders:
         net = G.decoders[model]
@@ -54,7 +55,9 @@ def create_generator(opts, latent_shape=None, verbose=0, no_init=False):
             verbose=verbose,
             caller=f"create_generator encoder",
         )
-    return G
+
+    print("Sending to", device)
+    return G.to(device)
 
 
 class OmniGenerator(nn.Module):
@@ -78,7 +81,7 @@ class OmniGenerator(nn.Module):
         self.painter = nn.Module()
 
         if "d" in opts.tasks:
-            self.decoders["d"] = create_depth_decoder(opts, verbose)
+            self.decoders["d"] = create_depth_decoder(opts, no_init, verbose)
 
         if "s" in opts.tasks:
             self.decoders["s"] = create_segmentation_decoder(opts, no_init, verbose)
@@ -89,7 +92,7 @@ class OmniGenerator(nn.Module):
         self.decoders = nn.ModuleDict(self.decoders)
 
         if "p" in self.opts.tasks:
-            self.painter = create_painter(opts, verbose)
+            self.painter = create_painter(opts, no_init, verbose)
         else:
             if self.verbose > 0:
                 print("  - Add Empty Painter")
@@ -213,7 +216,8 @@ class OmniGenerator(nn.Module):
             painter.load_state_dict(
                 {k.replace("painter.", ""): v for k, v in state_dict["G"].items()}
             )
-            self.painter = painter
+            device = next(self.parameters()).device
+            self.painter = painter.to(device)
             print("    - Loaded validation-only painter")
             return True
         except Exception as e:

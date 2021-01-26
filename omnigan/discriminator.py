@@ -13,7 +13,7 @@ from omnigan.tutils import init_weights
 # mainly from https://github.com/sangwoomo/instagan/blob/master/models/networks.py
 
 
-def create_discriminator(opts, verbose, no_init=False):
+def create_discriminator(opts, device, no_init=False, verbose=0):
     disc = OmniDiscriminator(opts)
     if no_init:
         return disc
@@ -36,7 +36,7 @@ def create_discriminator(opts, verbose, no_init=False):
                 verbose=verbose,
                 caller=f"create_discriminator {task}",
             )
-    return disc
+    return disc.to(device)
 
 
 def define_D(

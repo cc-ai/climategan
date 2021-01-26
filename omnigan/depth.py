@@ -6,7 +6,7 @@ from omnigan.blocks import BaseDecoder, Conv2dBlock, InterpolateNearest2d
 from omnigan.utils import find_target_size
 
 
-def create_depth_decoder(opts, verbose=0):
+def create_depth_decoder(opts, no_init=False, verbose=0):
     if opts.gen.d.architecture == "base":
         decoder = BaseDepthDecoder(opts)
     else:

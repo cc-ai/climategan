@@ -723,20 +723,17 @@ class Trainer:
         print("Creating generator...")
 
         self.G: OmniGenerator = create_generator(
-            self.opts, verbose=verbose, no_init=inference
+            self.opts, device=self.device, no_init=inference, verbose=verbose
         )
 
         self.has_painter = get_num_params(self.G.painter) or self.G.load_val_painter()
-
-        print("Sending to", self.device)
-        self.G = self.G.to(self.device)
 
         if self.has_painter:
             self.G.painter.set_latent_shape(find_target_size(self.opts, "x"), True)
 
         print(f"Generator OK in {time() - __t:.1f}s.")
 
-        if inference:
+        if inference:  # Inference mode: no more than a Generator needed
             print("Inference mode: no Discriminator, no Classifier, no optimizers")
             print_num_parameters(self)
             self.switch_data(to="base")
@@ -752,8 +749,8 @@ class Trainer:
         # -----  Discriminator  -----
         # ---------------------------
 
-        self.D: OmniDiscriminator = create_discriminator(self.opts, verbose=verbose).to(
-            self.device
+        self.D: OmniDiscriminator = create_discriminator(
+            self.opts, self.device, verbose=verbose
         )
         print("Discriminator OK.")
 
@@ -812,13 +809,22 @@ class Trainer:
         # ----------------------------
         self.set_display_images()
 
+        # -------------------------------
+        # -----  Log Architectures  -----
+        # -------------------------------
         self.logger.log_architecture()
 
+        # -----------------------------
+        # -----  Set data source  -----
+        # -----------------------------
         if self.kitti_pretrain:
             self.switch_data(to="kitti")
         else:
             self.switch_data(to="base")
 
+        # -------------------------
+        # -----  Setup Done.  -----
+        # -------------------------
         print(" " * 50, end="\r")
         print("Done creating display images")
         print("Setup done.")
