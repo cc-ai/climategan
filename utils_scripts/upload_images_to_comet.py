@@ -1,3 +1,4 @@
+import comet_ml  # noqa: F401
 from pathlib import Path
 import sys
 from argparse import ArgumentParser
