@@ -14,6 +14,7 @@ from skimage import io as skio
 from torch.nn import init
 import torch.nn as nn
 from omnigan.utils import all_texts_to_array
+import math
 
 
 def transforms_string(ts):
@@ -568,9 +569,10 @@ def normalize(t, mini=0, maxi=1):
     if len(t.shape) == 3:
         return mini + (maxi - mini) * (t - t.min()) / (t.max() - t.min())
 
-    min_t = t.reshape(len(t), -1).min(1)[0].reshape(len(t), 1, 1, 1)
+    batch_size = t.shape[0]
+    min_t = t.reshape(batch_size, -1).min(1)[0].reshape(batch_size, 1, 1, 1)
     t = t - min_t
-    max_t = t.reshape(len(t), -1).max(1)[0].reshape(len(t), 1, 1, 1)
+    max_t = t.reshape(batch_size, -1).max(1)[0].reshape(batch_size, 1, 1, 1)
     t = t / max_t
     return mini + (maxi - mini) * t
 
@@ -645,3 +647,53 @@ def write_architecture(trainer):
         output = buf.getvalue()
         with open(out / "archi_num_params.txt", "w") as f:
             f.write(output)
+
+
+def rand_perlin_2d(shape, res, fade=lambda t: 6 * t ** 5 - 15 * t ** 4 + 10 * t ** 3):
+    delta = (res[0] / shape[0], res[1] / shape[1])
+    d = (shape[0] // res[0], shape[1] // res[1])
+
+    grid = (
+        torch.stack(
+            torch.meshgrid(
+                torch.arange(0, res[0], delta[0]), torch.arange(0, res[1], delta[1])
+            ),
+            dim=-1,
+        )
+        % 1
+    )
+    angles = 2 * math.pi * torch.rand(res[0] + 1, res[1] + 1)
+    gradients = torch.stack((torch.cos(angles), torch.sin(angles)), dim=-1)
+
+    tile_grads = (
+        lambda slice1, slice2: gradients[slice1[0] : slice1[1], slice2[0] : slice2[1]]
+        .repeat_interleave(d[0], 0)
+        .repeat_interleave(d[1], 1)
+    )
+    dot = lambda grad, shift: (  # noqa: E731
+        torch.stack(
+            (
+                grid[: shape[0], : shape[1], 0] + shift[0],
+                grid[: shape[0], : shape[1], 1] + shift[1],
+            ),
+            dim=-1,
+        )
+        * grad[: shape[0], : shape[1]]
+    ).sum(dim=-1)
+
+    n00 = dot(tile_grads([0, -1], [0, -1]), [0, 0])
+    n10 = dot(tile_grads([1, None], [0, -1]), [-1, 0])
+    n01 = dot(tile_grads([0, -1], [1, None]), [0, -1])
+    n11 = dot(tile_grads([1, None], [1, None]), [-1, -1])
+    t = fade(grid[: shape[0], : shape[1]])
+    return math.sqrt(2) * torch.lerp(
+        torch.lerp(n00, n10, t[..., 0]), torch.lerp(n01, n11, t[..., 0]), t[..., 1]
+    )
+
+
+def mix_noise(x, mask, res=(8, 3), weight=0.1):
+    noise = rand_perlin_2d(x.shape[-2:], res).unsqueeze(0).unsqueeze(0).to(x.device)
+    noise = noise - noise.min()
+    mask = mask.repeat(1, 3, 1, 1).to(x.device).to(torch.float16)
+    y = mask * (weight * noise + (1 - weight) * x) + (1 - mask) * x
+    return y

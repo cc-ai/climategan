@@ -260,7 +260,7 @@ class OmniDiscriminator(nn.ModuleDict):
                             n_layers=opts.dis.p.n_layers,
                             norm=opts.dis.p.norm,
                             use_sigmoid=opts.dis.p.use_sigmoid,
-                            get_intermediate_features=opts.dis.p.get_intermediate_features,  # noqa: E5
+                            get_intermediate_features=opts.dis.p.get_intermediate_features,  # noqa: E501
                             num_D=opts.dis.p.num_D,
                         ),
                     }
@@ -303,7 +303,7 @@ class OmniDiscriminator(nn.ModuleDict):
                                 n_layers=opts.dis.m.n_layers,
                                 norm=opts.dis.m.norm,
                                 use_sigmoid=opts.dis.m.use_sigmoid,
-                                get_intermediate_features=opts.dis.m.get_intermediate_features,  # noqa: E5
+                                get_intermediate_features=opts.dis.m.get_intermediate_features,  # noqa: E501
                                 num_D=opts.dis.m.num_D,
                             )
                         }

@@ -2,6 +2,7 @@ print("\n• Imports\n")
 import time
 
 import_time = time.time()
+import sys
 import argparse
 from collections import OrderedDict
 from datetime import datetime
@@ -9,12 +10,18 @@ from pathlib import Path
 
 import numpy as np
 import skimage.io as io
+from skimage.color import rgba2rgb
 from skimage.transform import resize
+import comet_ml  # noqa: F401
 
-from omnigan.data import is_image_file
 from omnigan.trainer import Trainer
 from omnigan.tutils import normalize, print_num_parameters
-from omnigan.utils import Timer
+from omnigan.utils import (
+    Timer,
+    get_git_revision_hash,
+    to_128,
+    find_images,
+)
 
 import_time = time.time() - import_time
 
@@ -78,13 +85,22 @@ def print_store(store, purge=-1):
     print()
 
 
+def write_apply_config(out):
+    command = " ".join(sys.argv)
+    git_hash = get_git_revision_hash()
+    with (out / "command.txt").open("w") as f:
+        f.write(command)
+    with (out / "hash.txt").open("w") as f:
+        f.write(git_hash)
+
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-b",
         "--batch_size",
         type=int,
-        default=8,
+        default=4,
         help="Batch size to process input images to events",
     )
     parser.add_argument(
@@ -111,17 +127,16 @@ def parse_args():
         + " In particular it must contain opts.yaml and checkpoints/",
     )
     parser.add_argument(
-        "-t",
-        "--time",
+        "--no_time",
         action="store_true",
         default=False,
-        help="Binary flag to time operations or not. Defaults to False.",
+        help="Binary flag to prevent the timing of operations.",
     )
     parser.add_argument(
         "-m",
         "--flood_mask_binarization",
         type=float,
-        default=-1,
+        default=0.5,
         help="Value to use to binarize masks (mask > value). "
         + "Set to -1 (default) to use soft masks (not binarized)",
     )
@@ -146,6 +161,37 @@ def parse_args():
         help="XLA compile time induces extra computations."
         + " Ignore -x samples when computing time averages",
     )
+    parser.add_argument(
+        "--no_conf",
+        action="store_true",
+        default=False,
+        help="disable writing the apply_events hash and command in the output folder",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        default=False,
+        help="Do not check for existing outdir",
+    )
+    parser.add_argument(
+        "--no_cloudy",
+        action="store_true",
+        default=False,
+        help="Prevent the use of the cloudy intermediate"
+        + " image to create the flood image",
+    )
+    parser.add_argument(
+        "--keep_ratio_128",
+        action="store_true",
+        default=False,
+        help="Keeps approximately the aspect ratio to match multiples of 128",
+    )
+    parser.add_argument(
+        "--max_im_width",
+        type=int,
+        default=-1,
+        help="Maximum image width: will downsample larger images",
+    )
 
     return parser.parse_args()
 
@@ -163,6 +209,7 @@ if __name__ == "__main__":
 
     batch_size = args.batch_size
     half = args.half
+    cloudy = not args.no_cloudy
     images_paths = Path(args.images_paths).expanduser().resolve()
     bin_value = args.flood_mask_binarization
     outdir = (
@@ -171,11 +218,33 @@ if __name__ == "__main__":
         else None
     )
     resume_path = args.resume_path
-    time_inference = args.time
+    time_inference = not args.no_time
     n_images = args.n_images
     xla_purge_samples = args.xla_purge_samples
+    if args.keep_ratio_128:
+        if batch_size != 1:
+            print("\nWARNING: batch_size overwritten to 1 when using keep_ratio_128")
+            batch_size = 1
+        if args.max_im_width > 0 and args.max_im_width % 128 != 0:
+            new_im_width = int(args.max_im_width / 128) * 128
+            print("\nWARNING: max_im_width should be <0 or a multiple of 128.")
+            print(
+                "            Was {} but is now overwritten to {}".format(
+                    args.max_im_width, new_im_width
+                )
+            )
+            args.max_im_width = new_im_width
 
     if outdir is not None:
+        if outdir.exists() and not args.overwrite:
+            print(
+                f"\nWARNING: outdir ({str(outdir)}) already exists."
+                + " Files with existing names will be overwritten"
+            )
+            if "n" in input(">>> Continue anyway? [y / n] (default: y) : "):
+                print("Interrupting execution from user input.")
+                sys.exit()
+            print()
         outdir.mkdir(exist_ok=True, parents=True)
 
     # -------------------------------
@@ -214,12 +283,7 @@ if __name__ == "__main__":
             device = xm.xla_device()
 
         trainer = Trainer.resume_from_path(
-            resume_path,
-            setup=True,
-            inference=True,
-            new_exp=None,
-            input_shapes=(3, 640, 640),
-            device=device,
+            resume_path, setup=True, inference=True, new_exp=None, device=device,
         )
         print()
         print_num_parameters(trainer, True)
@@ -232,7 +296,7 @@ if __name__ == "__main__":
     print("\n• Reading & Pre-processing Data\n")
 
     # find all images
-    data_paths = [i for i in images_paths.glob("*") if is_image_file(i)]
+    data_paths = find_images(images_paths)
     base_data_paths = data_paths
     # filter images
     if 0 < n_images < len(data_paths):
@@ -246,13 +310,19 @@ if __name__ == "__main__":
     with Timer(store=stores.get("data pre-processing", [])):
         # read images to numpy arrays
         data = [io.imread(str(d)) for d in data_paths]
+        # rgba to rgb
+        data = [im if im.shape[-1] == 3 else rgba2rgb(im) for im in data]
         # resize to standard input size 640 x 640
-        data = [resize(d, (640, 640), anti_aliasing=True) for d in data]
+        if args.keep_ratio_128:
+            new_sizes = [to_128(d, args.max_im_width) for d in data]
+            data = [resize(d, ns, anti_aliasing=True) for d, ns in zip(data, new_sizes)]
+        else:
+            data = [resize(d, (640, 640), anti_aliasing=True) for d in data]
         # normalize to -1:1
         data = [(normalize(d.astype(np.float32)) - 0.5) * 2 for d in data]
 
-    n_batchs = len(data) // args.batch_size
-    if len(data) % args.batch_size != 0:
+    n_batchs = len(data) // batch_size
+    if len(data) % batch_size != 0:
         n_batchs += 1
 
     print("Found", len(base_data_paths), "images. Inferring on", len(data), "images.")
@@ -281,6 +351,7 @@ if __name__ == "__main__":
                 bin_value=bin_value,
                 half=half,
                 xla=XLA,
+                cloudy=cloudy,
             )
 
             # store events to write after inference loop
@@ -290,18 +361,30 @@ if __name__ == "__main__":
     # ----------------------------------------------
     # -----  Write events to output directory  -----
     # ----------------------------------------------
-    if outdir:
+    if outdir is not None:
         print("\n• Writing")
+        n_written = 0
         with Timer(store=stores.get("write", [])):
             for b, events in enumerate(all_events):
                 for i in range(len(list(events.values())[0])):
+
+                    print(" " * 30, end="\r", flush=True)
+                    print(
+                        f"{n_written+1}/{len(base_data_paths)} ...",
+                        end="\r",
+                        flush=True,
+                    )
+
                     idx = b * batch_size + i
                     idx = idx % len(base_data_paths)
                     stem = Path(data_paths[idx]).stem
+
                     for event in events:
                         im_path = outdir / f"{stem}_{event}.png"
                         im_data = events[event][i]
                         io.imsave(im_path, im_data)
+
+                    n_written += 1
 
     # ---------------------------
     # -----  Print timings  -----
@@ -317,3 +400,6 @@ if __name__ == "__main__":
         with open(metrics_dir / f"xla_metrics_{now}.txt", "w",) as f:
             report = met.metrics_report()
             print(report, file=f)
+
+    if not args.no_conf and outdir is not None:
+        write_apply_config(outdir)

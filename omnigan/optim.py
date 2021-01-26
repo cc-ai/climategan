@@ -50,7 +50,7 @@ def get_scheduler(optimizer, hyperparameters, iterations=-1):
     return scheduler
 
 
-def get_optimizer(net, opt_conf, tasks=None, iterations=-1):
+def get_optimizer(net, opt_conf, tasks=None, is_disc=False, iterations=-1):
     """Returns a tuple (optimizer, scheduler) according to opt_conf which
     should come from the trainer's opts as: trainer.opts.<model>.opt
 
@@ -67,49 +67,57 @@ def get_optimizer(net, opt_conf, tasks=None, iterations=-1):
     opt = scheduler = None
     lr_names = []
     if tasks is None:
-        lr = opt_conf.lr
+        lr_default = opt_conf.lr
         params = net.parameters()
         lr_names.append("full")
     elif isinstance(opt_conf.lr, float):  # Use default for all tasks
-        lr = opt_conf.lr
+        lr_default = opt_conf.lr
         params = net.parameters()
         lr_names.append("full")
     elif len(opt_conf.lr) == 1:  # Use default for all tasks
-        lr = opt_conf.lr.default
+        lr_default = opt_conf.lr.default
         params = net.parameters()
         lr_names.append("full")
     else:
-        lr = opt_conf.lr.default
+        lr_default = opt_conf.lr.default
         params = list()
         for task in tasks:
-            l_r = opt_conf.lr.get(task, lr)
+            lr = opt_conf.lr.get(task, lr_default)
+            parameters = None
             # Parameters for encoder
-            if task == "m":
-                parameters = net.encoder.parameters()
-                params.append({"params": parameters, "lr": l_r})
-                lr_names.append("encoder")
-            # Parameters for decoders
-            if task == "p":
-                if hasattr(net, "painter"):
-                    parameters = net.painter.parameters()
-                    lr_names.append("painter")
+            if not is_disc:
+                if task == "m":
+                    parameters = net.encoder.parameters()
+                    params.append({"params": parameters, "lr": lr})
+                    lr_names.append("encoder")
+                # Parameters for decoders
+                if task == "p":
+                    if hasattr(net, "painter"):
+                        parameters = net.painter.parameters()
+                        lr_names.append("painter")
+                else:
+                    parameters = net.decoders[task].parameters()
+                    lr_names.append(f"decoder_{task}")
             else:
-                parameters = net.decoders[task].parameters()
-                lr_names.append(f"decoder_{task}")
-            params.append({"params": parameters, "lr": l_r})
+                if task in net:
+                    parameters = net[task].parameters()
+                    lr_names.append(f"disc_{task}")
+
+            if parameters is not None:
+                params.append({"params": parameters, "lr": lr})
 
     if opt_conf.optimizer.lower() == "extraadam":
-        opt = ExtraAdam(params, lr=lr, betas=(opt_conf.beta1, 0.999))
+        opt = ExtraAdam(params, lr=lr_default, betas=(opt_conf.beta1, 0.999))
     elif opt_conf.optimizer.lower() == "novograd":
         opt = NovoGrad(
-            params, lr=lr, betas=(opt_conf.beta1, 0)
+            params, lr=lr_default, betas=(opt_conf.beta1, 0)
         )  # default for beta2 is 0
     elif opt_conf.optimizer.lower() == "radam":
-        opt = RAdam(params, lr=lr, betas=(opt_conf.beta1, 0.999))
+        opt = RAdam(params, lr=lr_default, betas=(opt_conf.beta1, 0.999))
     elif opt_conf.optimizer.lower() == "rmsprop":
-        opt = RMSprop(params, lr=lr)
+        opt = RMSprop(params, lr=lr_default)
     else:
-        opt = Adam(params, lr=lr, betas=(opt_conf.beta1, 0.999))
+        opt = Adam(params, lr=lr_default, betas=(opt_conf.beta1, 0.999))
     scheduler = get_scheduler(opt, opt_conf, iterations)
     return opt, scheduler, lr_names
 

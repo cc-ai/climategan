@@ -1,3 +1,8 @@
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+
 import atexit
 import logging
 from argparse import ArgumentParser
@@ -248,27 +253,28 @@ if __name__ == "__main__":
             "domains": ["kitti", "r", "s"],
             "train.kitti.batch_size": 2,
         },
-        {"__doc": "Depth Dada archi", "gen.d.architecture": "data"},  # 10
+        {"__doc": "Depth Dada archi", "gen.d.architecture": "dada"},  # 10
         {"__doc": "Depth Base archi", "gen.d.architecture": "base"},  # 11
         {
             "__doc": "Depth Base Classification",  # 12
             "gen.d.architecture": "base",
             "gen.d.classify.enable": True,
         },
+        {"__doc": "MSD Resnet V3+ backbone", "gen.deeplabv3.backbone": "resnet",},  # 13
         {
             "__use_comet": False,
             "__doc": "MSD SPADE 12 (without x)",
             "__verbose": 1,
             "gen.m.use_spade": True,
             "gen.m.spade.cond_nc": 12,
-        },  # 13
+        },  # 14
         {
             "__use_comet": False,
             "__doc": "MSD SPADE 15 (with x)",
             "__verbose": 1,
             "gen.m.use_spade": True,
             "gen.m.spade.cond_nc": 15,
-        },  # 14
+        },  # 15
         {
             "__use_comet": False,
             "__doc": "Painter With Diff Augment",
@@ -282,7 +288,7 @@ if __name__ == "__main__":
             "__doc": "MSD DADA",
             "__verbose": 1,
             "gen.s.depth_feat_fusion": True,
-            "gen.s.depth_depth_fusion": True,
+            "gen.s.depth_dada_fusion": True,
         },  # 16
     ]
 
@@ -335,10 +341,6 @@ if __name__ == "__main__":
             # set (or not) painter loss for masker (= end-to-end)
             if pl4m:
                 trainer.use_pl4m = True
-
-            # set input_shape for inference-only
-            if inference:
-                trainer.set_data_shapes(input_shapes)
 
             # test training procedure
             trainer.setup(inference=inference)

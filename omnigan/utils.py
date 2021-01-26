@@ -13,6 +13,7 @@ import numpy as np
 from typing import Union, Optional, List, Any
 import traceback
 import time
+from comet_ml import Experiment
 
 comet_kwargs = {
     "auto_metric_logging": False,
@@ -21,6 +22,10 @@ comet_kwargs = {
     "log_env_cpu": True,
     "display_summary_level": 0,
 }
+
+IMG_EXTENSIONS = set(
+    [".jpg", ".JPG", ".jpeg", ".JPEG", ".png", ".PNG", ".ppm", ".PPM", ".bmp", ".BMP"]
+)
 
 
 def copy_run_files(opts: Dict) -> None:
@@ -136,7 +141,7 @@ def load_opts(
         assert opts.train.kitti.epochs > 0
 
     opts.domains = []
-    if "m" in opts.tasks or "s" in opts.tasks:
+    if "m" in opts.tasks or "s" in opts.tasks or "d" in opts.tasks:
         opts.domains.extend(["r", "s"])
     if "p" in opts.tasks:
         opts.domains.append("rf")
@@ -856,3 +861,86 @@ class Timer:
             self.store.append(new_time)
         if self.name:
             print(f"[{self.name}] Elapsed time: {self.format(new_time)}")
+
+
+def get_loader_output_shape_from_opts(opts):
+    transforms = opts.data.transforms
+
+    t = None
+    for t in transforms[::-1]:
+        if t.name == "resize":
+            break
+    assert t is not None
+
+    if isinstance(t.new_size, Dict):
+        return {
+            task: (
+                t.new_size.get(task, t.new_size.default),
+                t.new_size.get(task, t.new_size.default),
+            )
+            for task in opts.tasks + ["x"]
+        }
+    assert isinstance(t.new_size, int)
+    new_size = (t.new_size, t.new_size)
+    return {task: new_size for task in opts.tasks + ["x"]}
+
+
+def find_target_size(opts, task):
+    target_size = None
+    if isinstance(opts.data.transforms[-1].new_size, int):
+        target_size = opts.data.transforms[-1].new_size
+    else:
+        if task in opts.data.transforms[-1].new_size:
+            target_size = opts.data.transforms[-1].new_size[task]
+        else:
+            assert "default" in opts.data.transforms[-1].new_size
+            target_size = opts.data.transforms[-1].new_size["default"]
+
+    return target_size
+
+
+def to_128(im, w_target=-1):
+    h, w = im.shape[:2]
+    aspect_ratio = h / w
+    if w_target < 0:
+        w_target = w
+
+    nw = int(w_target / 128) * 128
+    nh = int(nw * aspect_ratio / 128) * 128
+
+    return nh, nw
+
+
+def is_image_file(filename):
+    """Check that a file's name points to a known image format
+    """
+    if isinstance(filename, Path):
+        return filename.suffix in IMG_EXTENSIONS
+
+    return Path(filename).suffix in IMG_EXTENSIONS
+
+
+def find_images(path, recursive=False):
+    """
+    Get a list of all images contained in a directory:
+
+    - path.glob("*") if not recursive
+    - path.glob("**/*") if recursive
+    """
+    p = Path(path)
+    assert p.exists()
+    assert p.is_dir()
+    pattern = "*"
+    if recursive:
+        pattern += "*/*"
+
+    return [i for i in p.glob(pattern) if i.is_file() and is_image_file(i)]
+
+
+def upload_images_to_exp(path, exp=None, project_name="omnigan-eval"):
+    ims = find_images(path)
+    if exp is None:
+        exp = Experiment(project_name=project_name)
+    for im in ims:
+        exp.log_image(str(im))
+    return exp

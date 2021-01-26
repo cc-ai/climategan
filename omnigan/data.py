@@ -2,25 +2,21 @@
 Transforms for loaders are in transforms.py
 """
 
-from pathlib import Path
-import yaml
 import json
-import torch
-from torch.utils.data import DataLoader, Dataset
-from imageio import imread
-from torchvision import transforms
-import numpy as np
-from .transforms import get_transforms
-from PIL import Image
-from omnigan.tutils import get_normalized_depth_t
 import os
-from .utils import env_to_path
+from pathlib import Path
 
-# ? paired dataset
+import numpy as np
+import torch
+import yaml
+from imageio import imread
+from PIL import Image
+from torch.utils.data import DataLoader, Dataset
+from torchvision import transforms
 
-IMG_EXTENSIONS = set(
-    [".jpg", ".JPG", ".jpeg", ".JPEG", ".png", ".PNG", ".ppm", ".PPM", ".bmp", ".BMP"]
-)
+from omnigan.transforms import get_transforms
+from omnigan.tutils import get_normalized_depth_t
+from omnigan.utils import env_to_path, is_image_file
 
 water_class = [0, 0, 255, 255]
 ground_class = [128, 64, 128, 255]
@@ -367,12 +363,6 @@ def save_segmap_tensors(path_to_json, path_to_dir, domain, reduced_labelling):
                     path, domain, reduced_labelling
                 )
                 torch.save(tensor, path_to_dir + file_name + ".pt")
-
-
-def is_image_file(filename):
-    """Check that a file's name points to a known image format
-    """
-    return Path(filename).suffix in IMG_EXTENSIONS
 
 
 def pil_image_loader(path, task):
