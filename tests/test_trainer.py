@@ -1,4 +1,4 @@
-print("Imports...", end="")
+print("Imports...", end="", flush=True)
 
 import sys
 from pathlib import Path
@@ -163,7 +163,7 @@ if __name__ == "__main__":
     # --------------------------------------
     # -----  Create global experiment  -----
     # --------------------------------------
-    print("Creating comet Experiment", end="")
+    print("Creating comet Experiment", end="", flush=True)
     global_exp = comet_ml.Experiment(
         project_name="omnigan-test", display_summary_level=0
     )
@@ -178,7 +178,7 @@ if __name__ == "__main__":
     # -------------------------------------
     # -----  Base Test Scenario Opts  -----
     # -------------------------------------
-    print("Loading opts...", end="")
+    print("Loading opts...", end="", flush=True)
     base_opts = omnigan.utils.load_opts()
     base_opts.data.check_samples = False
     base_opts.train.fid.n_images = 5
