@@ -83,7 +83,7 @@ def add_fire(x, seg_preds, filter_color, blur_radius):
     wildfire_tens = wildfire_tens.type(torch.uint8)
 
     # Darken the picture and increase contrast
-    wildfire_tens = adjust_contrast(wildfire_tens, contrast_factor=1.5)
+    wildfire_tens = adjust_contrast(wildfire_tens, contrast_factor=0.8)
     wildfire_tens = adjust_brightness(wildfire_tens, brightness_factor=0.7)
 
     # Find sky proportion in picture
