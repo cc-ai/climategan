@@ -8,7 +8,7 @@ from omnigan.utils import upload_images_to_exp
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("-i", "--images_path", type="str", default=".")
+    parser.add_argument("-i", "--images_path", type=str, default=".")
     parser.add_argument("-p", "--project_name", type=str, default="omnigan-eval")
     args = parser.parse_args()
 
