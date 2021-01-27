@@ -97,12 +97,71 @@ class OmniGenerator(nn.Module):
             if self.verbose > 0:
                 print("  - Add Empty Painter")
 
+    def __str__(self):
+        return strings.generator(self)
+
     def encode(self, x):
         assert self.encoder is not None
         return self.encoder.forward(x)
 
-    def __str__(self):
-        return strings.generator(self)
+    def decode(self, x=None, z=None, return_z=False, return_z_depth=False):
+        """
+        Comptutes the predictions of all available decoders from either x or z.
+        If using spade for the masker with 15 channels, x *must* be provided,
+        whether z is too or not.
+
+        Args:
+            x (torch.Tensor, optional): Input tensor (B3HW). Defaults to None.
+            z (list, optional): List of high and low-level features as BCHW.
+                Defaults to None.
+            return_z (bool, optional): whether or not to return z in the dict.
+                Defaults to False.
+            return_z_depth (bool, optional): whether or not to return z_depth
+                in the dict. Defaults to False.
+
+        Raises:
+            ValueError: If using spade for the masker with 15 channels but x is None
+
+        Returns:
+            dict: {task: prediction_tensor} (may include z and z_depth
+                depending on args)
+        """
+
+        assert x is not None or z is not None
+        if self.opts.gen.m.use_spade and self.opts.m.spade.cond_nc == 15:
+            if x is None:
+                raise ValueError(
+                    "When using spade for the Masker with 15 channels,"
+                    + " x MUST be provided"
+                )
+
+        z_depth = cond = d = s = None
+        out = {}
+
+        if z is None:
+            z = self.encode(x)
+
+        if return_z:
+            out["z"] = z
+
+        if "d" in self.decoders:
+            d, z_depth = self.decoders["d"](z)
+            out["d"] = d
+
+        if return_z_depth:
+            out["z_depth"] = z_depth
+
+        if "s" in self.decoders:
+            s = self.decoders["d"](z, z_depth)
+            out["s"] = s
+
+        if "m" in self.decoders:
+            if s is not None and d is not None:
+                cond = self.make_m_cond(d, s, x)
+            m = self.mask(z=z, cond=cond)
+            out["m"] = m
+
+        return out
 
     def sample_painter_z(self, batch_size, device, force_half=False):
         if self.opts.gen.p.no_z:
@@ -127,7 +186,11 @@ class OmniGenerator(nn.Module):
             s = s.detach()
         cats = [normalize(d), softmax(s, dim=1)]
         if self.opts.gen.m.spade.cond_nc == 15:
-            assert x is not None
+            if x is None:
+                raise ValueError(
+                    "When using spade for the Masker with 15 channels,"
+                    + " x MUST be provided"
+                )
             cats += [
                 F.interpolate(x, s.shape[-2:], mode="bilinear", align_corners=True)
             ]
