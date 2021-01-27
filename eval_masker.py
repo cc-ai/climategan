@@ -7,7 +7,6 @@ python eval_masker.py \
     --labels_dir "/miniscratch/_groups/ccai/data/floodmasks_eval/labels" \
     --image_size 640 \
     --outputs_dir "/miniscratch/_groups/ccai/data/tmp/metrics" \
-    --val_r_json "/miniscratch/_groups/ccai/data/jsons/val_r_full.json"
 """
 print("Imports...", end="")
 import os.path
