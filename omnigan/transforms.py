@@ -335,6 +335,46 @@ class PrepareInference:
         return self.process(x)
 
 
+class PrepareTest(PrepareInference):
+    """
+    Transform which:
+      - transforms a str or an array into a tensor
+      - resizes the image to keep the aspect ratio
+      - crops in the center of the resized image
+      - normalize to 0:1 (optional)
+      - rescale to -1:1 (optional)
+    """
+
+    def __init__(self, normalize=False, *args, **kwargs):
+        PrepareInference.__init__(self, *args, **kwargs)
+        self.normalize = normalize
+
+    def process(self, t):
+        if isinstance(t, (str, Path)):
+            t = imread(str(t))
+            if np.ndim(t) == 2:
+                t = np.repeat(t[:, :, np.newaxis], 3, axis=2)
+
+        if isinstance(t, np.ndarray):
+            t = torch.from_numpy(t)
+            t = t.permute(2, 0, 1)
+
+        if len(t.shape) == 3:
+            t = t.unsqueeze(0)
+
+        t = t.to(torch.float16) if self.half else t.to(torch.float32)
+
+        if self.normalize:
+            t = normalize(t)
+            t = (t - 0.5) * 2
+        t = {"x": t}
+        t = self.resize(t)
+        t = self.crop(t)
+        t = t["x"]
+
+        return t
+
+
 def get_transform(transform_item, mode):
     """Returns the torchivion transform function associated to a
     transform_item listed in opts.data.transforms ; transform_item is
@@ -467,10 +507,16 @@ def rand_cutout(tensor, ratio=0.5):
     )
     size_ = [tensor.size(0), 1, 1]
     offset_x = torch.randint(
-        0, tensor.size(-2) + (1 - cutout_size[0] % 2), size=size_, device=device_,
+        0,
+        tensor.size(-2) + (1 - cutout_size[0] % 2),
+        size=size_,
+        device=device_,
     )
     offset_y = torch.randint(
-        0, tensor.size(-1) + (1 - cutout_size[1] % 2), size=size_, device=device_,
+        0,
+        tensor.size(-1) + (1 - cutout_size[1] % 2),
+        size=size_,
+        device=device_,
     )
     grid_x = torch.clamp(
         grid_x + offset_x - cutout_size[0] // 2, min=0, max=tensor.size(-2) - 1
