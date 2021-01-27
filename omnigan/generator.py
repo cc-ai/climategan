@@ -396,5 +396,5 @@ class OmniGenerator(nn.Module):
         except Exception as e:
             # something happened, aborting gracefully
             print(e)
-            print(">>> WARNINT: error (^) in load_val_painter, aborting.")
+            print(">>> WARNING: error (^) in load_val_painter, aborting.")
             return False
