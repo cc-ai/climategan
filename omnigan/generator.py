@@ -101,6 +101,15 @@ class OmniGenerator(nn.Module):
         return strings.generator(self)
 
     def encode(self, x):
+        """
+        Forward x through the encoder
+
+        Args:
+            x (torch.Tensor): B3HW input tensor
+
+        Returns:
+            list: High and Low level features from the encoder
+        """
         assert self.encoder is not None
         return self.encoder.forward(x)
 
@@ -180,7 +189,26 @@ class OmniGenerator(nn.Module):
 
         return z
 
-    def make_m_cond(self, d, s, x):
+    def make_m_cond(self, d, s, x=None):
+        """
+        Create the masker's conditioning input when using spade from the
+        d and s predictions and from the input x when cond_nc == 15.
+
+        d and s are assumed to have the the same spatial resolution.
+        if cond_nc == 15 then x is interpolated to match that dimension.
+
+        Args:
+            d (torch.Tensor): Raw depth prediction (B1HW)
+            s (torch.Tensor): Raw segmentation prediction (BCHW)
+            x (torch.Tensor, optional): Input tensor (B3hW). Mandatory
+                when opts.gen.m.spade.cond_nc == 15
+
+        Raises:
+            ValueError: opts.gen.m.spade.cond_nc == 15 but x is None
+
+        Returns:
+            torch.Tensor: B x cond_nc x H  x W conditioning tensor.
+        """
         if self.opts.gen.m.spade.detach:
             d = d.detach()
             s = s.detach()
@@ -198,6 +226,26 @@ class OmniGenerator(nn.Module):
         return torch.cat(cats, dim=1)
 
     def mask(self, x=None, z=None, cond=None, sigmoid=True):
+        """
+        Create a mask from either an input x or a latent vector z.
+        Optionally if the Masker has a spade architecture the conditioning tensor
+        may be provided (cond). Default behavior applies an element-wise
+        sigmoid, but can be deactivated (sigmoid=False).
+
+        At least one of x or z must be provided (i.e. not None).
+        If the Masker has a spade architecture and cond_nc == 15 then x cannot
+        be None.
+
+        Args:
+            x (torch.Tensor, optional): Input tensor B3HW. Defaults to None.
+            z (list, optional): High and Low level features of the encoder. 
+                Will be computed if None. Defaults to None.
+            cond ([type], optional): [description]. Defaults to None.
+            sigmoid (bool, optional): [description]. Defaults to True.
+
+        Returns:
+            torch.Tensor: B1HW mask tensor
+        """
         assert x is not None or z is not None
         assert not (x is not None and z is not None)
         if z is None:
@@ -242,6 +290,26 @@ class OmniGenerator(nn.Module):
         return fake
 
     def paint_cloudy(self, m, x, s, sky_idx=9, res=(8, 8), weight=0.8):
+        """
+        Paints x with water in m through an intermediary cloudy image
+        where the sky has been replaced with perlin noise to imitate clouds.
+
+        The intermediary cloudy image is only used to control the painter's
+        painting mode, probing it with a cloudy input.
+
+        Args:
+            m (torch.Tensor): water mask
+            x (torch.Tensor): input tensor
+            s (torch.Tensor): segmentation prediction (BCHW)
+            sky_idx (int, optional): Index of the sky class along s's C dimension.
+                Defaults to 9.
+            res (tuple, optional): Perlin noise spatial resolution. Defaults to (8, 8).
+            weight (float, optional): Intermediate image's cloud proportion
+                (w * cloud + (1-w) * original_sky). Defaults to 0.8.
+
+        Returns:
+            torch.Tensor: painted image with original content pasted.
+        """
         sky_mask = (
             torch.argmax(
                 F.interpolate(s, x.shape[-2:], mode="bilinear"), dim=1, keepdim=True
@@ -252,7 +320,18 @@ class OmniGenerator(nn.Module):
         fake = self.paint(m, noised_x, no_paste=True)
         return x * (1.0 - m) + fake * m
 
-    def depth_image(self, x=None, z=None):
+    def depth(self, x=None, z=None):
+        """
+        Compute the depth head's output
+
+        Args:
+            x (torch.Tensor, optional): Input B3HW tensor. Defaults to None.
+            z (list, optional): High and Low level features of the encoder.
+                Defaults to None.
+
+        Returns:
+            torch.Tensor: B1HW tensor of depth predictions
+        """
         assert x is not None or z is not None
         assert not (x is not None and z is not None)
         if z is None:
@@ -266,24 +345,56 @@ class OmniGenerator(nn.Module):
         return logits
 
     def load_val_painter(self):
+        """
+        Loads a validation painter if available in opts.val.val_painter
+
+        Returns:
+            bool: operation success status
+        """
         try:
+            # key exists in opts
             assert self.opts.val.val_painter
+
+            # path exists
             ckpt_path = Path(self.opts.val.val_painter).resolve()
             assert ckpt_path.exists()
+
+            # path is a checkpoint path
+            assert ckpt_path.is_file()
+
+            # opts are available in that path
             opts_path = ckpt_path.parent.parent / "opts.yaml"
             assert opts_path.exists()
+
+            # load opts
             with opts_path.open("r") as f:
                 val_painter_opts = Dict(yaml.safe_load(f))
+
+            # load checkpoint
             state_dict = torch.load(ckpt_path)
+
+            # create dummy painter from loaded opts
             painter = create_painter(val_painter_opts)
+
+            # load state-dict in the dummy painter
             painter.load_state_dict(
                 {k.replace("painter.", ""): v for k, v in state_dict["G"].items()}
             )
+
+            # send to current device in evaluation mode
             device = next(self.parameters()).device
-            self.painter = painter.to(device)
+            self.painter = painter.eval().to(device)
+
+            # disable gradients
+            for p in self.painter.parameters:
+                p.requires_grad = False
+
+            # success
             print("    - Loaded validation-only painter")
             return True
+
         except Exception as e:
+            # something happened, aborting gracefully
             print(e)
             print(">>> WARNINT: error (^) in load_val_painter, aborting.")
             return False
