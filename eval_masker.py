@@ -1,11 +1,13 @@
 """
 Compute metrics of the performance of the masker using a set of ground-truth labels
 
-TODO: adapt doc
 python eval_masker.py \
     --model "/miniscratch/schmidtv/vicc/omnigan/runs/predoc7 (4)" \
-    --val_r_json "/miniscratch/_groups/ccai/data/jsons/val_r_full.json" \
-    -m -a --tasks m s d
+    --images_dir "/miniscratch/_groups/ccai/data/floodmasks_eval/imgs" \
+    --labels_dir "/miniscratch/_groups/ccai/data/floodmasks_eval/labels" \
+    --image_size 640 \
+    --outputs_dir "/miniscratch/_groups/ccai/data/tmp/metrics" \
+    --val_r_json "/miniscratch/_groups/ccai/data/jsons/val_r_full.json"
 """
 print("Imports...", end="")
 import os.path
