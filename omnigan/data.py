@@ -63,9 +63,9 @@ classes_dict = {
         14: [0, 0, 0],  # Undefined
     },
     "flood": {
-        0: [255, 0, 0, 255],  # Cannot flood
-        1: [0, 0, 255, 255],  # Must flood
-        2: [0, 0, 0, 255],  # May flood
+        0: [255, 0, 0],  # Cannot flood
+        1: [0, 0, 255],  # Must flood
+        2: [0, 0, 0],  # May flood
     },
 }
 
