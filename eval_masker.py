@@ -12,15 +12,10 @@ import os.path
 from argparse import ArgumentParser
 from pathlib import Path
 
-from addict import Dict
-from comet_ml import Experiment  # noqa: F401 -> keep even if unused
-
 import numpy as np
 import pandas as pd
 
 from omnigan.data import encode_segmap
-from omnigan.trainer import Trainer
-from omnigan.utils import flatten_opts
 from omnigan.utils import find_images
 from omnigan.transforms import PrepareTest
 from omnigan.eval_metrics import pred_cannot, missed_must, may_flood, masker_metrics
@@ -90,8 +85,8 @@ if __name__ == "__main__":
     # Pre-process images: resize + crop
     # TODO: ? make cropping more flexible, not only central
     img_preprocessing = PrepareTest(target_size=args.image_size, normalize=False)
-    imgs = img_preprocessing(imgs_paths[:5])
-    labels = img_preprocessing(labels_paths[:5])
+    imgs = img_preprocessing(imgs_paths)
+    labels = img_preprocessing(labels_paths)
 
     # Encode labels
     labels = [
@@ -105,7 +100,7 @@ if __name__ == "__main__":
     imgs = [img.numpy() for img in imgs]
     if not os.path.isfile(args.model):
         preds_paths = sorted(find_images(args.preds_dir, recursive=False))
-        preds = img_preprocessing(preds_paths[:5])
+        preds = img_preprocessing(preds_paths)
     else:
         preds = get_inferences(imgs, args.model)
     preds = [np.divide(pred.numpy(), np.max(pred.numpy())) for pred in preds]
