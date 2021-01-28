@@ -20,7 +20,7 @@ from skimage.color import rgba2rgb
 
 import torch
 
-from omnigan.data import encode_segmap
+from omnigan.data import encode_mask_label
 from omnigan.utils import find_images
 from omnigan.trainer import Trainer
 from omnigan.transforms import PrepareTest
@@ -137,7 +137,7 @@ if __name__ == "__main__":
 
     # Encode labels
     labels = [
-        encode_segmap(
+        encode_mask_label(
             np.squeeze(np.moveaxis(label.numpy().astype(np.uint8), 1, -1)), "flood"
         )
         for label in labels

@@ -209,7 +209,50 @@ def decode_segmap_cityscapes_labels(image, nc=19):
     return rgb
 
 
+def find_closest_class(pixel, dict_classes):
+    """Takes a pixel as input and finds the closest known pixel value corresponding
+    to a class in dict_classes
+
+    Arguments:
+        pixel -- tuple pixel (R,G,B,A)
+    Returns:
+        tuple pixel (R,G,B,A) corresponding to a key (a class) in dict_classes
+    """
+    min_dist = float("inf")
+    closest_pixel = None
+    for pixel_value in dict_classes.keys():
+        dist = np.sqrt(np.sum(np.square(np.subtract(pixel, pixel_value))))
+        if dist < min_dist:
+            min_dist = dist
+            closest_pixel = pixel_value
+    return closest_pixel
+
+
 def encode_segmap(arr, domain):
+    """Change a segmentation RGBA array to a segmentation array
+                            with each pixel being the index of the class
+    Arguments:
+        numpy array -- segmented image of size (H) x (W) x (4 RGBA values)
+    Returns:
+        numpy array of size (1) x (H) x (W) with each pixel being the index of the class
+    """
+    new_arr = np.zeros((1, arr.shape[0], arr.shape[1]))
+    dict_classes = {
+        tuple(rgba_value): class_id
+        for (class_id, rgba_value) in classes_dict[domain].items()
+    }
+    for i in range(arr.shape[0]):
+        for j in range(arr.shape[1]):
+            pixel_rgba = tuple(arr[i, j, :])
+            if pixel_rgba in dict_classes.keys():
+                new_arr[0, i, j] = dict_classes[pixel_rgba]
+            else:
+                pixel_rgba_closest = find_closest_class(pixel_rgba, dict_classes)
+                new_arr[0, i, j] = dict_classes[pixel_rgba_closest]
+    return new_arr
+
+
+def encode_mask_label(arr, domain):
     """Change a segmentation RGBA array to a segmentation array
                             with each pixel being the index of the class
     Arguments:
