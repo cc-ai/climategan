@@ -2,11 +2,12 @@
 Compute metrics of the performance of the masker using a set of ground-truth labels
 
 python eval_masker.py \
-    --model "/miniscratch/schmidtv/vicc/omnigan/runs/predoc7 (4)" \
+    --model "/miniscratch/_groups/ccai/checkpoints/masker/victor/no_spade/msd
+    (17)" \
     --images_dir "/miniscratch/_groups/ccai/data/floodmasks_eval/imgs" \
     --labels_dir "/miniscratch/_groups/ccai/data/floodmasks_eval/labels" \
     --image_size 640 \
-    --outputs_dir "/miniscratch/_groups/ccai/data/tmp/metrics" \
+    --output_dir "/miniscratch/_groups/ccai/data/tmp/metrics"
 """
 print("Imports...", end="")
 import os.path
@@ -15,9 +16,13 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from skimage.color import rgba2rgb
+
+import torch
 
 from omnigan.data import encode_segmap
 from omnigan.utils import find_images
+from omnigan.trainer import Trainer
 from omnigan.transforms import PrepareTest
 from omnigan.eval_metrics import pred_cannot, missed_must, may_flood, masker_metrics
 
@@ -71,6 +76,42 @@ def parsed_args():
     return parser.parse_args()
 
 
+def get_inferences(image_arrays, model_path, verbose=0):
+    """
+    Obtains the mask predictions of a model for a set of images
+
+    Parameters
+    ----------
+    image_arrays : array-like
+        A list of (1, CH, H, W) images
+
+    model_path : str
+        The path to a pre-trained model
+
+    Returns
+    -------
+    masks : list
+        A list of (H, W) predicted masks
+    """
+    device = torch.device("cuda:0")
+    torch.set_grad_enabled(False)
+    xs = [torch.from_numpy(array) for array in image_arrays]
+    xs = [x.to(torch.float32).to(device) for x in xs]
+    xs = [x - x.min() for x in xs]
+    xs = [x / x.max() for x in xs]
+    xs = [(x - 0.5) * 2 for x in xs]
+    trainer = Trainer.resume_from_path(
+        model_path, inference=True, new_exp=None, device=device
+    )
+    masks = []
+    for idx, x in enumerate(xs):
+        if verbose > 0:
+            print(idx, "/", len(xs), end="\r")
+        m = trainer.G.mask(x=x)
+        masks.append(m.squeeze().cpu())
+    return masks
+
+
 if __name__ == "__main__":
     # -----------------------------
     # -----  Parse arguments  -----
@@ -89,6 +130,11 @@ if __name__ == "__main__":
     imgs = img_preprocessing(imgs_paths)
     labels = img_preprocessing(labels_paths)
 
+    # RGBA to RGB
+    imgs = [np.squeeze(np.moveaxis(img.numpy(), 1, -1)) for img in imgs]
+    imgs = [rgba2rgb(img) if img.shape[-1] == 4 else img for img in imgs]
+    imgs = [np.expand_dims(np.moveaxis(img, -1, 0), axis=0) for img in imgs]
+
     # Encode labels
     labels = [
         encode_segmap(
@@ -98,13 +144,16 @@ if __name__ == "__main__":
     ]
 
     # Obtain mask predictions
-    imgs = [img.numpy() for img in imgs]
-    if not os.path.isfile(args.model):
+    if not os.path.isdir(args.model):
         preds_paths = sorted(find_images(args.preds_dir, recursive=False))
         preds = img_preprocessing(preds_paths)
+        preds = [
+            np.squeeze(np.divide(pred.numpy(), np.max(pred.numpy()))[:, 0, :, :])
+            for pred in preds
+        ]
     else:
         preds = get_inferences(imgs, args.model)
-    preds = [np.divide(pred.numpy(), np.max(pred.numpy())) for pred in preds]
+        preds = [pred.numpy() for pred in preds]
 
     # Compute metrics
     df = pd.DataFrame(
@@ -124,7 +173,6 @@ if __name__ == "__main__":
     for idx, (img, label, pred) in enumerate(zip(*(imgs, labels, preds))):
         img = np.squeeze(img)
         label = np.squeeze(label)
-        pred = np.squeeze(pred[:, 0, :, :])
 
         fp_map, fpr = pred_cannot(pred, label, label_cannot=0)
         fn_map, fnr = missed_must(pred, label, label_must=1)
