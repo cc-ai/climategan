@@ -1,13 +1,7 @@
 """
 Compute metrics of the performance of the masker using a set of ground-truth labels
 
-python eval_masker.py \
-    --model "/miniscratch/_groups/ccai/checkpoints/masker/victor/no_spade/msd
-    (17)" \
-    --images_dir "/miniscratch/_groups/ccai/data/floodmasks_eval/imgs" \
-    --labels_dir "/miniscratch/_groups/ccai/data/floodmasks_eval/labels" \
-    --image_size 640 \
-    --output_dir "/miniscratch/_groups/ccai/data/tmp/metrics"
+run eval_masker.py --model "/miniscratch/_groups/ccai/checkpoints/masker/victor/no_spade/msd (17)" --images_dir "/miniscratch/_groups/ccai/data/floodmasks_eval/imgs" --labels_dir "/miniscratch/_groups/ccai/data/floodmasks_eval/labels" --image_size 640 --output_dir "/miniscratch/_groups/ccai/data/tmp/metrics"
 """
 print("Imports...", end="")
 import os.path
@@ -37,10 +31,7 @@ def parsed_args():
     """
     parser = ArgumentParser()
     parser.add_argument(
-        "--model",
-        required=True,
-        type=str,
-        help="Path to a pre-trained model",
+        "--model", required=True, type=str, help="Path to a pre-trained model",
     )
     parser.add_argument(
         "--images_dir",
@@ -71,6 +62,9 @@ def parsed_args():
         default=640,
         type=int,
         help="The height and weight of the pre-processed images",
+    )
+    parser.add_argument(
+        "--limit", default=-1, type=int, help="Limit loaded samples",
     )
 
     return parser.parse_args()
@@ -123,6 +117,9 @@ if __name__ == "__main__":
     # Build paths to data
     imgs_paths = sorted(find_images(args.images_dir, recursive=False))
     labels_paths = sorted(find_images(args.labels_dir, recursive=False))
+    if args.limit > 0:
+        imgs_paths = imgs_paths[:args.limit]
+        labels_paths = labels_paths[:args.limit]
 
     # Pre-process images: resize + crop
     # TODO: ? make cropping more flexible, not only central
