@@ -64,6 +64,12 @@ def parsed_args():
     parser.add_argument(
         "--limit", default=-1, type=int, help="Limit loaded samples",
     )
+    parser.add_argument(
+        "--bin_value",
+        default=-1,
+        type=float,
+        help="Mask binarization threshold"
+    )
 
     return parser.parse_args()
 
@@ -163,6 +169,9 @@ if __name__ == "__main__":
         preds = get_inferences(imgs, args.model)
         preds = [pred.numpy() for pred in preds]
     print(" Done.")
+
+    if args.bin_value > 0:
+        preds = [pred > args.bin_value for pred in preds]
 
     # Compute metrics
     df = pd.DataFrame(
