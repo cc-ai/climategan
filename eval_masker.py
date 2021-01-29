@@ -114,12 +114,17 @@ if __name__ == "__main__":
     args = parsed_args()
     print("Args:\n" + "\n".join([f"    {k:20}: {v}" for k, v in vars(args).items()]))
 
+    output_dir = Path(args.output_dir).expanduser().resolve()
+    output_dir.mkdir(exists_ok=True, parents=True)
+
     # Build paths to data
     imgs_paths = sorted(find_images(args.images_dir, recursive=False))
     labels_paths = sorted(find_images(args.labels_dir, recursive=False))
     if args.limit > 0:
-        imgs_paths = imgs_paths[:args.limit]
-        labels_paths = labels_paths[:args.limit]
+        imgs_paths = imgs_paths[: args.limit]
+        labels_paths = labels_paths[: args.limit]
+
+    print(f"Loaded {len(imgs_paths)} images and labels")
 
     # Pre-process images: resize + crop
     # TODO: ? make cropping more flexible, not only central
@@ -128,19 +133,24 @@ if __name__ == "__main__":
     labels = img_preprocessing(labels_paths)
 
     # RGBA to RGB
+    print("RGBA to RGB", end="", flush=True)
     imgs = [np.squeeze(np.moveaxis(img.numpy(), 1, -1)) for img in imgs]
     imgs = [rgba2rgb(img) if img.shape[-1] == 4 else img for img in imgs]
     imgs = [np.expand_dims(np.moveaxis(img, -1, 0), axis=0) for img in imgs]
+    print(" Done.")
 
     # Encode labels
+    print("Encode labels", end="", flush=True)
     labels = [
         encode_mask_label(
             np.squeeze(np.moveaxis(label.numpy().astype(np.uint8), 1, -1)), "flood"
         )
         for label in labels
     ]
+    print(" Done.")
 
     # Obtain mask predictions
+    print("Obtain mask predictions", end="", flush=True)
     if not os.path.isdir(args.model):
         preds_paths = sorted(find_images(args.preds_dir, recursive=False))
         preds = img_preprocessing(preds_paths)
@@ -151,6 +161,7 @@ if __name__ == "__main__":
     else:
         preds = get_inferences(imgs, args.model)
         preds = [pred.numpy() for pred in preds]
+    print(" Done.")
 
     # Compute metrics
     df = pd.DataFrame(
@@ -192,4 +203,4 @@ if __name__ == "__main__":
             }
         )
 
-    df.to_csv(os.path.join(args.output_dir, "metrics.csv"))
+    df.to_csv(os.path.join(str(output_dir), "metrics.csv"))
