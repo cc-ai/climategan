@@ -1,18 +1,16 @@
 """
 Compute metrics of the performance of the masker using a set of ground-truth labels
 
-python eval_masker.py \
-    --model "/miniscratch/_groups/ccai/checkpoints/masker/victor/no_spade/msd
-    (17)" \
-    --images_dir "/miniscratch/_groups/ccai/data/floodmasks_eval/imgs" \
-    --labels_dir "/miniscratch/_groups/ccai/data/floodmasks_eval/labels" \
-    --image_size 640 \
-    --output_dir "/miniscratch/_groups/ccai/data/tmp/metrics"
+run eval_masker.py --model "/miniscratch/_groups/ccai/checkpoints/masker/victor/no_spade/msd (17)"
+
 """
 print("Imports...", end="")
 import os.path
+import os
 from argparse import ArgumentParser
 from pathlib import Path
+
+from comet_ml import Experiment
 
 import numpy as np
 import pandas as pd
@@ -37,10 +35,7 @@ def parsed_args():
     """
     parser = ArgumentParser()
     parser.add_argument(
-        "--model",
-        required=True,
-        type=str,
-        help="Path to a pre-trained model",
+        "--model", required=True, type=str, help="Path to a pre-trained model",
     )
     parser.add_argument(
         "--images_dir",
@@ -61,19 +56,23 @@ def parsed_args():
         help="DEBUG: Directory containing pre-computed mask predictions",
     )
     parser.add_argument(
-        "--output_dir",
-        default="/miniscratch/_groups/ccai/data/omnigan/tmp/metrics/",
-        type=str,
-        help="DEBUG: Directory containing pre-computed mask predictions",
-    )
-    parser.add_argument(
         "--image_size",
         default=640,
         type=int,
         help="The height and weight of the pre-processed images",
     )
+    parser.add_argument(
+        "--limit", default=-1, type=int, help="Limit loaded samples",
+    )
+    parser.add_argument(
+        "--bin_value", default=-1, type=float, help="Mask binarization threshold"
+    )
 
     return parser.parse_args()
+
+
+def plot_labels_images(*args, **kwargs):
+    return []
 
 
 def get_inferences(image_arrays, model_path, verbose=0):
@@ -120,9 +119,16 @@ if __name__ == "__main__":
     args = parsed_args()
     print("Args:\n" + "\n".join([f"    {k:20}: {v}" for k, v in vars(args).items()]))
 
+    tmp_dir = Path(os.environ["SLURM_TMPDIR"])
+
     # Build paths to data
     imgs_paths = sorted(find_images(args.images_dir, recursive=False))
     labels_paths = sorted(find_images(args.labels_dir, recursive=False))
+    if args.limit > 0:
+        imgs_paths = imgs_paths[: args.limit]
+        labels_paths = labels_paths[: args.limit]
+
+    print(f"Loaded {len(imgs_paths)} images and labels")
 
     # Pre-process images: resize + crop
     # TODO: ? make cropping more flexible, not only central
@@ -131,19 +137,24 @@ if __name__ == "__main__":
     labels = img_preprocessing(labels_paths, normalize=False, rescale=False)
 
     # RGBA to RGB
+    print("RGBA to RGB", end="", flush=True)
     imgs = [np.squeeze(np.moveaxis(img.numpy(), 1, -1)) for img in imgs]
     imgs = [rgba2rgb(img) if img.shape[-1] == 4 else img for img in imgs]
     imgs = [np.expand_dims(np.moveaxis(img, -1, 0), axis=0) for img in imgs]
+    print(" Done.")
 
     # Encode labels
+    print("Encode labels", end="", flush=True)
     labels = [
         encode_mask_label(
             np.squeeze(np.moveaxis(label.numpy().astype(np.uint8), 1, -1)), "flood"
         )
         for label in labels
     ]
+    print(" Done.")
 
     # Obtain mask predictions
+    print("Obtain mask predictions", end="", flush=True)
     if not os.path.isdir(args.model):
         preds_paths = sorted(find_images(args.preds_dir, recursive=False))
         preds = img_preprocessing(preds_paths)
@@ -154,6 +165,10 @@ if __name__ == "__main__":
     else:
         preds = get_inferences(imgs, args.model)
         preds = [pred.numpy() for pred in preds]
+    print(" Done.")
+
+    if args.bin_value > 0:
+        preds = [pred > args.bin_value for pred in preds]
 
     # Compute metrics
     df = pd.DataFrame(
@@ -195,4 +210,12 @@ if __name__ == "__main__":
             }
         )
 
-    df.to_csv(os.path.join(args.output_dir, "metrics.csv"))
+    exp = Experiment(project_name="omnigan-masker-metrics")
+    exp.log_table("csv", df)
+    exp.log_html(df.to_html(col_space="80px"))
+    exp.log_metrics(dict(df.mean(0)))
+    exp.log_parameters(vars(args))
+
+    plot_paths = plot_labels_images("..", tmp_dir)
+    for pp in plot_paths:
+        exp.log_image(pp)
