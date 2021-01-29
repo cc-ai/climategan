@@ -5,8 +5,11 @@ run eval_masker.py --model "/miniscratch/_groups/ccai/checkpoints/masker/victor/
 """
 print("Imports...", end="")
 import os.path
+import os
 from argparse import ArgumentParser
 from pathlib import Path
+
+from comet_ml import Experiment
 
 import numpy as np
 import pandas as pd
@@ -70,6 +73,10 @@ def parsed_args():
     return parser.parse_args()
 
 
+def plot_labels_images(*args, **kwargs):
+    return []
+
+
 def get_inferences(image_arrays, model_path, verbose=0):
     """
     Obtains the mask predictions of a model for a set of images
@@ -116,6 +123,8 @@ if __name__ == "__main__":
 
     output_dir = Path(args.output_dir).expanduser().resolve()
     output_dir.mkdir(exist_ok=True, parents=True)
+
+    tmp_dir = Path(os.environ["SLURM_TMPDIR"])
 
     # Build paths to data
     imgs_paths = sorted(find_images(args.images_dir, recursive=False))
@@ -204,3 +213,11 @@ if __name__ == "__main__":
         )
 
     df.to_csv(os.path.join(str(output_dir), "metrics.csv"))
+
+    exp = Experiment(project_name="omnigan-masker-metrics")
+    exp.log_table(str(output_dir / "metrics.csv"))
+    exp.log_metrics(dict(df.mean(0)))
+
+    plot_paths = plot_labels_images("..", tmp_dir)
+    for pp in plot_paths:
+        exp.log_image(pp)
