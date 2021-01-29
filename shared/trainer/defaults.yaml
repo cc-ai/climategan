@@ -27,12 +27,12 @@ data:
     base: /miniscratch/_groups/ccai/data/jsons
     train:
       r: train_r_full.json
-      s: train_s_merlab.json
+      s: train_s_fixedholes.json
       rf: train_rf.json
       kitti: train_kitti.json
     val:
       r: val_r_full.json
-      s: val_s_merlab.json
+      s: val_s_fixedholes.json
       rf: val_rf_labelbox.json
       kitti: val_kitti.json
   check_samples: False
@@ -134,7 +134,7 @@ gen:
         buckets: 256
   s: # specific params for the semantic segmentation decoder
     <<: *default-gen
-    output_dim: 6 # Must be 6 or 11
+    output_dim: 11 # Must be 9 or 11
     use_advent: True
     use_minent: True
     architecture: deeplabv3

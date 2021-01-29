@@ -21,62 +21,24 @@ from omnigan.utils import env_to_path, is_image_file
 water_class = [0, 0, 255, 255]
 ground_class = [128, 64, 128, 255]
 building_class = [70, 70, 70, 255]
-other_class = [220, 220, 0, 255]
+traffic_class = [220, 220, 0, 255]
 tree_class = [107, 142, 35, 255]
 sky_class = [70, 130, 180, 255]
+people_class = [220, 20, 60, 255]
+car_class = [0, 0, 142, 255]
+other_class = [0, 0, 0, 255]
 
 decoding_reduced_mapping = {
-    "s": {
-        0: water_class,  # Water
-        1: ground_class,  # Ground, Terrain
-        2: building_class,  # Building
-        3: other_class,  # Traffic items, People, Others, Cars
-        4: tree_class,  # Trees, Vegetation
-        5: sky_class,  # Sky
-    },
-    "r": {
-        0: water_class,  # Water
-        1: ground_class,  # Ground
-        2: building_class,  # Building
-        3: other_class,  # Traffic items
-        4: tree_class,  # Vegetation
-        5: ground_class,  # Terrain
-        6: other_class,  # Car
-        7: tree_class,  # Trees
-        8: other_class,  # Person
-        9: sky_class,  # Sky
-        10: other_class,  # Others
-    },
+    0: water_class,
+    1: ground_class,
+    2: building_class,
+    3: traffic_class,
+    4: tree_class,
+    5: sky_class,
+    6: car_class,
+    7: other_class,
+    8: people_class,
 }
-
-encoding_reduced_mapping = {
-    "s": {
-        (0, 0, 255, 255): 0,  # Water
-        (55, 55, 55, 255): 1,  # Ground
-        (0, 255, 255, 255): 2,  # Building
-        (255, 212, 0, 255): 3,  # Traffic items
-        (0, 255, 0, 255): 4,  # Vegetation
-        (255, 97, 0, 255): 1,  # Terrain
-        (255, 0, 0, 255): 3,  # Cars
-        (0, 0, 0, 0): 4,  # Trees
-        (255, 0, 255, 255): 3,  # People
-        (0, 0, 0, 255): 5,  # Sky
-        (255, 255, 255, 255): 3,  # Others
-    },
-    "r": {
-        (0, 0, 255, 255): 0,  # Water
-        (55, 55, 55, 255): 1,  # Ground
-        (0, 255, 255, 255): 2,  # Building
-        (255, 212, 0, 255): 3,  # Traffic items
-        (0, 255, 0, 255): 4,  # Vegetation
-        (255, 97, 0, 255): 1,  # Terrain
-        (255, 0, 0, 255): 3,  # Cars
-        (220, 20, 60, 255): 3,  # People
-        (8, 19, 49, 255): 5,  # Sky
-        (0, 80, 100, 255): 3,  # Others
-    },
-}
-
 
 classes_dict = {
     "s": {  # unity
@@ -211,11 +173,8 @@ def decode_segmap_merged_labels(tensor, domain, is_target, nc=11):
     Returns:
         RGB tensor of size (1) x (3) x (H) x (W)
     # """
-    if nc == 6:
-        if domain == "r" and not is_target:
-            dict_classes = decoding_reduced_mapping["s"]
-        else:
-            dict_classes = decoding_reduced_mapping[domain]
+    if nc == 9:
+        dict_classes = decoding_reduced_mapping
     else:
         dict_classes = classes_dict["s"]
 
