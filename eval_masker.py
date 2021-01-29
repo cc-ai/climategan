@@ -115,7 +115,7 @@ if __name__ == "__main__":
     print("Args:\n" + "\n".join([f"    {k:20}: {v}" for k, v in vars(args).items()]))
 
     output_dir = Path(args.output_dir).expanduser().resolve()
-    output_dir.mkdir(exists_ok=True, parents=True)
+    output_dir.mkdir(exist_ok=True, parents=True)
 
     # Build paths to data
     imgs_paths = sorted(find_images(args.images_dir, recursive=False))
