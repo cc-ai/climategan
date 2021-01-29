@@ -345,11 +345,12 @@ class PrepareTest(PrepareInference):
       - rescale to -1:1 (optional)
     """
 
-    def __init__(self, normalize=False, *args, **kwargs):
-        PrepareInference.__init__(self, *args, **kwargs)
-        self.normalize = normalize
+    def __init__(self, target_size=640, half=False):
+        self.resize = Resize(target_size, keep_aspect_ratio=True)
+        self.crop = RandomCrop((target_size, target_size), center=True)
+        self.half = half
 
-    def process(self, t):
+    def process(self, t, normalize=False, rescale=False):
         if isinstance(t, (str, Path)):
             t = imread(str(t))
             if np.ndim(t) == 2:
@@ -364,15 +365,30 @@ class PrepareTest(PrepareInference):
 
         t = t.to(torch.float16) if self.half else t.to(torch.float32)
 
-        if self.normalize:
-            t = normalize(t)
-            t = (t - 0.5) * 2
+        normalize(t) if normalize else t
+        (t - 0.5) * 2 if rescale else t
         t = {"x": t}
         t = self.resize(t)
         t = self.crop(t)
         t = t["x"]
 
         return t
+
+
+    def __call__(self, x, normalize=False, rescale=False):
+        """
+        Call process()
+
+        x can be: dict {"task": data} list [data, ..] or data
+        data ^ can be a str, a Path, a numpy arrray or a Tensor
+        """
+        if isinstance(x, dict):
+            return {k: self.process(v, normalize, rescale) for k, v in x.items()}
+
+        if isinstance(x, list):
+            return [self.process(t, normalize, rescale) for t in x]
+
+        return self.process(x, normalize, rescale)
 
 
 def get_transform(transform_item, mode):

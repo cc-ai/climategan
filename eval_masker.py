@@ -127,8 +127,8 @@ if __name__ == "__main__":
     # Pre-process images: resize + crop
     # TODO: ? make cropping more flexible, not only central
     img_preprocessing = PrepareTest(target_size=args.image_size, normalize=False)
-    imgs = img_preprocessing(imgs_paths)
-    labels = img_preprocessing(labels_paths)
+    imgs = img_preprocessing(imgs_paths, normalize=True, rescale=False)
+    labels = img_preprocessing(labels_paths, normalize=False, rescale=False)
 
     # RGBA to RGB
     imgs = [np.squeeze(np.moveaxis(img.numpy(), 1, -1)) for img in imgs]
