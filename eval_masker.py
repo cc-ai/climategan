@@ -65,10 +65,7 @@ def parsed_args():
         "--limit", default=-1, type=int, help="Limit loaded samples",
     )
     parser.add_argument(
-        "--bin_value",
-        default=-1,
-        type=float,
-        help="Mask binarization threshold"
+        "--bin_value", default=-1, type=float, help="Mask binarization threshold"
     )
 
     return parser.parse_args()
@@ -217,6 +214,7 @@ if __name__ == "__main__":
     exp.log_table("csv", df)
     exp.log_html(df.to_html(col_space="80px"))
     exp.log_metrics(dict(df.mean(0)))
+    exp.log_parameters(vars(args))
 
     plot_paths = plot_labels_images("..", tmp_dir)
     for pp in plot_paths:
