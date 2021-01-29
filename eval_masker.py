@@ -1,7 +1,8 @@
 """
 Compute metrics of the performance of the masker using a set of ground-truth labels
 
-run eval_masker.py --model "/miniscratch/_groups/ccai/checkpoints/masker/victor/no_spade/msd (17)" --images_dir "/miniscratch/_groups/ccai/data/floodmasks_eval/imgs" --labels_dir "/miniscratch/_groups/ccai/data/floodmasks_eval/labels" --image_size 640 --output_dir "/miniscratch/_groups/ccai/data/tmp/metrics"
+run eval_masker.py --model "/miniscratch/_groups/ccai/checkpoints/masker/victor/no_spade/msd (17)"
+
 """
 print("Imports...", end="")
 import os.path
@@ -51,12 +52,6 @@ def parsed_args():
     parser.add_argument(
         "--preds_dir",
         default="/miniscratch/_groups/ccai/data/omnigan/flood_eval_inferred_masks",
-        type=str,
-        help="DEBUG: Directory containing pre-computed mask predictions",
-    )
-    parser.add_argument(
-        "--output_dir",
-        default="/miniscratch/_groups/ccai/data/omnigan/tmp/metrics/",
         type=str,
         help="DEBUG: Directory containing pre-computed mask predictions",
     )
@@ -120,9 +115,6 @@ if __name__ == "__main__":
 
     args = parsed_args()
     print("Args:\n" + "\n".join([f"    {k:20}: {v}" for k, v in vars(args).items()]))
-
-    output_dir = Path(args.output_dir).expanduser().resolve()
-    output_dir.mkdir(exist_ok=True, parents=True)
 
     tmp_dir = Path(os.environ["SLURM_TMPDIR"])
 
@@ -212,10 +204,8 @@ if __name__ == "__main__":
             }
         )
 
-    df.to_csv(os.path.join(str(output_dir), "metrics.csv"))
-
     exp = Experiment(project_name="omnigan-masker-metrics")
-    exp.log_table(str(output_dir / "metrics.csv"))
+    exp.log_table("csv", df)
     exp.log_html(df.to_html(col_space="80px"))
     exp.log_metrics(dict(df.mean(0)))
 
