@@ -216,6 +216,7 @@ if __name__ == "__main__":
 
     exp = Experiment(project_name="omnigan-masker-metrics")
     exp.log_table(str(output_dir / "metrics.csv"))
+    exp.log_table("html", df, col_space="80px")
     exp.log_metrics(dict(df.mean(0)))
 
     plot_paths = plot_labels_images("..", tmp_dir)
