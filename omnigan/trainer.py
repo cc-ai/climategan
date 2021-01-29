@@ -1338,6 +1338,9 @@ class Trainer:
                 elif task == "m":
                     cond = None
                     if self.opts.gen.m.use_spade:
+                        if self.opts.gen.m.back_prop_cond:
+                            d_pred = self.G.decoders["d"](z)
+                            s_pred = self.G.decoders["s"](z)
                         cond = self.G.make_m_cond(d_pred, s_pred, x)
 
                     loss, _ = self.masker_m_loss(x, z, target, domain, "G", cond=cond)
