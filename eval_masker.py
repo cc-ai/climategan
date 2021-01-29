@@ -35,7 +35,10 @@ def parsed_args():
     """
     parser = ArgumentParser()
     parser.add_argument(
-        "--model", required=True, type=str, help="Path to a pre-trained model",
+        "--model",
+        required=True,
+        type=str,
+        help="Path to a pre-trained model",
     )
     parser.add_argument(
         "--images_dir",
@@ -62,7 +65,10 @@ def parsed_args():
         help="The height and weight of the pre-processed images",
     )
     parser.add_argument(
-        "--limit", default=-1, type=int, help="Limit loaded samples",
+        "--limit",
+        default=-1,
+        type=int,
+        help="Limit loaded samples",
     )
     parser.add_argument(
         "--bin_value", default=-1, type=float, help="Mask binarization threshold"
@@ -122,7 +128,7 @@ if __name__ == "__main__":
     try:
         tmp_dir = Path(os.environ["SLURM_TMPDIR"])
     except:
-        tmp_dir = input('Enter tmp output directory: ')
+        tmp_dir = input("Enter tmp output directory: ")
 
     # Build paths to data
     imgs_paths = sorted(find_images(args.images_dir, recursive=False))
@@ -141,7 +147,9 @@ if __name__ == "__main__":
 
     # RGBA to RGB
     print("RGBA to RGB", end="", flush=True)
-    imgs = [np.squeeze(np.moveaxis(img.numpy().astype(np.uint8), 1, -1)) for img in imgs]
+    imgs = [
+        np.squeeze(np.moveaxis(img.numpy().astype(np.uint8), 1, -1)) for img in imgs
+    ]
     imgs = [rgba2rgb(img) if img.shape[-1] == 4 else img for img in imgs]
     imgs = [np.expand_dims(np.moveaxis(img, -1, 0), axis=0) for img in imgs]
     print(" Done.")

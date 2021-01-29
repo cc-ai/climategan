@@ -374,7 +374,6 @@ class PrepareTest:
 
         return t
 
-
     def __call__(self, x, normalize=False, rescale=False):
         """
         Call process()
