@@ -119,7 +119,10 @@ if __name__ == "__main__":
     args = parsed_args()
     print("Args:\n" + "\n".join([f"    {k:20}: {v}" for k, v in vars(args).items()]))
 
-    tmp_dir = Path(os.environ["SLURM_TMPDIR"])
+    try:
+        tmp_dir = Path(os.environ["SLURM_TMPDIR"])
+    except:
+        tmp_dir = input('Enter tmp output directory: ')
 
     # Build paths to data
     imgs_paths = sorted(find_images(args.images_dir, recursive=False))
@@ -132,13 +135,13 @@ if __name__ == "__main__":
 
     # Pre-process images: resize + crop
     # TODO: ? make cropping more flexible, not only central
-    img_preprocessing = PrepareTest(target_size=args.image_size, normalize=False)
-    imgs = img_preprocessing(imgs_paths, normalize=True, rescale=False)
+    img_preprocessing = PrepareTest(target_size=args.image_size)
+    imgs = img_preprocessing(imgs_paths, normalize=False, rescale=False)
     labels = img_preprocessing(labels_paths, normalize=False, rescale=False)
 
     # RGBA to RGB
     print("RGBA to RGB", end="", flush=True)
-    imgs = [np.squeeze(np.moveaxis(img.numpy(), 1, -1)) for img in imgs]
+    imgs = [np.squeeze(np.moveaxis(img.numpy().astype(np.uint8), 1, -1)) for img in imgs]
     imgs = [rgba2rgb(img) if img.shape[-1] == 4 else img for img in imgs]
     imgs = [np.expand_dims(np.moveaxis(img, -1, 0), axis=0) for img in imgs]
     print(" Done.")
