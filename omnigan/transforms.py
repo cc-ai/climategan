@@ -335,7 +335,7 @@ class PrepareInference:
         return self.process(x)
 
 
-class PrepareTest(PrepareInference):
+class PrepareTest:
     """
     Transform which:
       - transforms a str or an array into a tensor
