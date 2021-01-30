@@ -24,7 +24,7 @@ from omnigan.data import encode_mask_label
 from omnigan.utils import find_images
 from omnigan.trainer import Trainer
 from omnigan.transforms import PrepareTest
-from omnigan.eval_metrics import pred_cannot, missed_must, may_flood, masker_metrics
+from omnigan.eval_metrics import pred_cannot, missed_must, may_flood, masker_metrics, get_confusion_matrix
 
 print("Ok.")
 
@@ -293,13 +293,24 @@ if __name__ == "__main__":
             }
         )
 
+        # Confusion matrix
+        confmat, _ = get_confusion_matrix(tpr, tnr, fpr, fnr, mpr, mnr)
+        exp.log_confusion_matrix(matrix=confmat, title=imgs_paths[idx])
+
         # Plot prediction images
         fig_filename = plot_dir.joinpath(imgs_paths[idx])
         plot_images(fig_filename, img, label, pred, fp_map, fn_map, may_neg_map, may_pos_map)
         exp.log_image(fig_filename)
 
+    # Summary statistics
+    means = df.mean(axis=0)
+    confmat_mean, confmat_std = get_confusion_matrix(df.tpr, df.tnr, df.fpr,
+            df.fnr, df.mpr, df.mnr)
+
+    exp.log_confusion_matrix(matrix=confmat_mean, title='mean')
+    exp.log_confusion_matrix(matrix=confmat_std, title='std')
     exp.log_table("csv", df)
     exp.log_html(df.to_html(col_space="80px"))
-    exp.log_metrics(dict(df.mean(0)))
+    exp.log_metrics(dict(means))
     exp.log_parameters(vars(args))
 

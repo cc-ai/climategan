@@ -263,7 +263,7 @@ def masker_metrics(pred, label, label_cannot=0, label_must=1):
     return tpr, tnr, precision, f1
 
 
-def confusion_matrix(tpr, tnr, fpr, fnr, mpr, mnr):
+def get_confusion_matrix(tpr, tnr, fpr, fnr, mpr, mnr):
     """
     Constructs the confusion matrix of a masker prediction over a set of samples
 
