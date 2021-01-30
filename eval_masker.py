@@ -16,6 +16,8 @@ import numpy as np
 import pandas as pd
 from skimage.color import rgba2rgb
 
+import matplotlib.pyplot as plt
+
 import torch
 
 from omnigan.data import encode_mask_label
@@ -77,8 +79,72 @@ def parsed_args():
     return parser.parse_args()
 
 
-def plot_labels_images(*args, **kwargs):
-    return []
+def plot_images(
+    output_filename,
+    img,
+    label,
+    pred,
+    fp_map,
+    fn_map,
+    may_neg_map,
+    may_pos_map,
+    dpi=300,
+    alpha=0.5,
+    vmin=0.0,
+    vmax=1.0,
+    fontsize="xx-small",
+    cmap={
+        "fp": "Reds",
+        "fn": "Reds",
+        "may_neg": "Oranges",
+        "may_pos": "Purples",
+        "pred": "Greens",
+    },
+):
+    f, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(1, 5, dpi=dpi)
+
+    # FPR (predicted mask on cannot flood)
+    ax1.imshow(img)
+    fp_map_plt = ax1.imshow(fp_map, vmin=vmin, vmax=vmax, cmap=cmap["fp"], alpha=alpha)
+    ax1.axis("off")
+    ax1.set_title("FPR: {:.4f}".format(fpr), fontsize=fontsize)
+
+    # FNR (missed mask on must flood)
+    ax2.imshow(img)
+    fn_map_plt = ax2.imshow(fn_map, vmin=vmin, vmax=vmax, cmap=cmap["fn"], alpha=alpha)
+    ax2.axis("off")
+    ax2.set_title("FNR: {:.4f}".format(fnr), fontsize=fontsize)
+
+    # May flood
+    ax3.imshow(img)
+    may_neg_map_plt = ax3.imshow(
+        may_neg_map, vmin=vmin, vmax=vmax, cmap=cmap["may_neg"], alpha=alpha
+    )
+    may_pos_map_plt = ax3.imshow(
+        may_pos_map, vmin=vmin, vmax=vmax, cmap=cmap["may_pos"], alpha=alpha
+    )
+    ax3.axis("off")
+    ax3.set_title("MNR: {:.2f} | MPR: {:.2f}".format(mnr, mpr), fontsize=fontsize)
+
+    # Prediction
+    ax4.imshow(img)
+    pred_mask = ax4.imshow(pred, vmin=vmin, vmax=vmax, cmap=cmap["pred"], alpha=alpha)
+    ax4.set_title("Predicted mask", fontsize=fontsize)
+    ax4.axis("off")
+
+    # Labels
+    ax5.imshow(img)
+    label_mask = ax5.imshow(label, alpha=alpha)
+    ax5.set_title("Labels", fontsize=fontsize)
+    ax5.axis("off")
+
+    f.savefig(
+        output_filename,
+        dpi=f.dpi,
+        bbox_inches="tight",
+        facecolor="white",
+        transparent=False,
+    )
 
 
 def get_inferences(image_arrays, model_path, verbose=0):
@@ -129,6 +195,9 @@ if __name__ == "__main__":
         tmp_dir = Path(os.environ["SLURM_TMPDIR"])
     except:
         tmp_dir = input("Enter tmp output directory: ")
+
+    # Initialize Comet Experiment
+    exp = Experiment(project_name="omnigan-masker-metrics")
 
     # Build paths to data
     imgs_paths = sorted(find_images(args.images_dir, recursive=False))
@@ -197,7 +266,7 @@ if __name__ == "__main__":
     )
 
     for idx, (img, label, pred) in enumerate(zip(*(imgs, labels, preds))):
-        img = np.squeeze(img)
+        img = np.moveaxis(np.squeeze(img), 0, -1)
         label = np.squeeze(label)
 
         fp_map, fpr = pred_cannot(pred, label, label_cannot=0)
@@ -221,12 +290,13 @@ if __name__ == "__main__":
             }
         )
 
-    exp = Experiment(project_name="omnigan-masker-metrics")
+        # Plot prediction images
+        plot_path = os.path.join(tmp_dir, 'plots', '{}.png'.format(idx))
+        plot_images(plot_path, img, label, pred, fp_map, fn_map, may_neg_map, may_pos_map)
+        exp.log_image(plot_path)
+
     exp.log_table("csv", df)
     exp.log_html(df.to_html(col_space="80px"))
     exp.log_metrics(dict(df.mean(0)))
     exp.log_parameters(vars(args))
 
-    plot_paths = plot_labels_images("..", tmp_dir)
-    for pp in plot_paths:
-        exp.log_image(pp)
