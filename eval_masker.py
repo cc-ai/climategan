@@ -191,10 +191,13 @@ if __name__ == "__main__":
     args = parsed_args()
     print("Args:\n" + "\n".join([f"    {k:20}: {v}" for k, v in vars(args).items()]))
 
+    # Determine output dir
     try:
         tmp_dir = Path(os.environ["SLURM_TMPDIR"])
     except:
         tmp_dir = input("Enter tmp output directory: ")
+    plot_dir = tmp_dir.joinpath('plots')
+    plot_dir.mkdir(parents=True, exist_ok=True)
 
     # Initialize Comet Experiment
     exp = Experiment(project_name="omnigan-masker-metrics")
@@ -291,9 +294,9 @@ if __name__ == "__main__":
         )
 
         # Plot prediction images
-        plot_path = os.path.join(tmp_dir, 'plots', '{}.png'.format(idx))
-        plot_images(plot_path, img, label, pred, fp_map, fn_map, may_neg_map, may_pos_map)
-        exp.log_image(plot_path)
+        fig_filename = plot_dir.joinpath(imgs_paths[idx])
+        plot_images(fig_filename, img, label, pred, fp_map, fn_map, may_neg_map, may_pos_map)
+        exp.log_image(fig_filename)
 
     exp.log_table("csv", df)
     exp.log_html(df.to_html(col_space="80px"))
