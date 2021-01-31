@@ -1,9 +1,8 @@
 # omnigan
 - [omnigan](#omnigan)
   - [Setup](#setup)
-- [⚠️ Deprecated](#️-deprecated)
-  - [Current Model](#current-model)
-    - [Summary](#summary)
+  - [Coding conventions](#coding-conventions)
+    - [Resuming](#resuming)
     - [Generator](#generator)
     - [Discriminator](#discriminator)
   - [updates](#updates)
@@ -13,16 +12,8 @@
       - [json files](#json-files)
     - [losses](#losses)
   - [Logging on comet](#logging-on-comet)
-    - [Parameters](#parameters)
     - [Tests](#tests)
   - [Resources](#resources)
-  - [Model Architecture](#model-architecture)
-    - [Generator](#generator-1)
-    - [Discriminators](#discriminators)
-- [Running Experiments](#running-experiments)
-  - [Comet-specific parameters](#comet-specific-parameters)
-  - [Sampling parameters](#sampling-parameters)
-- [Choices and Ideas](#choices-and-ideas)
 
 ## Setup
 
@@ -32,79 +23,108 @@
 
 Configuration files use the **YAML** syntax. If you don't know what `&` and `<<` mean, you'll have a hard time reading the files. Have a look at:
 
-    * https://dev.to/paulasantamaria/introduction-to-yaml-125f
-    * https://stackoverflow.com/questions/41063361/what-is-the-double-left-arrow-syntax-in-yaml-called-and-wheres-it-specced/41065222
+  * https://dev.to/paulasantamaria/introduction-to-yaml-125f
+  * https://stackoverflow.com/questions/41063361/what-is-the-double-left-arrow-syntax-in-yaml-called-and-wheres-it-specced/41065222
+
+**pip**
 
 ```
 $ pip install comet_ml scipy opencv-python torch torchvision omegaconf==1.4.1 hydra-core==0.11.3 scikit-image imageio addict tqdm torch_optimizer
 ```
 
-# ⚠️ Deprecated
+## Coding conventions
 
-Most of the following sections need an update
+* Tasks
+  * `x` is an input image, in [-1, 1]
+  * `s` is a segmentation target with `long` classes
+  * `d` is a depth map target in R, may be actually `log(depth)` or `1/depth`
+  * `m` is a binary mask with 1s where water is/should be
+* Domains
+  * `r` is the *real* domain for the masker. Input images are real pictures of urban/suburban/rural areas
+  * `s` is the *simulated* domain for the masker. Input images are taken from our Unity world
+  * `rf` is the *real flooded* domain for the painter. Training images are pairs `(x, m)` of flooded scenes for which the water should be reconstructed, in the validation data input images are not flooded and we provide a manually labeled mask `m`
+  * `kitti` is a special `s` domain to pre-train the masker on [Virtual Kitti 2](https://europe.naverlabs.com/research/computer-vision/proxy-virtual-worlds-vkitti-2/)
+    * it alters the `trainer.loaders` dict to select relevant data sources from `trainer.all_loaders` in `trainer.switch_data()`. The rest of the code is identical.
+* Flow
+  * This describes the call stack for the trainers standard training procedure
+  * `train()`
+    * `run_epoch()`
+      * `update_G()`
+        * `zero_grad(G)`
+        * `get_G_loss()`
+          * `get_masker_loss()`
+            * `masker_m_loss()`  -> masking loss
+            * `masker_s_loss()`  -> segmentation loss
+            * `masker_d_loss()`  -> depth estimation loss
+          * `get_painter_loss()` -> painter's loss
+        * `g_loss.backward()`
+        * `g_opt_step()`
+      * `update_D()`
+        * `zero_grad(D)`
+        * `get_D_loss()`
+          * painter's disc losses
+          * `masker_m_loss()` -> masking AdvEnt disc loss
+          * `masker_s_loss()` -> segmentation AdvEnt disc loss
+        * `d_loss.backward()`
+        * `d_opt_step()`
+      * `update_learning_rates()` -> update learning rates according to schedules defined in `opts.gen.opt` and `opts.dis.opt`
+    * `run_validation()`
+      * compute val losses
+      * `eval_images()` -> compute metrics
+      * `log_comet_images()` -> compute and upload inferences
+    * `save()`
 
-## Current Model
+### Resuming
 
-### Summary
+Set  `train.resume` to `True` in `opts.yaml` and specify where to load the weights:
 
-Summary from `torchsummary` with only 1 ResBlock in the encoder and 1 in the decoders:
+Use a config's `load_path` namespace. It should have sub-keys `m`, `p` and `pm`:
 
+```yaml
+load_paths:
+  p: none # Painter weights
+  m: none # Masker weights
+  pm: none # Painter + Masker weights (single ckpt for both)
 ```
-================================================================
-Total params: 9,766,807
-Trainable params: 9,766,807
-Non-trainable params: 0
-----------------------------------------------------------------
-Input size (MB): 0.75
-Forward/backward pass size (MB): 1746.82
-Params size (MB): 37.26
-Estimated Total Size (MB): 1784.82
-----------------------------------------------------------------
-```
 
-
-
-Set `test_summary` to `True` in `tests/test_gen.py` to view the full summary.
-
-**n.b.**: the adaptation decoder is not taken into account in the summary as its computations are not used in `OmniGenerator.forward(...)` and only one translation decoder is used so numbers above are a lower bound.
-
-Also:
-
-```python
-sum(np.prod(p.shape) for p in trainer.G.parameters())
->>> 17 646 624
-
-sum(np.prod(p.shape) for p in trainer.D.parameters())
->>> 11 124 424
-
-sum(np.prod(p.shape) for p in trainer.C.parameters())
->>> 595 332
-```
+1. any path which leads to a dir will be loaded as `path / checkpoints / latest_ckpt.pth`
+2. if you want to specify a specific checkpoint (not the latest), it MUST be a `.pth` file
+3. resuming a `P` **OR** an `M` model, you may only specify 1 of `load_path.p` **OR** `load_path.m`.
+   You may also leave **BOTH** at `none`, in which case `output_path / checkpoints / latest_ckpt.pth`
+   will be used
+4. resuming a P+M model, you may specify (`p` AND `m`) **OR** `pm` **OR** leave all at `none`,
+   in which case `output_path / checkpoints / latest_ckpt.pth` will be used to load from
+   a single checkpoint
 
 ### Generator
 
-High-level model in `generator.py`, building-blocks in `blocks.py`
-
 * **Encoder**:
 
-    Resnet-based Content Encoder from MUNIT
-  * image => 64 (=`encoder.dim`) channels with 1 conv layer, same size
-  * conv-based downsamplings (`encoder.n_downsample` times)
-  * resblocks (`encoder.n_res` blocks)
+  `trainer.G.encoder` Deeplabv2 or v3-based encoder
+  * Code borrowed from
+    * https://github.com/valeoai/ADVENT/blob/master/advent/model/deeplabv2.py
+    * https://github.com/CoinCheung/DeepLab-v3-plus-cityscapes
 
-  Deeplabv2-based encoder
-  * Code borrowed from https://github.com/valeoai/ADVENT/blob/master/advent/model/deeplabv2.py
-  * We only keep the feature extractor part (not the ASPP classification module) for which we can load pretrained weights.
-  Pretrained model weights on ImageNet can be downloaded [here](https://github.com/valeoai/ADVENT/releases).
-  * We also add resblocks
+* **Decoders**:
+  * `trainer.G.decoders["s"]` -> *Segmentation* -> DLV3+ architecture (ASPP + Decoder)
+  * `trainer.G.decoders["d"]` -> *Depth* -> ResBlocks + (Upsample + Conv)
+  * `trainer.G.decoders["m"]` -> *Mask* -> ResBlocks + (Upsample + Conv) -> Binary mask: 1 = water should be there
+    * `trainer.G.mask()` predicts a mask and optionally applies `sigmoid` from an `x` input or a `z` input
 
-* **Decoders**: Resnet-based Decoders from MUNIT for all tasks but the translation
-  * resblocks projections (`decoder.n_res` blocks)
-  * Sequence of `nn.Upsampling > Conv2dBlock` (`decoder.n_upsample` times)
-    * should match `encoder.n_downsample`
-  * final conv to get a feature map with 1 (`h`, `d`, `w`), 3 (`a`) or 19 (`s`) channels
-* **Translation decoder**: SPADEResnet-based Decoder inspired by MUNIT and SPADE
-  * Conditioning the translation by `SPADE([h, d, s, w])`
+* **Painter**: `trainer.G.painter` -> [GauGAN SPADE-based](https://github.com/NVlabs/SPADE)
+  * input = masked image
+* `trainer.G.paint(m, x)` higher level function which takes care of masking
+* If `opts.gen.p.paste_original_content` the painter should only create water and not reconstruct outside the mask: the output of `paint()` is `painted * m + x * (1 - m)`
+
+High level methods of interest:
+
+* `trainer.infer_all()` creates a dictionary of events with keys `flood` `wildfire` and `smog`. Can take in a single image or a batch, of numpy arrays or torch tensors, on CPU/GPU/TPU. This method calls, amongst others:
+  * `trainer.G.encode()` to compute the shared latent vector `z`
+  * `trainer.G.mask(z=z)` to infer the mask
+  * `trainer.compute_fire(x, segmentation)` to create a wildfire image from `x` and inferred segmentation
+  * `trainer.compute_smog(x, depth)` to create a smog image from `x` and inferred depth
+  * `trainer.compute_flood(x, mask)` to create a flood image from `x` and inferred mask using the painter (`trainer.G.paint(m, x)`)
+* `Trainer.resume_from_path()` static method to resume a trainer from a path
 
 ### Discriminator
 
@@ -147,13 +167,11 @@ batch = Dict({
 | train_r_full_pl.json, val_r_full_pl.json       |   r    | MegaDepth + Segmentation pseudo-labels .pt (HRNet + Cityscapes)            |  Alexia   |
 | train_r_full_midas.json, val_r_full_midas.json |   r    | MiDaS+ Segmentation (HRNet + Cityscapes)                                   | Mélisande |
 | train_r_full_old.json, val_r_full_old.json     |   r    | MegaDepth+ Segmentation (HRNet + Cityscapes)                               |    ***    |
+| train_r_nopeople.json, val_r_nopeople.json     |   r    | Same training data as above with people removed                            |   Sasha   |
+| train_rf_with_sim.json                         |   rf   | Doubled train_rf's size with sim data  (randomly chosen)                   |  Victor   |
+| train_rf.json                                  |   rf   | UPDATE (12/12/20): added 50 ims & masks from ADE20K Outdoors               |  Victor   |
 
-We provide the script `process_data.py` for the preprocessing task. Given a source folder the script will create the appropriate JSON. In the default mode, only one JSON for the whole data folder will be created. If you want to split the dataset into train and validation you can use the `--train_size` argument and specify the percentage, therefore two JSONs (train and val) will be created.
 
-The data folder must be structured as follows : A specific folder for each category (Semantic, Depth, Height, Flood, etc..), for the same data sample, the name must be the same through all the directories (The ground truth depth of Flood/image_1.jpg is Depth/image_1.jpg), but the extension can change.
-
-The default mapping between a folder and the json key is `"Segmentation": "s", "Depth": "d", "Data": "x", "Height": "h", "Mask": "m"` change it according to your needs in `process_data.py`.
-Note that `"m"` corresponds to the mask task, which is not exactly the water mask since for real images we do not have access to that information.
 
 ```yaml
 # data file ; one for each r|s
@@ -183,6 +201,7 @@ or
     }
 ]
 ```
+
 The json files used are located at `/network/tmp1/ccai/data/omnigan/`. In the basenames,  `_s` denotes simulated domain data and `_r` real domain data.
 The `base` folder contains json files with paths to images (`"x"`key) and masks (taken as ground truth for the area that should be flooded, `"m"` key).
 The `seg` folder contains json files and keys `"x"`, `"m"` and `"s"` (segmentation) for each image.
@@ -199,7 +218,7 @@ loaders = Dict({
 
 ### losses
 
-`trainer.losses` is a dictionary mapping to loss functions to optimize for the 3 main parts of the architecture: generator `G`, discriminators `D`, domain classifier `C`:
+`trainer.losses` is a dictionary mapping to loss functions to optimize for the 3 main parts of the architecture: generator `G`, discriminators `D`:
 
 ```python
 trainer.losses = {
@@ -242,96 +261,14 @@ workspace=vict0rsch
 rest_api_key=<rest_api_key>
 ```
 
-### Parameters
-
-Set `train.log_level` in your configuration file to control the amount of logging on comet:
-
-* `0`: no logging on comet
-* `1`: only aggregated losses (representational loss, translation loss, total loss)
-* `2`: all losses (aggregated + task losses + auto-encoding losses)
-
 ### Tests
 
-There's a `test_comet.py` test which will automatically start and stop an experiment, check that logging works and so on. Not to pollute your workspace, such functional tests are deleted when the test is passed through Comet's REST API which is why you need to specify this `rest_api_key` field.
+Run tests by executing `python test_trainer.py`. You can add `--no_delete` not to delete the comet experiment at exit and inspect uploads.
 
-Set `should_delete` to False in the file not to delete the test experiment once it has ended. You'll be able to find all your test experiments which were not deleted using the `is_functional_test` parameter on Comet's web interface.
+Write tests as scenarios by adding to the list `test_scenarios` in the file. A scenario is a dict of overrides over the base opts in `shared/trainer/defaults.yaml`. You can create special flags for the scenario by adding keys which start with `__`. For instance, `__doc` is a mandatory key in any scenario describing it succinctly.
 
 ## Resources
 
 [Tricks and Tips for Training a GAN](https://chloes-dl.com/2019/11/19/tricks-and-tips-for-training-a-gan/)
 [GAN Hacks](https://github.com/soumith/ganhacks)
 [Keep Calm and train a GAN. Pitfalls and Tips on training Generative Adversarial Networks](https://medium.com/@utk.is.here/keep-calm-and-train-a-gan-pitfalls-and-tips-on-training-generative-adversarial-networks-edd529764aa9)
-
-## Model Architecture
-
-
-### Generator
-
-* Encoder
-  *  Projection Conv layer from `3 x h x w` to `dim x h x w`
-  *  `n_downsample` layers, each doubling `dim` and halving `h` and `w`
-  *  `n_res` ResBlocks
-
-* Translation decoder
-  * For each `spade_n_up` which is equal to `n_downsample`: `SPADEResnetBlock` then `nn.Upsample(scale_factor=2)`
-    * First 2 SRB keep as many channels as `z` (:=`z_nc`)
-    * Each subsequent one halves `z_nc`
-  * Image layer projects the last SRB's output to 3 channels
-    * `tanh(conv(LeakyRelu(y)))`
-
-### Discriminators
-
-TODO
-
-# Running Experiments
-
-Using `experiment.py` you can easily run `sbatch` jobs to run trainings. It takes two arguments:
-
-* **`--experiment`**: path to the experiment YAML configuration file
-* **`--template`**: path to the sbatch template to run
-
-`python experiment.py --experiment=shared/experiment/exp-d.yaml --template=shared/experiment/template.sh` will:
-
-1. load `exp-d.yaml` as an addict.Dict `xopts`
-   1. load `xopts.defaults` as default parameters for the trainers: they are those shared across all experiments
-   2. load `xopts.config` to override `xopts.defaults` for the trainers: they are those shared across trainers for this experiment
-   3. load `xopts.runs[i].trainer` to override `xopts.config`: these are trainer `i`'s specific parameters within the experiment
-2. create an `sbatch` file `exp.sh` from `--template`, filling `{{param}}` according to `omnigan.utils.write_run_template`, by specifying `cpu`, `gpu`, args to `train.py` etc.
-3. write reproducibility files:
-   1. git hash code to `hash.txt`
-   2. comet url to `comet_url.txt`
-   3. experiment file to `exp_i.yaml` where `i` is the index of the run in `xopts.runs`
-   4. trainer config file to `config.yaml`
-   5. `sbatch` launch file in `exp.sh`
-
-## Comet-specific parameters
-
-* `experiment.exp_desc`: Overall description of the experiment
-* `runs[i].comet.note`: Text description of this run
-* `runs[i].comet.tags`: tags for the comet experiment log
-
-## Sampling parameters
-
-In an **experiment** config file, you may switch a parameter's value with a dict to sample this parameter from some distribution instead of just specifying it:
-
-```yaml
-runs:
-  - trainer:
-    gen:
-      opt:
-        lr:
-          sample: list            | range            | uniform
-          from: "[list of values] | [min, max, step] | [low, high, size]"
-
-```
-
-# Choices and Ideas
-
-* Implementation relies on the idea of splitting the representation and translation training phases
-  * see Samuel Lavoie's work
-* This allows the task decoders to be already trained when used in translation (to condition the generation and add consistency losses (depth, semantic, height))
-* When the Translation phase starts, representation blocks (encoder + task decoders) could be
-  * frozen
-  * trainable
-    * use Continual Learning ideas to prevent forgetting
-    * greatly lower learning rate

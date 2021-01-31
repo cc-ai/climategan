@@ -11,6 +11,50 @@ import numpy as np
 import yaml
 
 
+def flatten_conf(conf, to={}, parents=[]):
+    """
+    Flattens a configuration dict: nested dictionaries are flattened
+    as key1.key2.key3 = value
+
+    conf.yaml:
+    ```yaml
+    a: 1
+    b:
+        c: 2
+        d:
+            e: 3
+        g:
+            sample: sequential
+            from: [4, 5]
+    ```
+
+    Is flattened to
+
+    {
+        "a": 1,
+        "b.c": 2,
+        "b.d.e": 3,
+        "b.g": {
+            "sample": "sequential",
+            "from": [4, 5]
+        }
+    }
+
+    Does not affect sampling dicts.
+
+    Args:
+        conf (dict): the configuration to flatten
+        new (dict, optional): the target flatenned dict. Defaults to {}.
+        parents (list, optional): a final value's list of parents. Defaults to [].
+    """
+    for k, v in conf.items():
+        if isinstance(v, dict) and "sample" not in v:
+            flatten_conf(v, to, parents + [k])
+        else:
+            new_k = ".".join([str(p) for p in parents + [k]])
+            to[new_k] = v
+
+
 def env_to_path(path):
     """Transorms an environment variable mention in a json
     into its actual value. E.g. $HOME/clouds -> /home/vsch/clouds
@@ -44,7 +88,7 @@ class C:
 
 def escape_path(path):
     p = str(path)
-    return p.replace(" ", "\ ").replace("(", "\(").replace(")", "\)")
+    return p.replace(" ", "\ ").replace("(", "\(").replace(")", "\)")  # noqa: W605
 
 
 def warn(*args, **kwargs):
@@ -499,7 +543,8 @@ def get_template_params(template):
         list(str): Args required to format the template string
     """
     return map(
-        lambda s: s.replace("{", "").replace("}", ""), re.findall("\{.*?\}", template)
+        lambda s: s.replace("{", "").replace("}", ""),
+        re.findall("\{.*?\}", template),  # noqa: W605
     )
 
 
@@ -541,7 +586,12 @@ def read_exp_conf(name):
         print("Using {}".format(paths[-1]))
 
     with paths[-1].open("r") as f:
-        return (paths[-1], yaml.safe_load(f))
+        conf = yaml.safe_load(f)
+
+    flat_conf = {}
+    flatten_conf(conf, to=flat_conf)
+
+    return (paths[-1], flat_conf)
 
 
 def read_template(name):
@@ -617,7 +667,7 @@ if __name__ == "__main__":
     escape = False
     verbose = False
     template_name = None
-    hp_search_name = None
+    hp_exp_name = None
     hp_search_nb = None
     exp_path = None
     resume = None
@@ -668,8 +718,8 @@ if __name__ == "__main__":
         elif k == "template":
             template_name = v
 
-        elif k == "search":
-            hp_search_name = v
+        elif k == "exp":
+            hp_exp_name = v
 
         elif k == "n_search":
             hp_search_nb = int(v)
@@ -694,8 +744,8 @@ if __name__ == "__main__":
     # -----  Load Experiment Config  -----
     # ------------------------------------
 
-    if hp_search_name is not None:
-        exp_path, exp_conf = read_exp_conf(hp_search_name)
+    if hp_exp_name is not None:
+        exp_path, exp_conf = read_exp_conf(hp_exp_name)
         if "n_search" in exp_conf and hp_search_nb is None:
             hp_search_nb = exp_conf["n_search"]
 
@@ -735,6 +785,10 @@ if __name__ == "__main__":
 
                 if k == "codeloc":
                     v = escape_path(v)
+
+                if k == "output":
+                    Path(v).parent.mkdir(parents=True, exist_ok=True)
+
                 # override template params depending on exp config
                 if k in tmp_template_dict:
                     if template_dict[k] is None or is_sampled(k, exp_conf):
@@ -755,7 +809,9 @@ if __name__ == "__main__":
         # create sbatch file where required
         tmp_sbatch_path = None
         if sbatch_path == "hash":
-            tmp_sbatch_path = Path(home) / "omnigan_sbatchs" / (now() + ".sh")
+            tmp_sbatch_name = "" if hp_exp_name is None else hp_exp_name[:5] + "_"
+            tmp_sbatch_name += now() + ".sh"
+            tmp_sbatch_path = Path(home) / "omnigan_sbatchs" / tmp_sbatch_name
             tmp_sbatch_path.parent.mkdir(parents=True, exist_ok=True)
             tmp_train_args_dict["sbatch_file"] = str(tmp_sbatch_path)
             tmp_train_args_dict["exp_file"] = str(exp_path)
@@ -856,3 +912,9 @@ if __name__ == "__main__":
             print("Add summary_dir=path to store the printed markdown table ⇪")
         else:
             print("Saved table in", str(sum_path))
+
+    if not dev:
+        print(
+            "Cancel entire experiment? \n$ scancel",
+            " ".join(map(str, summary["Slurm JOBID"])),
+        )

@@ -12,6 +12,8 @@ import contextlib
 import numpy as np
 from typing import Union, Optional, List, Any
 import traceback
+import time
+from comet_ml import Experiment
 
 comet_kwargs = {
     "auto_metric_logging": False,
@@ -20,6 +22,10 @@ comet_kwargs = {
     "log_env_cpu": True,
     "display_summary_level": 0,
 }
+
+IMG_EXTENSIONS = set(
+    [".jpg", ".JPG", ".jpeg", ".JPEG", ".png", ".PNG", ".ppm", ".PPM", ".bmp", ".BMP"]
+)
 
 
 def copy_run_files(opts: Dict) -> None:
@@ -88,7 +94,6 @@ def load_opts(
     default: Optional[Union[str, Path, dict, Dict]] = None,
     commandline_opts: Optional[Union[Dict, dict]] = None,
 ) -> Dict:
-    # TODO add assert: if deeplabv2 then res_dim = 2048
     """Loadsize a configuration Dict from 2 files:
     1. default files with shared values across runs and users
     2. an overriding file with run- and user-specific values
@@ -103,7 +108,9 @@ def load_opts(
     Returns:
         addict.Dict: options dictionnary, with overwritten default values
     """
-    assert default or path
+
+    if path is None and default is None:
+        path = Path(__file__).parent.parent / "shared" / "trainer" / "defaults.yaml"
 
     if path:
         path = Path(path).resolve()
@@ -128,12 +135,42 @@ def load_opts(
     if commandline_opts is not None and isinstance(commandline_opts, dict):
         opts = Dict(merge(commandline_opts, opts))
 
+    if opts.train.kitti.pretrained:
+        assert "kitti" in opts.data.files.train
+        assert "kitti" in opts.data.files.val
+        assert opts.train.kitti.epochs > 0
+
     opts.domains = []
-    if "m" in opts.tasks or "s" in opts.tasks:
+    if "m" in opts.tasks or "s" in opts.tasks or "d" in opts.tasks:
         opts.domains.extend(["r", "s"])
     if "p" in opts.tasks:
         opts.domains.append("rf")
+    if opts.train.kitti.pretrain:
+        opts.domains.append("kitti")
+
     opts.domains = list(set(opts.domains))
+
+    if "s" in opts.tasks:
+        if opts.gen.encoder.architecture != opts.gen.s.architecture:
+            print(
+                "WARNING: segmentation encoder and decoder architectures do not match"
+            )
+            print(
+                "Encoder: {} <> Decoder: {}".format(
+                    opts.gen.encoder.architecture, opts.gen.s.architecture
+                )
+            )
+    if opts.gen.m.use_spade:
+        if "d" not in opts.tasks or "s" not in opts.tasks:
+            raise ValueError(
+                "opts.gen.m.use_spade is True so tasks MUST include"
+                + "both d and s, but received {}".format(opts.tasks)
+            )
+        if opts.gen.d.classify.enable:
+            raise ValueError(
+                "opts.gen.m.use_spade is True but using D as a classifier"
+                + " which is a non-implemented combination"
+            )
 
     return set_data_paths(opts)
 
@@ -151,9 +188,15 @@ def set_data_paths(opts: Dict) -> Dict:
 
     for mode in ["train", "val"]:
         for domain in opts.data.files[mode]:
-            opts.data.files[mode][domain] = str(
-                Path(opts.data.files.base) / opts.data.files[mode][domain]
-            )
+            if opts.data.files.base and not opts.data.files[mode][domain].startswith(
+                "/"
+            ):
+                opts.data.files[mode][domain] = str(
+                    Path(opts.data.files.base) / opts.data.files[mode][domain]
+                )
+            assert Path(
+                opts.data.files[mode][domain]
+            ).exists(), "Cannot find {}".format(str(opts.data.files[mode][domain]))
 
     return opts
 
@@ -181,6 +224,22 @@ def get_git_revision_hash() -> str:
     """
     try:
         return subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
+    except Exception as e:
+        return str(e)
+
+
+def get_git_branch() -> str:
+    """Get current git branch name
+
+    Returns:
+        str: git branch name
+    """
+    try:
+        return (
+            subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"])
+            .decode()
+            .strip()
+        )
     except Exception as e:
         return str(e)
 
@@ -214,21 +273,19 @@ def get_increased_path(path: Union[str, Path]) -> Path:
         pathlib.Path: increased path
     """
     fp = Path(path).resolve()
-    f = str(fp)
-
     vals = []
     for n in fp.parent.glob("{}*".format(fp.stem)):
-        ms = list(re.finditer(r"^{} \(\d+\)$".format(f), str(n)))
-        if ms:
-            m = list(re.finditer(r"\(\d+\)$", str(n)))[0].group()
-            vals.append(int(m.replace("(", "").replace(")", "")))
+        if re.match(r".+\(\d+\)", str(n.name)) is not None:
+            name = str(n.name)
+            start = name.index("(")
+            end = name.index(")")
+            vals.append(int(name[start + 1 : end]))
     if vals:
         ext = " ({})".format(max(vals) + 1)
     elif fp.exists():
         ext = " (1)"
     else:
         ext = ""
-
     return fp.parent / (fp.stem + ext + fp.suffix)
 
 
@@ -559,7 +616,15 @@ def get_display_indices(opts: Dict, domain: str, length: int) -> list:
     """
     if domain == "rf":
         dsize = max([opts.comet.display_size, opts.train.fid.get("n_images", 0)])
-    dsize = opts.comet.display_size
+    else:
+        dsize = opts.comet.display_size
+    if dsize > length:
+        print(
+            f"Warning: dataset is smaller ({length} images) "
+            + f"than required display indices ({dsize})."
+            + f" Selecting {length} images."
+        )
+
     display_indices = []
     assert isinstance(dsize, (int, list)), "Unknown display size {}".format(dsize)
     if isinstance(dsize, int):
@@ -591,7 +656,7 @@ def get_latest_path(path: Union[str, Path]) -> Path:
     files = list(p.parent.glob(f"{s}*(*){e}"))
     indices = list(p.parent.glob(f"{s}*(*){e}"))
     indices = list(map(lambda f: f.name, indices))
-    indices = list(map(lambda x: re.findall("\((.*?)\)", x)[-1], indices))
+    indices = list(map(lambda x: re.findall(r"\((.*?)\)", x)[-1], indices))
     indices = list(map(int, indices))
     if not indices:
         f = p
@@ -722,3 +787,160 @@ def get_latest_opts(path):
     assert opts.exists()
     with opts.open("r") as f:
         return Dict(yaml.safe_load(f))
+
+
+def text_to_array(text, width=640, height=40):
+    """
+    Creates a numpy array of shape height x width x 3 with
+    text written on it using PIL
+
+    Args:
+        text (str): text to write
+        width (int, optional): Width of the resulting array. Defaults to 640.
+        height (int, optional): Height of the resulting array. Defaults to 40.
+
+    Returns:
+        np.ndarray: Centered text
+    """
+    from PIL import Image, ImageDraw, ImageFont
+
+    img = Image.new("RGB", (width, height), (255, 255, 255))
+    try:
+        font = ImageFont.truetype("UnBatang.ttf", 25)
+    except OSError:
+        font = ImageFont.load_default()
+
+    d = ImageDraw.Draw(img)
+    text_width, text_height = d.textsize(text)
+    h = 40 // 2 - 3 * text_height // 2
+    w = width // 2 - text_width
+    d.text((w, h), text, font=font, fill=(30, 30, 30))
+    return np.array(img)
+
+
+def all_texts_to_array(texts, width=640, height=40):
+    """
+    Creates an array of texts, each of height and width specified
+    by the args, concatenated along their width dimension
+
+    Args:
+        texts (list(str)): List of texts to concatenate
+        width (int, optional): Individual text's width. Defaults to 640.
+        height (int, optional): Individual text's height. Defaults to 40.
+
+    Returns:
+        list: len(texts) text arrays with dims height x width x 3
+    """
+    return [text_to_array(text, width, height) for text in texts]
+
+
+class Timer:
+    def __init__(self, name="", store=None, precision=3, ignore=False):
+        self.name = name
+        self.store = store
+        self.precision = precision
+        self.ignore = ignore
+
+    def format(self, n):
+        return f"{n:.{self.precision}f}"
+
+    def __enter__(self):
+        """Start a new timer as a context manager"""
+        self._start_time = time.perf_counter()
+        return self
+
+    def __exit__(self, *exc_info):
+        """Stop the context manager timer"""
+        if self.ignore:
+            return
+        t = time.perf_counter()
+        new_time = t - self._start_time
+
+        if self.store is not None:
+            assert isinstance(self.store, list)
+            self.store.append(new_time)
+        if self.name:
+            print(f"[{self.name}] Elapsed time: {self.format(new_time)}")
+
+
+def get_loader_output_shape_from_opts(opts):
+    transforms = opts.data.transforms
+
+    t = None
+    for t in transforms[::-1]:
+        if t.name == "resize":
+            break
+    assert t is not None
+
+    if isinstance(t.new_size, Dict):
+        return {
+            task: (
+                t.new_size.get(task, t.new_size.default),
+                t.new_size.get(task, t.new_size.default),
+            )
+            for task in opts.tasks + ["x"]
+        }
+    assert isinstance(t.new_size, int)
+    new_size = (t.new_size, t.new_size)
+    return {task: new_size for task in opts.tasks + ["x"]}
+
+
+def find_target_size(opts, task):
+    target_size = None
+    if isinstance(opts.data.transforms[-1].new_size, int):
+        target_size = opts.data.transforms[-1].new_size
+    else:
+        if task in opts.data.transforms[-1].new_size:
+            target_size = opts.data.transforms[-1].new_size[task]
+        else:
+            assert "default" in opts.data.transforms[-1].new_size
+            target_size = opts.data.transforms[-1].new_size["default"]
+
+    return target_size
+
+
+def to_128(im, w_target=-1):
+    h, w = im.shape[:2]
+    aspect_ratio = h / w
+    if w_target < 0:
+        w_target = w
+
+    nw = int(w_target / 128) * 128
+    nh = int(nw * aspect_ratio / 128) * 128
+
+    return nh, nw
+
+
+def is_image_file(filename):
+    """Check that a file's name points to a known image format
+    """
+    if isinstance(filename, Path):
+        return filename.suffix in IMG_EXTENSIONS
+
+    return Path(filename).suffix in IMG_EXTENSIONS
+
+
+def find_images(path, recursive=False):
+    """
+    Get a list of all images contained in a directory:
+
+    - path.glob("*") if not recursive
+    - path.glob("**/*") if recursive
+    """
+    p = Path(path)
+    assert p.exists()
+    assert p.is_dir()
+    pattern = "*"
+    if recursive:
+        pattern += "*/*"
+
+    return [i for i in p.glob(pattern) if i.is_file() and is_image_file(i)]
+
+
+def upload_images_to_exp(path, exp=None, project_name="omnigan-eval"):
+    ims = find_images(path)
+    if exp is None:
+        exp = Experiment(project_name=project_name)
+    for im in ims:
+        exp.log_image(str(im))
+    return exp

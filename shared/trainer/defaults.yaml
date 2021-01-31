@@ -1,7 +1,17 @@
-output_path: /network/tmp1/schmidtv/yb_runs/test_v1
+output_path: /miniscratch/_groups/ccai/trash
+# README on load_path
+# 1/ any path which leads to a dir will be loaded as `path / checkpoints / latest_ckpt.pth`
+# 2/ if you want to specify a specific checkpoint, it MUST be a `.pth` file
+# 3/ resuming a P OR an M model, you may only specify 1 of `load_path.p` OR `load_path.m`.
+#    You may also leave BOTH at none, in which case `output_path / checkpoints / latest_ckpt.pth`
+#    will be used
+# 4/ resuming a P+M model, you may specify (`p` AND `m`) OR `pm` OR leave all at none,
+#    in which case `output_path / checkpoints / latest_ckpt.pth` will be used to load from
+#    a single checkpoint
 load_paths:
-  p: none # none if using output_path
-  m: none # none if using output_path
+  p: none # Painter weights: none will use `output_path / checkpoints / latest_ckpt.pth`
+  m: none # Masker weights: none will use `output_path / checkpoints / latest_ckpt.pth`
+  pm: none # Painter and Masker weights: none will use `output_path / checkpoints / latest_ckpt.pth`
 
 # -------------------
 # -----  Tasks  -----
@@ -14,23 +24,25 @@ tasks: [d, s, m, p] # [p] [m, s, d]
 data:
   max_samples: -1 # -1 for all, otherwise set to an int to crop the training data size
   files: # if one is not none it will override the dirs location
-    base: /network/tmp1/ccai/data/omnigan/base/
+    base: /miniscratch/_groups/ccai/data/jsons
     train:
       r: train_r_full.json
-      s: train_s_full.json
+      s: train_s_fixedholes.json
       rf: train_rf.json
+      kitti: train_kitti.json
     val:
       r: val_r_full.json
-      s: val_s_full.json
-      rf: val_rf.json
-  check_samples: True
+      s: val_s_fixedholes.json
+      rf: val_rf_labelbox.json
+      kitti: val_kitti.json
+  check_samples: False
   loaders:
     batch_size: 6
-    num_workers: 8
+    num_workers: 6
   normalization: default # can be "default" or "HRNet" for now. # default: mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]; HRNet: mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
   transforms:
     - name: hflip
-      ignore: false
+      ignore: val
       p: 0.5
     - name: resize
       ignore: false
@@ -38,11 +50,21 @@ data:
       keep_aspect_ratio: true # smallest dimension will be `new_size` and the other will be computed to keep aspect  ratio
     - name: crop
       ignore: false
+      center: val # disable randomness, crop around the image's center
       height: 600
       width: 600
+    - name: brightness
+      ignore: val
+    - name: saturation
+      ignore: val
+    - name: contrast
+      ignore: val
     - name: resize # ? this or change generator's output? Or resize larger then crop to 256?
       ignore: false
-      new_size: 640
+      new_size:
+        default: 640
+        d: 160
+        s: 160
 
 # ---------------------
 # ----- Generator -----
@@ -52,8 +74,8 @@ gen:
     optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
     beta1: 0.9
     lr:
-      default: 0.00001
-    lr_policy: multi_step
+      default: 0.00005 # 0.00001 for dlv2, 0.00005 for dlv3
+    lr_policy: step
     # lr_policy can be constant, step or multi_step; if step, specify lr_step_size and lr_gamma
     # if multi_step specify lr_step_size lr_gamma and lr_milestones:
     #   if lr_milestones is a list:
@@ -61,26 +83,24 @@ gen:
     #     item in the list (no need for lr_step_size).
     #   if lr_milestones is an int:
     #      a list of milestones is created from `range(lr_milestones, train.epochs, lr_step_size)`
-    lr_step_size: 10 # for linear decay : period of learning rate decay (epochs)
+    lr_step_size: 30 # for linear decay : period of learning rate decay (epochs)
     lr_milestones: 15
     lr_gamma: 0.5 # Multiplicative factor of learning rate decay
   default:
     &default-gen # default parameters for the generator (encoder and decoders)
     activ: lrelu # activation function [relu/lrelu/prelu/selu/tanh]
-    init_gain: 0.2
+    init_gain: 0.02
     init_type: xavier
     n_res: 1 # number of residual blocks before upsampling
     n_downsample: &n_downsample 3 # number of downsampling layers in encoder | dim 32 + down 3 => z = 256 x 32 x 32
     n_upsample: *n_downsample # upsampling in spade decoder ; should match encoder.n_downsample
     pad_type: reflect # padding type [zero/reflect]
-    res_dim: 2048 # Resblock number of channels (=latent space's), should be 2048 if using deeplabv2, 256 otherwise
-    res_norm: spectral # ResBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
-    conv_norm: spectral
+    norm: spectral # ResBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
     proj_dim: 32 # Dim of projection from latent space
   encoder: # specific params for the encoder
     <<: *default-gen
     dim: 32
-    architecture: deeplabv2 # [deeplabv2 (res_dim = 2048) | base (res_dim = 256)]
+    architecture: deeplabv3 # [deeplabv2/v3 resnet -> res_dim=2048) | dlv3 mobilenet -> res_dim=320
     input_dim: 3 # input number of channels
     n_res: 0 # number of residual blocks in content encoder/decoder
     norm: spectral # ConvBlock normalization ; one of {"batch", "instance", "layer", "adain", "spectral", "none"}
@@ -89,46 +109,84 @@ gen:
   deeplabv2:
     nblocks: [3, 4, 23, 3]
     use_pretrained: True
-    pretrained_model: "/network/tmp1/ccai/data/omnigan/pretrained_models/DeepLab_resnet_pretrained_imagenet.pth"
+    pretrained_model: "/miniscratch/_groups/ccai/data/pretrained_models/deeplabv2/DeepLab_resnet_pretrained_imagenet.pth"
+
+  deeplabv3:
+    backbone: resnet # resnet or mobilenet
+    output_stride: 8 # 8 or 16
+    use_pretrained: true
+    pretrained_model:
+      mobilenet: "/miniscratch/_groups/ccai/data/pretrained_models/deeplabv3/deeplabv3_plus_mobilenetv2_segmentron.pth"
+      resnet: "/miniscratch/_groups/ccai/data/pretrained_models/deeplabv3/model_CoinCheungDeepLab-v3-plus.pth"
 
   d: # specific params for the depth estimation decoder
     <<: *default-gen
-    init_type: normal
-    init_gain: 0.01
     output_dim: 1
-    conv_norm: batch
-    res_norm: batch
+    norm: batch
+    loss: sigm # dada or sigm | /!\ ignored if classify.enable
+    upsample_featuremaps: True # upsamples from 80x80 to 160x160 intermediate feature maps
+    architecture: dada # dada or base | must be base for classif
+    classify: # classify log-depth instead of regression
+      enable: False
+      linspace:
+        min: 0.35
+        max: 6.95
+        buckets: 256
   s: # specific params for the semantic segmentation decoder
     <<: *default-gen
     num_classes: 11
     output_dim: 11
     use_advent: True
     use_minent: True
-    use_pseudo_labels: False
+    architecture: deeplabv3
     upsample_featuremaps: False # upsamples from 80x80 to 160x160 intermediate feature maps
+    depth_feat_fusion: True
+    depth_dada_fusion: True
   p: # specific params for the SPADE painter
     <<: *default-gen
-    latent_dim: 1024
+    latent_dim: 640
+    loss: gan # gan or hinge
+    no_z: true # <=> use_vae=False in the SPADE repo
     output_dim: 3 # output dimension
-    pad_type: zero # padding type [zero/reflect]
+    pad_type: reflect # padding type [zero/reflect]
+    paste_original_content: True # only select the water painted to backprop through the network, not the whole generated image: fake_flooded = masked_x + m * fake_flooded
+    pl4m_epoch: 49 # epoch from which we introduce a new loss to the masker: the painter's discriminator's loss
     spade_kernel_size: 3 # kernel size within SPADE norm layers
+    spade_n_up: 7 # number of upsampling layers in the translation decoder is equal to number of downsamplings in the encoder.  output's h and w are z's h and w x 2^spade_num_upsampling_layers | z:32 and spade_n_up:4 => output 512
     spade_param_free_norm: instance # what param-free normalization to apply in SPADE normalization
     spade_use_spectral_norm: true
-    spade_n_up: 7 # number of upsampling layers in the translation decoder is equal to number of downsamplings in the encoder.  output's h and w are z's h and w x 2^spade_num_upsampling_layers | z:32 and spade_n_up:4 => output 512
-    no_z: true # <=> use_vae=False in the SPADE repo
     use_final_shortcut: False # if true, the last spade block does not get the masked input as conditioning but the prediction of the previous layer (passed through a conv to match dims) in order to lighten the masking restrictions and have smoother edges
-    paste_original_content: False # only select the water painted to backprop through the network, not the whole generated image: fake_flooded = masked_x + m * fake_flooded
+    
     use_pretrained: True
     path_G_pretrained: /miniscratch/_groups/ccai/data/pretrained_gaugan/latest_net_G.pth
   
-    m: # specific params for the mask-generation decoder
+    diff_aug:
+      use: False
+      do_color_jittering: false
+      do_cutout: false
+      cutout_ratio: 0.5
+      do_translation: false
+      translation_ratio: 0.125
+
+  m: # specific params for the mask-generation decoder
     <<: *default-gen
+    use_spade: False
     output_dim: 1
     use_minent: True # directly minimize the entropy of the image
     use_minent_var: True # add variance of entropy map in the measure of entropy for a certain picture
     use_advent: True # minimize the entropy of the image by adversarial training
     use_ground_intersection: True
-    loss: gan # either "hinge" or "gan" loss
+    proj_dim: 64
+    n_res: 3
+    use_low_level_feats: True
+    spade:
+      latent_dim: 128
+      detach: True # detach s_pred and d_pred conditioning tensors
+      cond_nc: 12 # 12 without x, 15 with x
+      spade_use_spectral_norm: True
+      spade_param_free_norm: batch
+      num_layers: 3
+
 # -------------------------
 # ----- Discriminator -----
 # -------------------------
@@ -139,8 +197,8 @@ dis:
     optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
     beta1: 0.5
     lr:
-      default: 0.0001
-    lr_policy: multi_step
+      default: 0.00002 # 0.0001 for dlv2, 0.00002 for dlv3
+    lr_policy: step
     # lr_policy can be constant, step or multi_step; if step, specify lr_step_size and lr_gamma
     # if multi_step specify lr_step_size lr_gamma and lr_milestones:
     #   if lr_milestones is a list:
@@ -148,7 +206,7 @@ dis:
     #     item in the list (no need for lr_step_size).
     #   if lr_milestones is an int:
     #      a list of milestones is created from `range(lr_milestones, train.epochs, lr_step_size)`
-    lr_step_size: 10 # for linear decay : period of learning rate decay (epochs)
+    lr_step_size: 30 # for linear decay : period of learning rate decay (epochs)
     lr_milestones: 15
     lr_gamma: 0.5 # Multiplicative factor of learning rate decay
   default:
@@ -157,8 +215,8 @@ dis:
     ndf: 64
     n_layers: 4
     norm: instance
-    init_type: kaiming
-    init_gain: 0.2
+    init_type: xavier
+    init_gain: 0.02
     use_sigmoid: false
     num_D: 1 #Number of discriminators to use (>1 means multi-scale)
     get_intermediate_features: false
@@ -173,11 +231,12 @@ dis:
     multi_level: false
     architecture: base # can be [base | OmniDiscriminator]
     gan_type: WGAN_norm # can be [GAN | WGAN | WGAN_gp | WGAN_norm]
-    wgan_clamp_lower: -0.01 # used in WGAN, WGAN clap the params in dis to [wgan_clamp_lower, wgan_clamp_upper] for every updation
+    wgan_clamp_lower: -0.01 # used in WGAN, WGAN clap the params in dis to [wgan_clamp_lower, wgan_clamp_upper] for every update
     wgan_clamp_upper: 0.01 # used in WGAN
   s:
+    <<: *default-dis
     gan_type: WGAN_norm # can be [GAN | WGAN | WGAN_gp | WGAN_norm]
-    wgan_clamp_lower: -0.01 # used in WGAN, WGAN clap the params in dis to [wgan_clamp_lower, wgan_clamp_upper] for every updation
+    wgan_clamp_lower: -0.01 # used in WGAN, WGAN clap the params in dis to [wgan_clamp_lower, wgan_clamp_upper] for every update
     wgan_clamp_upper: 0.01 # used in WGAN
 # -------------------------------
 # -----  Domain Classifier  -----
@@ -202,9 +261,17 @@ classifier:
 # ----- Train Params -----
 # ------------------------
 train:
+  kitti:
+    pretrain: False
+    epochs: 10
+    batch_size: 6
+  amp: False
+  pseudo:
+    tasks: [] # list of tasks for which to use pseudo labels (empty list to disable)
+    epochs: 10 # disable pseudo training after n epochs (set to -1 to never disable)
   epochs: 300
   fid:
-    n_images: 100
+    n_images: 57 # val_rf.json has 57 images
     batch_size: 50 # inception inference batch size, not painter's
     dims: 2048 # what Inception bock to compute the stats from (see BLOCK_INDEX_BY_DIM in fid.py)
   latent_domain_adaptation: False # whether or not to do domain adaptation on the latent vectors # Needs to be turned off if use_advent is True
@@ -222,15 +289,15 @@ train:
         bce: 1 # Main prediction loss, i.e. GAN or BCE
         tv: 1 # Total variational loss (for smoothing)
         gi: 0.05
+        pl4m: 1 # painter loss for the masker (end-to-end)
       p:
-        gan: 1 # gan loss
-        sm: 1 # semantic matching
+        context: 0
         dm: 1 # depth matching
-        tv: 5
-        vgg: 10
-        context: 12
-        reconstruction: 20
         featmatch: 10
+        gan: 1 # gan loss
+        reconstruction: 0
+        tv: 0
+        vgg: 10
       classifier: 1
     C: 1
     advent:
@@ -243,7 +310,8 @@ train:
       dis_aux: 0.0 # the discriminator take care of the second output in the adversarial training
       WGAN_gp: 10 # used in WGAN_gp, it's the hyperparameters for the gradient penalty
   log_level: 2 # 0: no log, 1: only aggregated losses, >1 detailed losses
-  save_n_epochs: 1 # Save model every n epochs
+  save_n_epochs: 25 # Save `latest_ckpt.pth` every epoch, `epoch_{epoch}_ckpt.pth` model every n epochs if epoch >= min_save_epoch
+  min_save_epoch: 28 # Save extra intermediate checkpoints when epoch > min_save_epoch
   resume: false # Load latest_ckpt.pth checkpoint from `output_path` #TODO Make this path of checkpoint to load
   auto_resume: true # automatically looks for similar output paths and exact same jobID to resume training automatically even if resume is false.
 
@@ -252,6 +320,7 @@ train:
 # -----------------------------
 val:
   store_images: false # write to disk on top of comet logging
+  val_painter: /miniscratch/_groups/ccai/checkpoints/painter/victor/good_large_lr/checkpoints/latest_ckpt.pth
 # -----------------------------
 # ----- Comet Params ----------
 # -----------------------------
@@ -260,6 +329,17 @@ comet:
   rows_per_log: 5 # number of samples (rows) in a logged grid image. Number of total logged images: display_size // rows_per_log
   im_per_row: # how many columns (3 = x, target, pred)
     p: 4
-    m: 4
-    s: 3
-    d: 3
+    m: 6
+    s: 4
+    d: 4
+events:
+  fire:
+    color:
+      r: 244
+      g: 141
+      b: 48
+    blur_radius: 150
+  smog:
+    airlight: 0.76
+    beta: 2
+    vr: 1

@@ -102,7 +102,7 @@ def eval_folder(
         img = img.unsqueeze(0).to(device)
 
         if not masker and paint:
-            mask = tensor_loader(masks[i], task="m", domain="val", binarize=False)
+            mask = tensor_loader(masks[i], task="m", domain="val")
             # mask = F.interpolate(mask, (new_size, new_size), mode="nearest")
             mask = mask.squeeze()
             mask = mask.unsqueeze(0).to(device)
@@ -117,7 +117,7 @@ def eval_folder(
                         (z, label_val * trainer.label_2[0, :, :, :].unsqueeze(0)),
                         dim=1,
                     )
-                    mask = model.decoders["m"](z_aug)
+                    mask = model.mask(z=z_aug)
 
                     vutils.save_image(
                         mask,
@@ -133,15 +133,13 @@ def eval_folder(
                         )
 
             else:
-                z = model.encode(img)
-                mask = model.decoders["m"](z)
+                mask = model.mask(x=img)
                 vutils.save_image(
                     mask, output_dir / ("mask_" + img_path.name), normalize=True
                 )
 
         if paint:
-            z_painter = trainer.sample_z(1) if not trainer.no_z else None
-            fake_flooded = model.painter(z_painter, img * (1.0 - mask))
+            fake_flooded = model.paint(mask, img)
             vutils.save_image(fake_flooded, output_dir / img_path.name, normalize=True)
             if apply_mask:
                 vutils.save_image(
@@ -217,6 +215,8 @@ if __name__ == "__main__":
         new_size = args.new_size
         if "s" in opts.tasks:
             model.decoders["s"].set_target_size(new_size)
+        if "d" in opts.tasks and opts.gen.d.architecture == "base":
+            model.decoders["d"].set_target_size(new_size)
 
     # ----------------------------
     # -----  Iterate images  -----
