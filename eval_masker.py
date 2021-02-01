@@ -24,7 +24,13 @@ from omnigan.data import encode_mask_label
 from omnigan.utils import find_images
 from omnigan.trainer import Trainer
 from omnigan.transforms import PrepareTest
-from omnigan.eval_metrics import pred_cannot, missed_must, may_flood, masker_metrics, get_confusion_matrix
+from omnigan.eval_metrics import (
+    pred_cannot,
+    missed_must,
+    may_flood,
+    masker_metrics,
+    get_confusion_matrix,
+)
 
 print("Ok.")
 
@@ -101,42 +107,48 @@ def plot_images(
         "pred": "Greens",
     },
 ):
-    f, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(1, 5, dpi=dpi)
+    f, axes = plt.subplots(1, 5, dpi=dpi)
 
     # FPR (predicted mask on cannot flood)
-    ax1.imshow(img)
-    fp_map_plt = ax1.imshow(fp_map, vmin=vmin, vmax=vmax, cmap=cmap["fp"], alpha=alpha)
-    ax1.axis("off")
-    ax1.set_title("FPR: {:.4f}".format(fpr), fontsize=fontsize)
+    axes[0].imshow(img)
+    fp_map_plt = axes[0].imshow(
+        fp_map, vmin=vmin, vmax=vmax, cmap=cmap["fp"], alpha=alpha
+    )
+    axes[0].axis("off")
+    axes[0].set_title("FPR: {:.4f}".format(fpr), fontsize=fontsize)
 
     # FNR (missed mask on must flood)
-    ax2.imshow(img)
-    fn_map_plt = ax2.imshow(fn_map, vmin=vmin, vmax=vmax, cmap=cmap["fn"], alpha=alpha)
-    ax2.axis("off")
-    ax2.set_title("FNR: {:.4f}".format(fnr), fontsize=fontsize)
+    axes[1].imshow(img)
+    fn_map_plt = axes[1].imshow(
+        fn_map, vmin=vmin, vmax=vmax, cmap=cmap["fn"], alpha=alpha
+    )
+    axes[1].axis("off")
+    axes[1].set_title("FNR: {:.4f}".format(fnr), fontsize=fontsize)
 
     # May flood
-    ax3.imshow(img)
-    may_neg_map_plt = ax3.imshow(
+    axes[2].imshow(img)
+    may_neg_map_plt = axes[2].imshow(
         may_neg_map, vmin=vmin, vmax=vmax, cmap=cmap["may_neg"], alpha=alpha
     )
-    may_pos_map_plt = ax3.imshow(
+    may_pos_map_plt = axes[2].imshow(
         may_pos_map, vmin=vmin, vmax=vmax, cmap=cmap["may_pos"], alpha=alpha
     )
-    ax3.axis("off")
-    ax3.set_title("MNR: {:.2f} | MPR: {:.2f}".format(mnr, mpr), fontsize=fontsize)
+    axes[2].axis("off")
+    axes[2].set_title("MNR: {:.2f} | MPR: {:.2f}".format(mnr, mpr), fontsize=fontsize)
 
     # Prediction
-    ax4.imshow(img)
-    pred_mask = ax4.imshow(pred, vmin=vmin, vmax=vmax, cmap=cmap["pred"], alpha=alpha)
-    ax4.set_title("Predicted mask", fontsize=fontsize)
-    ax4.axis("off")
+    axes[3].imshow(img)
+    pred_mask = axes[3].imshow(
+        pred, vmin=vmin, vmax=vmax, cmap=cmap["pred"], alpha=alpha
+    )
+    axes[3].set_title("Predicted mask", fontsize=fontsize)
+    axes[3].axis("off")
 
     # Labels
-    ax5.imshow(img)
-    label_mask = ax5.imshow(label, alpha=alpha)
-    ax5.set_title("Labels", fontsize=fontsize)
-    ax5.axis("off")
+    axes[4].imshow(img)
+    label_mask = axes[4].imshow(label, alpha=alpha)
+    axes[4].set_title("Labels", fontsize=fontsize)
+    axes[4].axis("off")
 
     f.savefig(
         output_filename,
@@ -195,7 +207,7 @@ if __name__ == "__main__":
         tmp_dir = Path(os.environ["SLURM_TMPDIR"])
     except:
         tmp_dir = input("Enter tmp output directory: ")
-    plot_dir = tmp_dir.joinpath('plots')
+    plot_dir = tmp_dir.joinpath("plots")
     plot_dir.mkdir(parents=True, exist_ok=True)
 
     # Initialize Comet Experiment
@@ -239,6 +251,8 @@ if __name__ == "__main__":
     print("Obtain mask predictions", end="", flush=True)
     if not os.path.isdir(args.model):
         preds_paths = sorted(find_images(args.preds_dir, recursive=False))
+        if args.limit > 0:
+            preds_paths = preds_paths[: args.limit]
         preds = img_preprocessing(preds_paths)
         preds = [
             np.squeeze(np.divide(pred.numpy(), np.max(pred.numpy()))[:, 0, :, :])
@@ -295,31 +309,48 @@ if __name__ == "__main__":
         # Confusion matrix
         confmat, _ = get_confusion_matrix(tpr, tnr, fpr, fnr, mpr, mnr)
         confmat = [list(row) for row in confmat]
-#         exp.log_confusion_matrix(file_name=Path(str(imgs_paths[idx]) + '.json'),
-#                 title=imgs_paths[idx], matrix=confmat, labels=['Cannot', 'Must',
-#                     'May'], row_label='Predicted', col_label='Ground truth')
+        exp.log_confusion_matrix(
+            file_name=Path(imgs_paths[idx].name + ".json"),
+            title=imgs_paths[idx].name,
+            matrix=confmat,
+            labels=["Cannot", "Must", "May"],
+            row_label="Predicted",
+            column_label="Ground truth",
+        )
 
         # Plot prediction images
-        fig_filename = plot_dir.joinpath(imgs_paths[idx])
-        plot_images(fig_filename, img, label, pred, fp_map, fn_map, may_neg_map, may_pos_map)
+        fig_filename = plot_dir.joinpath(imgs_paths[idx].name)
+        plot_images(
+            fig_filename, img, label, pred, fp_map, fn_map, may_neg_map, may_pos_map
+        )
         exp.log_image(fig_filename)
 
     # Summary statistics
     means = df.mean(axis=0)
-    confmat_mean, confmat_std = get_confusion_matrix(df.tpr, df.tnr, df.fpr,
-            df.fnr, df.mpr, df.mnr)
+    confmat_mean, confmat_std = get_confusion_matrix(
+        df.tpr, df.tnr, df.fpr, df.fnr, df.mpr, df.mnr
+    )
     confmat_mean = [list(row) for row in confmat_mean]
     confmat_std = [list(row) for row in confmat_std]
 
     # Log to comet
-    exp.log_confusion_matrix(file_name='confusion_matrix_mean.json',
-            title=imgs_paths[idx], matrix=confmat_mean, labels=['Cannot', 'Must',
-                'May'], row_label='Predicted', col_label='Ground truth')
-    exp.log_confusion_matrix(file_name='confusion_matrix_std.json',
-            title=imgs_paths[idx], matrix=confmat_std, labels=['Cannot', 'Must',
-                'May'], row_label='Predicted', col_label='Ground truth')
+    exp.log_confusion_matrix(
+        file_name="confusion_matrix_mean.json",
+        title=imgs_paths[idx].name,
+        matrix=confmat_mean,
+        labels=["Cannot", "Must", "May"],
+        row_label="Predicted",
+        column_label="Ground truth",
+    )
+    exp.log_confusion_matrix(
+        file_name="confusion_matrix_std.json",
+        title=imgs_paths[idx].name,
+        matrix=confmat_std,
+        labels=["Cannot", "Must", "May"],
+        row_label="Predicted",
+        column_label="Ground truth",
+    )
     exp.log_table("csv", df)
     exp.log_html(df.to_html(col_space="80px"))
     exp.log_metrics(dict(means))
     exp.log_parameters(vars(args))
-
