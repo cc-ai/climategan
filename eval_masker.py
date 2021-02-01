@@ -308,6 +308,7 @@ if __name__ == "__main__":
 
         # Confusion matrix
         confmat, _ = get_confusion_matrix(tpr, tnr, fpr, fnr, mpr, mnr)
+        confmat = np.around(confmat, decimals=3)
         confmat = [list(row) for row in confmat]
         exp.log_confusion_matrix(
             file_name=Path(imgs_paths[idx].name + ".json"),
@@ -330,6 +331,8 @@ if __name__ == "__main__":
     confmat_mean, confmat_std = get_confusion_matrix(
         df.tpr, df.tnr, df.fpr, df.fnr, df.mpr, df.mnr
     )
+    confmat_mean = np.around(confmat_mean, decimals=3)
+    confmat_std = np.around(confmat_std, decimals=3)
     confmat_mean = [list(row) for row in confmat_mean]
     confmat_std = [list(row) for row in confmat_std]
 
