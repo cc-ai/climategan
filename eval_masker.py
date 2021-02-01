@@ -30,6 +30,7 @@ from omnigan.eval_metrics import (
     may_flood,
     masker_metrics,
     get_confusion_matrix,
+    edges_coherence_std_min,
 )
 
 print("Ok.")
@@ -130,25 +131,27 @@ def plot_images(
 
     # May flood
     axes[2].imshow(img)
-    if pred_edge and label_edge:
-        alpha_here = alpha / 4.
-        title = "MNR: {:.2f} | MPR: {:.2f}\nEdge coh.: {:.4f}".format(mnr, mpr, edge_coherence)
-        pred_edge_plt = axes[2].imshow(
-            1.0 - pred_edge, cmap="gray", alpha=alpha_here
+    if edge_coherence != -1:
+        title = "MNR: {:.2f} | MPR: {:.2f}\nEdge coh.: {:.4f}".format(
+            mnr, mpr, edge_coherence
         )
-        label_edge_plt = axes[2].imshow(
-            1.0 - label_edge, cmap="gray", alpha=alpha_here
-        )
+    #         alpha_here = alpha / 4.
+    #         pred_edge_plt = axes[2].imshow(
+    #             1.0 - pred_edge, cmap="gray", alpha=alpha_here
+    #         )
+    #         label_edge_plt = axes[2].imshow(
+    #             1.0 - label_edge, cmap="gray", alpha=alpha_here
+    #         )
     else:
-        alpha_here = alpha / 2.
         title = "MNR: {:.2f} | MPR: {:.2f}".format(mnr, mpr)
+    #         alpha_here = alpha / 2.
     may_neg_map_plt = axes[2].imshow(
-        may_neg_map, vmin=vmin, vmax=vmax, cmap=cmap["may_neg"], alpha=alpha_here
+        may_neg_map, vmin=vmin, vmax=vmax, cmap=cmap["may_neg"], alpha=alpha
     )
     may_pos_map_plt = axes[2].imshow(
-        may_pos_map, vmin=vmin, vmax=vmax, cmap=cmap["may_pos"], alpha=alpha_here
+        may_pos_map, vmin=vmin, vmax=vmax, cmap=cmap["may_pos"], alpha=alpha
     )
-        axes[2].set_title("MNR: {:.2f} | MPR: {:.2f}".format(mnr, mpr), fontsize=fontsize)
+    axes[2].set_title(title, fontsize=fontsize)
     axes[2].axis("off")
 
     # Prediction
@@ -313,7 +316,7 @@ if __name__ == "__main__":
         )
 
         # Edges coherence
-        edge_coherence, pred_edge, label_edge = edge_coherence_std_min(pred, label)
+        edge_coherence, pred_edge, label_edge = edges_coherence_std_min(pred, label)
 
         df.loc[idx] = pd.Series(
             {
@@ -345,7 +348,17 @@ if __name__ == "__main__":
         # Plot prediction images
         fig_filename = plot_dir.joinpath(imgs_paths[idx].name)
         plot_images(
-            fig_filename, img, label, pred, fp_map, fn_map, may_neg_map, may_pos_map
+            fig_filename,
+            img,
+            label,
+            pred,
+            fp_map,
+            fn_map,
+            may_neg_map,
+            may_pos_map,
+            edge_coherence,
+            pred_edge,
+            label_edge,
         )
         exp.log_image(fig_filename)
     print(" Done.")

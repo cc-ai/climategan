@@ -1,6 +1,8 @@
 import numpy as np
 import cv2
 import torch
+from skimage import filters
+from sklearn.metrics.pairwise import euclidean_distances
 
 # ------------------------------------------------------------------------------
 # ----- Evaluation metrics for a pair of binary mask images (pred, target) -----
@@ -339,7 +341,7 @@ def get_confusion_matrix(tpr, tnr, fpr, fnr, mpr, mnr):
     return confusion_matrix, confusion_matrix_std
 
 
-def edges_coherence_std_min(pred, label, label_must, bin_th=0.5):
+def edges_coherence_std_min(pred, label, label_must=1, bin_th=0.5):
     """
     The standard deviation of the minimum distance between the edge of the prediction
     and the edge of the "must flood" label.
@@ -370,26 +372,26 @@ def edges_coherence_std_min(pred, label, label_must, bin_th=0.5):
         The edges images of the "must flood" label, for visualization
     """
     # Keep must flood label only
-    label[label != must_label] = -1
-    label[label == must_label] = 1
-    label[label != must_label] = 0
+    label[label != label_must] = -1
+    label[label == label_must] = 1
+    label[label != label_must] = 0
     label = np.asarray(label, dtype=float)
-    
+
     # Binarize prediction
     pred = np.asarray(pred > bin_th, dtype=float)
-    
+
     # Compute edges
     pred = filters.sobel(pred)
     label = filters.sobel(label)
-    
+
     # Location of edges
     pred_coord = np.argwhere(pred > 0)
     label_coord = np.argwhere(label > 0)
-    
+
     # Normalized pairwise distances between pred and label
     dist_mat = np.divide(euclidean_distances(pred_coord, label_coord), pred.shape[0])
-    
+
     # Standard deviation of the minimum distance from pred to label
     edge_coherence = np.std(np.min(dist_mat, axis=1))
-    
+
     return edge_coherence, pred, label
