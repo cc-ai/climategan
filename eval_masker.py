@@ -94,6 +94,9 @@ def plot_images(
     fn_map,
     may_neg_map,
     may_pos_map,
+    edge_coherence=-1,
+    pred_edge=None,
+    label_edge=None,
     dpi=300,
     alpha=0.5,
     vmin=0.0,
@@ -127,14 +130,26 @@ def plot_images(
 
     # May flood
     axes[2].imshow(img)
+    if pred_edge and label_edge:
+        alpha_here = alpha / 4.
+        title = "MNR: {:.2f} | MPR: {:.2f}\nEdge coh.: {:.4f}".format(mnr, mpr, edge_coherence)
+        pred_edge_plt = axes[2].imshow(
+            1.0 - pred_edge, cmap="gray", alpha=alpha_here
+        )
+        label_edge_plt = axes[2].imshow(
+            1.0 - label_edge, cmap="gray", alpha=alpha_here
+        )
+    else:
+        alpha_here = alpha / 2.
+        title = "MNR: {:.2f} | MPR: {:.2f}".format(mnr, mpr)
     may_neg_map_plt = axes[2].imshow(
-        may_neg_map, vmin=vmin, vmax=vmax, cmap=cmap["may_neg"], alpha=alpha
+        may_neg_map, vmin=vmin, vmax=vmax, cmap=cmap["may_neg"], alpha=alpha_here
     )
     may_pos_map_plt = axes[2].imshow(
-        may_pos_map, vmin=vmin, vmax=vmax, cmap=cmap["may_pos"], alpha=alpha
+        may_pos_map, vmin=vmin, vmax=vmax, cmap=cmap["may_pos"], alpha=alpha_here
     )
+        axes[2].set_title("MNR: {:.2f} | MPR: {:.2f}".format(mnr, mpr), fontsize=fontsize)
     axes[2].axis("off")
-    axes[2].set_title("MNR: {:.2f} | MPR: {:.2f}".format(mnr, mpr), fontsize=fontsize)
 
     # Prediction
     axes[3].imshow(img)
@@ -278,6 +293,7 @@ if __name__ == "__main__":
             "tnr",
             "precision",
             "f1",
+            "edge_coherence",
             "filename",
         ]
     )
@@ -288,12 +304,16 @@ if __name__ == "__main__":
         img = np.moveaxis(np.squeeze(img), 0, -1)
         label = np.squeeze(label)
 
+        # Basic metrics
         fp_map, fpr = pred_cannot(pred, label, label_cannot=0)
         fn_map, fnr = missed_must(pred, label, label_must=1)
         may_neg_map, may_pos_map, mnr, mpr = may_flood(pred, label, label_may=2)
         tpr, tnr, precision, f1 = masker_metrics(
             pred, label, label_cannot=0, label_must=1
         )
+
+        # Edges coherence
+        edge_coherence, pred_edge, label_edge = edge_coherence_std_min(pred, label)
 
         df.loc[idx] = pd.Series(
             {
@@ -305,6 +325,7 @@ if __name__ == "__main__":
                 "tnr": tnr,
                 "precision": precision,
                 "f1": f1,
+                "edge_coherence": edge_coherence,
                 "filename": os.path.basename(imgs_paths[idx]),
             }
         )
