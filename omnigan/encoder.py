@@ -1,7 +1,5 @@
-import torch
 import torch.nn as nn
 from omnigan.blocks import Conv2dBlock, ResBlocks
-from omnigan.deeplabv2 import ResNetMulti, Bottleneck
 
 
 class BaseEncoder(nn.Module):
@@ -55,30 +53,6 @@ class BaseEncoder(nn.Module):
         )
         # self.model = nn.Sequential(*self.model)
         self.output_dim = dim
-
-    def forward(self, x):
-        return self.model(x)
-
-
-class DeeplabV2Encoder(nn.Module):
-    def __init__(self, opts, no_init=False, verbose=0):
-        """Deeplab architecture encoder
-        """
-        super().__init__()
-
-        self.model = ResNetMulti(
-            Bottleneck, opts.gen.deeplabv2.nblocks, opts.gen.encoder.n_res
-        )
-        if opts.gen.deeplabv2.use_pretrained and not no_init:
-            saved_state_dict = torch.load(opts.gen.deeplabv2.pretrained_model)
-            new_params = self.model.state_dict().copy()
-            for i in saved_state_dict:
-                i_parts = i.split(".")
-                if not i_parts[1] in ["layer5", "resblock"]:
-                    new_params[".".join(i_parts[1:])] = saved_state_dict[i]
-            self.model.load_state_dict(new_params)
-            if verbose > 0:
-                print("    - Loaded pretrained weights")
 
     def forward(self, x):
         return self.model(x)
