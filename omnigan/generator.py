@@ -161,7 +161,7 @@ class OmniGenerator(nn.Module):
             out["z_depth"] = z_depth
 
         if "s" in self.decoders:
-            s = self.decoders["d"](z, z_depth)
+            s = self.decoders["s"](z, z_depth)
             out["s"] = s
 
         if "m" in self.decoders:
