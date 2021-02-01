@@ -45,7 +45,7 @@ def parsed_args():
     """
     parser = ArgumentParser()
     parser.add_argument(
-        "--model", required=True, type=str, help="Path to a pre-trained model",
+        "--model", type=str, help="Path to a pre-trained model",
     )
     parser.add_argument(
         "--images_dir",
