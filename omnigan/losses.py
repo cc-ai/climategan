@@ -512,7 +512,7 @@ class ADVENTAdversarialLoss(nn.Module):
         else:
             raise NotImplementedError
 
-    def __call__(self, prediction, target, discriminator):
+    def __call__(self, prediction, target, discriminator, depth_preds=None):
         """
         Compute the GAN loss from the Advent Discriminator given
         normalized (softmaxed) predictions (=pixel-wise class probabilities),
@@ -526,7 +526,10 @@ class ADVENTAdversarialLoss(nn.Module):
         Returns:
             torch.Tensor: float 0-D loss
         """
-        d_out = discriminator(prob_2_entropy(prediction))
+        d_out = prob_2_entropy(prediction)
+        if depth_preds is not None:
+            d_out = d_out * depth_preds
+        d_out = discriminator(d_out)
         if self.opts.dis.m.architecture == "OmniDiscriminator":
             d_out = multiDiscriminatorAdapter(d_out, self.opts)
         loss_ = self.loss(d_out, target)
@@ -603,8 +606,10 @@ class HingeLoss(nn.Module):
 
 
 class DADADepthLoss:
-    """
-    From https://github.com/valeoai/DADA/blob/master/dada/utils/func.py
+    """ Defines the reverse Huber loss from DADA paper for depth prediction
+        - Samples with larger residuals are penalized more by l2 term
+        - Samples with smaller residuals are penalized more by l1 term
+        From https://github.com/valeoai/DADA/blob/master/dada/utils/func.py
     """
 
     def loss_calc_depth(self, pred, label):

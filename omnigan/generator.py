@@ -11,16 +11,25 @@ from torch import softmax
 import omnigan.strings as strings
 from omnigan.blocks import (
     BaseDecoder,
+    Conv2dBlock,
     DADADepthRegressionDecoder,
     InterpolateNearest2d,
     PainterSpadeDecoder,
     SPADEResnetBlock,
-    Conv2dBlock,
 )
-from omnigan.deeplabv2 import DeepLabV2Decoder
-from omnigan.deeplabv3 import DeepLabV3Decoder, build_backbone
-from omnigan.encoder import BaseEncoder, DeeplabV2Encoder
-from omnigan.tutils import init_weights, normalize
+from omnigan.deeplab import (
+    DeepLabV2Decoder,
+    DeeplabV2Encoder,
+    DeepLabV3Decoder,
+    build_v3_backbone,
+)
+from omnigan.encoder import BaseEncoder
+from omnigan.tutils import init_weights, normalize, mix_noise
+from omnigan.utils import find_target_size
+
+from pathlib import Path
+import yaml
+from addict import Dict
 
 
 def get_gen(opts, latent_shape=None, verbose=0, no_init=False):
@@ -76,21 +85,18 @@ class OmniGenerator(nn.Module):
         self.encoder = None
         if any(t in opts.tasks for t in "msd"):
             if opts.gen.encoder.architecture == "deeplabv2":
+                if self.verbose > 0:
+                    print("  - Add Deeplabv2 Encoder")
                 self.encoder = DeeplabV2Encoder(opts, no_init, verbose)
-                if self.verbose > 0:
-                    print("  - Created Deeplabv2 Encoder")
             elif opts.gen.encoder.architecture == "deeplabv3":
-                self.encoder = build_backbone(opts, no_init)
                 if self.verbose > 0:
-                    print(
-                        "  - Created Deeplabv3 ({}) Encoder".format(
-                            opts.gen.deeplabv3.backbone
-                        )
-                    )
+                    backone = opts.gen.deeplabv3.backbone
+                    print("  - Add Deeplabv3 ({}) Encoder".format(backone))
+                self.encoder = build_v3_backbone(opts, no_init)
             else:
                 self.encoder = BaseEncoder(opts)
                 if self.verbose > 0:
-                    print("  - Created Base Encoder")
+                    print("  - Add Base Encoder")
 
         self.decoders = {}
 
@@ -101,17 +107,17 @@ class OmniGenerator(nn.Module):
                 self.decoders["d"] = DADADepthRegressionDecoder(opts)
 
             if self.verbose > 0:
-                print(f"  - Created {self.decoders['d'].__class__.__name__}")
+                print(f"  - Add {self.decoders['d'].__class__.__name__}")
 
         if "s" in opts.tasks:
             if opts.gen.s.architecture == "deeplabv2":
                 self.decoders["s"] = DeepLabV2Decoder(opts)
                 if self.verbose > 0:
-                    print("  - Created DeepLabV2Decoder")
+                    print("  - Add DeepLabV2Decoder")
             elif opts.gen.s.architecture == "deeplabv3":
-                self.decoders["s"] = DeepLabV3Decoder(opts)
+                self.decoders["s"] = DeepLabV3Decoder(opts, no_init)
                 if self.verbose > 0:
-                    print("  - Created DeepLabV3Decoder")
+                    print("  - Add DeepLabV3Decoder")
             else:
                 raise NotImplementedError(
                     "Unknown architecture {}".format(opts.gen.s.architecture)
@@ -119,7 +125,7 @@ class OmniGenerator(nn.Module):
 
         if "m" in opts.tasks:
             if self.verbose > 0:
-                print("  - Created Mask Decoder")
+                print("  - Add Mask Decoder")
             if self.opts.gen.m.use_spade:
                 assert "d" in self.opts.tasks or "s" in self.opts.tasks
                 self.decoders["m"] = MaskSpadeDecoder(opts)
@@ -131,11 +137,11 @@ class OmniGenerator(nn.Module):
         if "p" in self.opts.tasks:
             self.painter = PainterSpadeDecoder(opts)
             if self.verbose > 0:
-                print("  - Created PainterSpadeDecoder Painter")
+                print("  - Add PainterSpadeDecoder Painter")
         else:
             self.painter = nn.Module()
             if self.verbose > 0:
-                print("  - Created Empty Painter")
+                print("  - Add Empty Painter")
 
     def encode(self, x):
         assert self.encoder is not None
@@ -162,6 +168,9 @@ class OmniGenerator(nn.Module):
         return z
 
     def make_m_cond(self, d, s, x):
+        if self.opts.gen.m.spade.detach:
+            d = d.detach()
+            s = s.detach()
         cats = [normalize(d), softmax(s, dim=1)]
         if self.opts.gen.m.spade.cond_nc == 15:
             assert x is not None
@@ -180,7 +189,9 @@ class OmniGenerator(nn.Module):
         if cond is None and self.opts.gen.m.use_spade:
             assert "s" in self.opts.tasks and "d" in self.opts.tasks
             with torch.no_grad():
-                cond = self.make_m_cond(self.decoders["d"](z), self.decoders["s"](z), x)
+                d_pred, z_depth = self.decoders["d"](z)
+                s_pred = self.decoders["s"](z, z_depth)
+                cond = self.make_m_cond(d_pred, s_pred, x)
 
         if cond is not None:
             device = z[0].device if isinstance(z, (tuple, list)) else z.device
@@ -193,7 +204,7 @@ class OmniGenerator(nn.Module):
 
         return torch.sigmoid(logits)
 
-    def paint(self, m, x):
+    def paint(self, m, x, no_paste=False):
         """
         Paints given a mask and an image
         calls painter(z, x * (1.0 - m))
@@ -209,9 +220,20 @@ class OmniGenerator(nn.Module):
         z_paint = self.sample_painter_z(x.shape[0], x.device)
         m = m.to(x.dtype)
         fake = self.painter(z_paint, x * (1.0 - m))
-        if self.opts.gen.p.paste_original_content:
+        if self.opts.gen.p.paste_original_content and not no_paste:
             return x * (1.0 - m) + fake * m
         return fake
+
+    def paint_cloudy(self, m, x, s, sky_idx=9, res=(8, 8), weight=0.8):
+        sky_mask = (
+            torch.argmax(
+                F.interpolate(s, x.shape[-2:], mode="bilinear"), dim=1, keepdim=True
+            )
+            == sky_idx
+        ).to(x.dtype)
+        noised_x = mix_noise(x, sky_mask, res=res, weight=weight).to(x.dtype)
+        fake = self.paint(m, noised_x, no_paste=True)
+        return x * (1.0 - m) + fake * m
 
     def depth_image(self, x=None, z=None):
         assert x is not None or z is not None
@@ -225,6 +247,28 @@ class OmniGenerator(nn.Module):
             logits = logits / logits.max()
 
         return logits
+
+    def load_val_painter(self):
+        try:
+            assert self.opts.val.val_painter
+            ckpt_path = Path(self.opts.val.val_painter).resolve()
+            assert ckpt_path.exists()
+            opts_path = ckpt_path.parent.parent / "opts.yaml"
+            assert opts_path.exists()
+            with opts_path.open("r") as f:
+                val_painter_opts = Dict(yaml.safe_load(f))
+            state_dict = torch.load(ckpt_path)
+            painter = PainterSpadeDecoder(val_painter_opts)
+            painter.load_state_dict(
+                {k.replace("painter.", ""): v for k, v in state_dict["G"].items()}
+            )
+            self.painter = painter
+            print("    - Loaded validation-only painter")
+            return True
+        except Exception as e:
+            print(e)
+            print(">>> WARNINT: error (^) in load_val_painter, aborting.")
+            return False
 
 
 class MaskBaseDecoder(BaseDecoder):
@@ -284,7 +328,12 @@ class BaseDepthDecoder(BaseDecoder):
             else opts.gen.d.classify.linspace.buckets
         )
 
-        self._target_size = None
+        self._target_size = find_target_size(opts, "d")
+        print(
+            "      - {}:  setting target size to {}".format(
+                self.__class__.__name__, self._target_size
+            )
+        )
 
         super().__init__(
             n_upsample=n_upsample,
@@ -319,9 +368,11 @@ class BaseDepthDecoder(BaseDecoder):
 
         d = super().forward(z)
 
-        return F.interpolate(
+        preds = F.interpolate(
             d, size=self._target_size, mode="bilinear", align_corners=True
         )
+
+        return preds, None
 
 
 class MaskSpadeDecoder(nn.Module):
@@ -447,16 +498,8 @@ class MaskSpadeDecoder(nn.Module):
                 norm="spectral_batch",
             )
         else:
-            self.input_dim = opts.gen.default.res_dim
-            self.fc_conv = Conv2dBlock(
-                self.input_dim,
-                self.z_nc,
-                3,
-                padding=1,
-                activation="lrelu",
-                pad_type="reflect",
-                norm="spectral_batch",
-            )
+            raise ValueError("Unknown encoder type")
+
         self.spade_blocks = []
 
         for i in range(self.num_layers):
