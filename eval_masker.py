@@ -73,7 +73,7 @@ def parsed_args():
         help="The height and weight of the pre-processed images",
     )
     parser.add_argument(
-        "--limit",
+        "--max_files",
         default=-1,
         type=int,
         help="Limit loaded samples",
@@ -157,6 +157,7 @@ def plot_images(
         facecolor="white",
         transparent=False,
     )
+    plt.close(f)
 
 
 def get_inferences(image_arrays, model_path, verbose=0):
@@ -216,9 +217,9 @@ if __name__ == "__main__":
     # Build paths to data
     imgs_paths = sorted(find_images(args.images_dir, recursive=False))
     labels_paths = sorted(find_images(args.labels_dir, recursive=False))
-    if args.limit > 0:
-        imgs_paths = imgs_paths[: args.limit]
-        labels_paths = labels_paths[: args.limit]
+    if args.max_files > 0:
+        imgs_paths = imgs_paths[: args.max_files]
+        labels_paths = labels_paths[: args.max_files]
 
     print(f"Loaded {len(imgs_paths)} images and labels")
 
@@ -251,15 +252,15 @@ if __name__ == "__main__":
     print("Obtain mask predictions", end="", flush=True)
     if not os.path.isdir(args.model):
         preds_paths = sorted(find_images(args.preds_dir, recursive=False))
-        if args.limit > 0:
-            preds_paths = preds_paths[: args.limit]
+        if args.max_files > 0:
+            preds_paths = preds_paths[: args.max_files]
         preds = img_preprocessing(preds_paths)
         preds = [
             np.squeeze(np.divide(pred.numpy(), np.max(pred.numpy()))[:, 0, :, :])
             for pred in preds
         ]
     else:
-        preds = get_inferences(imgs, args.model)
+        preds = get_inferences(imgs, args.model, verbose=1)
         preds = [pred.numpy() for pred in preds]
     print(" Done.")
 
@@ -281,7 +282,9 @@ if __name__ == "__main__":
         ]
     )
 
+    print("Compute metrics and plot images", end="", flush=True)
     for idx, (img, label, pred) in enumerate(zip(*(imgs, labels, preds))):
+        print(idx, "/", len(imgs), end="\r")
         img = np.moveaxis(np.squeeze(img), 0, -1)
         label = np.squeeze(label)
 
@@ -324,6 +327,7 @@ if __name__ == "__main__":
             fig_filename, img, label, pred, fp_map, fn_map, may_neg_map, may_pos_map
         )
         exp.log_image(fig_filename)
+    print(" Done.")
 
     # Summary statistics
     means = df.mean(axis=0)
