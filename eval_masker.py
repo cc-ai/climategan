@@ -187,7 +187,6 @@ if __name__ == "__main__":
     # -----------------------------
     # -----  Parse arguments  -----
     # -----------------------------
-
     args = parsed_args()
     print("Args:\n" + "\n".join([f"    {k:20}: {v}" for k, v in vars(args).items()]))
 
@@ -295,7 +294,10 @@ if __name__ == "__main__":
 
         # Confusion matrix
         confmat, _ = get_confusion_matrix(tpr, tnr, fpr, fnr, mpr, mnr)
-        exp.log_confusion_matrix(matrix=confmat, title=imgs_paths[idx])
+        confmat = [list(row) for row in confmat]
+#         exp.log_confusion_matrix(file_name=Path(str(imgs_paths[idx]) + '.json'),
+#                 title=imgs_paths[idx], matrix=confmat, labels=['Cannot', 'Must',
+#                     'May'], row_label='Predicted', col_label='Ground truth')
 
         # Plot prediction images
         fig_filename = plot_dir.joinpath(imgs_paths[idx])
@@ -306,9 +308,16 @@ if __name__ == "__main__":
     means = df.mean(axis=0)
     confmat_mean, confmat_std = get_confusion_matrix(df.tpr, df.tnr, df.fpr,
             df.fnr, df.mpr, df.mnr)
+    confmat_mean = [list(row) for row in confmat_mean]
+    confmat_std = [list(row) for row in confmat_std]
 
-    exp.log_confusion_matrix(matrix=confmat_mean, title='mean')
-    exp.log_confusion_matrix(matrix=confmat_std, title='std')
+    # Log to comet
+    exp.log_confusion_matrix(file_name='confusion_matrix_mean.json',
+            title=imgs_paths[idx], matrix=confmat_mean, labels=['Cannot', 'Must',
+                'May'], row_label='Predicted', col_label='Ground truth')
+    exp.log_confusion_matrix(file_name='confusion_matrix_std.json',
+            title=imgs_paths[idx], matrix=confmat_std, labels=['Cannot', 'Must',
+                'May'], row_label='Predicted', col_label='Ground truth')
     exp.log_table("csv", df)
     exp.log_html(df.to_html(col_space="80px"))
     exp.log_metrics(dict(means))
