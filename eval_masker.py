@@ -13,6 +13,7 @@ from pathlib import Path
 from comet_ml import Experiment
 
 import numpy as np
+import yaml
 import pandas as pd
 from skimage.color import rgba2rgb
 
@@ -44,10 +45,7 @@ def parsed_args():
     """
     parser = ArgumentParser()
     parser.add_argument(
-        "--model",
-        required=True,
-        type=str,
-        help="Path to a pre-trained model",
+        "--model", required=True, type=str, help="Path to a pre-trained model",
     )
     parser.add_argument(
         "--images_dir",
@@ -74,13 +72,17 @@ def parsed_args():
         help="The height and weight of the pre-processed images",
     )
     parser.add_argument(
-        "--max_files",
-        default=-1,
-        type=int,
-        help="Limit loaded samples",
+        "--max_files", default=-1, type=int, help="Limit loaded samples",
     )
     parser.add_argument(
         "--bin_value", default=-1, type=float, help="Mask binarization threshold"
+    )
+    parser.add_argument(
+        "-y",
+        "--yaml",
+        default=None,
+        type=str,
+        help="load a yaml file to parametrize the evaluation",
     )
 
     return parser.parse_args()
@@ -229,9 +231,6 @@ if __name__ == "__main__":
     plot_dir = tmp_dir.joinpath("plots")
     plot_dir.mkdir(parents=True, exist_ok=True)
 
-    # Initialize Comet Experiment
-    exp = Experiment(project_name="omnigan-masker-metrics")
-
     # Build paths to data
     imgs_paths = sorted(find_images(args.images_dir, recursive=False))
     labels_paths = sorted(find_images(args.labels_dir, recursive=False))
@@ -266,129 +265,158 @@ if __name__ == "__main__":
     ]
     print(" Done.")
 
-    # Obtain mask predictions
-    print("Obtain mask predictions", end="", flush=True)
-    if not os.path.isdir(args.model):
-        preds_paths = sorted(find_images(args.preds_dir, recursive=False))
-        if args.max_files > 0:
-            preds_paths = preds_paths[: args.max_files]
-        preds = img_preprocessing(preds_paths)
-        preds = [
-            np.squeeze(np.divide(pred.numpy(), np.max(pred.numpy()))[:, 0, :, :])
-            for pred in preds
-        ]
+    evaluations = []
+    if args.yaml:
+        y_path = Path(args.yaml)
+        assert y_path.exists()
+        assert y_path.suffix in {".yaml", ".yml"}
+        with y_path.open("r") as f:
+            data = yaml.safe_load(f)
+        assert "models" in data or "preds_dirs" in data
+
+        if "models" in data:
+            evaluations += [{"type": "model", "value": m} for m in data["models"]]
+        if "preds_dirs" in data:
+            evaluations += [
+                {"type": "preds_dir", "value": p} for p in data["preds_dirs"]
+            ]
     else:
-        preds = get_inferences(imgs, args.model, verbose=1)
-        preds = [pred.numpy() for pred in preds]
-    print(" Done.")
+        if not os.path.isdir(args.model):
+            evaluations += [{"type": "preds_dir", "value": args.preds_dir}]
+        else:
+            evaluations += [{"type": "preds_dir", "value": args.model}]
 
-    if args.bin_value > 0:
-        preds = [pred > args.bin_value for pred in preds]
+    # Initialize Comet Experiment
 
-    # Compute metrics
-    df = pd.DataFrame(
-        columns=[
-            "fpr",
-            "fnr",
-            "mnr",
-            "mpr",
-            "tpr",
-            "tnr",
-            "precision",
-            "f1",
-            "edge_coherence",
-            "filename",
-        ]
-    )
+    for e, eval_item in enumerate(evaluations):
+        print("\n>>>>> Evaluation", e, ":", eval_item["value"])
+        print("=" * 50)
+        print("=" * 50)
+        exp = Experiment(project_name="omnigan-masker-metrics")
 
-    print("Compute metrics and plot images", end="", flush=True)
-    for idx, (img, label, pred) in enumerate(zip(*(imgs, labels, preds))):
-        print(idx, "/", len(imgs), end="\r")
-        img = np.moveaxis(np.squeeze(img), 0, -1)
-        label = np.squeeze(label)
+        # Obtain mask predictions
+        print("Obtain mask predictions", end="", flush=True)
+        if eval_item["type"] == "preds_dir":
+            preds_paths = sorted(find_images(eval_item["value"], recursive=False))
+            if args.max_files > 0:
+                preds_paths = preds_paths[: args.max_files]
+            preds = img_preprocessing(preds_paths)
+            preds = [
+                np.squeeze(np.divide(pred.numpy(), np.max(pred.numpy()))[:, 0, :, :])
+                for pred in preds
+            ]
+        else:
+            preds = get_inferences(imgs, eval_item["value"], verbose=1)
+            preds = [pred.numpy() for pred in preds]
+        print(" Done.")
 
-        # Basic metrics
-        fp_map, fpr = pred_cannot(pred, label, label_cannot=0)
-        fn_map, fnr = missed_must(pred, label, label_must=1)
-        may_neg_map, may_pos_map, mnr, mpr = may_flood(pred, label, label_may=2)
-        tpr, tnr, precision, f1 = masker_metrics(
-            pred, label, label_cannot=0, label_must=1
+        if args.bin_value > 0:
+            preds = [pred > args.bin_value for pred in preds]
+
+        # Compute metrics
+        df = pd.DataFrame(
+            columns=[
+                "fpr",
+                "fnr",
+                "mnr",
+                "mpr",
+                "tpr",
+                "tnr",
+                "precision",
+                "f1",
+                "edge_coherence",
+                "filename",
+            ]
         )
 
-        # Edges coherence
-        edge_coherence, pred_edge, label_edge = edges_coherence_std_min(pred, label)
+        print("Compute metrics and plot images", end="", flush=True)
+        for idx, (img, label, pred) in enumerate(zip(*(imgs, labels, preds))):
+            print(idx, "/", len(imgs), end="\r")
+            img = np.moveaxis(np.squeeze(img), 0, -1)
+            label = np.squeeze(label)
 
-        df.loc[idx] = pd.Series(
-            {
-                "fpr": fpr,
-                "fnr": fnr,
-                "mnr": mnr,
-                "mpr": mpr,
-                "tpr": tpr,
-                "tnr": tnr,
-                "precision": precision,
-                "f1": f1,
-                "edge_coherence": edge_coherence,
-                "filename": os.path.basename(imgs_paths[idx]),
-            }
+            # Basic metrics
+            fp_map, fpr = pred_cannot(pred, label, label_cannot=0)
+            fn_map, fnr = missed_must(pred, label, label_must=1)
+            may_neg_map, may_pos_map, mnr, mpr = may_flood(pred, label, label_may=2)
+            tpr, tnr, precision, f1 = masker_metrics(
+                pred, label, label_cannot=0, label_must=1
+            )
+
+            # Edges coherence
+            edge_coherence, pred_edge, label_edge = edges_coherence_std_min(pred, label)
+
+            df.loc[idx] = pd.Series(
+                {
+                    "fpr": fpr,
+                    "fnr": fnr,
+                    "mnr": mnr,
+                    "mpr": mpr,
+                    "tpr": tpr,
+                    "tnr": tnr,
+                    "precision": precision,
+                    "f1": f1,
+                    "edge_coherence": edge_coherence,
+                    "filename": os.path.basename(imgs_paths[idx]),
+                }
+            )
+
+            # Confusion matrix
+            confmat, _ = get_confusion_matrix(tpr, tnr, fpr, fnr, mpr, mnr)
+            confmat = np.around(confmat, decimals=3)
+            exp.log_confusion_matrix(
+                file_name=Path(imgs_paths[idx].name + ".json"),
+                title=imgs_paths[idx].name,
+                matrix=confmat,
+                labels=["Cannot", "Must", "May"],
+                row_label="Predicted",
+                column_label="Ground truth",
+            )
+
+            # Plot prediction images
+            fig_filename = plot_dir.joinpath(imgs_paths[idx].name)
+            plot_images(
+                fig_filename,
+                img,
+                label,
+                pred,
+                fp_map,
+                fn_map,
+                may_neg_map,
+                may_pos_map,
+                edge_coherence,
+                pred_edge,
+                label_edge,
+            )
+            exp.log_image(fig_filename)
+        print(" Done.")
+
+        # Summary statistics
+        means = df.mean(axis=0)
+        confmat_mean, confmat_std = get_confusion_matrix(
+            df.tpr, df.tnr, df.fpr, df.fnr, df.mpr, df.mnr
         )
+        confmat_mean = np.around(confmat_mean, decimals=3)
+        confmat_std = np.around(confmat_std, decimals=3)
 
-        # Confusion matrix
-        confmat, _ = get_confusion_matrix(tpr, tnr, fpr, fnr, mpr, mnr)
-        confmat = np.around(confmat, decimals=3)
+        # Log to comet
         exp.log_confusion_matrix(
-            file_name=Path(imgs_paths[idx].name + ".json"),
-            title=imgs_paths[idx].name,
-            matrix=confmat,
+            file_name="confusion_matrix_mean.json",
+            title="confusion_matrix_mean.json",
+            matrix=confmat_mean,
             labels=["Cannot", "Must", "May"],
             row_label="Predicted",
             column_label="Ground truth",
         )
-
-        # Plot prediction images
-        fig_filename = plot_dir.joinpath(imgs_paths[idx].name)
-        plot_images(
-            fig_filename,
-            img,
-            label,
-            pred,
-            fp_map,
-            fn_map,
-            may_neg_map,
-            may_pos_map,
-            edge_coherence,
-            pred_edge,
-            label_edge,
+        exp.log_confusion_matrix(
+            file_name="confusion_matrix_std.json",
+            title="confusion_matrix_std.json",
+            matrix=confmat_std,
+            labels=["Cannot", "Must", "May"],
+            row_label="Predicted",
+            column_label="Ground truth",
         )
-        exp.log_image(fig_filename)
-    print(" Done.")
-
-    # Summary statistics
-    means = df.mean(axis=0)
-    confmat_mean, confmat_std = get_confusion_matrix(
-        df.tpr, df.tnr, df.fpr, df.fnr, df.mpr, df.mnr
-    )
-    confmat_mean = np.around(confmat_mean, decimals=3)
-    confmat_std = np.around(confmat_std, decimals=3)
-
-    # Log to comet
-    exp.log_confusion_matrix(
-        file_name="confusion_matrix_mean.json",
-        title=imgs_paths[idx].name,
-        matrix=confmat_mean,
-        labels=["Cannot", "Must", "May"],
-        row_label="Predicted",
-        column_label="Ground truth",
-    )
-    exp.log_confusion_matrix(
-        file_name="confusion_matrix_std.json",
-        title=imgs_paths[idx].name,
-        matrix=confmat_std,
-        labels=["Cannot", "Must", "May"],
-        row_label="Predicted",
-        column_label="Ground truth",
-    )
-    exp.log_table("csv", df)
-    exp.log_html(df.to_html(col_space="80px"))
-    exp.log_metrics(dict(means))
-    exp.log_parameters(vars(args))
+        exp.log_table("csv", df)
+        exp.log_html(df.to_html(col_space="80px"))
+        exp.log_metrics(dict(means))
+        exp.log_parameters(vars(args))
