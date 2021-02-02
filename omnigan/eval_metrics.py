@@ -315,9 +315,10 @@ def get_confusion_matrix(tpr, tnr, fpr, fnr, mpr, mnr):
     mnr_s = np.std(mnr)
 
     # Assertions
-    assert np.isclose(tpr_m, 1.0 - fnr_m)
-    assert np.isclose(tnr_m, 1.0 - fpr_m)
-    assert np.isclose(mpr_m, 1.0 - mnr_m)
+    assert np.isclose(tpr_m, 1.0 - fnr_m), "TPR: {:.4f}, FNR: {:.4f}".format(tpr_m, fnr_m)
+    assert np.isclose(tnr_m, 1.0 - fpr_m), "TNR: {:.4f}, FPR: {:.4f}".format(tnr_m, fpr_m)
+    assert np.isclose(mpr_m, 1.0 - mnr_m), "MPR: {:.4f}, MNR: {:.4f}".format(mpr_m, mnr_m)
+
 
     # Fill confusion matrix
     confusion_matrix = np.zeros((3, 3))
