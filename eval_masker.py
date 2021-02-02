@@ -329,7 +329,7 @@ if __name__ == "__main__":
             ]
         )
 
-        print("Compute metrics and plot images", end="", flush=True)
+        print("Compute metrics and plot images")
         for idx, (img, label, pred) in enumerate(zip(*(imgs, labels, preds))):
             print(idx, "/", len(imgs), end="\r")
             img = np.moveaxis(np.squeeze(img), 0, -1)
