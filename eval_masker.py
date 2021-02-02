@@ -418,7 +418,7 @@ if __name__ == "__main__":
             row_label="Predicted",
             column_label="Ground truth",
         )
-        exp.log_table("csv", df)
+        exp.log_table("metrics.csv", df)
         exp.log_html(df.to_html(col_space="80px"))
         exp.log_metrics(dict(means))
         exp.log_parameters(vars(args))
