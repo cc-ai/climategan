@@ -21,12 +21,9 @@ from skimage.color import rgba2rgb
 
 from omnigan.data import encode_mask_label
 from omnigan.eval_metrics import (
-    edges_coherence_std_min,
+    masker_classification_metrics
     get_confusion_matrix,
-    masker_metrics,
-    may_flood,
-    missed_must,
-    pred_cannot,
+    edges_coherence_std_min,
 )
 from omnigan.trainer import Trainer
 from omnigan.transforms import PrepareTest
@@ -362,34 +359,33 @@ if __name__ == "__main__":
             img = np.moveaxis(np.squeeze(img), 0, -1)  # HWC
             label = np.squeeze(label)
 
-            # Basic metrics
-            fp_map, fpr = pred_cannot(pred, label, label_cannot=0)
-            fn_map, fnr = missed_must(pred, label, label_must=1)
-            may_neg_map, may_pos_map, mnr, mpr = may_flood(pred, label, label_may=2)
-            tpr, tnr, precision, f1 = masker_metrics(
-                pred, label, label_cannot=0, label_must=1
-            )
+            # Basic classification metrics
+            metrics_dict, maps_dict = masker_classification_metrics(pred, label,
+                    labels_dict={'cannot': 0, 'must': 1, 'may': 2})
 
             # Edges coherence
             edge_coherence, pred_edge, label_edge = edges_coherence_std_min(pred, label)
 
             df.loc[idx] = pd.Series(
                 {
-                    "fpr": fpr,
-                    "fnr": fnr,
-                    "mnr": mnr,
-                    "mpr": mpr,
-                    "tpr": tpr,
-                    "tnr": tnr,
-                    "precision": precision,
-                    "f1": f1,
+                    "fpr": metrics_dict['fpr'],
+                    "fnr": metrics_dict['fnr'],
+                    "mnr": metrics_dict['mnr'],
+                    "mpr": metrics_dict['mpr'],
+                    "tpr": metrics_dict['tpr'],
+                    "tnr": metrics_dict['tnr'],
+                    "precision": metrics_dict['precision'],
+                    "f1": metrics_dict['f1'],
+                    "accuracy_must_may": metrics_dict['accuracy_must_may'],
                     "edge_coherence": edge_coherence,
                     "filename": os.path.basename(imgs_paths[idx]),
                 }
             )
 
             # Confusion matrix
-            confmat, _ = get_confusion_matrix(tpr, tnr, fpr, fnr, mpr, mnr)
+            confmat, _ = get_confusion_matrix(metrics_dict['tpr'], metrics_dict['tnr'],
+                    metrics_dict['fpr'], metrics_dict['fnr'], metrics_dict['mpr'],
+                    metrics_dict['mnr'])
             confmat = np.around(confmat, decimals=3)
             exp.log_confusion_matrix(
                 file_name=Path(imgs_paths[idx].name + ".json"),
@@ -408,10 +404,10 @@ if __name__ == "__main__":
                     img,
                     label,
                     pred,
-                    fp_map,
-                    fn_map,
-                    may_neg_map,
-                    may_pos_map,
+                    maps_dict['fp'],
+                    maps_dict['fn'],
+                    maps_dict['may_neg'],
+                    maps_dict['may_pos'],
                     edge_coherence,
                     pred_edge,
                     label_edge,

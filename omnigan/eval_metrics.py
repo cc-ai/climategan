@@ -127,6 +127,103 @@ def mIOU(pred, label, average="macro"):
         return np.mean(present_iou_list)
 
 
+def masker_classification_metrics(pred, label, labels_dict={'cannot': 0, 'must': 1, 'may': 2}):
+    """
+    Classification metrics for the masker, and the corresponding maps. If the
+    predictions are soft, the errors are weighted accordingly. Metrics computed:
+
+        tpr : float
+            True positive rate
+
+        tnr : float
+            True negative rate
+
+        fpr : float
+            False positive rate: rate of predicted mask on cannot flood
+
+        fnr : float
+            False negative rate: rate of missed mask on must flood
+
+        mnr : float
+            "May" negative rate (labeled as "may", predicted as no-mask)
+
+        mpr : float
+            "May" positive rate (labeled as "may", predicted as mask)
+
+        precision : float
+            Precision, considering only cannot and must flood labels
+
+        f1 : float
+            F1 score, considering only cannot and must flood labels
+
+        accuracy_must_may : float
+            Accuracy considering only the must and may areas
+
+    Parameters
+    ----------
+    pred : array-like
+        Mask prediction
+
+    label : array-like
+        Mask ground truth labels
+
+    labels_dict : dict
+        A dictionary with the identifier of each class (cannot, must, may)
+
+    Returns
+    -------
+    metrics_dict : dict
+        A dictionary with metric name and value pairs
+
+    maps_dict : dict
+        A dictionary containing the metric maps
+    """
+    tp_map = pred * np.asarray(label == labels_dict['must'], dtype=int)
+    tpr = np.sum(tp_map) / np.sum(label == labels_dict['must'])
+    tn_map = (1.0 - pred) * np.asarray(label == labels_dict['cannot'], dtype=int)
+    tnr = np.sum(tn_map) / np.sum(label == labels_dict['cannot'])
+    fp_map = pred * np.asarray(label == labels_dict['cannot'], dtype=int)
+    fpr = np.sum(fp_map) / np.sum(label == labels_dict['cannot'])
+    fn_map = (1.0 - pred) * np.asarray(label == labels_dict['must'], dtype=int)
+    fnr = np.sum(fn_map) / np.sum(label == labels_dict['must'])
+    may_neg_map = (1.0 - pred) * np.asarray(label == labels_dict['may'], dtype=int)
+    may_pos_map = pred * np.asarray(label == labels_dict['may'], dtype=int)
+    mnr = np.sum(may_neg_map) / np.sum(label == labels_dict['may'])
+    mpr = np.sum(may_pos_map) / np.sum(label == labels_dict['may'])
+
+    # Assertions
+    assert np.isclose(tpr, 1.0 - fnr), "TPR: {:.4f}, FNR: {:.4f}".format(tpr, fnr)
+    assert np.isclose(tnr, 1.0 - fpr), "TNR: {:.4f}, FPR: {:.4f}".format(tnr, fpr)
+    assert np.isclose(mpr, 1.0 - mnr), "MPR: {:.4f}, MNR: {:.4f}".format(mpr, mnr)
+
+    precision = np.sum(tp_map) / (np.sum(tp_map) + np.sum(fp_map))
+    f1 = 2 * (precision * tpr) / (precision + tpr)
+    accuracy_must_may = (np.sum(tp_map) + np.sum(may_neg_map)) / (np.sum(label ==
+        labels_dict['must']) + np.sum(label == labels_dict['may']))
+
+    metrics_dict = {
+            'tpr': tpr,
+            'tnr': tnr,
+            'fpr': fpr,
+            'fnr': fnr,
+            'mpr': mpr,
+            'mnr': mnr,
+            'precision': precision,
+            'f1': f1,
+            'accuracy_must_may': accuracy_must_may
+            }
+    maps_dict = {
+            'tp': tp_map,
+            'tn': tn_map,
+            'fp': fp_map,
+            'fn': fn_map,
+            'may_pos': may_pos_map,
+            'may_neg': may_neg_map,
+            }
+
+    return metrics_dict, maps_dict
+
+
 def pred_cannot(pred, label, label_cannot=0):
     """
     Metric for the masker: Computes false positive rate and its map. If the
@@ -248,10 +345,10 @@ def masker_metrics(pred, label, label_cannot=0, label_must=1):
     tnr : float
         True negative rate
 
-    precision : precision
+    precision : float
         Precision, considering only cannot and must flood labels
 
-    f1 : precision
+    f1 : float
         F1 score, considering only cannot and must flood labels
     """
     tp_map = pred * np.asarray(label == label_must, dtype=int)
