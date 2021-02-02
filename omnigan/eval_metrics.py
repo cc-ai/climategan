@@ -389,6 +389,10 @@ def edges_coherence_std_min(pred, label, label_must=1, bin_th=0.5):
     pred_coord = np.argwhere(pred > 0)
     label_coord = np.argwhere(label > 0)
 
+    # Handle blank predictions
+    if pred_coord.shape[0] == 0:
+        return 1., pred, label
+
     # Normalized pairwise distances between pred and label
     dist_mat = np.divide(euclidean_distances(pred_coord, label_coord), pred.shape[0])
 
