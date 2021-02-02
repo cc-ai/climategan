@@ -92,6 +92,12 @@ def parsed_args():
         default=False,
         help="Plot masker images & their metrics overlays",
     )
+    parser.add_argument(
+        "--no_paint",
+        action="store_true",
+        default=False,
+        help="Do not log painted images",
+    )
 
     return parser.parse_args()
 
@@ -188,7 +194,7 @@ def plot_images(
     plt.close(f)
 
 
-def get_inferences(image_arrays, model_path, verbose=0):
+def get_inferences(image_arrays, model_path, paint=False, bin_value=0.5, verbose=0):
     """
     Obtains the mask predictions of a model for a set of images
 
@@ -216,12 +222,16 @@ def get_inferences(image_arrays, model_path, verbose=0):
         model_path, inference=True, new_exp=None, device=device
     )
     masks = []
+    painted = []
     for idx, x in enumerate(xs):
         if verbose > 0:
             print(idx, "/", len(xs), end="\r")
         m = trainer.G.mask(x=x)
         masks.append(m.squeeze().cpu())
-    return masks
+        if paint:
+            p = trainer.G.paint(m > bin_value, x)
+            painted.append(p.squeeze(p.cpu()))
+    return masks, painted
 
 
 if __name__ == "__main__":
@@ -315,8 +325,15 @@ if __name__ == "__main__":
                 np.squeeze(np.divide(pred.numpy(), np.max(pred.numpy()))[:, 0, :, :])
                 for pred in preds
             ]
+            painted = None
         else:
-            preds = get_inferences(imgs, eval_item["eval_path"], verbose=1)
+            preds, painted = get_inferences(
+                imgs,
+                eval_item["eval_path"],
+                paint=not args.no_paint,
+                bin_value=args.bin_value,
+                verbose=1,
+            )
             preds = [pred.numpy() for pred in preds]
         print(" Done.")
 
@@ -342,7 +359,7 @@ if __name__ == "__main__":
         print("Compute metrics and plot images", end="", flush=True)
         for idx, (img, label, pred) in enumerate(zip(*(imgs, labels, preds))):
             print(idx, "/", len(imgs), end="\r")
-            img = np.moveaxis(np.squeeze(img), 0, -1)
+            img = np.moveaxis(np.squeeze(img), 0, -1)  # HWC
             label = np.squeeze(label)
 
             # Basic metrics
@@ -400,6 +417,12 @@ if __name__ == "__main__":
                     label_edge,
                 )
                 exp.log_image(fig_filename)
+            if not args.no_paint:
+                p = painted[idx].permute(1, 2, 0).numpy()
+                masked = img * (1 - pred[..., None])
+                combined = np.concatenate([masked, p], 1)
+                exp.log_image(combined, Path(imgs_paths[idx]).name)
+
         print(" Done.")
         try:
             # Summary statistics
