@@ -10,13 +10,13 @@ import os.path
 import traceback
 from argparse import ArgumentParser
 from pathlib import Path
+from comet_ml import Experiment
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
 import yaml
-from comet_ml import Experiment
 from skimage.color import rgba2rgb
 
 from omnigan.data import encode_mask_label
