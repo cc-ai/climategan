@@ -21,7 +21,7 @@ from skimage.color import rgba2rgb
 
 from omnigan.data import encode_mask_label
 from omnigan.eval_metrics import (
-    masker_classification_metrics
+    masker_classification_metrics,
     get_confusion_matrix,
     edges_coherence_std_min,
 )
