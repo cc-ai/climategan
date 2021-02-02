@@ -3,7 +3,7 @@ import cv2
 import torch
 from skimage import filters
 from sklearn.metrics.pairwise import euclidean_distances
-
+from copy import deepcopy
 # ------------------------------------------------------------------------------
 # ----- Evaluation metrics for a pair of binary mask images (pred, target) -----
 # ------------------------------------------------------------------------------
@@ -372,6 +372,7 @@ def edges_coherence_std_min(pred, label, label_must=1, bin_th=0.5):
         The edges images of the "must flood" label, for visualization
     """
     # Keep must flood label only
+    label = deepcopy(label)
     label[label != label_must] = -1
     label[label == label_must] = 1
     label[label != label_must] = 0
