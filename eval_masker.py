@@ -288,12 +288,12 @@ if __name__ == "__main__":
         else:
             evaluations += [{"eval_type": "preds_dir", "eval_path": args.model}]
 
-    # Initialize Comet Experiment
-
     for e, eval_item in enumerate(evaluations):
         print("\n>>>>> Evaluation", e, ":", eval_item["eval_path"])
         print("=" * 50)
         print("=" * 50)
+
+        # Initialize New Comet Experiment
         exp = Experiment(project_name="omnigan-masker-metrics")
 
         # Obtain mask predictions
@@ -424,3 +424,4 @@ if __name__ == "__main__":
         exp.log_parameters(vars(args))
         exp.log_parameters(eval_item)
         exp.add_tag("eval_masker")
+        exp.end()
