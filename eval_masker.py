@@ -88,7 +88,7 @@ def parsed_args():
     parser.add_argument(
         "-p",
         "--plot",
-        action="strore_true",
+        action="store_true",
         default=False,
         help="Plot masker images & their metrics overlays",
     )
