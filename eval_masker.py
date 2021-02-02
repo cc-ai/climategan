@@ -5,34 +5,32 @@ run eval_masker.py --model "/miniscratch/_groups/ccai/checkpoints/masker/victor/
 
 """
 print("Imports...", end="")
-import os.path
 import os
+import os.path
+import traceback
 from argparse import ArgumentParser
 from pathlib import Path
 
-from comet_ml import Experiment
-
+import matplotlib.pyplot as plt
 import numpy as np
-import yaml
 import pandas as pd
+import torch
+import yaml
+from comet_ml import Experiment
 from skimage.color import rgba2rgb
 
-import matplotlib.pyplot as plt
-
-import torch
-
 from omnigan.data import encode_mask_label
-from omnigan.utils import find_images
+from omnigan.eval_metrics import (
+    edges_coherence_std_min,
+    get_confusion_matrix,
+    masker_metrics,
+    may_flood,
+    missed_must,
+    pred_cannot,
+)
 from omnigan.trainer import Trainer
 from omnigan.transforms import PrepareTest
-from omnigan.eval_metrics import (
-    pred_cannot,
-    missed_must,
-    may_flood,
-    masker_metrics,
-    get_confusion_matrix,
-    edges_coherence_std_min,
-)
+from omnigan.utils import find_images
 
 print("Ok.")
 
@@ -392,37 +390,41 @@ if __name__ == "__main__":
             )
             exp.log_image(fig_filename)
         print(" Done.")
+        try:
+            # Summary statistics
+            means = df.mean(axis=0)
+            confmat_mean, confmat_std = get_confusion_matrix(
+                df.tpr, df.tnr, df.fpr, df.fnr, df.mpr, df.mnr
+            )
+            confmat_mean = np.around(confmat_mean, decimals=3)
+            confmat_std = np.around(confmat_std, decimals=3)
 
-        # Summary statistics
-        means = df.mean(axis=0)
-        confmat_mean, confmat_std = get_confusion_matrix(
-            df.tpr, df.tnr, df.fpr, df.fnr, df.mpr, df.mnr
-        )
-        confmat_mean = np.around(confmat_mean, decimals=3)
-        confmat_std = np.around(confmat_std, decimals=3)
-
-        # Log to comet
-        exp.log_confusion_matrix(
-            file_name="confusion_matrix_mean.json",
-            title="confusion_matrix_mean.json",
-            matrix=confmat_mean,
-            labels=["Cannot", "Must", "May"],
-            row_label="Predicted",
-            column_label="Ground truth",
-        )
-        exp.log_confusion_matrix(
-            file_name="confusion_matrix_std.json",
-            title="confusion_matrix_std.json",
-            matrix=confmat_std,
-            labels=["Cannot", "Must", "May"],
-            row_label="Predicted",
-            column_label="Ground truth",
-        )
-        exp.log_table("metrics.csv", df)
-        exp.log_html(df.to_html(col_space="80px"))
-        exp.log_metrics(dict(means))
-        exp.log_parameters(vars(args))
-        exp.log_parameters(eval_item)
-        exp.add_tag("eval_masker")
-        exp.log_parameter("model_name", Path(eval_item["eval_path"]).name)
-        exp.end()
+            # Log to comet
+            exp.log_confusion_matrix(
+                file_name="confusion_matrix_mean.json",
+                title="confusion_matrix_mean.json",
+                matrix=confmat_mean,
+                labels=["Cannot", "Must", "May"],
+                row_label="Predicted",
+                column_label="Ground truth",
+            )
+            exp.log_confusion_matrix(
+                file_name="confusion_matrix_std.json",
+                title="confusion_matrix_std.json",
+                matrix=confmat_std,
+                labels=["Cannot", "Must", "May"],
+                row_label="Predicted",
+                column_label="Ground truth",
+            )
+            exp.log_metrics(dict(means))
+        except Exception as e:
+            print(f"\n\n{e}\n{traceback.format_exc()}\n\n")
+            exp.log_parameter("ABORTED", True)
+        finally:
+            exp.log_table("metrics.csv", df)
+            exp.log_html(df.to_html(col_space="80px"))
+            exp.log_parameters(vars(args))
+            exp.log_parameters(eval_item)
+            exp.add_tag("eval_masker")
+            exp.log_parameter("model_name", Path(eval_item["eval_path"]).name)
+            exp.end()
