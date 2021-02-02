@@ -85,6 +85,13 @@ def parsed_args():
     parser.add_argument(
         "-t", "--tags", nargs="*", help="Comet.ml tags", default=[], type=str
     )
+    parser.add_argument(
+        "-p",
+        "--plot",
+        action="strore_true",
+        default=False,
+        help="Plot masker images & their metrics overlays",
+    )
 
     return parser.parse_args()
 
@@ -376,22 +383,23 @@ if __name__ == "__main__":
                 column_label="Ground truth",
             )
 
-            # Plot prediction images
-            fig_filename = plot_dir.joinpath(imgs_paths[idx].name)
-            plot_images(
-                fig_filename,
-                img,
-                label,
-                pred,
-                fp_map,
-                fn_map,
-                may_neg_map,
-                may_pos_map,
-                edge_coherence,
-                pred_edge,
-                label_edge,
-            )
-            exp.log_image(fig_filename)
+            if args.plot:
+                # Plot prediction images
+                fig_filename = plot_dir.joinpath(imgs_paths[idx].name)
+                plot_images(
+                    fig_filename,
+                    img,
+                    label,
+                    pred,
+                    fp_map,
+                    fn_map,
+                    may_neg_map,
+                    may_pos_map,
+                    edge_coherence,
+                    pred_edge,
+                    label_edge,
+                )
+                exp.log_image(fig_filename)
         print(" Done.")
         try:
             # Summary statistics
