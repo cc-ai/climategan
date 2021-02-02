@@ -424,4 +424,5 @@ if __name__ == "__main__":
         exp.log_parameters(vars(args))
         exp.log_parameters(eval_item)
         exp.add_tag("eval_masker")
+        exp.log_parameter("model_name", Path(eval_item["eval_path"]).name)
         exp.end()
