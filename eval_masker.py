@@ -73,7 +73,7 @@ def parsed_args():
         "--max_files", default=-1, type=int, help="Limit loaded samples",
     )
     parser.add_argument(
-        "--bin_value", default=-1, type=float, help="Mask binarization threshold"
+        "--bin_value", default=0.5, type=float, help="Mask binarization threshold"
     )
     parser.add_argument(
         "-y",
@@ -81,6 +81,9 @@ def parsed_args():
         default=None,
         type=str,
         help="load a yaml file to parametrize the evaluation",
+    )
+    parser.add_argument(
+        "-t", "--tags", nargs="*", help="Comet.ml tags", default=[], type=str
     )
 
     return parser.parse_args()
@@ -426,5 +429,7 @@ if __name__ == "__main__":
             exp.log_parameters(vars(args))
             exp.log_parameters(eval_item)
             exp.add_tag("eval_masker")
+            if args.tags:
+                exp.add_tags(args.tags)
             exp.log_parameter("model_name", Path(eval_item["eval_path"]).name)
             exp.end()
