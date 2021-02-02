@@ -275,29 +275,31 @@ if __name__ == "__main__":
         assert "models" in data or "preds_dirs" in data
 
         if "models" in data:
-            evaluations += [{"type": "model", "value": m} for m in data["models"]]
+            evaluations += [
+                {"eval_type": "model", "eval_path": m} for m in data["models"]
+            ]
         if "preds_dirs" in data:
             evaluations += [
-                {"type": "preds_dir", "value": p} for p in data["preds_dirs"]
+                {"eval_type": "preds_dir", "eval_path": p} for p in data["preds_dirs"]
             ]
     else:
         if not os.path.isdir(args.model):
-            evaluations += [{"type": "preds_dir", "value": args.preds_dir}]
+            evaluations += [{"eval_type": "preds_dir", "eval_path": args.preds_dir}]
         else:
-            evaluations += [{"type": "preds_dir", "value": args.model}]
+            evaluations += [{"eval_type": "preds_dir", "eval_path": args.model}]
 
     # Initialize Comet Experiment
 
     for e, eval_item in enumerate(evaluations):
-        print("\n>>>>> Evaluation", e, ":", eval_item["value"])
+        print("\n>>>>> Evaluation", e, ":", eval_item["eval_path"])
         print("=" * 50)
         print("=" * 50)
         exp = Experiment(project_name="omnigan-masker-metrics")
 
         # Obtain mask predictions
         print("Obtain mask predictions", end="", flush=True)
-        if eval_item["type"] == "preds_dir":
-            preds_paths = sorted(find_images(eval_item["value"], recursive=False))
+        if eval_item["eval_type"] == "preds_dir":
+            preds_paths = sorted(find_images(eval_item["eval_path"], recursive=False))
             if args.max_files > 0:
                 preds_paths = preds_paths[: args.max_files]
             preds = img_preprocessing(preds_paths)
@@ -306,7 +308,7 @@ if __name__ == "__main__":
                 for pred in preds
             ]
         else:
-            preds = get_inferences(imgs, eval_item["value"], verbose=1)
+            preds = get_inferences(imgs, eval_item["eval_path"], verbose=1)
             preds = [pred.numpy() for pred in preds]
         print(" Done.")
 
@@ -420,3 +422,4 @@ if __name__ == "__main__":
         exp.log_html(df.to_html(col_space="80px"))
         exp.log_metrics(dict(means))
         exp.log_parameters(vars(args))
+        exp.log_parameters(eval_item)
