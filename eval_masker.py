@@ -423,3 +423,4 @@ if __name__ == "__main__":
         exp.log_metrics(dict(means))
         exp.log_parameters(vars(args))
         exp.log_parameters(eval_item)
+        exp.add_tag("eval_masker")
