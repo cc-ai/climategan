@@ -12,6 +12,7 @@ import numpy as np
 import skimage.io as io
 from skimage.color import rgba2rgb
 from skimage.transform import resize
+import comet_ml  # noqa: F401
 
 from omnigan.trainer import Trainer
 from omnigan.tutils import normalize, print_num_parameters
@@ -99,7 +100,7 @@ def parse_args():
         "-b",
         "--batch_size",
         type=int,
-        default=8,
+        default=4,
         help="Batch size to process input images to events",
     )
     parser.add_argument(
@@ -126,11 +127,10 @@ def parse_args():
         + " In particular it must contain opts.yaml and checkpoints/",
     )
     parser.add_argument(
-        "-t",
-        "--time",
+        "--no_time",
         action="store_true",
         default=False,
-        help="Binary flag to time operations or not. Defaults to False.",
+        help="Binary flag to prevent the timing of operations.",
     )
     parser.add_argument(
         "-m",
@@ -174,11 +174,11 @@ def parse_args():
         help="Do not check for existing outdir",
     )
     parser.add_argument(
-        "-c",
-        "--cloudy",
+        "--no_cloudy",
         action="store_true",
         default=False,
-        help="Use the cloudy intermediate image to create the flood image",
+        help="Prevent the use of the cloudy intermediate"
+        + " image to create the flood image",
     )
     parser.add_argument(
         "--keep_ratio_128",
@@ -209,6 +209,7 @@ if __name__ == "__main__":
 
     batch_size = args.batch_size
     half = args.half
+    cloudy = not args.no_cloudy
     images_paths = Path(args.images_paths).expanduser().resolve()
     bin_value = args.flood_mask_binarization
     outdir = (
@@ -217,7 +218,7 @@ if __name__ == "__main__":
         else None
     )
     resume_path = args.resume_path
-    time_inference = args.time
+    time_inference = not args.no_time
     n_images = args.n_images
     xla_purge_samples = args.xla_purge_samples
     if args.keep_ratio_128:
@@ -320,8 +321,8 @@ if __name__ == "__main__":
         # normalize to -1:1
         data = [(normalize(d.astype(np.float32)) - 0.5) * 2 for d in data]
 
-    n_batchs = len(data) // args.batch_size
-    if len(data) % args.batch_size != 0:
+    n_batchs = len(data) // batch_size
+    if len(data) % batch_size != 0:
         n_batchs += 1
 
     print("Found", len(base_data_paths), "images. Inferring on", len(data), "images.")
@@ -350,7 +351,7 @@ if __name__ == "__main__":
                 bin_value=bin_value,
                 half=half,
                 xla=XLA,
-                cloudy=args.cloudy,
+                cloudy=cloudy,
             )
 
             # store events to write after inference loop
@@ -362,16 +363,28 @@ if __name__ == "__main__":
     # ----------------------------------------------
     if outdir is not None:
         print("\n• Writing")
+        n_written = 0
         with Timer(store=stores.get("write", [])):
             for b, events in enumerate(all_events):
                 for i in range(len(list(events.values())[0])):
+
+                    print(" " * 30, end="\r", flush=True)
+                    print(
+                        f"{n_written+1}/{len(base_data_paths)} ...",
+                        end="\r",
+                        flush=True,
+                    )
+
                     idx = b * batch_size + i
                     idx = idx % len(base_data_paths)
                     stem = Path(data_paths[idx]).stem
+
                     for event in events:
                         im_path = outdir / f"{stem}_{event}.png"
                         im_data = events[event][i]
                         io.imsave(im_path, im_data)
+
+                    n_written += 1
 
     # ---------------------------
     # -----  Print timings  -----

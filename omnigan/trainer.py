@@ -283,28 +283,28 @@ class Trainer:
 
             # apply events
             with Timer(store=stores.get("wildfire", [])):
-                wildfire = self.compute_fire(x, segmentation).cpu()
+                wildfire = self.compute_fire(x, segmentation)
             with Timer(store=stores.get("smog", [])):
-                smog = self.compute_smog(x, d=depth, s=segmentation).cpu()
+                smog = self.compute_smog(x, d=depth, s=segmentation)
             with Timer(store=stores.get("flood", [])):
                 flood = self.compute_flood(
                     x, m=mask, s=segmentation, cloudy=cloudy, bin_value=bin_value
-                ).cpu()
+                )
 
         if xla:
             xm.mark_step()
 
         if numpy:
             with Timer(store=stores.get("numpy", [])):
+                # normalize to 0-1
+                flood = normalize(flood).cpu()
+                smog = normalize(smog).cpu()
+                wildfire = normalize(wildfire).cpu()
+
                 # convert to numpy
                 flood = flood.permute(0, 2, 3, 1).numpy()
                 smog = smog.permute(0, 2, 3, 1).numpy()
                 wildfire = wildfire.permute(0, 2, 3, 1).numpy()
-
-                # normalize to 0-1
-                flood = normalize(flood)
-                smog = normalize(smog)
-                wildfire = normalize(wildfire)
 
                 # convert to 0-255 uint8
                 flood = (flood * 255).astype(np.uint8)
@@ -1174,11 +1174,11 @@ class Trainer:
             # --------------------
             else:
                 z = self.G.encode(x)
-                s_pred = d_pred = cond = depth_preds = None
+                s_pred = d_pred = cond = depth_preds = z_depth = None
 
                 if "s" in batch["data"]:
-                    d_pred, z_depth = self.G.decoders["d"](z)
                     if self.opts.gen.s.depth_dada_fusion:
+                        d_pred, z_depth = self.G.decoders["d"](z)
                         depth_preds = d_pred
                     step_loss, s_pred = self.masker_s_loss(
                         x, z, depth_preds, z_depth, None, domain, for_="D"

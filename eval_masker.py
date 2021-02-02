@@ -73,7 +73,7 @@ def parsed_args():
         "--max_files", default=-1, type=int, help="Limit loaded samples",
     )
     parser.add_argument(
-        "--bin_value", default=-1, type=float, help="Mask binarization threshold"
+        "--bin_value", default=0.5, type=float, help="Mask binarization threshold"
     )
     parser.add_argument(
         "-y",
@@ -81,6 +81,22 @@ def parsed_args():
         default=None,
         type=str,
         help="load a yaml file to parametrize the evaluation",
+    )
+    parser.add_argument(
+        "-t", "--tags", nargs="*", help="Comet.ml tags", default=[], type=str
+    )
+    parser.add_argument(
+        "-p",
+        "--plot",
+        action="store_true",
+        default=False,
+        help="Plot masker images & their metrics overlays",
+    )
+    parser.add_argument(
+        "--no_paint",
+        action="store_true",
+        default=False,
+        help="Do not log painted images",
     )
 
     return parser.parse_args()
@@ -178,7 +194,7 @@ def plot_images(
     plt.close(f)
 
 
-def get_inferences(image_arrays, model_path, verbose=0):
+def get_inferences(image_arrays, model_path, paint=False, bin_value=0.5, verbose=0):
     """
     Obtains the mask predictions of a model for a set of images
 
@@ -206,12 +222,16 @@ def get_inferences(image_arrays, model_path, verbose=0):
         model_path, inference=True, new_exp=None, device=device
     )
     masks = []
+    painted = []
     for idx, x in enumerate(xs):
         if verbose > 0:
             print(idx, "/", len(xs), end="\r")
         m = trainer.G.mask(x=x)
         masks.append(m.squeeze().cpu())
-    return masks
+        if paint:
+            p = trainer.G.paint(m > bin_value, x)
+            painted.append(p.squeeze().cpu())
+    return masks, painted
 
 
 if __name__ == "__main__":
@@ -292,7 +312,7 @@ if __name__ == "__main__":
         print("=" * 50)
 
         # Initialize New Comet Experiment
-        exp = Experiment(project_name="omnigan-masker-metrics")
+        exp = Experiment(project_name="omnigan-masker-metrics", display_summary_level=0)
 
         # Obtain mask predictions
         print("Obtain mask predictions", end="", flush=True)
@@ -305,8 +325,15 @@ if __name__ == "__main__":
                 np.squeeze(np.divide(pred.numpy(), np.max(pred.numpy()))[:, 0, :, :])
                 for pred in preds
             ]
+            painted = None
         else:
-            preds = get_inferences(imgs, eval_item["eval_path"], verbose=1)
+            preds, painted = get_inferences(
+                imgs,
+                eval_item["eval_path"],
+                paint=not args.no_paint,
+                bin_value=args.bin_value,
+                verbose=1,
+            )
             preds = [pred.numpy() for pred in preds]
         print(" Done.")
 
@@ -332,7 +359,7 @@ if __name__ == "__main__":
         print("Compute metrics and plot images")
         for idx, (img, label, pred) in enumerate(zip(*(imgs, labels, preds))):
             print(idx, "/", len(imgs), end="\r")
-            img = np.moveaxis(np.squeeze(img), 0, -1)
+            img = np.moveaxis(np.squeeze(img), 0, -1)  # HWC
             label = np.squeeze(label)
 
             # Basic metrics
@@ -373,22 +400,31 @@ if __name__ == "__main__":
                 column_label="Ground truth",
             )
 
-            # Plot prediction images
-            fig_filename = plot_dir.joinpath(imgs_paths[idx].name)
-            plot_images(
-                fig_filename,
-                img,
-                label,
-                pred,
-                fp_map,
-                fn_map,
-                may_neg_map,
-                may_pos_map,
-                edge_coherence,
-                pred_edge,
-                label_edge,
-            )
-            exp.log_image(fig_filename)
+            if args.plot:
+                # Plot prediction images
+                fig_filename = plot_dir.joinpath(imgs_paths[idx].name)
+                plot_images(
+                    fig_filename,
+                    img,
+                    label,
+                    pred,
+                    fp_map,
+                    fn_map,
+                    may_neg_map,
+                    may_pos_map,
+                    edge_coherence,
+                    pred_edge,
+                    label_edge,
+                )
+                exp.log_image(fig_filename)
+            if not args.no_paint:
+                p = ((painted[idx].permute(1, 2, 0).numpy() + 1) / 2 * 255).astype(
+                    np.uint8
+                )
+                masked = img * (1 - pred[..., None])
+                combined = np.concatenate([masked, p], 1)
+                exp.log_image(combined, Path(imgs_paths[idx]).name)
+
         print(" Done.")
         try:
             # Summary statistics
@@ -426,5 +462,7 @@ if __name__ == "__main__":
             exp.log_parameters(vars(args))
             exp.log_parameters(eval_item)
             exp.add_tag("eval_masker")
+            if args.tags:
+                exp.add_tags(args.tags)
             exp.log_parameter("model_name", Path(eval_item["eval_path"]).name)
             exp.end()

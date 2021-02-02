@@ -85,21 +85,18 @@ class OmniGenerator(nn.Module):
         self.encoder = None
         if any(t in opts.tasks for t in "msd"):
             if opts.gen.encoder.architecture == "deeplabv2":
+                if self.verbose > 0:
+                    print("  - Add Deeplabv2 Encoder")
                 self.encoder = DeeplabV2Encoder(opts, no_init, verbose)
-                if self.verbose > 0:
-                    print("  - Created Deeplabv2 Encoder")
             elif opts.gen.encoder.architecture == "deeplabv3":
-                self.encoder = build_v3_backbone(opts, no_init)
                 if self.verbose > 0:
-                    print(
-                        "  - Created Deeplabv3 ({}) Encoder".format(
-                            opts.gen.deeplabv3.backbone
-                        )
-                    )
+                    backone = opts.gen.deeplabv3.backbone
+                    print("  - Add Deeplabv3 ({}) Encoder".format(backone))
+                self.encoder = build_v3_backbone(opts, no_init)
             else:
                 self.encoder = BaseEncoder(opts)
                 if self.verbose > 0:
-                    print("  - Created Base Encoder")
+                    print("  - Add Base Encoder")
 
         self.decoders = {}
 
@@ -110,17 +107,17 @@ class OmniGenerator(nn.Module):
                 self.decoders["d"] = DADADepthRegressionDecoder(opts)
 
             if self.verbose > 0:
-                print(f"  - Created {self.decoders['d'].__class__.__name__}")
+                print(f"  - Add {self.decoders['d'].__class__.__name__}")
 
         if "s" in opts.tasks:
             if opts.gen.s.architecture == "deeplabv2":
                 self.decoders["s"] = DeepLabV2Decoder(opts)
                 if self.verbose > 0:
-                    print("  - Created DeepLabV2Decoder")
+                    print("  - Add DeepLabV2Decoder")
             elif opts.gen.s.architecture == "deeplabv3":
                 self.decoders["s"] = DeepLabV3Decoder(opts, no_init)
                 if self.verbose > 0:
-                    print("  - Created DeepLabV3Decoder")
+                    print("  - Add DeepLabV3Decoder")
             else:
                 raise NotImplementedError(
                     "Unknown architecture {}".format(opts.gen.s.architecture)
@@ -128,7 +125,7 @@ class OmniGenerator(nn.Module):
 
         if "m" in opts.tasks:
             if self.verbose > 0:
-                print("  - Created Mask Decoder")
+                print("  - Add Mask Decoder")
             if self.opts.gen.m.use_spade:
                 assert "d" in self.opts.tasks or "s" in self.opts.tasks
                 self.decoders["m"] = MaskSpadeDecoder(opts)
@@ -140,11 +137,11 @@ class OmniGenerator(nn.Module):
         if "p" in self.opts.tasks:
             self.painter = PainterSpadeDecoder(opts)
             if self.verbose > 0:
-                print("  - Created PainterSpadeDecoder Painter")
+                print("  - Add PainterSpadeDecoder Painter")
         else:
             self.painter = nn.Module()
             if self.verbose > 0:
-                print("  - Created Empty Painter")
+                print("  - Add Empty Painter")
 
     def encode(self, x):
         assert self.encoder is not None
@@ -266,11 +263,11 @@ class OmniGenerator(nn.Module):
                 {k.replace("painter.", ""): v for k, v in state_dict["G"].items()}
             )
             self.painter = painter
-            print("    Loaded validation-only painter")
+            print("    - Loaded validation-only painter")
             return True
         except Exception as e:
             print(e)
-            print("Aborting load_val_painter.")
+            print(">>> WARNINT: error (^) in load_val_painter, aborting.")
             return False
 
 

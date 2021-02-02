@@ -13,6 +13,7 @@ import numpy as np
 from typing import Union, Optional, List, Any
 import traceback
 import time
+from comet_ml import Experiment
 
 comet_kwargs = {
     "auto_metric_logging": False,
@@ -934,3 +935,12 @@ def find_images(path, recursive=False):
         pattern += "*/*"
 
     return [i for i in p.glob(pattern) if i.is_file() and is_image_file(i)]
+
+
+def upload_images_to_exp(path, exp=None, project_name="omnigan-eval"):
+    ims = find_images(path)
+    if exp is None:
+        exp = Experiment(project_name=project_name)
+    for im in ims:
+        exp.log_image(str(im))
+    return exp
