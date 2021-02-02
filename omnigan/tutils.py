@@ -594,7 +594,7 @@ def retrieve_sky_mask(seg, nc):
     else:
         seg_ind = seg
 
-    if nc == 6:
+    if nc == 9:
         sky_mask = seg_ind == 5
     else:
         sky_mask = seg_ind == 9
