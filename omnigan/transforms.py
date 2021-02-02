@@ -342,6 +342,61 @@ class PrepareInference:
         return self.process(x)
 
 
+class PrepareTest:
+    """
+    Transform which:
+      - transforms a str or an array into a tensor
+      - resizes the image to keep the aspect ratio
+      - crops in the center of the resized image
+      - normalize to 0:1 (optional)
+      - rescale to -1:1 (optional)
+    """
+
+    def __init__(self, target_size=640, half=False):
+        self.resize = Resize(target_size, keep_aspect_ratio=True)
+        self.crop = RandomCrop((target_size, target_size), center=True)
+        self.half = half
+
+    def process(self, t, normalize=False, rescale=False):
+        if isinstance(t, (str, Path)):
+            t = imread(str(t))
+            if np.ndim(t) == 2:
+                t = np.repeat(t[:, :, np.newaxis], 3, axis=2)
+
+        if isinstance(t, np.ndarray):
+            t = torch.from_numpy(t)
+            t = t.permute(2, 0, 1)
+
+        if len(t.shape) == 3:
+            t = t.unsqueeze(0)
+
+        t = t.to(torch.float16) if self.half else t.to(torch.float32)
+
+        normalize(t) if normalize else t
+        (t - 0.5) * 2 if rescale else t
+        t = {"x": t}
+        t = self.resize(t)
+        t = self.crop(t)
+        t = t["x"]
+
+        return t
+
+    def __call__(self, x, normalize=False, rescale=False):
+        """
+        Call process()
+
+        x can be: dict {"task": data} list [data, ..] or data
+        data ^ can be a str, a Path, a numpy arrray or a Tensor
+        """
+        if isinstance(x, dict):
+            return {k: self.process(v, normalize, rescale) for k, v in x.items()}
+
+        if isinstance(x, list):
+            return [self.process(t, normalize, rescale) for t in x]
+
+        return self.process(x, normalize, rescale)
+
+
 def get_transform(transform_item, mode):
     """Returns the torchivion transform function associated to a
     transform_item listed in opts.data.transforms ; transform_item is
@@ -474,10 +529,16 @@ def rand_cutout(tensor, ratio=0.5):
     )
     size_ = [tensor.size(0), 1, 1]
     offset_x = torch.randint(
-        0, tensor.size(-2) + (1 - cutout_size[0] % 2), size=size_, device=device_,
+        0,
+        tensor.size(-2) + (1 - cutout_size[0] % 2),
+        size=size_,
+        device=device_,
     )
     offset_y = torch.randint(
-        0, tensor.size(-1) + (1 - cutout_size[1] % 2), size=size_, device=device_,
+        0,
+        tensor.size(-1) + (1 - cutout_size[1] % 2),
+        size=size_,
+        device=device_,
     )
     grid_x = torch.clamp(
         grid_x + offset_x - cutout_size[0] // 2, min=0, max=tensor.size(-2) - 1
