@@ -284,7 +284,7 @@ if __name__ == "__main__":
         if not os.path.isdir(args.model):
             evaluations += [{"eval_type": "preds_dir", "eval_path": args.preds_dir}]
         else:
-            evaluations += [{"eval_type": "preds_dir", "eval_path": args.model}]
+            evaluations += [{"eval_type": "model", "eval_path": args.model}]
 
     for e, eval_item in enumerate(evaluations):
         print("\n>>>>> Evaluation", e, ":", eval_item["eval_path"])
