@@ -277,6 +277,7 @@ class MaskBaseDecoder(BaseDecoder):
         use_v3 = opts.gen.encoder.architecture == "deeplabv3"
         use_mobile_net = opts.gen.deeplabv3.backbone == "mobilenet"
         use_low = opts.gen.m.use_low_level_feats
+        use_dada = ("d" in opts.tasks) & opts.gen.m.use_dada
 
         if use_v3 and use_mobile_net:
             input_dim = 320
@@ -300,6 +301,7 @@ class MaskBaseDecoder(BaseDecoder):
             pad_type=opts.gen.m.pad_type,
             output_activ="none",
             low_level_feats_dim=low_level_feats_dim,
+            use_dada=use_dada,
         )
 
 
@@ -489,15 +491,11 @@ class MaskSpadeDecoder(nn.Module):
     def forward(self, z, cond, z_depth=None):
         if isinstance(z, (list, tuple)):
             z_h, z_l = z
-            if z_depth is not None:
-                z_h = z_h * z_depth
             z_l = self.low_level_conv(z_l)
             z_l = F.interpolate(z_l, size=z_h.shape[-2:], mode="bilinear")
             z = torch.cat([z_h, z_l], axis=1)
             y = self.merge_feats_conv(z)
         else:
-            if z_depth is not None:
-                z = z * z_depth
             y = self.fc_conv(z)
 
         for i in range(self.num_layers):

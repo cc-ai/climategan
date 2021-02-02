@@ -273,11 +273,18 @@ if __name__ == "__main__":
         },  # 15
         {
             "__use_comet": False,
-            "__doc": "MSD DADA",
+            "__doc": "MSD DADA_s",
             "__verbose": 1,
-            "gen.s.depth_feat_fusion": True,
-            "gen.s.depth_dada_fusion": True,
+            "gen.s.use_dada": True,
+            "gen.m.use_dada": False,
         },  # 16
+        {
+            "__use_comet": False,
+            "__doc": "MSD DADA_ms",
+            "__verbose": 1,
+            "gen.s.use_dada": True,
+            "gen.m.use_dada": True,
+        },  # 17
     ]
 
     n_confs = len(test_scenarios)
