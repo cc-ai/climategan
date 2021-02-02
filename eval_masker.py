@@ -422,43 +422,38 @@ if __name__ == "__main__":
                 exp.log_image(combined, Path(imgs_paths[idx]).name)
 
         print(" Done.")
-        try:
-            # Summary statistics
-            means = df.mean(axis=0)
-            confmat_mean, confmat_std = get_confusion_matrix(
-                df.tpr, df.tnr, df.fpr, df.fnr, df.mpr, df.mnr
-            )
-            confmat_mean = np.around(confmat_mean, decimals=3)
-            confmat_std = np.around(confmat_std, decimals=3)
+        # Summary statistics
+        means = df.mean(axis=0)
+        confmat_mean, confmat_std = get_confusion_matrix(
+            df.tpr, df.tnr, df.fpr, df.fnr, df.mpr, df.mnr
+        )
+        confmat_mean = np.around(confmat_mean, decimals=3)
+        confmat_std = np.around(confmat_std, decimals=3)
 
-            # Log to comet
-            exp.log_confusion_matrix(
-                file_name="confusion_matrix_mean.json",
-                title="confusion_matrix_mean.json",
-                matrix=confmat_mean,
-                labels=["Cannot", "Must", "May"],
-                row_label="Predicted",
-                column_label="Ground truth",
-            )
-            exp.log_confusion_matrix(
-                file_name="confusion_matrix_std.json",
-                title="confusion_matrix_std.json",
-                matrix=confmat_std,
-                labels=["Cannot", "Must", "May"],
-                row_label="Predicted",
-                column_label="Ground truth",
-            )
-            exp.log_metrics(dict(means))
-        except Exception as e:
-            print(f"\n\n{e}\n{traceback.format_exc()}\n\n")
-            exp.log_parameter("ABORTED", True)
-        finally:
-            exp.log_table("metrics.csv", df)
-            exp.log_html(df.to_html(col_space="80px"))
-            exp.log_parameters(vars(args))
-            exp.log_parameters(eval_item)
-            exp.add_tag("eval_masker")
-            if args.tags:
-                exp.add_tags(args.tags)
-            exp.log_parameter("model_name", Path(eval_item["eval_path"]).name)
-            exp.end()
+        # Log to comet
+        exp.log_confusion_matrix(
+            file_name="confusion_matrix_mean.json",
+            title="confusion_matrix_mean.json",
+            matrix=confmat_mean,
+            labels=["Cannot", "Must", "May"],
+            row_label="Predicted",
+            column_label="Ground truth",
+        )
+        exp.log_confusion_matrix(
+            file_name="confusion_matrix_std.json",
+            title="confusion_matrix_std.json",
+            matrix=confmat_std,
+            labels=["Cannot", "Must", "May"],
+            row_label="Predicted",
+            column_label="Ground truth",
+        )
+        exp.log_metrics(dict(means))
+        exp.log_table("metrics.csv", df)
+        exp.log_html(df.to_html(col_space="80px"))
+        exp.log_parameters(vars(args))
+        exp.log_parameters(eval_item)
+        exp.add_tag("eval_masker")
+        if args.tags:
+            exp.add_tags(args.tags)
+        exp.log_parameter("model_name", Path(eval_item["eval_path"]).name)
+        exp.end()
