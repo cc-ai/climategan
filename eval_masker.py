@@ -418,7 +418,9 @@ if __name__ == "__main__":
                 )
                 exp.log_image(fig_filename)
             if not args.no_paint:
-                p = painted[idx].permute(1, 2, 0).numpy()
+                p = ((painted[idx].permute(1, 2, 0).numpy() + 1) / 2 * 255).astype(
+                    np.uint8
+                )
                 masked = img * (1 - pred[..., None])
                 combined = np.concatenate([masked, p], 1)
                 exp.log_image(combined, Path(imgs_paths[idx]).name)
