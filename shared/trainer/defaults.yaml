@@ -37,12 +37,12 @@ data:
       kitti: val_kitti.json
   check_samples: False
   loaders:
-    batch_size: 3
-    num_workers: 8
+    batch_size: 6
+    num_workers: 6
   normalization: default # can be "default" or "HRNet" for now. # default: mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]; HRNet: mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
   transforms:
     - name: hflip
-      ignore: false
+      ignore: val
       p: 0.5
     - name: resize
       ignore: false
@@ -50,14 +50,15 @@ data:
       keep_aspect_ratio: true # smallest dimension will be `new_size` and the other will be computed to keep aspect  ratio
     - name: crop
       ignore: false
+      center: val # disable randomness, crop around the image's center
       height: 600
       width: 600
     - name: brightness
-      ignore: false
+      ignore: val
     - name: saturation
-      ignore: false
+      ignore: val
     - name: contrast
-      ignore: false
+      ignore: val
     - name: resize # ? this or change generator's output? Or resize larger then crop to 256?
       ignore: false
       new_size:
@@ -111,19 +112,19 @@ gen:
     pretrained_model: "/miniscratch/_groups/ccai/data/pretrained_models/deeplabv2/DeepLab_resnet_pretrained_imagenet.pth"
 
   deeplabv3:
-    backbone: resnet # resnet only
+    backbone: resnet # resnet or mobilenet
     output_stride: 8 # 8 or 16
     use_pretrained: true
     pretrained_model:
-      mobilenet: "/miniscratch/_groups/ccai/data/pretrained_models/deeplabv3/deeplab-mobilenet.pth"
+      mobilenet: "/miniscratch/_groups/ccai/data/pretrained_models/deeplabv3/deeplabv3_plus_mobilenetv2_segmentron.pth"
       resnet: "/miniscratch/_groups/ccai/data/pretrained_models/deeplabv3/model_CoinCheungDeepLab-v3-plus.pth"
 
   d: # specific params for the depth estimation decoder
     <<: *default-gen
     output_dim: 1
     norm: batch
-    loss: dada # dada or sigm | /!\ ignored if classify.enable
-    upsample_featuremaps: False # upsamples from 80x80 to 160x160 intermediate feature maps
+    loss: sigm # dada or sigm | /!\ ignored if classify.enable
+    upsample_featuremaps: True # upsamples from 80x80 to 160x160 intermediate feature maps
     architecture: dada # dada or base | must be base for classif
     classify: # classify log-depth instead of regression
       enable: False
@@ -137,13 +138,13 @@ gen:
     output_dim: 11
     use_advent: True
     use_minent: True
-    architecture: "deeplabv3"
+    architecture: deeplabv3
     upsample_featuremaps: False # upsamples from 80x80 to 160x160 intermediate feature maps
     depth_feat_fusion: True
     depth_dada_fusion: True
   p: # specific params for the SPADE painter
     <<: *default-gen
-    latent_dim: 512
+    latent_dim: 640
     loss: gan # gan or hinge
     no_z: true # <=> use_vae=False in the SPADE repo
     output_dim: 3 # output dimension
@@ -173,10 +174,10 @@ gen:
     use_ground_intersection: True
     proj_dim: 64
     n_res: 3
-    use_low_level_feats: False
+    use_low_level_feats: True
     spade:
-      detach: True # detach s_pred and d_pred conditionning tensors
-      latent_dim: 256
+      latent_dim: 128
+      detach: True # detach s_pred and d_pred conditioning tensors
       cond_nc: 12 # 12 without x, 15 with x
       spade_use_spectral_norm: True
       spade_param_free_norm: batch
@@ -260,8 +261,8 @@ classifier:
 train:
   kitti:
     pretrain: False
-    epochs: 30
-    batch_size: 20
+    epochs: 10
+    batch_size: 6
   amp: False
   pseudo:
     tasks: [] # list of tasks for which to use pseudo labels (empty list to disable)
@@ -307,7 +308,7 @@ train:
       dis_aux: 0.0 # the discriminator take care of the second output in the adversarial training
       WGAN_gp: 10 # used in WGAN_gp, it's the hyperparameters for the gradient penalty
   log_level: 2 # 0: no log, 1: only aggregated losses, >1 detailed losses
-  save_n_epochs: 2 # Save `latest_ckpt.pth` every epoch, `epoch_{epoch}_ckpt.pth` model every n epochs if epoch >= min_save_epoch
+  save_n_epochs: 25 # Save `latest_ckpt.pth` every epoch, `epoch_{epoch}_ckpt.pth` model every n epochs if epoch >= min_save_epoch
   min_save_epoch: 28 # Save extra intermediate checkpoints when epoch > min_save_epoch
   resume: false # Load latest_ckpt.pth checkpoint from `output_path` #TODO Make this path of checkpoint to load
   auto_resume: true # automatically looks for similar output paths and exact same jobID to resume training automatically even if resume is false.
@@ -316,8 +317,8 @@ train:
 # ----- Validation Params -----
 # -----------------------------
 val:
-  visualize: false # True if using visualizedEval.py to evaluate the masker. (Won't load any optimizers. Will load Generator state_dict unstrictly. Helpful to evaluate masker from multi§head ckpt)
   store_images: false # write to disk on top of comet logging
+  val_painter: /miniscratch/_groups/ccai/checkpoints/painter/victor/good_large_lr/checkpoints/latest_ckpt.pth
 # -----------------------------
 # ----- Comet Params ----------
 # -----------------------------

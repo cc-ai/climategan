@@ -24,7 +24,7 @@ class Logger:
         self.global_step = 0
         self.epoch = 0
 
-    def log_comet_images(self, mode, domain):
+    def log_comet_images(self, mode, domain, minimal=False, all_only=False):
         trainer = self.trainer
         save_images = {}
         all_images = []
@@ -38,8 +38,13 @@ class Logger:
         # --------------------
         # -----  Masker  -----
         # --------------------
+        n_ims = len(trainer.display_images[mode][domain])
+        print(" " * 60, end="\r")
         if domain != "rf":
             for j, display_dict in enumerate(trainer.display_images[mode][domain]):
+
+                print(f"Inferring sample {mode} {domain} {j+1}/{n_ims}", end="\r")
+
                 x = display_dict["data"]["x"].unsqueeze(0).to(trainer.device)
                 z = trainer.G.encode(x)
 
@@ -105,12 +110,21 @@ class Logger:
                     elif task == "m":
                         prediction = sigmoid(prediction).repeat(1, 3, 1, 1)
                         task_saves.append(x * (1.0 - prediction))
-                        task_saves.append(x * (1.0 - (prediction > 0.1).to(torch.int)))
-                        task_saves.append(x * (1.0 - (prediction > 0.5).to(torch.int)))
+                        if not minimal:
+                            task_saves.append(
+                                x * (1.0 - (prediction > 0.1).to(torch.int))
+                            )
+                            task_saves.append(
+                                x * (1.0 - (prediction > 0.5).to(torch.int))
+                            )
+
                         task_saves.append(x * (1.0 - target.repeat(1, 3, 1, 1)))
                         task_legend.append("Masked input")
-                        task_legend.append("Masked input (>0.1)")
-                        task_legend.append("Masked input (>0.5)")
+
+                        if not minimal:
+                            task_legend.append("Masked input (>0.1)")
+                            task_legend.append("Masked input (>0.5)")
+
                         task_legend.append("Masked input (target)")
                         # dummy pixels to fool scaling and preserve mask range
                         prediction[:, :, 0, 0] = 1.0
@@ -152,27 +166,29 @@ class Logger:
                 if j == 0:
                     n_all_ims = len(all_images)
 
-            for task in save_images.keys():
-                # Write images:
+            if not all_only:
+                for task in save_images.keys():
+                    # Write images:
+                    self.upload_images(
+                        image_outputs=save_images[task],
+                        mode=mode,
+                        domain=domain,
+                        task=task,
+                        im_per_row=trainer.opts.comet.im_per_row.get(task, 4),
+                        rows_per_log=trainer.opts.comet.get("rows_per_log", 5),
+                        legends=task_legends[task],
+                    )
+
+            if len(save_images) > 1:
                 self.upload_images(
-                    image_outputs=save_images[task],
+                    image_outputs=all_images,
                     mode=mode,
                     domain=domain,
-                    task=task,
-                    im_per_row=trainer.opts.comet.im_per_row.get(task, 4),
+                    task="all",
+                    im_per_row=n_all_ims,
                     rows_per_log=trainer.opts.comet.get("rows_per_log", 5),
-                    legends=task_legends[task],
+                    legends=all_legends,
                 )
-
-            self.upload_images(
-                image_outputs=all_images,
-                mode=mode,
-                domain=domain,
-                task="all",
-                im_per_row=n_all_ims,
-                rows_per_log=trainer.opts.comet.get("rows_per_log", 5),
-                legends=all_legends,
-            )
         # ---------------------
         # -----  Painter  -----
         # ---------------------
@@ -366,6 +382,7 @@ class Logger:
             return
         curr_iter = self.global_step
         nb_per_log = im_per_row * rows_per_log
+        n_logs = len(image_outputs) // nb_per_log + 1
 
         header = None
         if len(legends) == im_per_row and all(isinstance(t, str) for t in legends):
@@ -373,11 +390,11 @@ class Logger:
             headers = all_texts_to_tensors(legends, width=header_width)
             header = torch.cat(headers, dim=-1)
 
-        for logidx in range(rows_per_log):
+        for logidx in range(n_logs):
             print(" " * 100, end="\r", flush=True)
             print(
-                "Creating images for {} {} {} {}/{}".format(
-                    mode, domain, task, logidx + 1, rows_per_log
+                "Uploading images for {} {} {} {}/{}".format(
+                    mode, domain, task, logidx + 1, n_logs
                 ),
                 end="...",
                 flush=True,
