@@ -230,7 +230,7 @@ def get_inferences(image_arrays, model_path, paint=False, bin_value=0.5, verbose
         masks.append(m.squeeze().cpu())
         if paint:
             p = trainer.G.paint(m > bin_value, x)
-            painted.append(p.squeeze(p.cpu()))
+            painted.append(p.squeeze().cpu())
     return masks, painted
 
 
