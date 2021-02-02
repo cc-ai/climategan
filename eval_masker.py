@@ -292,7 +292,7 @@ if __name__ == "__main__":
         print("=" * 50)
 
         # Initialize New Comet Experiment
-        exp = Experiment(project_name="omnigan-masker-metrics")
+        exp = Experiment(project_name="omnigan-masker-metrics", display_summary_level=0)
 
         # Obtain mask predictions
         print("Obtain mask predictions", end="", flush=True)
