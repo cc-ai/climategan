@@ -68,7 +68,7 @@ def add_fire(x, seg_preds, filter_color, blur_radius, nc):
         filter_color (tuple): (r,g,b) tuple for the color of the sky
         blur_radius (float): radius of the Gaussian blur that smooths
             the transition between sky and foreground
-        nc (int): number of channels of the segmentation output (6 or 11)
+        nc (int): number of channels of the segmentation output (9 or 11)
     Returns:
         torch.Tensor: Wildfire version of input tensor
     """

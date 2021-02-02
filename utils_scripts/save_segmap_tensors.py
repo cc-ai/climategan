@@ -21,11 +21,8 @@ parser.add_argument(
 parser.add_argument(
     "-d", "--domain", type=str, required=True, help="domain of the images (r or s)"
 )
-parser.add_argument(
-    "-r", "--reduced", type=bool, default=False, help="Whether to use reduced labelling"
-)
 args = parser.parse_args()
 
 
 if __name__ == "__main__":
-    save_segmap_tensors(args.path_json, args.path_dir, args.domain, args.reduced)
+    save_segmap_tensors(args.path_json, args.path_dir, args.domain)

@@ -249,7 +249,7 @@ def find_closest_class(pixel, dict_classes):
     return closest_pixel
 
 
-def encode_segmap(arr, domain, reduced_labelling):
+def encode_segmap(arr, domain):
     """Change a segmentation RGBA array to a segmentation array
                             with each pixel being the index of the class
     Arguments:
@@ -258,13 +258,11 @@ def encode_segmap(arr, domain, reduced_labelling):
         numpy array of size (1) x (H) x (W) with each pixel being the index of the class
     """
     new_arr = np.zeros((1, arr.shape[0], arr.shape[1]))
-    if reduced_labelling:
-        dict_classes = encoding_reduced_mapping[domain]
-    else:
-        dict_classes = {
-            tuple(rgba_value): class_id
-            for (class_id, rgba_value) in classes_dict[domain].items()
-        }
+    dict_classes = {
+        tuple(rgba_value): class_id
+        for (class_id, rgba_value) in classes_dict[domain].items()
+    }
+
     for i in range(arr.shape[0]):
         for j in range(arr.shape[1]):
             pixel_rgba = tuple(arr[i, j, :])
@@ -276,19 +274,19 @@ def encode_segmap(arr, domain, reduced_labelling):
     return new_arr
 
 
-def transform_segmap_image_to_tensor(path, domain, reduced_labelling):
+def transform_segmap_image_to_tensor(path, domain):
     """
         Transforms a segmentation image to a tensor of size (1) x (1) x (H) x (W)
         with each pixel being the index of the class
     """
     arr = np.array(Image.open(path).convert("RGBA"))
-    arr = encode_segmap(arr, domain, reduced_labelling)
+    arr = encode_segmap(arr, domain)
     arr = torch.from_numpy(arr).float()
     arr = arr.unsqueeze(0)
     return arr
 
 
-def save_segmap_tensors(path_to_json, path_to_dir, domain, reduced_labelling):
+def save_segmap_tensors(path_to_json, path_to_dir, domain):
     """
     Loads the segmentation images mentionned in a json file, transforms them to
     tensors and save the tensors in the wanted directory
@@ -318,9 +316,7 @@ def save_segmap_tensors(path_to_json, path_to_dir, domain, reduced_labelling):
             if task_name == "s":
                 file_name = os.path.splitext(path)[0]  # remove extension
                 file_name = file_name.rsplit("/", 1)[-1]  # keep only the file_name
-                tensor = transform_segmap_image_to_tensor(
-                    path, domain, reduced_labelling
-                )
+                tensor = transform_segmap_image_to_tensor(path, domain)
                 torch.save(tensor, path_to_dir + file_name + ".pt")
 
 
