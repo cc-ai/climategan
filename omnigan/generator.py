@@ -522,7 +522,7 @@ class MaskSpadeDecoder(nn.Module):
             1,
             3,
             padding=1,
-            activation="lrelu",
+            activation="none",
             pad_type="reflect",
             norm="spectral",
         )
