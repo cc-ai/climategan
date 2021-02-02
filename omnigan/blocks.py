@@ -586,7 +586,11 @@ class SPADEResnetBlock(nn.Module):
         elif self.last_activation is None:
             return out
         else:
-            raise NotImplementedError("The type of activation is not supported.")
+            raise NotImplementedError(
+                "The type of activation is not supported: {}".format(
+                    self.last_activation
+                )
+            )
 
     def shortcut(self, x, seg):
         if self.learned_shortcut:
