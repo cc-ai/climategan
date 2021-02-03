@@ -127,7 +127,7 @@ def plot_images(
     # FPR (predicted mask on cannot flood)
     axes[0].imshow(img)
     fp_map_plt = axes[0].imshow(
-        maps_dict['fp_map'], vmin=vmin, vmax=vmax, cmap=cmap["fp"], alpha=alpha
+        maps_dict['fp'], vmin=vmin, vmax=vmax, cmap=cmap["fp"], alpha=alpha
     )
     axes[0].axis("off")
     axes[0].set_title("FPR: {:.4f}".format(metrics_dict['fpr']), fontsize=fontsize)
@@ -135,7 +135,7 @@ def plot_images(
     # FNR (missed mask on must flood)
     axes[1].imshow(img)
     fn_map_plt = axes[1].imshow(
-        maps_dict['fn_map'], vmin=vmin, vmax=vmax, cmap=cmap["fn"], alpha=alpha
+        maps_dict['fn'], vmin=vmin, vmax=vmax, cmap=cmap["fn"], alpha=alpha
     )
     axes[1].axis("off")
     axes[1].set_title("FNR: {:.4f}".format(metrics_dict['fnr']), fontsize=fontsize)
@@ -157,10 +157,10 @@ def plot_images(
         title = "MNR: {:.2f} | MPR: {:.2f}".format(mnr, mpr)
     #         alpha_here = alpha / 2.
     may_neg_map_plt = axes[2].imshow(
-        maps_dict['may_neg_map'], vmin=vmin, vmax=vmax, cmap=cmap["may_neg"], alpha=alpha
+        maps_dict['may_neg'], vmin=vmin, vmax=vmax, cmap=cmap["may_neg"], alpha=alpha
     )
     may_pos_map_plt = axes[2].imshow(
-        maps_dict['may_pos_map'], vmin=vmin, vmax=vmax, cmap=cmap["may_pos"], alpha=alpha
+        maps_dict['may_pos'], vmin=vmin, vmax=vmax, cmap=cmap["may_pos"], alpha=alpha
     )
     axes[2].set_title(title, fontsize=fontsize)
     axes[2].axis("off")
@@ -330,6 +330,8 @@ if __name__ == "__main__":
                 verbose=1,
             )
             preds = [pred.numpy() for pred in preds]
+            painted = [((np.moveaxis(p.numpy(), 0, -1) + 1) / 2 * 255).astype(np.uint8) for
+            p in painted]
         print(" Done.")
 
         if args.bin_value > 0:
@@ -411,11 +413,8 @@ if __name__ == "__main__":
                 )
                 exp.log_image(fig_filename)
             if not args.no_paint:
-                p = ((painted[idx].permute(1, 2, 0).numpy() + 1) / 2 * 255).astype(
-                    np.uint8
-                )
                 masked = img * (1 - pred[..., None])
-                combined = np.concatenate([masked, p], 1)
+                combined = np.concatenate([masked, painted[idx]], 1)
                 exp.log_image(combined, Path(imgs_paths[idx]).name)
 
         print(" Done.")
