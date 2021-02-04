@@ -538,10 +538,6 @@ class Trainer:
         for _ in range(self.logger.epoch + 1):
             self.update_learning_rates()
 
-        # Round step to even number for extraGradient
-        if self.logger.global_step % 2 != 0:
-            self.logger.global_step += 1
-
         # -----------------------
         # -----  Restore D  -----
         # -----------------------
@@ -817,6 +813,11 @@ class Trainer:
 
         print(" " * 50, end="\r")
         print("Done creating display images")
+
+        if self.opts.train.resume:
+            print("Resuming Model (inference: False)")
+            self.resume(False)
+
         print("Setup done.")
         self.is_setup = True
 
