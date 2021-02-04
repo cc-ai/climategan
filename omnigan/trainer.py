@@ -1187,12 +1187,14 @@ class Trainer:
                     disc_loss["s"]["Advent"] += step_loss
 
                 if "m" in batch["data"]:
-                    if d_pred is None and "d" in self.opts.tasks:
+                    if "d" in self.opts.tasks:
                         if self.opts.gen.m.use_spade:
-                            d_pred, z_depth = self.G.decoders["d"](z)
+                            if d_pred is None:
+                                d_pred, z_depth = self.G.decoders["d"](z)
                             cond = self.G.make_m_cond(d_pred, s_pred, x)
                         elif self.opts.gen.m.use_dada:
-                            d_pred, z_depth = self.G.decoders["d"](z)
+                            if d_pred is None:
+                                d_pred, z_depth = self.G.decoders["d"](z)
 
                     step_loss, _ = self.masker_m_loss(
                         x,
@@ -1535,15 +1537,16 @@ class Trainer:
 
         # Fool ADVENT discriminator
         if self.opts.gen.s.use_advent:
+            if self.opts.gen.s.use_dada and depth_preds is not None:
+                depth_preds = depth_preds.detach()
+            else:
+                depth_preds = None
+
             if for_ == "D":
                 domain_label = domain
                 logger = {}
                 loss_func = self.losses["D"]["advent"]
                 pred = pred.detach()
-                if self.opts.gen.s.use_dada and depth_preds is not None:
-                    depth_preds = depth_preds.detach()
-                else:
-                    depth_preds = None
                 weight = self.opts.train.lambdas.advent.adv_main
             else:
                 domain_label = "s"
@@ -1595,7 +1598,7 @@ class Trainer:
         full_loss = torch.tensor(0.0, device=self.device)
 
         # ? output features classifier
-        pred_logits = self.G.decoders["m"](z, cond, z_depth)
+        pred_logits = self.G.decoders["m"](z, cond=cond, z_depth=z_depth)
         pred_prob = sigmoid(pred_logits)
         pred_prob_complementary = 1 - pred_prob
         prob = torch.cat([pred_prob, pred_prob_complementary], dim=1)
@@ -1919,14 +1922,14 @@ class Trainer:
             if z is None:
                 z = self.G.encode(x)
             seg_preds = self.G.decoders["s"](z, z_depth)
-        
+
         fire_color = (
             self.opts.events.fire.color.r,
             self.opts.events.fire.color.g,
             self.opts.events.fire.color.b,
         )
         blur_radius = self.opts.events.fire.blur_radius
-        
+
         if x.shape[0] > 0:
             return torch.cat(
                 [
@@ -1960,9 +1963,12 @@ class Trainer:
         """
 
         if m is None:
+            z_depth = None
             if z is None:
                 z = self.G.encode(x)
-            m = self.G.mask(z=z)
+            if "d" in self.opts.tasks and self.opts.gen.m.use_dada:
+                _, z_depth = self.G.decoders["d"](z)
+            m = self.G.mask(z=z, z_depth=z_depth)
 
         if bin_value >= 0:
             m = (m > bin_value).to(m.dtype)

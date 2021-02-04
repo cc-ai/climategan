@@ -207,6 +207,7 @@ if __name__ == "__main__":
             "__doc": "M no exp low level feats",  # 4
             "__use_comet": False,
             "gen.m.use_low_level_feats": True,
+            "gen.m.use_dada": False,
             "tasks": ["m"],
         },
         {
@@ -242,11 +243,18 @@ if __name__ == "__main__":
             "train.kitti.batch_size": 2,
         },
         {"__doc": "Depth Dada archi", "gen.d.architecture": "dada"},  # 10
-        {"__doc": "Depth Base archi", "gen.d.architecture": "base"},  # 11
+        {
+            "__doc": "Depth Base archi",
+            "gen.d.architecture": "base",
+            "gen.m.use_dada": False,
+            "gen.s.use_dada": False,
+        },  # 11
         {
             "__doc": "Depth Base Classification",  # 12
             "gen.d.architecture": "base",
             "gen.d.classify.enable": True,
+            "gen.m.use_dada": False,
+            "gen.s.use_dada": False,
         },
         {"__doc": "MSD Resnet V3+ backbone", "gen.deeplabv3.backbone": "resnet",},  # 13
         {

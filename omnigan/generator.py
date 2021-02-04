@@ -103,6 +103,10 @@ class OmniGenerator(nn.Module):
         if "d" in opts.tasks:
             if opts.gen.d.architecture == "base":
                 self.decoders["d"] = BaseDepthDecoder(opts)
+                if "s" in self.opts.task:
+                    assert self.opts.gen.s.use_dada == False
+                if "m" in self.opts.tasks:
+                    assert self.opts.gen.m.use_dada == False
             else:
                 self.decoders["d"] = DADADepthRegressionDecoder(opts)
 
@@ -189,9 +193,13 @@ class OmniGenerator(nn.Module):
         if cond is None and self.opts.gen.m.use_spade:
             assert "s" in self.opts.tasks and "d" in self.opts.tasks
             with torch.no_grad():
-                d_pred, z_depth = self.decoders["d"](z)
-                s_pred = self.decoders["s"](z, z_depth)
+                d_pred, z_d = self.decoders["d"](z)
+                s_pred = self.decoders["s"](z, z_d)
                 cond = self.make_m_cond(d_pred, s_pred, x)
+        if z_depth is None and self.opts.gen.m.use_dada:
+            assert "d" in self.opts.tasks
+            with torch.no_grad():
+                _, z_depth = self.decoders["d"](z)
 
         if cond is not None:
             device = z[0].device if isinstance(z, (tuple, list)) else z.device
