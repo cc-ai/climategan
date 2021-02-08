@@ -181,7 +181,7 @@ gen:
       spade_use_spectral_norm: True
       spade_param_free_norm: batch
       num_layers: 3
-    use_dada: True
+    use_dada: False
 
 # -------------------------
 # ----- Discriminator -----
