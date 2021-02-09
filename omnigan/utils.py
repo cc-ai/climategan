@@ -14,6 +14,7 @@ from typing import Union, Optional, List, Any
 import traceback
 import time
 from comet_ml import Experiment
+from uuid import uuid4
 
 comet_kwargs = {
     "auto_metric_logging": False,
@@ -254,6 +255,10 @@ def write_hash(path: Union[str, Path]) -> None:
         f.write(hash_code)
 
 
+def shortuid():
+    return str(uuid4()).split("-")[0]
+
+
 def get_increased_path(path: Union[str, Path]) -> Path:
     """Returns an increased path: if dir exists, returns `dir (1)`.
     If `dir (i)` exists, returns `dir (max(i) + 1)`
@@ -273,20 +278,32 @@ def get_increased_path(path: Union[str, Path]) -> Path:
         pathlib.Path: increased path
     """
     fp = Path(path).resolve()
-    vals = []
-    for n in fp.parent.glob("{}*".format(fp.stem)):
-        if re.match(r".+\(\d+\)", str(n.name)) is not None:
-            name = str(n.name)
-            start = name.index("(")
-            end = name.index(")")
-            vals.append(int(name[start + 1 : end]))
-    if vals:
-        ext = " ({})".format(max(vals) + 1)
-    elif fp.exists():
-        ext = " (1)"
-    else:
-        ext = ""
-    return fp.parent / (fp.stem + ext + fp.suffix)
+    if not fp.exists():
+        return fp
+
+    if fp.is_file():
+        while fp.exists():
+            fp = fp.parent / f"{fp.stem}--{shortuid()}{fp.suffix}"
+        return fp
+
+    while fp.exists():
+        fp = fp.parent / f"{fp.name}--{shortuid()}"
+    return fp
+
+    # vals = []
+    # for n in fp.parent.glob("{}*".format(fp.stem)):
+    #     if re.match(r".+\(\d+\)", str(n.name)) is not None:
+    #         name = str(n.name)
+    #         start = name.index("(")
+    #         end = name.index(")")
+    #         vals.append(int(name[start + 1 : end]))
+    # if vals:
+    #     ext = " ({})".format(max(vals) + 1)
+    # elif fp.exists():
+    #     ext = " (1)"
+    # else:
+    #     ext = ""
+    # return fp.parent / (fp.stem + ext + fp.suffix)
 
 
 def env_to_path(path: str) -> str:

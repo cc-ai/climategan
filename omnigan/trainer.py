@@ -557,6 +557,11 @@ class Trainer:
         # ---------------------------
         self.logger.epoch = checkpoint["epoch"]
         self.logger.global_step = checkpoint["step"]
+        self.exp.log_text(
+            "Resuming from epoch {} & step {}".format(
+                checkpoint["epoch"], checkpoint["step"]
+            )
+        )
         # Round step to even number for extraGradient
         if self.logger.global_step % 2 != 0:
             self.logger.global_step += 1
@@ -907,6 +912,7 @@ class Trainer:
             if (
                 self.logger.epoch == self.opts.gen.p.pl4m_epoch
                 and get_num_params(self.G.painter) > 0
+                and "p" in self.opts.tasks
                 and self.opts.gen.m.use_pl4m
             ):
                 print(
