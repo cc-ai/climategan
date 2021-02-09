@@ -538,10 +538,6 @@ class Trainer:
         for _ in range(self.logger.epoch + 1):
             self.update_learning_rates()
 
-        # Round step to even number for extraGradient
-        if self.logger.global_step % 2 != 0:
-            self.logger.global_step += 1
-
         # -----------------------
         # -----  Restore D  -----
         # -----------------------
@@ -561,6 +557,11 @@ class Trainer:
         # ---------------------------
         self.logger.epoch = checkpoint["epoch"]
         self.logger.global_step = checkpoint["step"]
+        self.exp.log_text(
+            "Resuming from epoch {} & step {}".format(
+                checkpoint["epoch"], checkpoint["step"]
+            )
+        )
         # Round step to even number for extraGradient
         if self.logger.global_step % 2 != 0:
             self.logger.global_step += 1
@@ -827,6 +828,11 @@ class Trainer:
         # -------------------------
         print(" " * 50, end="\r")
         print("Done creating display images")
+
+        if self.opts.train.resume:
+            print("Resuming Model (inference: False)")
+            self.resume(False)
+
         print("Setup done.")
         self.is_setup = True
 
@@ -912,11 +918,17 @@ class Trainer:
         for self.logger.epoch in range(
             self.logger.epoch, self.logger.epoch + self.opts.train.epochs
         ):
-
             # backprop painter's disc loss to masker
-            if self.logger.epoch == self.opts.gen.p.pl4m_epoch:
-                if get_num_params(self.G.painter) > 0:
-                    self.use_pl4m = True
+            if (
+                self.logger.epoch == self.opts.gen.p.pl4m_epoch
+                and get_num_params(self.G.painter) > 0
+                and "p" in self.opts.tasks
+                and self.opts.gen.m.use_pl4m
+            ):
+                print(
+                    "\n\n >>> Enabling pl4m at epoch {}\n\n".format(self.logger.epoch)
+                )
+                self.use_pl4m = True
 
             self.run_epoch()
             self.run_evaluation(verbose=1)
@@ -1287,23 +1299,26 @@ class Trainer:
 
                 target = batch["data"][task]
 
-                if task == "s":
-                    loss, s_pred = self.masker_s_loss(
-                        x, z, d_pred, z_depth, target, domain, "G"
-                    )
-                    m_loss += loss
-                    self.logger.losses.gen.task["s"][domain] = loss.item()
-
-                elif task == "d":
+                if task == "d":
                     loss, d_pred, z_depth = self.masker_d_loss(
                         x, z, target, domain, "G"
                     )
                     m_loss += loss
                     self.logger.losses.gen.task["d"][domain] = loss.item()
 
+                elif task == "s":
+                    loss, s_pred = self.masker_s_loss(
+                        x, z, d_pred, z_depth, target, domain, "G"
+                    )
+                    m_loss += loss
+                    self.logger.losses.gen.task["s"][domain] = loss.item()
+
                 elif task == "m":
                     cond = None
                     if self.opts.gen.m.use_spade:
+                        if not self.opts.gen.m.detach:
+                            d_pred = d_pred.clone()
+                            s_pred = s_pred.clone()
                         cond = self.G.make_m_cond(d_pred, s_pred, x)
 
                     loss, _ = self.masker_m_loss(x, z, target, domain, "G", cond=cond)

@@ -62,6 +62,11 @@ classes_dict = {
         13: [0, 139, 139],  # Van
         14: [0, 0, 0],  # Undefined
     },
+    "flood": {
+        0: [255, 0, 0],  # Cannot flood
+        1: [0, 0, 255],  # Must flood
+        2: [0, 0, 0],  # May flood
+    },
 }
 
 kitti_mapping = {
@@ -150,7 +155,7 @@ def decode_segmap_merged_labels(tensor, domain, is_target, nc=11):
             if prediction, or size (1) x (1) x (H) x (W) if target
     Returns:
         RGB tensor of size (1) x (3) x (H) x (W)
-    # """
+    #"""
 
     if is_target:  # Target is size 1 x 1 x H x W
         idx = tensor.squeeze(0).squeeze(0)
@@ -247,10 +252,29 @@ def encode_segmap(arr, domain):
     return new_arr
 
 
+def encode_mask_label(arr, domain):
+    """Change a segmentation RGBA array to a segmentation array
+                            with each pixel being the index of the class
+    Arguments:
+        numpy array -- segmented image of size (H) x (W) x (4 RGBA values)
+    Returns:
+        numpy array of size (1) x (H) x (W) with each pixel being the index of the class
+    """
+    diff = np.zeros((len(classes_dict[domain].keys()), arr.shape[0], arr.shape[1]))
+    for cindex, cvalue in classes_dict[domain].items():
+        diff[cindex, :, :] = np.sqrt(
+            np.sum(
+                np.square(arr - np.tile(cvalue, (arr.shape[0], arr.shape[1], 1))),
+                axis=2,
+            )
+        )
+    return np.expand_dims(np.argmin(diff, axis=0), axis=0)
+
+
 def transform_segmap_image_to_tensor(path, domain):
     """
-        Transforms a segmentation image to a tensor of size (1) x (1) x (H) x (W)
-        with each pixel being the index of the class
+    Transforms a segmentation image to a tensor of size (1) x (1) x (H) x (W)
+    with each pixel being the index of the class
     """
     arr = np.array(Image.open(path).convert("RGBA"))
     arr = encode_segmap(arr, domain)
@@ -444,7 +468,10 @@ class OmniListDataset(Dataset):
             "data": self.transform(
                 {
                     task: tensor_loader(
-                        env_to_path(path), task, self.domain, self.opts,
+                        env_to_path(path),
+                        task,
+                        self.domain,
+                        self.opts,
                     )
                     for task, path in paths.items()
                 }

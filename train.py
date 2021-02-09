@@ -52,6 +52,7 @@ def main(opts):
 
     hydra_opts = Dict(OmegaConf.to_container(opts))
     args = hydra_opts.pop("args", None)
+    auto_resumed = {}
 
     config_path = args.config
 
@@ -86,6 +87,8 @@ def main(opts):
     if not opts.train.resume and opts.train.auto_resume:
         existing_path = find_existing_training(opts)
         if existing_path is not None and existing_path.exists():
+            auto_resumed["original output_path"] = opts.output_path
+            auto_resumed["existing_path"] = existing_path
             opts.train.resume = True
             opts.output_path = str(existing_path)
 
@@ -116,6 +119,7 @@ def main(opts):
                 print(f"from {opts.output_path}")
             else:
                 print("Continuing previous experiment", comet_previous_id)
+                auto_resumed["continuing exp id"] = comet_previous_id
                 exp = ExistingExperiment(
                     previous_experiment=comet_previous_id, **comet_kwargs
                 )
@@ -148,6 +152,8 @@ def main(opts):
 
         # Log all opts
         exp.log_parameters(flatten_opts(opts))
+        if auto_resumed:
+            exp.log_text("\n".join(f"{k:20}: {v}" for k, v in auto_resumed.items()))
 
         # allow some time for comet to get its url
         sleep(1)
