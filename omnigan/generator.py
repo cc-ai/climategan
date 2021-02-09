@@ -401,6 +401,10 @@ class MaskSpadeDecoder(nn.Module):
         cond_nc = opts.gen.m.spade.cond_nc
         spade_use_spectral_norm = opts.gen.m.spade.spade_use_spectral_norm
         spade_param_free_norm = opts.gen.m.spade.spade_param_free_norm
+        if self.opts.gen.m.spade.activations.all_lrelu:
+            spade_activation = "lrelu"
+        else:
+            spade_activation = None
         spade_kernel_size = 3
         self.num_layers = opts.gen.m.spade.num_layers
         self.z_nc = latent_dim
@@ -433,24 +437,54 @@ class MaskSpadeDecoder(nn.Module):
             and opts.gen.deeplabv3.backbone == "resnet"
         ):
             self.input_dim = [2048, 256]
-            self.low_level_conv = Conv2dBlock(
-                self.input_dim[1],
-                self.input_dim[0],
-                3,
-                padding=1,
-                activation="lrelu",
-                pad_type="reflect",
-                norm="spectral_batch",
-            )
-            self.merge_feats_conv = Conv2dBlock(
-                self.input_dim[0] * 2,
-                self.z_nc,
-                3,
-                padding=1,
-                activation="lrelu",
-                pad_type="reflect",
-                norm="spectral_batch",
-            )
+            if self.opts.gen.m.use_proj:
+                proj_dim = self.opts.gen.m.proj_dim
+                self.low_level_conv = Conv2dBlock(
+                    self.input_dim[1],
+                    proj_dim,
+                    3,
+                    padding=1,
+                    activation="lrelu",
+                    pad_type="reflect",
+                    norm="spectral_batch",
+                )
+                self.high_level_conv = Conv2dBlock(
+                    self.input_dim[0],
+                    proj_dim,
+                    3,
+                    padding=1,
+                    activation="lrelu",
+                    pad_type="reflect",
+                    norm="spectral_batch",
+                )
+                self.merge_feats_conv = Conv2dBlock(
+                    proj_dim * 2,
+                    self.z_nc,
+                    3,
+                    padding=1,
+                    activation="lrelu",
+                    pad_type="reflect",
+                    norm="spectral_batch",
+                )
+            else:
+                self.low_level_conv = Conv2dBlock(
+                    self.input_dim[1],
+                    self.input_dim[0],
+                    3,
+                    padding=1,
+                    activation="lrelu",
+                    pad_type="reflect",
+                    norm="spectral_batch",
+                )
+                self.merge_feats_conv = Conv2dBlock(
+                    self.input_dim[0] * 2,
+                    self.z_nc,
+                    3,
+                    padding=1,
+                    activation="lrelu",
+                    pad_type="reflect",
+                    norm="spectral_batch",
+                )
 
         elif opts.gen.encoder.architecture == "deeplabv2":
             self.input_dim = 2048
@@ -467,6 +501,7 @@ class MaskSpadeDecoder(nn.Module):
             raise ValueError("Unknown encoder type")
 
         self.spade_blocks = []
+
         for i in range(self.num_layers):
             self.spade_blocks.append(
                 SPADEResnetBlock(
@@ -476,21 +511,33 @@ class MaskSpadeDecoder(nn.Module):
                     spade_use_spectral_norm,
                     spade_param_free_norm,
                     spade_kernel_size,
+                    spade_activation,
                 ).cuda()
             )
         self.spade_blocks = nn.Sequential(*self.spade_blocks)
 
         self.final_nc = int(self.z_nc / (2 ** self.num_layers))
         self.mask_conv = Conv2dBlock(
-            self.final_nc, 1, 3, padding=1, norm="none", activation="none",
+            self.final_nc,
+            1,
+            3,
+            padding=1,
+            activation="none",
+            pad_type="reflect",
+            norm="spectral",
         )
         self.upsample = InterpolateNearest2d(scale_factor=2)
 
     def forward(self, z, cond):
         if isinstance(z, (list, tuple)):
             z_h, z_l = z
-            z_l = self.low_level_conv(z_l)
-            z_l = F.interpolate(z_l, size=z_h.shape[-2:], mode="bilinear")
+            if self.opts.gen.m.use_proj:
+                z_l = self.low_level_conv(z_l)
+                z_l = F.interpolate(z_l, size=z_h.shape[-2:], mode="bilinear")
+                z_h = self.high_level_conv(z_h)
+            else:
+                z_l = self.low_level_conv(z_l)
+                z_l = F.interpolate(z_l, size=z_h.shape[-2:], mode="bilinear")
             z = torch.cat([z_h, z_l], axis=1)
             y = self.merge_feats_conv(z)
         else:
