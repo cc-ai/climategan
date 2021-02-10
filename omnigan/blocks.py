@@ -518,10 +518,10 @@ class DADADepthRegressionDecoder(nn.Module):
             )  # what we used in the transforms to resize input
 
         return depth, z_depth
+
     def __str__(self):
         return "Depth_decoder"
         # return strings.basedecoder(self)
-
 
 
 # --------------------------

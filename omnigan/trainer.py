@@ -1132,6 +1132,7 @@ class Trainer:
             disc_loss["p"] = {"global": 0, "local": 0}
         else:
             disc_loss["p"] = {"gan": 0}
+
         for domain, batch in multi_domain_batch.items():
             x = batch["data"]["x"]
 
@@ -1307,6 +1308,7 @@ class Trainer:
                     loss, _ = self.masker_m_loss(x, z, target, domain, "G", cond=cond)
                     m_loss += loss
                     self.logger.losses.gen.task["m"][domain] = loss.item()
+
         return m_loss
 
     def get_painter_loss(self, multi_domain_batch):

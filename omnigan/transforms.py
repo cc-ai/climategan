@@ -524,8 +524,8 @@ def get_transform(transform_item, mode):
         transform_item.ignore is True or transform_item.ignore == mode
     ):
         return RandContrast()
-    elif transform_item.ignore is True or transform_item.ignore == mode:
 
+    elif transform_item.ignore is True or transform_item.ignore == mode:
         return None
 
     raise ValueError("Unknown transform_item {}".format(transform_item))
@@ -616,16 +616,10 @@ def rand_cutout(tensor, ratio=0.5):
     )
     size_ = [tensor.size(0), 1, 1]
     offset_x = torch.randint(
-        0,
-        tensor.size(-2) + (1 - cutout_size[0] % 2),
-        size=size_,
-        device=device_,
+        0, tensor.size(-2) + (1 - cutout_size[0] % 2), size=size_, device=device_,
     )
     offset_y = torch.randint(
-        0,
-        tensor.size(-1) + (1 - cutout_size[1] % 2),
-        size=size_,
-        device=device_,
+        0, tensor.size(-1) + (1 - cutout_size[1] % 2), size=size_, device=device_,
     )
     grid_x = torch.clamp(
         grid_x + offset_x - cutout_size[0] // 2, min=0, max=tensor.size(-2) - 1

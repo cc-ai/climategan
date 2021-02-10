@@ -277,6 +277,7 @@ class SIGMLoss(nn.Module):
         loss = simseLoss + gmLoss
         return loss
 
+
 class ContextLoss(nn.Module):
     """
     Masked L1 loss on non-water
