@@ -85,6 +85,7 @@ def main(opts):
 
     # Auto-continue if same slurm job ID (=job was requeued)
     if not opts.train.resume and opts.train.auto_resume:
+        print("\n\nTrying to auto-resume...")
         existing_path = find_existing_training(opts)
         if existing_path is not None and existing_path.exists():
             auto_resumed["original output_path"] = opts.output_path

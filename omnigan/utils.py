@@ -730,7 +730,7 @@ def find_existing_training(opts: Dict) -> Optional[Path]:
         print("WARNING: current JOBID is None")
         return
 
-    print("Current job id:", opts.jobID)
+    print("---------- Current job id:", opts.jobID)
 
     path = Path(opts.output_path).resolve()
     parent = path.parent
@@ -742,11 +742,11 @@ def find_existing_training(opts: Dict) -> Optional[Path]:
         for sd in similar_dirs:
             candidate_jobID = get_existing_jobID(sd)
             if candidate_jobID is not None and opts.jobID == candidate_jobID:
-                print(f"Found matching job id in {sd}")
+                print(f"Found matching job id in {sd}\n")
                 return sd
-        print("Did not find a matching job id")
+        print("Did not find a matching job id in \n {}\n".format(str(similar_dirs)))
     except Exception as e:
-        print("Could not resume (find_existing_training)", e)
+        print("ERROR: Could not resume (find_existing_training)", e)
 
 
 def pprint(*args: List[Any]):
