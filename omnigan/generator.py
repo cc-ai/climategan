@@ -238,7 +238,7 @@ class OmniGenerator(nn.Module):
 
         Args:
             x (torch.Tensor, optional): Input tensor B3HW. Defaults to None.
-            z (list, optional): High and Low level features of the encoder. 
+            z (list, optional): High and Low level features of the encoder.
                 Will be computed if None. Defaults to None.
             cond ([type], optional): [description]. Defaults to None.
             sigmoid (bool, optional): [description]. Defaults to True.
