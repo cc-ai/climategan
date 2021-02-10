@@ -387,7 +387,7 @@ class OmniGenerator(nn.Module):
             self.painter = painter.eval().to(device)
 
             # disable gradients
-            for p in self.painter.parameters:
+            for p in self.painter.parameters():
                 p.requires_grad = False
 
             # success
