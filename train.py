@@ -74,6 +74,7 @@ def main(opts):
         opts.train.resume = True
 
     opts.jobID = os.environ.get("SLURM_JOBID")
+    opts.slurm_partition = os.environ.get("SLURM_JOB_PARTITION")
     opts.output_path = str(env_to_path(opts.output_path))
     print("Config output_path:", opts.output_path)
 
