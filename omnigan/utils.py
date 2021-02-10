@@ -741,7 +741,7 @@ def find_existing_training(opts: Dict) -> Optional[Path]:
 
         for sd in similar_dirs:
             candidate_jobID = get_existing_jobID(sd)
-            if candidate_jobID is not None and opts.jobID == candidate_jobID:
+            if candidate_jobID is not None and str(opts.jobID) == str(candidate_jobID):
                 print(f"Found matching job id in {sd}\n")
                 return sd
         print("Did not find a matching job id in \n {}\n".format(str(similar_dirs)))
