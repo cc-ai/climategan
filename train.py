@@ -88,8 +88,8 @@ def main(opts):
         print("\n\nTrying to auto-resume...")
         existing_path = find_existing_training(opts)
         if existing_path is not None and existing_path.exists():
-            auto_resumed["original output_path"] = opts.output_path
-            auto_resumed["existing_path"] = existing_path
+            auto_resumed["original output_path"] = str(opts.output_path)
+            auto_resumed["existing_path"] = str(existing_path)
             opts.train.resume = True
             opts.output_path = str(existing_path)
 
