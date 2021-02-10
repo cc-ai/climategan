@@ -45,6 +45,8 @@ class PainterSpadeDecoder(nn.Module):
         self.z_nc = latent_dim
         self.spade_n_up = spade_n_up
 
+        self.z_h = self.z_w = None
+
         self.fc = nn.Conv2d(3, latent_dim, 3, padding=1)
         self.head_0 = SPADEResnetBlock(
             self.z_nc,
