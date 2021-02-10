@@ -4,6 +4,7 @@
     * Decoders
 """
 from pathlib import Path
+import traceback
 
 import torch
 import torch.nn as nn
@@ -395,6 +396,7 @@ class OmniGenerator(nn.Module):
 
         except Exception as e:
             # something happened, aborting gracefully
+            print(traceback.format_exc())
             print(e)
             print(">>> WARNING: error (^) in load_val_painter, aborting.")
             return False
