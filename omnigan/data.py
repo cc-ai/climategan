@@ -2,25 +2,21 @@
 Transforms for loaders are in transforms.py
 """
 
-from pathlib import Path
-import yaml
 import json
-import torch
-from torch.utils.data import DataLoader, Dataset
-from imageio import imread
-from torchvision import transforms
-import numpy as np
-from .transforms import get_transforms
-from PIL import Image
-from omnigan.tutils import get_normalized_depth_t
 import os
-from .utils import env_to_path
+from pathlib import Path
 
-# ? paired dataset
+import numpy as np
+import torch
+import yaml
+from imageio import imread
+from PIL import Image
+from torch.utils.data import DataLoader, Dataset
+from torchvision import transforms
 
-IMG_EXTENSIONS = set(
-    [".jpg", ".JPG", ".jpeg", ".JPEG", ".png", ".PNG", ".ppm", ".PPM", ".bmp", ".BMP"]
-)
+from omnigan.transforms import get_transforms
+from omnigan.tutils import get_normalized_depth_t
+from omnigan.utils import env_to_path, is_image_file
 
 classes_dict = {
     "s": {  # unity
@@ -31,7 +27,7 @@ classes_dict = {
         4: [0, 255, 0, 255],  # Vegetation
         5: [255, 97, 0, 255],  # Terrain
         6: [255, 0, 0, 255],  # Car
-        7: [0, 0, 0, 0],  # Trees
+        7: [60, 180, 60, 255],  # Trees
         8: [255, 0, 255, 255],  # Person
         9: [0, 0, 0, 255],  # Sky
         10: [255, 255, 255, 255],  # Default
@@ -44,21 +40,122 @@ classes_dict = {
         4: [0, 255, 0, 255],  # Vegetation
         5: [255, 97, 0, 255],  # Terrain
         6: [255, 0, 0, 255],  # Car
-        7: [0, 255, 0, 255],  # Trees
+        7: [60, 180, 60, 255],  # Trees
         8: [220, 20, 60, 255],  # Person
         9: [8, 19, 49, 255],  # Sky
         10: [0, 80, 100, 255],  # Default
     },
+    "kitti": {
+        0: [210, 0, 200],  # Terrain
+        1: [90, 200, 255],  # Sky
+        2: [0, 199, 0],  # Tree
+        3: [90, 240, 0],  # Vegetation
+        4: [140, 140, 140],  # Building
+        5: [100, 60, 100],  # Road
+        6: [250, 100, 255],  # GuardRail
+        7: [255, 255, 0],  # TrafficSign
+        8: [200, 200, 0],  # TrafficLight
+        9: [255, 130, 0],  # Pole
+        10: [80, 80, 80],  # Misc
+        11: [160, 60, 60],  # Truck
+        12: [255, 127, 80],  # Car
+        13: [0, 139, 139],  # Van
+        14: [0, 0, 0],  # Undefined
+    },
+    "flood": {
+        0: [255, 0, 0],  # Cannot flood
+        1: [0, 0, 255],  # Must flood
+        2: [0, 0, 0],  # May flood
+    },
 }
+
+kitti_mapping = {
+    0: 5,  # Terrain -> Terrain
+    1: 9,  # Sky -> Sky
+    2: 7,  # Tree -> Trees
+    3: 4,  # Vegetation ->  Vegetation
+    4: 2,  # Building -> Building
+    5: 1,  # Road -> Ground
+    6: 3,  # GuardRail -> Traffic items
+    7: 3,  # TrafficSign ->  Traffic items
+    8: 3,  # TrafficLight -> Traffic items
+    9: 3,  # Pole -> Traffic items
+    10: 10,  # Misc -> default
+    11: 6,  # Truck -> Car
+    12: 6,  # Car -> Car
+    13: 6,  # Van -> Car
+    14: 10,  # Undefined -> Default
+}
+
+
+def encode_exact_segmap(seg, classes_dict, default_value=14):
+    """
+    When the mapping (rgb -> label) is known to be exact (no approximative rgb values)
+    maps rgb image to segmap labels
+
+    Args:
+        seg (np.ndarray): H x W x 3 RGB image
+        classes_dict (dict): Mapping {class: rgb value}
+        default_value (int, optional): Value for unknown label. Defaults to 14.
+
+    Returns:
+        np.ndarray: Segmap as labels, not RGB
+    """
+    out = np.ones((seg.shape[0], seg.shape[1])) * default_value
+    for cindex, cvalue in classes_dict.items():
+        out[np.where((seg == cvalue).all(-1))] = cindex
+    return out
+
+
+def merge_labels(labels, mapping, default_value=14):
+    """
+    Maps labels from a source domain to labels of a target domain,
+    typically kitti -> omnigan
+
+    Args:
+        labels (np.ndarray): input segmap labels
+        mapping (dict): source_label -> target_label
+        default_value (int, optional): Unknown label. Defaults to 14.
+
+    Returns:
+        np.ndarray: Adapted labels
+    """
+    out = np.ones_like(labels) * default_value
+    for source, target in mapping.items():
+        out[labels == source] = target
+    return out
+
+
+def process_kitti_seg(path, kitti_classes, merge_map, default=14):
+    """
+    Processes a path to produce a 1 x 1 x H x W torch segmap
+
+    %timeit process_kitti_seg(path, classes_dict, mapping, default=14)
+    326 ms ± 118 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)
+
+    Args:
+        path (str | pathlib.Path): Segmap RBG path
+        kitti_classes (dict): Kitti map label -> rgb
+        merge_map (dict): map kitti_label -> omnigan_label
+        default (int, optional): Unknown kitti label. Defaults to 14.
+
+    Returns:
+        torch.Tensor: 1 x 1 x H x W torch segmap
+    """
+    seg = imread(path)
+    labels = encode_exact_segmap(seg, kitti_classes, default_value=default)
+    merged = merge_labels(labels, merge_map, default_value=default)
+    return torch.tensor(merged).unsqueeze(0).unsqueeze(0)
 
 
 def decode_segmap_merged_labels(tensor, domain, is_target, nc=11):
     """Creates a label colormap for classes used in Unity segmentation benchmark.
     Arguments:
-        tensor -- segmented image of size (1) x (nc) x (H) x (W) if prediction, or size (1) x (1) x (H) x (W) if target
+        tensor -- segmented image of size (1) x (nc) x (H) x (W)
+            if prediction, or size (1) x (1) x (H) x (W) if target
     Returns:
         RGB tensor of size (1) x (3) x (H) x (W)
-    # """
+    #"""
 
     if is_target:  # Target is size 1 x 1 x H x W
         idx = tensor.squeeze(0).squeeze(0)
@@ -113,7 +210,9 @@ def decode_segmap_cityscapes_labels(image, nc=19):
 
 
 def find_closest_class(pixel, dict_classes):
-    """Takes a pixel as input and finds the closest known pixel value corresponding to a class in dict_classes
+    """Takes a pixel as input and finds the closest known pixel value corresponding
+    to a class in dict_classes
+
     Arguments:
         pixel -- tuple pixel (R,G,B,A)
     Returns:
@@ -153,10 +252,29 @@ def encode_segmap(arr, domain):
     return new_arr
 
 
+def encode_mask_label(arr, domain):
+    """Change a segmentation RGBA array to a segmentation array
+                            with each pixel being the index of the class
+    Arguments:
+        numpy array -- segmented image of size (H) x (W) x (4 RGBA values)
+    Returns:
+        numpy array of size (1) x (H) x (W) with each pixel being the index of the class
+    """
+    diff = np.zeros((len(classes_dict[domain].keys()), arr.shape[0], arr.shape[1]))
+    for cindex, cvalue in classes_dict[domain].items():
+        diff[cindex, :, :] = np.sqrt(
+            np.sum(
+                np.square(arr - np.tile(cvalue, (arr.shape[0], arr.shape[1], 1))),
+                axis=2,
+            )
+        )
+    return np.expand_dims(np.argmin(diff, axis=0), axis=0)
+
+
 def transform_segmap_image_to_tensor(path, domain):
     """
-        Transforms a segmentation image to a tensor of size (1) x (1) x (H) x (W)
-        with each pixel being the index of the class
+    Transforms a segmentation image to a tensor of size (1) x (1) x (H) x (W)
+    with each pixel being the index of the class
     """
     arr = np.array(Image.open(path).convert("RGBA"))
     arr = encode_segmap(arr, domain)
@@ -182,10 +300,13 @@ def save_segmap_tensors(path_to_json, path_to_dir, domain):
             "s",
         )
     """
+    ims_list = None
     if path_to_json:
         path_to_json = Path(path_to_json).resolve()
         with open(path_to_json, "r") as f:
             ims_list = yaml.safe_load(f)
+
+    assert ims_list is not None
 
     for im_dict in ims_list:
         for task_name, path in im_dict.items():
@@ -194,12 +315,6 @@ def save_segmap_tensors(path_to_json, path_to_dir, domain):
                 file_name = file_name.rsplit("/", 1)[-1]  # keep only the file_name
                 tensor = transform_segmap_image_to_tensor(path, domain)
                 torch.save(tensor, path_to_dir + file_name + ".pt")
-
-
-def is_image_file(filename):
-    """Check that a file's name points to a known image format
-    """
-    return Path(filename).suffix in IMG_EXTENSIONS
 
 
 def pil_image_loader(path, task):
@@ -226,7 +341,7 @@ def pil_image_loader(path, task):
     return Image.fromarray(arr)
 
 
-def tensor_loader(path, task, domain):
+def tensor_loader(path, task, domain, opts):
     """load data as tensors
     Args:
         path (str): path to data
@@ -236,17 +351,26 @@ def tensor_loader(path, task, domain):
         [Tensor]: 1 x C x H x W
     """
     if task == "s":
-        arr = torch.load(path)
-        return arr
+        if domain == "kitti":
+            return process_kitti_seg(
+                path, classes_dict["kitti"], kitti_mapping, default=14
+            )
+        return torch.load(path)
     elif task == "d":
         if Path(path).suffix == ".npy":
             arr = np.load(path)
         else:
-            arr = imread(path)  # .astype(np.uint8)
-        arr = torch.from_numpy(arr.astype(np.float32))
-        arr = get_normalized_depth_t(arr, domain, normalize=True)
-        arr = arr.unsqueeze(0)
-        return arr
+            arr = imread(path)  # .astype(np.uint8) /!\ kitti is np.uint16
+        tensor = torch.from_numpy(arr.astype(np.float32))
+        tensor = get_normalized_depth_t(
+            tensor,
+            domain,
+            normalize="d" in opts.train.pseudo.tasks,
+            log=opts.gen.d.classify.enable,
+        )
+        tensor = tensor.unsqueeze(0)
+        return tensor
+
     elif Path(path).suffix == ".npy":
         arr = np.load(path).astype(np.float32)
     elif is_image_file(path):
@@ -265,21 +389,20 @@ def tensor_loader(path, task, domain):
     elif task == "s":
         arr = np.moveaxis(arr, 2, 0)
     elif task == "m":
-        arr[arr != 0] = 1
+        if arr.max() > 127:
+            arr = (arr > 127).astype(arr.dtype)
         # Make sure mask is single-channel
         if len(arr.shape) >= 3:
             arr = arr[:, :, 0]
         arr = np.expand_dims(arr, 0)
 
-    # print(path)
-    # print(task)
-    # print(torch.from_numpy(arr).unsqueeze(0).shape)
     return torch.from_numpy(arr).unsqueeze(0)
 
 
 class OmniListDataset(Dataset):
     def __init__(self, mode, domain, opts, transform=None):
 
+        self.opts = opts
         self.domain = domain
         self.mode = mode
         self.tasks = set(opts.tasks)
@@ -306,6 +429,7 @@ class OmniListDataset(Dataset):
 
         self.filter_samples()
         if opts.data.check_samples:
+            print(f"Checking samples ({mode}, {domain})")
             self.check_samples()
         self.file_list_path = str(file_list_path)
         self.transform = transform
@@ -343,12 +467,17 @@ class OmniListDataset(Dataset):
         item = {
             "data": self.transform(
                 {
-                    task: tensor_loader(env_to_path(path), task, self.domain)
+                    task: tensor_loader(
+                        env_to_path(path),
+                        task,
+                        self.domain,
+                        self.opts,
+                    )
                     for task, path in paths.items()
                 }
             ),
             "paths": paths,
-            "domain": self.domain,
+            "domain": self.domain if self.domain != "kitti" else "s",
             "mode": self.mode,
         }
 
@@ -375,12 +504,24 @@ class OmniListDataset(Dataset):
 
 
 def get_loader(mode, domain, opts):
+    if (
+        domain != "kitti"
+        or not opts.train.kitti.pretrain
+        or not opts.train.kitti.batch_size
+    ):
+        batch_size = opts.data.loaders.get("batch_size", 4)
+    else:
+        batch_size = opts.train.kitti.get("batch_size", 4)
+
     return DataLoader(
         OmniListDataset(
-            mode, domain, opts, transform=transforms.Compose(get_transforms(opts))
+            mode,
+            domain,
+            opts,
+            transform=transforms.Compose(get_transforms(opts, mode, domain)),
         ),
-        batch_size=opts.data.loaders.get("batch_size", 4),
-        shuffle=opts.data.loaders.shuffle,
+        batch_size=batch_size,
+        shuffle=True,
         num_workers=opts.data.loaders.get("num_workers", 8),
         pin_memory=True,  # faster transfer to gpu
         drop_last=True,  # avoids batchnorm pbs if last batch has size 1

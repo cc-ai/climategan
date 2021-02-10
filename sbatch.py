@@ -11,6 +11,68 @@ import numpy as np
 import yaml
 
 
+def flatten_conf(conf, to={}, parents=[]):
+    """
+    Flattens a configuration dict: nested dictionaries are flattened
+    as key1.key2.key3 = value
+
+    conf.yaml:
+    ```yaml
+    a: 1
+    b:
+        c: 2
+        d:
+            e: 3
+        g:
+            sample: sequential
+            from: [4, 5]
+    ```
+
+    Is flattened to
+
+    {
+        "a": 1,
+        "b.c": 2,
+        "b.d.e": 3,
+        "b.g": {
+            "sample": "sequential",
+            "from": [4, 5]
+        }
+    }
+
+    Does not affect sampling dicts.
+
+    Args:
+        conf (dict): the configuration to flatten
+        new (dict, optional): the target flatenned dict. Defaults to {}.
+        parents (list, optional): a final value's list of parents. Defaults to [].
+    """
+    for k, v in conf.items():
+        if isinstance(v, dict) and "sample" not in v:
+            flatten_conf(v, to, parents + [k])
+        else:
+            new_k = ".".join([str(p) for p in parents + [k]])
+            to[new_k] = v
+
+
+def env_to_path(path):
+    """Transorms an environment variable mention in a json
+    into its actual value. E.g. $HOME/clouds -> /home/vsch/clouds
+
+    Args:
+        path (str): path potentially containing the env variable
+
+    """
+    path_elements = path.split("/")
+    new_path = []
+    for el in path_elements:
+        if "$" in el:
+            new_path.append(os.environ[el.replace("$", "")])
+        else:
+            new_path.append(el)
+    return "/".join(new_path)
+
+
 class C:
     HEADER = "\033[95m"
     OKBLUE = "\033[94m"
@@ -26,7 +88,7 @@ class C:
 
 def escape_path(path):
     p = str(path)
-    return p.replace(" ", "\ ").replace("(", "\(").replace(")", "\)")
+    return p.replace(" ", "\ ").replace("(", "\(").replace(")", "\)")  # noqa: W605
 
 
 def warn(*args, **kwargs):
@@ -133,7 +195,7 @@ def search_summary_table(summary, summary_dir=None):
 
     # if everything is constant: no summary
     if not summary:
-        return
+        return None, None
 
     # find number of searches
     n_searches = len(list(summary.values())[0])
@@ -154,7 +216,8 @@ def search_summary_table(summary, summary_dir=None):
         ],  # list of values to print
     }
 
-    columns = [[first_col]]
+    print_columns = [[first_col]]
+    file_columns = [first_col]
     for k in sorted(summary.keys()):
         v = summary[k]
         col_title = f" {k} |"
@@ -174,32 +237,42 @@ def search_summary_table(summary, summary_dir=None):
 
         # if adding a new column would overflow the terminal and mess up printing, start
         # new set of columns
-        if sum(c["len"] for c in columns[-1]) + col["len"] >= cols():
-            columns.append([first_col])
+        if sum(c["len"] for c in print_columns[-1]) + col["len"] >= cols():
+            print_columns.append([first_col])
 
         # store current column to latest group of columns
-        columns[-1].append(col)
+        print_columns[-1].append(col)
+        file_columns.append(col)
 
-    s = ""
+    print_table = ""
     # print each column group individually
-    for colgroup in columns:
+    for colgroup in print_columns:
         # print columns line by line
         for i in range(n_searches + 2):
             # get value of column for current line i
             for col in colgroup:
-                s += col["str"][i]
+                print_table += col["str"][i]
             # next line for current columns
-            s += "\n"
+            print_table += "\n"
 
         # new lines for new column group
-        s += "\n"
+        print_table += "\n"
 
+    file_table = ""
+    for i in range(n_searches + 2):
+        # get value of column for current line i
+        for col in file_columns:
+            file_table += col["str"][i]
+        # next line for current columns
+        file_table += "\n"
+
+    summary_path = None
     if summary_dir is not None:
         summary_path = summary_dir / (now() + ".md")
         with summary_path.open("w") as f:
-            f.write(s.strip())
+            f.write(file_table.strip())
 
-    return s
+    return print_table, summary_path
 
 
 def clean_arg(v):
@@ -212,7 +285,31 @@ def clean_arg(v):
     Returns:
         str: parsed value to string
     """
-    return stringify_list(crop_float(quote_string(v)))
+    return stringify_list(crop_float(quote_string(resolve_env(v))))
+
+
+def resolve_env(v):
+    """
+    resolve env variables in paths
+
+    Args:
+        v (any): arg to pass to train.py
+
+    Returns:
+        str: try and resolve an env variable
+    """
+    if isinstance(v, str):
+        try:
+            if "$" in v:
+                if "/" in v:
+                    v = env_to_path(v)
+                else:
+                    _v = os.environ.get(v)
+                    if _v is not None:
+                        v = _v
+        except Exception:
+            pass
+    return v
 
 
 def stringify_list(v):
@@ -446,7 +543,8 @@ def get_template_params(template):
         list(str): Args required to format the template string
     """
     return map(
-        lambda s: s.replace("{", "").replace("}", ""), re.findall("\{.*?\}", template)
+        lambda s: s.replace("{", "").replace("}", ""),
+        re.findall("\{.*?\}", template),  # noqa: W605
     )
 
 
@@ -488,7 +586,12 @@ def read_exp_conf(name):
         print("Using {}".format(paths[-1]))
 
     with paths[-1].open("r") as f:
-        return (paths[-1], yaml.safe_load(f))
+        conf = yaml.safe_load(f)
+
+    flat_conf = {}
+    flatten_conf(conf, to=flat_conf)
+
+    return (paths[-1], flat_conf)
 
 
 def read_template(name):
@@ -564,8 +667,9 @@ if __name__ == "__main__":
     escape = False
     verbose = False
     template_name = None
-    hp_search_name = None
+    hp_exp_name = None
     hp_search_nb = None
+    exp_path = None
     resume = None
     summary_dir = Path(home) / "omnigan_exp_summaries"
 
@@ -614,8 +718,8 @@ if __name__ == "__main__":
         elif k == "template":
             template_name = v
 
-        elif k == "search":
-            hp_search_name = v
+        elif k == "exp":
+            hp_exp_name = v
 
         elif k == "n_search":
             hp_search_nb = int(v)
@@ -640,8 +744,8 @@ if __name__ == "__main__":
     # -----  Load Experiment Config  -----
     # ------------------------------------
 
-    if hp_search_name is not None:
-        exp_path, exp_conf = read_exp_conf(hp_search_name)
+    if hp_exp_name is not None:
+        exp_path, exp_conf = read_exp_conf(hp_exp_name)
         if "n_search" in exp_conf and hp_search_nb is None:
             hp_search_nb = exp_conf["n_search"]
 
@@ -681,6 +785,10 @@ if __name__ == "__main__":
 
                 if k == "codeloc":
                     v = escape_path(v)
+
+                if k == "output":
+                    Path(v).parent.mkdir(parents=True, exist_ok=True)
+
                 # override template params depending on exp config
                 if k in tmp_template_dict:
                     if template_dict[k] is None or is_sampled(k, exp_conf):
@@ -701,7 +809,9 @@ if __name__ == "__main__":
         # create sbatch file where required
         tmp_sbatch_path = None
         if sbatch_path == "hash":
-            tmp_sbatch_path = Path(home) / "omnigan_sbatchs" / (now() + ".sh")
+            tmp_sbatch_name = "" if hp_exp_name is None else hp_exp_name[:5] + "_"
+            tmp_sbatch_name += now() + ".sh"
+            tmp_sbatch_path = Path(home) / "omnigan_sbatchs" / tmp_sbatch_name
             tmp_sbatch_path.parent.mkdir(parents=True, exist_ok=True)
             tmp_train_args_dict["sbatch_file"] = str(tmp_sbatch_path)
             tmp_train_args_dict["exp_file"] = str(exp_path)
@@ -789,12 +899,22 @@ if __name__ == "__main__":
         )
         print_footer()
 
-    print(f"\nRan a total of {hp_idx + 1} jobs{' in dev mode.' if dev else '.'}\n")
+    print(f"\nRan a total of {len(hps)} jobs{' in dev mode.' if dev else '.'}\n")
 
-    table = search_summary_table(summary, summary_dir if not dev else None)
-    print(table)
-    print(
-        "Add `[i]: https://...` at the end of a markdown document",
-        "to fill in the comet links",
-    )
+    table, sum_path = search_summary_table(summary, summary_dir if not dev else None)
+    if table is not None:
+        print(table)
+        print(
+            "Add `[i]: https://...` at the end of a markdown document",
+            "to fill in the comet links.\n",
+        )
+        if summary_dir is None:
+            print("Add summary_dir=path to store the printed markdown table ⇪")
+        else:
+            print("Saved table in", str(sum_path))
 
+    if not dev:
+        print(
+            "Cancel entire experiment? \n$ scancel",
+            " ".join(map(str, summary["Slurm JOBID"])),
+        )

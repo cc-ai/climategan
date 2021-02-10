@@ -5,8 +5,44 @@ import torch.nn as nn
 import torch.nn.functional as F
 from omnigan.norms import SPADE, SpectralNorm, LayerNorm, AdaptiveInstanceNorm2d
 import omnigan.strings as strings
+from omnigan.utils import find_target_size
 
 # TODO: Organise file
+
+
+class InterpolateNearest2d(nn.Module):
+    """
+    Custom implementation of nn.Upsample because pytorch/xla
+    does not yet support scale_factor and needs to be provided with
+    the output_size
+    """
+
+    def __init__(self, scale_factor=2):
+        """
+        Create an InterpolateNearest2d module
+
+        Args:
+            scale_factor (int, optional): Output size multiplier. Defaults to 2.
+        """
+        super().__init__()
+        self.scale_factor = scale_factor
+
+    def forward(self, x):
+        """
+        Interpolate x in "nearest" mode on its last 2 dimensions
+
+        Args:
+            x (torch.Tensor): input to interpolate
+
+        Returns:
+            torch.Tensor: upsampled tensor with shape
+                (...x.shape, x.shape[-2] * scale_factor, x.shape[-1] * scale_factor)
+        """
+        return nn.functional.interpolate(
+            x,
+            size=(x.shape[-2] * self.scale_factor, x.shape[-1] * self.scale_factor),
+            mode="nearest",
+        )
 
 
 # -----------------------------------------
@@ -18,16 +54,16 @@ class Conv2dBlock(nn.Module):
         input_dim,
         output_dim,
         kernel_size,
-        stride,
+        stride=1,
         padding=0,
         dilation=1,
         norm="none",
         activation="relu",
         pad_type="zero",
-        use_bias=True,
+        bias=True,
     ):
         super().__init__()
-        self.use_bias = use_bias
+        self.use_bias = bias
         # initialize padding
         if pad_type == "reflect":
             self.pad = nn.ReflectionPad2d(padding)
@@ -39,6 +75,11 @@ class Conv2dBlock(nn.Module):
             assert 0, "Unsupported padding type: {}".format(pad_type)
 
         # initialize normalization
+        use_spectral_norm = False
+        if norm.startswith("spectral_"):
+            norm = norm.replace("spectral_", "")
+            use_spectral_norm = True
+
         norm_dim = output_dim
         if norm == "batch":
             self.norm = nn.BatchNorm2d(norm_dim)
@@ -49,7 +90,7 @@ class Conv2dBlock(nn.Module):
             self.norm = LayerNorm(norm_dim)
         elif norm == "adain":
             self.norm = AdaptiveInstanceNorm2d(norm_dim)
-        elif norm == "spectral":
+        elif norm == "spectral" or norm.startswith("spectral_"):
             self.norm = None  # dealt with later in the code
         elif norm == "none":
             self.norm = None
@@ -58,13 +99,13 @@ class Conv2dBlock(nn.Module):
 
         # initialize activation
         if activation == "relu":
-            self.activation = nn.ReLU(inplace=True)
+            self.activation = nn.ReLU(inplace=False)
         elif activation == "lrelu":
-            self.activation = nn.LeakyReLU(0.2, inplace=True)
+            self.activation = nn.LeakyReLU(0.2, inplace=False)
         elif activation == "prelu":
             self.activation = nn.PReLU()
         elif activation == "selu":
-            self.activation = nn.SELU(inplace=True)
+            self.activation = nn.SELU(inplace=False)
         elif activation == "tanh":
             self.activation = nn.Tanh()
         elif activation == "sigmoid":
@@ -75,7 +116,7 @@ class Conv2dBlock(nn.Module):
             raise ValueError("Unsupported activation: {}".format(activation))
 
         # initialize convolution
-        if norm == "spectral":
+        if norm == "spectral" or use_spectral_norm:
             self.conv = SpectralNorm(
                 nn.Conv2d(
                     input_dim,
@@ -112,6 +153,10 @@ class Conv2dBlock(nn.Module):
 # -----  Residual Blocks  -----
 # -----------------------------
 class ResBlocks(nn.Module):
+    """
+    From https://github.com/NVlabs/MUNIT/blob/master/networks.py
+    """
+
     def __init__(self, num_blocks, dim, norm="in", activation="relu", pad_type="zero"):
         super().__init__()
         self.model = nn.Sequential(
@@ -130,7 +175,7 @@ class ResBlocks(nn.Module):
 
 class ResBlock(nn.Module):
     def __init__(self, dim, norm="in", activation="relu", pad_type="zero"):
-        super(ResBlock, self).__init__()
+        super().__init__()
         self.dim = dim
         self.norm = norm
         self.activation = activation
@@ -166,7 +211,7 @@ class Bottleneck(nn.Module):
     """
 
     def __init__(self, in_ch, out_ch, stride, dilation, downsample):
-        super(Bottleneck, self).__init__()
+        super().__init__()
         mid_ch = out_ch // _BOTTLENECK_EXPANSION
         self.reduce = Conv2dBlock(in_ch, mid_ch, 1, stride, 0, norm="batch")
         self.conv3x3 = Conv2dBlock(
@@ -198,7 +243,7 @@ class ResLayer(nn.Sequential):
     """
 
     def __init__(self, n_layers, in_ch, out_ch, stride, dilation, multi_grids=None):
-        super(ResLayer, self).__init__()
+        super().__init__()
 
         if multi_grids is None:
             multi_grids = [1 for _ in range(n_layers)]
@@ -226,7 +271,7 @@ class Stem(nn.Sequential):
     """
 
     def __init__(self, out_ch):
-        super(Stem, self).__init__()
+        super().__init__()
         self.add_module("conv1", Conv2dBlock(3, out_ch, 7, 2, 3, 1, norm="batch"))
         self.add_module("pool", nn.MaxPool2d(3, 2, 1, ceil_mode=True))
 
@@ -242,93 +287,241 @@ class BaseDecoder(nn.Module):
         input_dim=2048,
         proj_dim=64,
         output_dim=3,
-        res_norm="instance",
+        norm="batch",
         activ="relu",
         pad_type="zero",
         output_activ="tanh",
-        conv_norm="layer",
+        low_level_feats_dim=-1,
     ):
         super().__init__()
-        self.model = [
-            Conv2dBlock(input_dim, proj_dim, 1, 1, 0, norm=res_norm, activation=activ)
-        ]
 
-        self.model += [ResBlocks(n_res, proj_dim, res_norm, activ, pad_type=pad_type)]
+        self.low_level_feats_dim = low_level_feats_dim
+
+        self.model = []
+        if proj_dim != -1:
+            self.proj_conv = Conv2dBlock(
+                input_dim, proj_dim, 1, 1, 0, norm=norm, activation=activ
+            )
+        else:
+            self.proj_conv = None
+            proj_dim = input_dim
+
+        if low_level_feats_dim > 0:
+            self.low_level_conv = Conv2dBlock(
+                input_dim=low_level_feats_dim,
+                output_dim=proj_dim,
+                kernel_size=3,
+                stride=1,
+                padding=1,
+                pad_type=pad_type,
+                norm=norm,
+                activation=activ,
+            )
+            self.merge_feats_conv = Conv2dBlock(
+                input_dim=2 * proj_dim,
+                output_dim=proj_dim,
+                kernel_size=1,
+                stride=1,
+                padding=0,
+                pad_type=pad_type,
+                norm=norm,
+                activation=activ,
+            )
+        else:
+            self.low_level_conv = None
+
+        self.model += [ResBlocks(n_res, proj_dim, norm, activ, pad_type=pad_type)]
         dim = proj_dim
         # upsampling blocks
         for i in range(n_upsample):
             self.model += [
-                nn.Upsample(scale_factor=2),
+                InterpolateNearest2d(scale_factor=2),
                 Conv2dBlock(
-                    dim,
-                    dim // 2,
-                    5,
-                    1,
-                    2,
-                    norm=conv_norm,
-                    activation=activ,
+                    input_dim=dim,
+                    output_dim=dim // 2,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1,
                     pad_type=pad_type,
+                    norm=norm,
+                    activation=activ,
                 ),
             ]
             dim //= 2
         # use reflection padding in the last conv layer
         self.model += [
             Conv2dBlock(
-                dim,
-                output_dim,
-                7,
-                1,
-                3,
+                input_dim=dim,
+                output_dim=output_dim,
+                kernel_size=3,
+                stride=1,
+                padding=1,
+                pad_type=pad_type,
                 norm="none",
                 activation=output_activ,
-                pad_type=pad_type,
             )
         ]
         self.model = nn.Sequential(*self.model)
 
-    def forward(self, x):
-        return self.model(x)
+    def forward(self, z, cond=None):
+        low_level_feat = None
+        if isinstance(z, (list, tuple)):
+            if self.low_level_conv is None:
+                z = z[0]
+            else:
+                z, low_level_feat = z
+                low_level_feat = self.low_level_conv(low_level_feat)
+                low_level_feat = F.interpolate(
+                    low_level_feat, size=z.shape[-2:], mode="bilinear"
+                )
+
+        if self.proj_conv is not None:
+            z = self.proj_conv(z)
+
+        if low_level_feat is not None:
+            z = self.merge_feats_conv(torch.cat([low_level_feat, z], dim=1))
+
+        return self.model(z)
 
     def __str__(self):
         return strings.basedecoder(self)
 
 
-class DepthDecoder(nn.Module):
-    """#Depth decoder based on depth auxiliary task in DADA paper
-
+class DADADepthRegressionDecoder(nn.Module):
+    """
+    Depth decoder based on depth auxiliary task in DADA paper
     """
 
     def __init__(self, opts):
         super().__init__()
+        if (
+            opts.gen.encoder.architecture == "deeplabv3"
+            and opts.gen.deeplabv3.backbone == "mobilenet"
+        ):
+            res_dim = 320
+        else:
+            res_dim = 2048
+
+        mid_dim = 512
+
+        self.do_feat_fusion = False
+        if "s" in opts.tasks and opts.gen.s.depth_feat_fusion:
+            self.do_feat_fusion = True
+            self.dec4 = Conv2dBlock(
+                128,
+                res_dim,
+                1,
+                stride=1,
+                padding=0,
+                bias=True,
+                activation="lrelu",
+                norm="none",
+            )
+
         self.relu = nn.ReLU(inplace=True)
-        self.enc4_1 = nn.Conv2d(
-            2048, 512, kernel_size=1, stride=1, padding=0, bias=True
+        self.enc4_1 = Conv2dBlock(
+            res_dim,
+            mid_dim,
+            1,
+            stride=1,
+            padding=0,
+            bias=False,
+            activation="lrelu",
+            pad_type="reflect",
+            norm="batch",
         )
-        self.enc4_2 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1, bias=True)
-        self.enc4_3 = nn.Conv2d(512, 128, kernel_size=1, stride=1, padding=0, bias=True)
-        self.output_size = opts.data.transforms[-1].new_size
-
-    def forward(self, x):
-        x4_enc = self.enc4_1(x)
-        x4_enc = self.relu(x4_enc)
-        x4_enc = self.enc4_2(x4_enc)
-        x4_enc = self.relu(x4_enc)
-        x4_enc = self.enc4_3(x4_enc)
-
-        depth = torch.mean(x4_enc, dim=1, keepdim=True)  # DADA paper decoder
-        depth = F.interpolate(
-            depth,
-            size=(384, 384),  # size used in MiDaS inference
-            mode="bicubic",  # what MiDaS uses
-            align_corners=False,
+        self.enc4_2 = Conv2dBlock(
+            mid_dim,
+            mid_dim,
+            3,
+            stride=1,
+            padding=1,
+            bias=False,
+            activation="lrelu",
+            pad_type="reflect",
+            norm="batch",
         )
-        depth = F.interpolate(
-            depth, (self.output_size, self.output_size), mode="nearest"
-        )  # what we used in the transforms to resize input
-        return depth
+        self.enc4_3 = Conv2dBlock(
+            mid_dim,
+            128,
+            1,
+            stride=1,
+            padding=0,
+            bias=False,
+            activation="lrelu",
+            pad_type="reflect",
+            norm="batch",
+        )
+        self.upsample = None
+        if opts.gen.d.upsample_featuremaps:
+            self.upsample = nn.Sequential(
+                *[
+                    InterpolateNearest2d(),
+                    Conv2dBlock(
+                        128,
+                        32,
+                        3,
+                        stride=1,
+                        padding=1,
+                        bias=False,
+                        activation="lrelu",
+                        pad_type="reflect",
+                        norm="batch",
+                    ),
+                    nn.Conv2d(32, 1, kernel_size=1, stride=1, padding=0),
+                ]
+            )
+        self._target_size = find_target_size(opts, "d")
+        print(
+            "      - {}:  setting target size to {}".format(
+                self.__class__.__name__, self._target_size
+            )
+        )
 
+    def set_target_size(self, size):
+        """
+        Set final interpolation's target size
+
+        Args:
+            size (int, list, tuple): target size (h, w). If int, target will be (i, i)
+        """
+        if isinstance(size, (list, tuple)):
+            self._target_size = size[:2]
+        else:
+            self._target_size = (size, size)
+
+    def forward(self, z):
+        if isinstance(z, (list, tuple)):
+            z = z[0]
+        z4_enc = self.enc4_1(z)
+        z4_enc = self.enc4_2(z4_enc)
+        z4_enc = self.enc4_3(z4_enc)
+
+        z_depth = None
+        if self.do_feat_fusion:
+            z_depth = self.dec4(z4_enc)
+
+        if self.upsample is not None:
+            z4_enc = self.upsample(z4_enc)
+
+        depth = torch.mean(z4_enc, dim=1, keepdim=True)  # DADA paper decoder
+        if depth.shape[-1] != self._target_size:
+            depth = F.interpolate(
+                depth,
+                size=(384, 384),  # size used in MiDaS inference
+                mode="bicubic",  # what MiDaS uses
+                align_corners=False,
+            )
+
+            depth = F.interpolate(
+                depth, (self._target_size, self._target_size), mode="nearest"
+            )  # what we used in the transforms to resize input
+
+        return depth, z_depth
     def __str__(self):
-        return strings.basedecoder(self)
+        return "Depth_decoder"
+        # return strings.basedecoder(self)
+
 
 
 # --------------------------
@@ -346,6 +539,7 @@ class SPADEResnetBlock(nn.Module):
         spade_use_spectral_norm,
         spade_param_free_norm,
         spade_kernel_size,
+        last_activation=None,
     ):
         super().__init__()
         # Attributes
@@ -357,6 +551,7 @@ class SPADEResnetBlock(nn.Module):
         self.kernel_size = spade_kernel_size
 
         self.learned_shortcut = fin != fout
+        self.last_activation = last_activation
         fmiddle = min(fin, fout)
 
         # create conv layers
@@ -386,7 +581,16 @@ class SPADEResnetBlock(nn.Module):
         dx = self.conv_1(self.activation(self.norm_1(dx, seg)))
 
         out = x_s + dx
-        return out
+        if self.last_activation == "lrelu":
+            return self.activation(out)
+        elif self.last_activation is None:
+            return out
+        else:
+            raise NotImplementedError(
+                "The type of activation is not supported: {}".format(
+                    self.last_activation
+                )
+            )
 
     def shortcut(self, x, seg):
         if self.learned_shortcut:
@@ -402,16 +606,8 @@ class SPADEResnetBlock(nn.Module):
         return strings.spaderesblock(self)
 
 
-class SpadeDecoder(nn.Module):
-    def __init__(
-        self,
-        latent_dim,
-        cond_nc,
-        spade_n_up,
-        spade_use_spectral_norm,
-        spade_param_free_norm,
-        spade_kernel_size,
-    ):
+class PainterSpadeDecoder(nn.Module):
+    def __init__(self, opts):
         """Create a SPADE-based decoder, which forwards z and the conditioning
         tensors seg (in the original paper, conditioning is on a semantic map only).
         All along, z is conditioned on seg. First 3 SpadeResblocks (SRB) do not shrink
@@ -432,9 +628,17 @@ class SpadeDecoder(nn.Module):
         """
         super().__init__()
 
+        latent_dim = opts.gen.p.latent_dim
+        cond_nc = 3
+        spade_n_up = opts.gen.p.spade_n_up
+        spade_use_spectral_norm = opts.gen.p.spade_use_spectral_norm
+        spade_param_free_norm = opts.gen.p.spade_param_free_norm
+        spade_kernel_size = 3
+
         self.z_nc = latent_dim
         self.spade_n_up = spade_n_up
 
+        self.fc = nn.Conv2d(3, latent_dim, 3, padding=1)
         self.head_0 = SPADEResnetBlock(
             self.z_nc,
             self.z_nc,
@@ -485,10 +689,42 @@ class SpadeDecoder(nn.Module):
             spade_param_free_norm,
             spade_kernel_size,
         )
+        self.final_shortcut = None
+        if opts.gen.p.use_final_shortcut:
+            self.final_shortcut = nn.Sequential(
+                *[
+                    SpectralNorm(nn.Conv2d(self.final_nc, 3, 1)),
+                    nn.BatchNorm2d(3),
+                    nn.LeakyReLU(0.2, True),
+                ]
+            )
 
         self.conv_img = nn.Conv2d(self.final_nc, 3, 3, padding=1)
 
-        self.upsample = nn.Upsample(scale_factor=2)
+        self.upsample = InterpolateNearest2d(scale_factor=2)
+
+    def set_latent_shape(self, shape, is_input=True):
+        """
+        Sets the latent shape to start the upsampling from, i.e. z_h and z_w.
+        If is_input is True, then this is the actual input shape which should
+        be divided by 2 ** spade_n_up
+        Otherwise, just sets z_h and z_w from shape[-2] and shape[-1]
+
+        Args:
+            shape (tuple): The shape to start sampling from.
+            is_input (bool, optional): Whether to divide shape by 2 ** spade_n_up
+        """
+        if isinstance(shape, (list, tuple)):
+            self.z_h = shape[-2]
+            self.z_w = shape[-1]
+        elif isinstance(shape, int):
+            self.z_h = self.z_w = shape
+        else:
+            raise ValueError("Unknown shape type:", shape)
+
+        if is_input:
+            self.z_h = self.z_h // (2 ** self.spade_n_up)
+            self.z_w = self.z_w // (2 ** self.spade_n_up)
 
     def _apply(self, fn):
         # print("Applying SpadeDecoder", fn)
@@ -502,6 +738,9 @@ class SpadeDecoder(nn.Module):
         return self
 
     def forward(self, z, cond):
+        if z is None:
+            assert self.z_h is not None and self.z_w is not None
+            z = self.fc(F.interpolate(cond, size=(self.z_h, self.z_w)))
         y = self.head_0(z, cond)
         y = self.upsample(y)
         y = self.G_middle_0(y, cond)
@@ -512,6 +751,8 @@ class SpadeDecoder(nn.Module):
             y = self.upsample(y)
             y = up(y, cond)
 
+        if self.final_shortcut is not None:
+            cond = self.final_shortcut(y)
         y = self.final_spade(y, cond)
         y = self.conv_img(F.leaky_relu(y, 2e-1))
         y = torch.tanh(y)
@@ -519,105 +760,3 @@ class SpadeDecoder(nn.Module):
 
     def __str__(self):
         return strings.spadedecoder(self)
-
-
-class _ASPPModule(nn.Module):
-    # https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/aspp.py
-    def __init__(self, inplanes, planes, kernel_size, padding, dilation, BatchNorm):
-        super(_ASPPModule, self).__init__()
-        self.atrous_conv = nn.Conv2d(
-            inplanes,
-            planes,
-            kernel_size=kernel_size,
-            stride=1,
-            padding=padding,
-            dilation=dilation,
-            bias=False,
-        )
-        self.bn = BatchNorm(planes)
-        self.relu = nn.ReLU()
-
-        self._init_weight()
-
-    def forward(self, x):
-        x = self.atrous_conv(x)
-        x = self.bn(x)
-
-        return self.relu(x)
-
-    def _init_weight(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                torch.nn.init.kaiming_normal_(m.weight)
-            elif isinstance(m, nn.BatchNorm2d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
-
-
-class ASPP(nn.Module):
-    # https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/aspp.py
-    def __init__(self, output_stride, BatchNorm):
-        super().__init__()
-
-        inplanes = 2048
-
-        if output_stride == 16:
-            dilations = [1, 6, 12, 18]
-        elif output_stride == 8:
-            dilations = [1, 12, 24, 36]
-        else:
-            raise NotImplementedError
-
-        self.aspp1 = _ASPPModule(
-            inplanes, 256, 1, padding=0, dilation=dilations[0], BatchNorm=BatchNorm
-        )
-        self.aspp2 = _ASPPModule(
-            inplanes,
-            256,
-            3,
-            padding=dilations[1],
-            dilation=dilations[1],
-            BatchNorm=BatchNorm,
-        )
-        self.aspp3 = _ASPPModule(
-            inplanes,
-            256,
-            3,
-            padding=dilations[2],
-            dilation=dilations[2],
-            BatchNorm=BatchNorm,
-        )
-        self.aspp4 = _ASPPModule(
-            inplanes,
-            256,
-            3,
-            padding=dilations[3],
-            dilation=dilations[3],
-            BatchNorm=BatchNorm,
-        )
-
-        self.global_avg_pool = nn.Sequential(
-            nn.AdaptiveAvgPool2d((1, 1)),
-            nn.Conv2d(inplanes, 256, 1, stride=1, bias=False),
-            BatchNorm(256),
-            nn.ReLU(),
-        )
-        self.conv1 = nn.Conv2d(1280, 256, 1, bias=False)
-        self.bn1 = BatchNorm(256)
-        self.relu = nn.ReLU()
-        self.dropout = nn.Dropout(0.5)
-
-    def forward(self, x):
-        x1 = self.aspp1(x)
-        x2 = self.aspp2(x)
-        x3 = self.aspp3(x)
-        x4 = self.aspp4(x)
-        x5 = self.global_avg_pool(x)
-        x5 = F.interpolate(x5, size=x4.size()[2:], mode="bilinear", align_corners=True)
-        x = torch.cat((x1, x2, x3, x4, x5), dim=1)
-
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu(x)
-
-        return self.dropout(x)

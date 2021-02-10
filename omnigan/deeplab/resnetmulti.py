@@ -1,5 +1,6 @@
 import torch.nn as nn
-from omnigan.blocks import Conv2dBlock, ResBlocks
+
+from omnigan.blocks import ResBlocks
 
 affine_par = True
 
@@ -58,15 +59,10 @@ class Bottleneck(nn.Module):
 
 class ResNetMulti(nn.Module):
     def __init__(
-        self,
-        block,
-        layers,
-        n_res=4,
-        res_norm="instance",
-        activ="lrelu",
-        pad_type="reflect",
+        self, layers, n_res=4, res_norm="instance", activ="lrelu", pad_type="reflect",
     ):
         self.inplanes = 64
+        block = Bottleneck
         super(ResNetMulti, self).__init__()
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1 = nn.BatchNorm2d(64, affine=affine_par)
