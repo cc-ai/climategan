@@ -171,9 +171,12 @@ gen:
     use_minent_var: True # add variance of entropy map in the measure of entropy for a certain picture
     use_advent: True # minimize the entropy of the image by adversarial training
     use_ground_intersection: True
+    use_proj: True
     proj_dim: 64
+    use_pl4m: False
     n_res: 3
     use_low_level_feats: True
+    use_dada: False
     spade:
       latent_dim: 128
       detach: True # detach s_pred and d_pred conditioning tensors
@@ -181,7 +184,8 @@ gen:
       spade_use_spectral_norm: True
       spade_param_free_norm: batch
       num_layers: 3
-    use_dada: False
+      activations:
+        all_lrelu: True
 
 # -------------------------
 # ----- Discriminator -----

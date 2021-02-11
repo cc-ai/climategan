@@ -544,6 +544,7 @@ class SPADEResnetBlock(nn.Module):
         spade_use_spectral_norm,
         spade_param_free_norm,
         spade_kernel_size,
+        last_activation=None,
     ):
         super().__init__()
         # Attributes
@@ -555,6 +556,7 @@ class SPADEResnetBlock(nn.Module):
         self.kernel_size = spade_kernel_size
 
         self.learned_shortcut = fin != fout
+        self.last_activation = last_activation
         fmiddle = min(fin, fout)
 
         # create conv layers
@@ -584,7 +586,16 @@ class SPADEResnetBlock(nn.Module):
         dx = self.conv_1(self.activation(self.norm_1(dx, seg)))
 
         out = x_s + dx
-        return out
+        if self.last_activation == "lrelu":
+            return self.activation(out)
+        elif self.last_activation is None:
+            return out
+        else:
+            raise NotImplementedError(
+                "The type of activation is not supported: {}".format(
+                    self.last_activation
+                )
+            )
 
     def shortcut(self, x, seg):
         if self.learned_shortcut:
