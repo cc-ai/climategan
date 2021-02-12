@@ -290,10 +290,10 @@ if __name__ == "__main__":
         )
         print()
         print_num_parameters(trainer, True)
-        if half:
-            trainer.G.half()
         if fuse:
             trainer.G = bn_fuse(trainer.G)
+        if half:
+            trainer.G.half()
 
     # --------------------------------------------
     # -----  Read data from input directory  -----
