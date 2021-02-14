@@ -16,7 +16,7 @@ load_paths:
 # -------------------
 # -----  Tasks  -----
 # -------------------
-tasks: [d, s, m, p] # [p] [m, s, d]
+tasks: [d, s, m, p, mt] # [p] [m, s, d] mt means multi-task
 
 # ----------------
 # ----- Data -----
@@ -70,6 +70,8 @@ data:
 # ----- Generator -----
 # ---------------------
 gen:
+  multi_task:
+    method: AutomaticWeighted
   opt:
     optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
     beta1: 0.9

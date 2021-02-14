@@ -142,6 +142,17 @@ class OmniGenerator(nn.Module):
             self.painter = nn.Module()
             if self.verbose > 0:
                 print("  - Add Empty Painter")
+        if (
+            "mt" in self.opts.tasks
+            and self.opts.gen.multi_task.method == "AutomaticWeighted"
+        ):
+            self.mtl = AutomaticWeightedMTL(self.num_masker_task())
+
+    def num_masker_task(self):
+        masker_tasks = self.opts.tasks.copy()
+        if "p" in masker_tasks:
+            masker_tasks.remove("p")
+        return len(masker_tasks)
 
     def encode(self, x):
         assert self.encoder is not None
@@ -552,3 +563,30 @@ class MaskSpadeDecoder(nn.Module):
     def __str__(self):
         return "MaskerSpadeDecoder"
         # return strings.spadedecoder(self)
+
+
+class AutomaticWeightedMTL(nn.Module):
+    """automatically weighted multi-task
+    Params：
+        num: int，the number of loss
+        x: multi-task loss
+    Examples：
+        loss1=1
+        loss2=2
+        awl = AutomaticWeightedLoss(2)
+        loss_sum = awl(loss1, loss2)
+    From: https://github.com/Mikoto10032/AutomaticWeightedLoss/blob/master/AutomaticWeightedLoss.py
+    """
+
+    def __init__(self, num=2):
+        super(AutomaticWeightedMTL, self).__init__()
+        params = torch.ones(num, requires_grad=True)
+        self.params = torch.nn.Parameter(params)
+
+    def forward(self, *x):
+        loss_sum = 0
+        for i, loss in enumerate(x):
+            loss_sum += 0.5 / (self.params[i] ** 2) * loss + torch.log(
+                1 + self.params[i] ** 2
+            )
+        return loss_sum

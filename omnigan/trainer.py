@@ -798,7 +798,6 @@ class Trainer:
                             mode, domain, len(domain_loader.dataset)
                         )
                     )
-
         # ----------------------------
         # -----  Display images  -----
         # ----------------------------
@@ -1275,6 +1274,8 @@ class Trainer:
             # --------------------------------------
             # -----  task-specific losses (2)  -----
             # --------------------------------------
+            losses = []
+
             z_depth = None
             d_pred = s_pred = None
             for task in ["d", "s", "m"]:
@@ -1284,18 +1285,20 @@ class Trainer:
                 target = batch["data"][task]
 
                 if task == "d":
-                    loss, d_pred, z_depth = self.masker_d_loss(
+                    loss_d, d_pred, z_depth = self.masker_d_loss(
                         x, z, target, domain, "G"
                     )
-                    m_loss += loss
-                    self.logger.losses.gen.task["d"][domain] = loss.item()
+                    m_loss += loss_d
+                    self.logger.losses.gen.task["d"][domain] = loss_d.item()
+                    losses.append(loss_d)
 
                 elif task == "s":
-                    loss, s_pred = self.masker_s_loss(
+                    loss_s, s_pred = self.masker_s_loss(
                         x, z, d_pred, z_depth, target, domain, "G"
                     )
-                    m_loss += loss
-                    self.logger.losses.gen.task["s"][domain] = loss.item()
+                    m_loss += loss_s
+                    self.logger.losses.gen.task["s"][domain] = loss_s.item()
+                    losses.append(loss_s)
 
                 elif task == "m":
                     cond = None
@@ -1305,10 +1308,13 @@ class Trainer:
                             s_pred = s_pred.clone()
                         cond = self.G.make_m_cond(d_pred, s_pred, x)
 
-                    loss, _ = self.masker_m_loss(x, z, target, domain, "G", cond=cond)
-                    m_loss += loss
-                    self.logger.losses.gen.task["m"][domain] = loss.item()
+                    loss_m, _ = self.masker_m_loss(x, z, target, domain, "G", cond=cond)
+                    m_loss += loss_m
+                    self.logger.losses.gen.task["m"][domain] = loss_m.item()
+                    losses.append(loss_m)
 
+                if "mt" in self.opts.tasks:
+                    m_loss = self.G.mtl(*losses)
         return m_loss
 
     def get_painter_loss(self, multi_domain_batch):

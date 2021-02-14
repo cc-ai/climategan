@@ -98,6 +98,10 @@ def get_optimizer(net, opt_conf, tasks=None, is_disc=False, iterations=-1):
                 else:
                     parameters = net.decoders[task].parameters()
                     lr_names.append(f"decoder_{task}")
+                # Parameters for AutomaticWeightedLoss
+                if task == "mt":
+                    parameters = net.mtl.parameters()
+                    lr_names.append("multitask_weight")
             else:
                 if task in net:
                     parameters = net[task].parameters()
