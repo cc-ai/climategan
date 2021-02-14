@@ -111,7 +111,13 @@ class Trainer:
         self.device = device or torch.device(
             "cuda:0" if torch.cuda.is_available() else "cpu"
         )
-
+        if "mt" in self.opts.tasks and self.opts.gen.multi_task.method == "DWA":
+            masker_tasks = self.opts.tasks.copy()
+            if "p" in masker_tasks:
+                masker_tasks.remove("p")
+            self.lambda_weight = np.ones([len(masker_tasks), self.opts.train.epochs])
+            self.avg_cost = np.zeros([total_epoch, 24], dtype=np.float32)
+            self.T = 2.0
         if isinstance(comet_exp, Experiment):
             self.exp = comet_exp
 
@@ -378,12 +384,22 @@ class Trainer:
 
         # Construct relevant state dicts / optims:
         # Save at least G
-        save_dict = {
-            "epoch": self.logger.epoch,
-            "G": self.G.state_dict(),
-            "g_opt": self.g_opt.state_dict(),
-            "step": self.logger.global_step,
-        }
+        if "mt" in self.opts.tasks and self.opts.gen.multi_task.method == "DWA":
+            save_dict = {
+                "epoch": self.logger.epoch,
+                "G": self.G.state_dict(),
+                "g_opt": self.g_opt.state_dict(),
+                "step": self.logger.global_step,
+                "DWA_weight": self.lambda_weight,
+                "DWA_cost": self.avg_cost,
+            }
+        else:
+            save_dict = {
+                "epoch": self.logger.epoch,
+                "G": self.G.state_dict(),
+                "g_opt": self.g_opt.state_dict(),
+                "step": self.logger.global_step,
+            }
 
         if self.C is not None and get_num_params(self.C) > 0:
             save_dict["C"] = self.C.state_dict()
@@ -530,7 +546,9 @@ class Trainer:
             return
 
         self.g_opt.load_state_dict(checkpoint["g_opt"])
-
+        if "mt" in self.opts.tasks and self.opts.gen.multi_task.method == "DWA":
+            self.lambda_weight = checkpoint["DWA_weight"]
+            self.avg_cost = checkpoint["DWA_cost"]
         # ------------------------------
         # -----  Resume scheduler  -----
         # ------------------------------
@@ -1313,8 +1331,33 @@ class Trainer:
                     self.logger.losses.gen.task["m"][domain] = loss_m.item()
                     losses.append(loss_m)
 
-                if "mt" in self.opts.tasks:
+                if (
+                    "mt" in self.opts.tasks
+                    and self.opts.gen.multi_task.method == "AutomaticWeighted"
+                ):
                     m_loss = self.G.mtl(*losses)
+                elif (
+                    "mt" in self.opts.tasks and self.opts.gen.multi_task.method == "DWA"
+                ):
+                    if self.logger.epoch == 0 or self.logger.epoch == 1:
+                        self.lambda_weight[:, self.logger.epoch] = 1.0
+                    else:
+                        w = []
+                        num_loss = self.lambda_weight.shape[0]
+                        for i in range(num_loss):
+                            w[i] = (
+                                self.avg_cost[self.logger.epoch - 1, i * 3]
+                                / self.avg_cost[self.logger.epoch - 2, i * 3]
+                            )
+                            base = 0
+                            for j in range(num_loss):
+                                base += np.exp(w[j] / self.T)
+                            self.lambda_weight[i, self.logger.epoch] = (
+                                3 * np.exp(w[i] / self.T) / base
+                            )
+                    m_loss = 0
+                    for k in range(num_loss):
+                        m_loss += self.lambda_weight[k, self.logger.epoch] * losses[k]
         return m_loss
 
     def get_painter_loss(self, multi_domain_batch):

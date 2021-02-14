@@ -71,7 +71,7 @@ data:
 # ---------------------
 gen:
   multi_task:
-    method: AutomaticWeighted
+    method: AutomaticWeighted # one in [AutomaticWeighted, DWA]
   opt:
     optimizer: ExtraAdam # one in [Adam, ExtraAdam] default: Adam
     beta1: 0.9
