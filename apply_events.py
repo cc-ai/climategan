@@ -2,33 +2,29 @@ print("\n• Imports\n")
 import time
 
 import_time = time.time()
-import sys
 import argparse
+import sys
 from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
 
+import comet_ml  # noqa: F401
 import numpy as np
 import skimage.io as io
 from skimage.color import rgba2rgb
 from skimage.transform import resize
-import comet_ml  # noqa: F401
 
 from omnigan.trainer import Trainer
+from omnigan.bn_fusion import bn_fuse
 from omnigan.tutils import normalize, print_num_parameters
-from omnigan.utils import (
-    Timer,
-    get_git_revision_hash,
-    to_128,
-    find_images,
-)
+from omnigan.utils import Timer, find_images, get_git_revision_hash, to_128
 
 import_time = time.time() - import_time
 
 XLA = False
 try:
-    import torch_xla.core.xla_model as xm
-    import torch_xla.debug.metrics as met
+    import torch_xla.core.xla_model as xm  # type: ignore
+    import torch_xla.debug.metrics as met  # type: ignore
 
     XLA = True
 except ImportError:
@@ -187,6 +183,12 @@ def parse_args():
         help="Keeps approximately the aspect ratio to match multiples of 128",
     )
     parser.add_argument(
+        "--fuse",
+        action="store_true",
+        default=False,
+        help="Use batch norm fusion to speed up inference",
+    )
+    parser.add_argument(
         "--max_im_width",
         type=int,
         default=-1,
@@ -209,18 +211,19 @@ if __name__ == "__main__":
 
     batch_size = args.batch_size
     half = args.half
-    cloudy = not args.no_cloudy
-    images_paths = Path(args.images_paths).expanduser().resolve()
+    fuse = args.fuse
     bin_value = args.flood_mask_binarization
+    resume_path = args.resume_path
+    xla_purge_samples = args.xla_purge_samples
+    n_images = args.n_images
+    cloudy = not args.no_cloudy
+    time_inference = not args.no_time
+    images_paths = Path(args.images_paths).expanduser().resolve()
     outdir = (
         Path(args.output_path).expanduser().resolve()
         if args.output_path is not None
         else None
     )
-    resume_path = args.resume_path
-    time_inference = not args.no_time
-    n_images = args.n_images
-    xla_purge_samples = args.xla_purge_samples
     if args.keep_ratio_128:
         if batch_size != 1:
             print("\nWARNING: batch_size overwritten to 1 when using keep_ratio_128")
@@ -280,13 +283,15 @@ if __name__ == "__main__":
 
         device = None
         if XLA:
-            device = xm.xla_device()
+            device = xm.xla_device()  # type: ignore
 
         trainer = Trainer.resume_from_path(
             resume_path, setup=True, inference=True, new_exp=None, device=device,
         )
         print()
         print_num_parameters(trainer, True)
+        if fuse:
+            trainer.G = bn_fuse(trainer.G)
         if half:
             trainer.G.half()
 
@@ -398,7 +403,7 @@ if __name__ == "__main__":
         metrics_dir.mkdir(exist_ok=True, parents=True)
         now = str(datetime.now()).replace(" ", "_")
         with open(metrics_dir / f"xla_metrics_{now}.txt", "w",) as f:
-            report = met.metrics_report()
+            report = met.metrics_report()  # type: ignore
             print(report, file=f)
 
     if not args.no_conf and outdir is not None:

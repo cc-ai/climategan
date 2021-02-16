@@ -1,8 +1,9 @@
 import os
 import subprocess
-from pathlib import Path
-import yaml
 from argparse import ArgumentParser
+from pathlib import Path
+
+import yaml
 
 if __name__ == "__main__":
     parser = ArgumentParser()

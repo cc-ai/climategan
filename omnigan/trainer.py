@@ -24,11 +24,11 @@ from tqdm import tqdm
 
 from omnigan.classifier import OmniClassifier, get_classifier
 from omnigan.data import get_all_loaders
-from omnigan.discriminator import OmniDiscriminator, get_dis
+from omnigan.discriminator import OmniDiscriminator, create_discriminator
 from omnigan.eval_metrics import accuracy, mIOU
 from omnigan.fid import compute_val_fid
 from omnigan.fire import add_fire
-from omnigan.generator import OmniGenerator, get_gen
+from omnigan.generator import OmniGenerator, create_generator
 from omnigan.logger import Logger
 from omnigan.losses import get_losses
 from omnigan.optim import get_optimizer
@@ -61,7 +61,7 @@ from omnigan.utils import (
 )
 
 try:
-    import torch_xla.core.xla_model as xm
+    import torch_xla.core.xla_model as xm  # type: ignore
 except ImportError:
     pass
 
@@ -538,10 +538,6 @@ class Trainer:
         for _ in range(self.logger.epoch + 1):
             self.update_learning_rates()
 
-        # Round step to even number for extraGradient
-        if self.logger.global_step % 2 != 0:
-            self.logger.global_step += 1
-
         # -----------------------
         # -----  Restore D  -----
         # -----------------------
@@ -561,6 +557,11 @@ class Trainer:
         # ---------------------------
         self.logger.epoch = checkpoint["epoch"]
         self.logger.global_step = checkpoint["step"]
+        self.exp.log_text(
+            "Resuming from epoch {} & step {}".format(
+                checkpoint["epoch"], checkpoint["step"]
+            )
+        )
         # Round step to even number for extraGradient
         if self.logger.global_step % 2 != 0:
             self.logger.global_step += 1
@@ -722,19 +723,18 @@ class Trainer:
         __t = time()
         print("Creating generator...")
 
-        self.G: OmniGenerator = get_gen(self.opts, verbose=verbose, no_init=inference)
+        self.G: OmniGenerator = create_generator(
+            self.opts, device=self.device, no_init=inference, verbose=verbose
+        )
 
         self.has_painter = get_num_params(self.G.painter) or self.G.load_val_painter()
-
-        print("Sending to", self.device)
-        self.G = self.G.to(self.device)
 
         if self.has_painter:
             self.G.painter.set_latent_shape(find_target_size(self.opts, "x"), True)
 
         print(f"Generator OK in {time() - __t:.1f}s.")
 
-        if inference:
+        if inference:  # Inference mode: no more than a Generator needed
             print("Inference mode: no Discriminator, no Classifier, no optimizers")
             print_num_parameters(self)
             self.switch_data(to="base")
@@ -750,7 +750,9 @@ class Trainer:
         # -----  Discriminator  -----
         # ---------------------------
 
-        self.D: OmniDiscriminator = get_dis(self.opts, verbose=verbose).to(self.device)
+        self.D: OmniDiscriminator = create_discriminator(
+            self.opts, self.device, verbose=verbose
+        )
         print("Discriminator OK.")
 
         # ------------------------
@@ -808,15 +810,31 @@ class Trainer:
         # ----------------------------
         self.set_display_images()
 
+        # -------------------------------
+        # -----  Log Architectures  -----
+        # -------------------------------
         self.logger.log_architecture()
 
+        # -----------------------------
+        # -----  Set data source  -----
+        # -----------------------------
         if self.kitti_pretrain:
             self.switch_data(to="kitti")
         else:
             self.switch_data(to="base")
 
+        # -------------------------
+        # -----  Setup Done.  -----
+        # -------------------------
         print(" " * 50, end="\r")
         print("Done creating display images")
+
+        if self.opts.train.resume:
+            print("Resuming Model (inference: False)")
+            self.resume(False)
+        else:
+            print("Not resuming: starting a new model")
+
         print("Setup done.")
         self.is_setup = True
 
@@ -902,11 +920,17 @@ class Trainer:
         for self.logger.epoch in range(
             self.logger.epoch, self.logger.epoch + self.opts.train.epochs
         ):
-
             # backprop painter's disc loss to masker
-            if self.logger.epoch == self.opts.gen.p.pl4m_epoch:
-                if get_num_params(self.G.painter) > 0:
-                    self.use_pl4m = True
+            if (
+                self.logger.epoch == self.opts.gen.p.pl4m_epoch
+                and get_num_params(self.G.painter) > 0
+                and "p" in self.opts.tasks
+                and self.opts.gen.m.use_pl4m
+            ):
+                print(
+                    "\n\n >>> Enabling pl4m at epoch {}\n\n".format(self.logger.epoch)
+                )
+                self.use_pl4m = True
 
             self.run_epoch()
             self.run_evaluation(verbose=1)
@@ -1277,23 +1301,26 @@ class Trainer:
 
                 target = batch["data"][task]
 
-                if task == "s":
-                    loss, s_pred = self.masker_s_loss(
-                        x, z, d_pred, z_depth, target, domain, "G"
-                    )
-                    m_loss += loss
-                    self.logger.losses.gen.task["s"][domain] = loss.item()
-
-                elif task == "d":
+                if task == "d":
                     loss, d_pred, z_depth = self.masker_d_loss(
                         x, z, target, domain, "G"
                     )
                     m_loss += loss
                     self.logger.losses.gen.task["d"][domain] = loss.item()
 
+                elif task == "s":
+                    loss, s_pred = self.masker_s_loss(
+                        x, z, d_pred, z_depth, target, domain, "G"
+                    )
+                    m_loss += loss
+                    self.logger.losses.gen.task["s"][domain] = loss.item()
+
                 elif task == "m":
                     cond = None
                     if self.opts.gen.m.use_spade:
+                        if not self.opts.gen.m.detach:
+                            d_pred = d_pred.clone()
+                            s_pred = s_pred.clone()
                         cond = self.G.make_m_cond(d_pred, s_pred, x)
 
                     loss, _ = self.masker_m_loss(x, z, target, domain, "G", cond=cond)

@@ -671,6 +671,8 @@ if __name__ == "__main__":
     hp_search_nb = None
     exp_path = None
     resume = None
+    force_sbatchs = False
+    sbatch_base = Path(home) / "omnigan_sbatchs"
     summary_dir = Path(home) / "omnigan_exp_summaries"
 
     hp_search_private = set(["n_search", "template", "search", "summary_dir"])
@@ -706,6 +708,12 @@ if __name__ == "__main__":
 
         elif k == "sbatch_path":
             sbatch_path = v
+
+        elif k == "sbatch_base":
+            sbatch_base = Path(v).resolve()
+
+        elif k == "force_sbatchs":
+            force_sbatchs = v.lower() == "true"
 
         elif k == "dev":
             if v.lower() != "false":
@@ -809,9 +817,9 @@ if __name__ == "__main__":
         # create sbatch file where required
         tmp_sbatch_path = None
         if sbatch_path == "hash":
-            tmp_sbatch_name = "" if hp_exp_name is None else hp_exp_name[:5] + "_"
+            tmp_sbatch_name = "" if hp_exp_name is None else hp_exp_name[:14] + "_"
             tmp_sbatch_name += now() + ".sh"
-            tmp_sbatch_path = Path(home) / "omnigan_sbatchs" / tmp_sbatch_name
+            tmp_sbatch_path = sbatch_base / tmp_sbatch_name
             tmp_sbatch_path.parent.mkdir(parents=True, exist_ok=True)
             tmp_train_args_dict["sbatch_file"] = str(tmp_sbatch_path)
             tmp_train_args_dict["exp_file"] = str(exp_path)
@@ -847,7 +855,7 @@ if __name__ == "__main__":
         # --------------------------------------
         # -----  Execute `sbatch` Command  -----
         # --------------------------------------
-        if not dev:
+        if not dev or force_sbatchs:
             if tmp_sbatch_path.exists():
                 print(f"Warning: overwriting {sbatch_path}")
 
@@ -855,6 +863,7 @@ if __name__ == "__main__":
             with open(tmp_sbatch_path, "w") as f:
                 f.write(sbatch)
 
+        if not dev:
             # escape special characters such as " " from sbatch_path's parent dir
             parent = str(tmp_sbatch_path.parent)
             if escape:

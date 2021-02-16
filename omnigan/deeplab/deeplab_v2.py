@@ -1,7 +1,7 @@
-import torch.nn as nn
 import torch
-from omnigan.blocks import InterpolateNearest2d
+import torch.nn as nn
 import torch.nn.functional as F
+from omnigan.blocks import InterpolateNearest2d
 from omnigan.utils import find_target_size
 
 

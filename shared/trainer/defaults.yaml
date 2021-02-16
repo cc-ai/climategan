@@ -83,7 +83,7 @@ gen:
     #     item in the list (no need for lr_step_size).
     #   if lr_milestones is an int:
     #      a list of milestones is created from `range(lr_milestones, train.epochs, lr_step_size)`
-    lr_step_size: 30 # for linear decay : period of learning rate decay (epochs)
+    lr_step_size: 5 # for linear decay : period of learning rate decay (epochs)
     lr_milestones: 15
     lr_gamma: 0.5 # Multiplicative factor of learning rate decay
   default:
@@ -172,16 +172,20 @@ gen:
     use_minent_var: True # add variance of entropy map in the measure of entropy for a certain picture
     use_advent: True # minimize the entropy of the image by adversarial training
     use_ground_intersection: True
+    use_proj: True
     proj_dim: 64
+    use_pl4m: False
     n_res: 3
     use_low_level_feats: True
     spade:
       latent_dim: 128
-      detach: True # detach s_pred and d_pred conditioning tensors
-      cond_nc: 12 # 12 without x, 15 with x
+      detach: false # detach s_pred and d_pred conditioning tensors
+      cond_nc: 15 # 12 without x, 15 with x
       spade_use_spectral_norm: True
       spade_param_free_norm: batch
       num_layers: 3
+      activations:
+        all_lrelu: True
 
 # -------------------------
 # ----- Discriminator -----
@@ -202,8 +206,8 @@ dis:
     #     item in the list (no need for lr_step_size).
     #   if lr_milestones is an int:
     #      a list of milestones is created from `range(lr_milestones, train.epochs, lr_step_size)`
-    lr_step_size: 30 # for linear decay : period of learning rate decay (epochs)
-    lr_milestones: 15
+    lr_step_size: 15 # for linear decay : period of learning rate decay (epochs)
+    lr_milestones: 5
     lr_gamma: 0.5 # Multiplicative factor of learning rate decay
   default:
     &default-dis # default setting for discriminators (there are 4 of them for rn rf sn sf)
@@ -331,10 +335,10 @@ comet:
 events:
   fire:
     color:
-      r: 244
-      g: 141
-      b: 48
-    blur_radius: 150
+      r: 200
+      g: 80
+      b: 5
+    blur_radius: 70
   smog:
     airlight: 0.76
     beta: 2
