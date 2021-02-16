@@ -125,6 +125,7 @@ def main(opts):
                 exp = ExistingExperiment(
                     previous_experiment=comet_previous_id, **comet_kwargs
                 )
+                print("Comet Experiment resumed")
 
         if exp is None:
             # Create new experiment

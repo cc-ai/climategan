@@ -832,6 +832,8 @@ class Trainer:
         if self.opts.train.resume:
             print("Resuming Model (inference: False)")
             self.resume(False)
+        else:
+            print("Not resuming: starting a new model")
 
         print("Setup done.")
         self.is_setup = True
