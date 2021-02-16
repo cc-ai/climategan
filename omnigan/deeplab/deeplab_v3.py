@@ -6,7 +6,7 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from omnigan.deeplab.mobilenetv2 import SeparableConv2d  # , _ConvBNReLU
+from omnigan.deeplab.mobilenet_v3 import SeparableConv2d  # , _ConvBNReLU
 from omnigan.utils import find_target_size
 
 

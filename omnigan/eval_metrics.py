@@ -1,5 +1,5 @@
-import numpy as np
 import cv2
+import numpy as np
 import torch
 from skimage import filters
 from sklearn.metrics.pairwise import euclidean_distances

@@ -1,8 +1,9 @@
 """Classifier architecture for domain adaptation
 """
 from torch import nn
-from omnigan.tutils import init_weights
+
 from omnigan.blocks import Conv2dBlock
+from omnigan.tutils import init_weights
 
 
 def get_classifier(opts, latent_space, verbose, no_init=False):

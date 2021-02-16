@@ -3,10 +3,10 @@ Copies the content of an omnigan data json file to slurm tmp dir
 and creates an updated json file there
 """
 import json
-import shutil
-from pathlib import Path
-from argparse import ArgumentParser
 import os
+import shutil
+from argparse import ArgumentParser
+from pathlib import Path
 
 if __name__ == "__main__":
     parser = ArgumentParser()

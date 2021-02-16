@@ -1,10 +1,10 @@
 # from https://github.com/mseitzer/pytorch-fid
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
-import numpy as np
 from scipy import linalg
 from torch.nn.functional import adaptive_avg_pool2d
 
