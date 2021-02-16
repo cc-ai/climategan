@@ -95,6 +95,12 @@ def parsed_args():
         default=False,
         help="Do not log painted images",
     )
+    parser.add_argument(
+        "--write_csv",
+        action="store_true",
+        default=False,
+        help="If True, write CSV file in model's path directory",
+    )
 
     return parser.parse_args()
 
@@ -416,6 +422,11 @@ if __name__ == "__main__":
                 masked = img * (1 - pred[..., None])
                 combined = np.concatenate([masked, painted[idx]], 1)
                 exp.log_image(combined, Path(imgs_paths[idx]).name)
+            if args.write_csv:
+                if eval_item["eval_type"] == "model":
+                    f_csv = Path(eval_item["eval_path"]).joinpath("eval_masker.csv")
+                    df.to_csv(f_csv, index_label='idx')
+
 
         print(" Done.")
         # Summary statistics
