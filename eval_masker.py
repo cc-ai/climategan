@@ -390,7 +390,7 @@ if __name__ == "__main__":
             for k, v in series_dict.items():
                 if k == "filename":
                     continue
-                exp.log_metric(f"img_{k}", v)
+                exp.log_metric(f"img_{k}", v, step=idx)
 
             # Confusion matrix
             confmat, _ = get_confusion_matrix(tpr, tnr, fpr, fnr, mpr, mnr)
