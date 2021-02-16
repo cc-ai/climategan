@@ -373,20 +373,24 @@ if __name__ == "__main__":
             # Edges coherence
             edge_coherence, pred_edge, label_edge = edges_coherence_std_min(pred, label)
 
-            df.loc[idx] = pd.Series(
-                {
-                    "fpr": fpr,
-                    "fnr": fnr,
-                    "mnr": mnr,
-                    "mpr": mpr,
-                    "tpr": tpr,
-                    "tnr": tnr,
-                    "precision": precision,
-                    "f1": f1,
-                    "edge_coherence": edge_coherence,
-                    "filename": os.path.basename(imgs_paths[idx]),
-                }
-            )
+            series_dict = {
+                "fpr": fpr,
+                "fnr": fnr,
+                "mnr": mnr,
+                "mpr": mpr,
+                "tpr": tpr,
+                "tnr": tnr,
+                "precision": precision,
+                "f1": f1,
+                "edge_coherence": edge_coherence,
+                "filename": os.path.basename(imgs_paths[idx]),
+            }
+            df.loc[idx] = pd.Series(series_dict)
+
+            for k, v in series_dict.items():
+                if k == "filename":
+                    continue
+                exp.log_metric(f"img_{k}", v)
 
             # Confusion matrix
             confmat, _ = get_confusion_matrix(tpr, tnr, fpr, fnr, mpr, mnr)
