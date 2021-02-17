@@ -28,6 +28,7 @@ class MaskBaseDecoder(BaseDecoder):
         use_v3 = opts.gen.encoder.architecture == "deeplabv3"
         use_mobile_net = opts.gen.deeplabv3.backbone == "mobilenet"
         use_low = opts.gen.m.use_low_level_feats
+        use_dada = ("d" in opts.tasks) & opts.gen.m.use_dada
 
         if use_v3 and use_mobile_net:
             input_dim = 320
@@ -51,6 +52,7 @@ class MaskBaseDecoder(BaseDecoder):
             pad_type=opts.gen.m.pad_type,
             output_activ="none",
             low_level_feats_dim=low_level_feats_dim,
+            use_dada=use_dada,
         )
 
 

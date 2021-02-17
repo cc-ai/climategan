@@ -72,7 +72,7 @@ class Logger:
                         if s_pred is not None and d_pred is not None:
                             cond = trainer.G.make_m_cond(d_pred, s_pred, x)
 
-                        prediction = trainer.G.decoders[task](z, cond)
+                        prediction = trainer.G.decoders[task](z, cond, z_depth)
                     elif task == "d":
                         prediction, z_depth = trainer.G.decoders[task](z)
                     elif task == "s":
