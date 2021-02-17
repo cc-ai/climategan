@@ -22,7 +22,7 @@ comet-git-pure==0.19.16
 comet-ml==3.3.2
 configobj==5.0.6
 crcmod==1.7
-cryptography==3.2.1
+cryptography==3.3.2
 cycler==0.10.0
 Cython==0.29.21
 dash==1.15.0
