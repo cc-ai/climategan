@@ -140,8 +140,7 @@ gen:
     use_minent: True
     architecture: deeplabv3
     upsample_featuremaps: False # upsamples from 80x80 to 160x160 intermediate feature maps
-    depth_feat_fusion: True
-    depth_dada_fusion: True
+    use_dada: True
   p: # specific params for the SPADE painter
     <<: *default-gen
     latent_dim: 640
@@ -177,6 +176,7 @@ gen:
     use_pl4m: False
     n_res: 3
     use_low_level_feats: True
+    use_dada: False
     spade:
       latent_dim: 128
       detach: True # detach s_pred and d_pred conditioning tensors

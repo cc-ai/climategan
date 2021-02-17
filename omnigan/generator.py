@@ -103,6 +103,10 @@ class OmniGenerator(nn.Module):
         if "d" in opts.tasks:
             if opts.gen.d.architecture == "base":
                 self.decoders["d"] = BaseDepthDecoder(opts)
+                if "s" in self.opts.task:
+                    assert self.opts.gen.s.use_dada == False
+                if "m" in self.opts.tasks:
+                    assert self.opts.gen.m.use_dada == False
             else:
                 self.decoders["d"] = DADADepthRegressionDecoder(opts)
 
@@ -180,7 +184,7 @@ class OmniGenerator(nn.Module):
 
         return torch.cat(cats, dim=1)
 
-    def mask(self, x=None, z=None, cond=None, sigmoid=True):
+    def mask(self, x=None, z=None, cond=None, z_depth=None, sigmoid=True):
         assert x is not None or z is not None
         assert not (x is not None and z is not None)
         if z is None:
@@ -189,15 +193,19 @@ class OmniGenerator(nn.Module):
         if cond is None and self.opts.gen.m.use_spade:
             assert "s" in self.opts.tasks and "d" in self.opts.tasks
             with torch.no_grad():
-                d_pred, z_depth = self.decoders["d"](z)
-                s_pred = self.decoders["s"](z, z_depth)
+                d_pred, z_d = self.decoders["d"](z)
+                s_pred = self.decoders["s"](z, z_d)
                 cond = self.make_m_cond(d_pred, s_pred, x)
+        if z_depth is None and self.opts.gen.m.use_dada:
+            assert "d" in self.opts.tasks
+            with torch.no_grad():
+                _, z_depth = self.decoders["d"](z)
 
         if cond is not None:
             device = z[0].device if isinstance(z, (tuple, list)) else z.device
             cond = cond.to(device)
 
-        logits = self.decoders["m"](z, cond)
+        logits = self.decoders["m"](z, cond, z_depth)
 
         if not sigmoid:
             return logits
@@ -277,6 +285,7 @@ class MaskBaseDecoder(BaseDecoder):
         use_v3 = opts.gen.encoder.architecture == "deeplabv3"
         use_mobile_net = opts.gen.deeplabv3.backbone == "mobilenet"
         use_low = opts.gen.m.use_low_level_feats
+        use_dada = ("d" in opts.tasks) & opts.gen.m.use_dada
 
         if use_v3 and use_mobile_net:
             input_dim = 320
@@ -300,6 +309,7 @@ class MaskBaseDecoder(BaseDecoder):
             pad_type=opts.gen.m.pad_type,
             output_activ="none",
             low_level_feats_dim=low_level_feats_dim,
+            use_dada=use_dada,
         )
 
 
@@ -528,7 +538,7 @@ class MaskSpadeDecoder(nn.Module):
         )
         self.upsample = InterpolateNearest2d(scale_factor=2)
 
-    def forward(self, z, cond):
+    def forward(self, z, cond, z_depth=None):
         if isinstance(z, (list, tuple)):
             z_h, z_l = z
             if self.opts.gen.m.use_proj:
