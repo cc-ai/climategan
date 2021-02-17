@@ -40,7 +40,9 @@ def parsed_args():
     """
     parser = ArgumentParser()
     parser.add_argument(
-        "--model", type=str, help="Path to a pre-trained model",
+        "--model",
+        type=str,
+        help="Path to a pre-trained model",
     )
     parser.add_argument(
         "--images_dir",
@@ -67,7 +69,10 @@ def parsed_args():
         help="The height and weight of the pre-processed images",
     )
     parser.add_argument(
-        "--max_files", default=-1, type=int, help="Limit loaded samples",
+        "--max_files",
+        default=-1,
+        type=int,
+        help="Limit loaded samples",
     )
     parser.add_argument(
         "--bin_value", default=0.5, type=float, help="Mask binarization threshold"
@@ -133,24 +138,24 @@ def plot_images(
     # FPR (predicted mask on cannot flood)
     axes[0].imshow(img)
     fp_map_plt = axes[0].imshow(
-        maps_dict['fp'], vmin=vmin, vmax=vmax, cmap=cmap["fp"], alpha=alpha
+        maps_dict["fp"], vmin=vmin, vmax=vmax, cmap=cmap["fp"], alpha=alpha
     )
     axes[0].axis("off")
-    axes[0].set_title("FPR: {:.4f}".format(metrics_dict['fpr']), fontsize=fontsize)
+    axes[0].set_title("FPR: {:.4f}".format(metrics_dict["fpr"]), fontsize=fontsize)
 
     # FNR (missed mask on must flood)
     axes[1].imshow(img)
     fn_map_plt = axes[1].imshow(
-        maps_dict['fn'], vmin=vmin, vmax=vmax, cmap=cmap["fn"], alpha=alpha
+        maps_dict["fn"], vmin=vmin, vmax=vmax, cmap=cmap["fn"], alpha=alpha
     )
     axes[1].axis("off")
-    axes[1].set_title("FNR: {:.4f}".format(metrics_dict['fnr']), fontsize=fontsize)
+    axes[1].set_title("FNR: {:.4f}".format(metrics_dict["fnr"]), fontsize=fontsize)
 
     # May flood
     axes[2].imshow(img)
     if edge_coherence != -1:
         title = "MNR: {:.2f} | MPR: {:.2f}\nEdge coh.: {:.4f}".format(
-            metrics_dict['mnr'], metrics_dict['mpr'], edge_coherence
+            metrics_dict["mnr"], metrics_dict["mpr"], edge_coherence
         )
     #         alpha_here = alpha / 4.
     #         pred_edge_plt = axes[2].imshow(
@@ -163,10 +168,10 @@ def plot_images(
         title = "MNR: {:.2f} | MPR: {:.2f}".format(mnr, mpr)
     #         alpha_here = alpha / 2.
     may_neg_map_plt = axes[2].imshow(
-        maps_dict['may_neg'], vmin=vmin, vmax=vmax, cmap=cmap["may_neg"], alpha=alpha
+        maps_dict["may_neg"], vmin=vmin, vmax=vmax, cmap=cmap["may_neg"], alpha=alpha
     )
     may_pos_map_plt = axes[2].imshow(
-        maps_dict['may_pos'], vmin=vmin, vmax=vmax, cmap=cmap["may_pos"], alpha=alpha
+        maps_dict["may_pos"], vmin=vmin, vmax=vmax, cmap=cmap["may_pos"], alpha=alpha
     )
     axes[2].set_title(title, fontsize=fontsize)
     axes[2].axis("off")
@@ -336,8 +341,10 @@ if __name__ == "__main__":
                 verbose=1,
             )
             preds = [pred.numpy() for pred in preds]
-            painted = [((np.moveaxis(p.numpy(), 0, -1) + 1) / 2 * 255).astype(np.uint8) for
-            p in painted]
+            painted = [
+                ((np.moveaxis(p.numpy(), 0, -1) + 1) / 2 * 255).astype(np.uint8)
+                for p in painted
+            ]
         print(" Done.")
 
         if args.bin_value > 0:
@@ -367,22 +374,23 @@ if __name__ == "__main__":
             label = np.squeeze(label)
 
             # Basic classification metrics
-            metrics_dict, maps_dict = masker_classification_metrics(pred, label,
-                    labels_dict={'cannot': 0, 'must': 1, 'may': 2})
+            metrics_dict, maps_dict = masker_classification_metrics(
+                pred, label, labels_dict={"cannot": 0, "must": 1, "may": 2}
+            )
 
             # Edges coherence
             edge_coherence, pred_edge, label_edge = edges_coherence_std_min(pred, label)
 
             series_dict = {
-                "fpr": metrics_dict['fpr'],
-                "fnr": metrics_dict['fnr'],
-                "mnr": metrics_dict['mnr'],
-                "mpr": metrics_dict['mpr'],
-                "tpr": metrics_dict['tpr'],
-                "tnr": metrics_dict['tnr'],
-                "precision": metrics_dict['precision'],
-                "f1": metrics_dict['f1'],
-                "accuracy_must_may": metrics_dict['accuracy_must_may'],
+                "fpr": metrics_dict["fpr"],
+                "fnr": metrics_dict["fnr"],
+                "mnr": metrics_dict["mnr"],
+                "mpr": metrics_dict["mpr"],
+                "tpr": metrics_dict["tpr"],
+                "tnr": metrics_dict["tnr"],
+                "precision": metrics_dict["precision"],
+                "f1": metrics_dict["f1"],
+                "accuracy_must_may": metrics_dict["accuracy_must_may"],
                 "edge_coherence": edge_coherence,
                 "filename": os.path.basename(imgs_paths[idx]),
             }
@@ -394,9 +402,14 @@ if __name__ == "__main__":
                 exp.log_metric(f"img_{k}", v, step=idx)
 
             # Confusion matrix
-            confmat, _ = get_confusion_matrix(metrics_dict['tpr'], metrics_dict['tnr'],
-                    metrics_dict['fpr'], metrics_dict['fnr'], metrics_dict['mpr'],
-                    metrics_dict['mnr'])
+            confmat, _ = get_confusion_matrix(
+                metrics_dict["tpr"],
+                metrics_dict["tnr"],
+                metrics_dict["fpr"],
+                metrics_dict["fnr"],
+                metrics_dict["mpr"],
+                metrics_dict["mnr"],
+            )
             confmat = np.around(confmat, decimals=3)
             exp.log_confusion_matrix(
                 file_name=Path(imgs_paths[idx].name + ".json"),
@@ -429,8 +442,7 @@ if __name__ == "__main__":
             if args.write_csv:
                 if eval_item["eval_type"] == "model":
                     f_csv = Path(eval_item["eval_path"]).joinpath("eval_masker.csv")
-                    df.to_csv(f_csv, index_label='idx')
-
+                    df.to_csv(f_csv, index_label="idx")
 
         print(" Done.")
         # Summary statistics
