@@ -1,14 +1,14 @@
-from comet_ml import Experiment
-import torch
-from omnigan.utils import load_opts
-from pathlib import Path
-from argparse import ArgumentParser
-from omnigan.trainer import Trainer
-from torchvision import transforms as trsfs
-from omnigan.losses import MinentLoss
 import json
-from omnigan.utils import load_opts, flatten_opts
+from argparse import ArgumentParser
+from pathlib import Path
+
+import torch
+from comet_ml import Experiment
+from omnigan.losses import MinentLoss
+from omnigan.trainer import Trainer
+from omnigan.utils import flatten_opts, load_opts
 from torch.nn.functional import sigmoid
+from torchvision import transforms as trsfs
 
 
 def parsed_args():
@@ -40,7 +40,8 @@ def parsed_args():
         "--include_sim",
         default=False,
         type=bool,
-        help="Whether the output of the easy_split.json includes the orignal train_sim.json in the first stage or not",
+        help="Whether the output of the easy_split.json includes the original"
+        + " train_sim.json in the first stage or not",
     )
     parser.add_argument(
         "--sim_path",
@@ -73,10 +74,10 @@ def tupleList2DictList(tuples, keys=["x", "m"]):
 def merge_JsonFiles(filename):
     result = list()
     for f1 in filename:
-        with open(f1, "r") as infile:
-            result.extend(json.load(infile))
+        with open(f1, "r") as f:
+            result.extend(json.load(f))
 
-    with open("easy_split_with_orignal_sim.json", "w") as output_file:
+    with open("easy_split_with_original_sim.json", "w") as output_file:
         json.dump(result, output_file)
 
 

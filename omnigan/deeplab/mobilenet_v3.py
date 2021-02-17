@@ -1,11 +1,13 @@
 """
-from https://github.com/LikeLy-Journey/SegmenTron/blob/4bc605eedde7d680314f63d329277b73f83b1c5f/segmentron/modules/basic.py#L34
+from https://github.com/LikeLy-Journey/SegmenTron/blob/
+4bc605eedde7d680314f63d329277b73f83b1c5f/segmentron/modules/basic.py#L34
 """
 
-import torch.nn as nn
-import torch
-from pathlib import Path
 from collections import OrderedDict
+from pathlib import Path
+
+import torch
+import torch.nn as nn
 from omnigan.blocks import InterpolateNearest2d
 
 

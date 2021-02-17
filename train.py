@@ -1,31 +1,29 @@
-from pathlib import Path
-from time import time, sleep
+import logging
 import os
+from pathlib import Path
+from time import sleep, time
 
 import hydra
 import yaml
 from addict import Dict
-from comet_ml import Experiment, ExistingExperiment
+from comet_ml import ExistingExperiment, Experiment
 from omegaconf import OmegaConf
 
 from omnigan.trainer import Trainer
-
 from omnigan.utils import (
     comet_kwargs,
-    env_to_path,
-    flatten_opts,
-    get_git_revision_hash,
-    get_git_branch,
-    get_increased_path,
-    load_opts,
     copy_run_files,
+    env_to_path,
     find_existing_training,
-    kill_job,
-    pprint,
+    flatten_opts,
     get_existing_comet_id,
+    get_git_branch,
+    get_git_revision_hash,
+    get_increased_path,
+    kill_job,
+    load_opts,
+    pprint,
 )
-
-import logging
 
 logging.basicConfig()
 logging.getLogger().setLevel(logging.ERROR)
@@ -76,6 +74,7 @@ def main(opts):
         opts.train.resume = True
 
     opts.jobID = os.environ.get("SLURM_JOBID")
+    opts.slurm_partition = os.environ.get("SLURM_JOB_PARTITION")
     opts.output_path = str(env_to_path(opts.output_path))
     print("Config output_path:", opts.output_path)
 
@@ -87,10 +86,11 @@ def main(opts):
 
     # Auto-continue if same slurm job ID (=job was requeued)
     if not opts.train.resume and opts.train.auto_resume:
+        print("\n\nTrying to auto-resume...")
         existing_path = find_existing_training(opts)
         if existing_path is not None and existing_path.exists():
-            auto_resumed["original output_path"] = opts.output_path
-            auto_resumed["existing_path"] = existing_path
+            auto_resumed["original output_path"] = str(opts.output_path)
+            auto_resumed["existing_path"] = str(existing_path)
             opts.train.resume = True
             opts.output_path = str(existing_path)
 
@@ -125,6 +125,7 @@ def main(opts):
                 exp = ExistingExperiment(
                     previous_experiment=comet_previous_id, **comet_kwargs
                 )
+                print("Comet Experiment resumed")
 
         if exp is None:
             # Create new experiment

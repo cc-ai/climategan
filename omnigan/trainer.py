@@ -24,11 +24,11 @@ from tqdm import tqdm
 
 from omnigan.classifier import OmniClassifier, get_classifier
 from omnigan.data import get_all_loaders
-from omnigan.discriminator import OmniDiscriminator, get_dis
+from omnigan.discriminator import OmniDiscriminator, create_discriminator
 from omnigan.eval_metrics import accuracy, mIOU
 from omnigan.fid import compute_val_fid
 from omnigan.fire import add_fire
-from omnigan.generator import OmniGenerator, get_gen
+from omnigan.generator import OmniGenerator, create_generator
 from omnigan.logger import Logger
 from omnigan.losses import get_losses
 from omnigan.optim import get_optimizer
@@ -61,7 +61,7 @@ from omnigan.utils import (
 )
 
 try:
-    import torch_xla.core.xla_model as xm
+    import torch_xla.core.xla_model as xm  # type: ignore
 except ImportError:
     pass
 
@@ -723,19 +723,18 @@ class Trainer:
         __t = time()
         print("Creating generator...")
 
-        self.G: OmniGenerator = get_gen(self.opts, verbose=verbose, no_init=inference)
+        self.G: OmniGenerator = create_generator(
+            self.opts, device=self.device, no_init=inference, verbose=verbose
+        )
 
         self.has_painter = get_num_params(self.G.painter) or self.G.load_val_painter()
-
-        print("Sending to", self.device)
-        self.G = self.G.to(self.device)
 
         if self.has_painter:
             self.G.painter.set_latent_shape(find_target_size(self.opts, "x"), True)
 
         print(f"Generator OK in {time() - __t:.1f}s.")
 
-        if inference:
+        if inference:  # Inference mode: no more than a Generator needed
             print("Inference mode: no Discriminator, no Classifier, no optimizers")
             print_num_parameters(self)
             self.switch_data(to="base")
@@ -751,7 +750,9 @@ class Trainer:
         # -----  Discriminator  -----
         # ---------------------------
 
-        self.D: OmniDiscriminator = get_dis(self.opts, verbose=verbose).to(self.device)
+        self.D: OmniDiscriminator = create_discriminator(
+            self.opts, self.device, verbose=verbose
+        )
         print("Discriminator OK.")
 
         # ------------------------
@@ -809,19 +810,30 @@ class Trainer:
         # ----------------------------
         self.set_display_images()
 
+        # -------------------------------
+        # -----  Log Architectures  -----
+        # -------------------------------
         self.logger.log_architecture()
 
+        # -----------------------------
+        # -----  Set data source  -----
+        # -----------------------------
         if self.kitti_pretrain:
             self.switch_data(to="kitti")
         else:
             self.switch_data(to="base")
 
+        # -------------------------
+        # -----  Setup Done.  -----
+        # -------------------------
         print(" " * 50, end="\r")
         print("Done creating display images")
 
         if self.opts.train.resume:
             print("Resuming Model (inference: False)")
             self.resume(False)
+        else:
+            print("Not resuming: starting a new model")
 
         print("Setup done.")
         self.is_setup = True

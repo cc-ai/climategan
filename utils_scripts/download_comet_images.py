@@ -1,11 +1,12 @@
-import comet_ml
-from comet_ml import config
-from pathlib import Path
 import argparse
 import os
 from collections import Counter
-from addict import Dict
+from pathlib import Path
+
+import comet_ml
 import yaml
+from addict import Dict
+from comet_ml import config
 
 
 def parse_tags(tags_str):
