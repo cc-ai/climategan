@@ -129,6 +129,15 @@ class Trainer:
             self.grad_scaler_g = GradScaler()
             self.grad_scaler_c = GradScaler()
 
+        # -------------------------------
+        # -----  Legacy Overwrites  -----
+        # -------------------------------
+        if (
+            self.opts.gen.s.depth_feat_fusion is True
+            or self.opts.gen.s.depth_dada_fusion is True
+        ):
+            self.opts.gen.s.use_dada = True
+
     @torch.no_grad()
     def paint_and_mask(self, image_batch, mask_batch=None, resolution="approx"):
         """

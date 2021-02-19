@@ -209,7 +209,7 @@ class MaskSpadeDecoder(nn.Module):
         )
         self.upsample = InterpolateNearest2d(scale_factor=2)
 
-    def forward(self, z, cond):
+    def forward(self, z, cond, z_depth=None):
         if isinstance(z, (list, tuple)):
             z_h, z_l = z
             if self.opts.gen.m.use_proj:
