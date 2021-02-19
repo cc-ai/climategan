@@ -1,8 +1,8 @@
 import argparse
 import glob
+import json
 import os
 import random
-import json
 
 random.seed(1332)
 

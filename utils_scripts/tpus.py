@@ -10,17 +10,16 @@ import torch
 import torch.nn.functional as F
 
 try:
-    import torch_xla.core.xla_model as xm
-    import torch_xla.debug.metrics as met
+    import torch_xla.core.xla_model as xm  # type: ignore
+    import torch_xla.debug.metrics as met  # type: ignore
 except ImportError:
     print("Could not import torch_xla. Aborting script")
     sys.exit()
 
-from torchvision import transforms as trsfs
-
 from omnigan.data import tensor_loader
 from omnigan.trainer import Trainer
 from omnigan.utils import Timer, load_opts
+from torchvision import transforms as trsfs
 
 
 def print_time(name, time_series, precision=4, file=None):
