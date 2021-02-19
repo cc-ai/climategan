@@ -7,7 +7,6 @@ run eval_masker.py --model "/miniscratch/_groups/ccai/checkpoints/masker/victor/
 print("Imports...", end="")
 import os
 import os.path
-import traceback
 from argparse import ArgumentParser
 from pathlib import Path
 from comet_ml import Experiment
@@ -40,9 +39,7 @@ def parsed_args():
     """
     parser = ArgumentParser()
     parser.add_argument(
-        "--model",
-        type=str,
-        help="Path to a pre-trained model",
+        "--model", type=str, help="Path to a pre-trained model",
     )
     parser.add_argument(
         "--images_dir",
@@ -69,10 +66,7 @@ def parsed_args():
         help="The height and weight of the pre-processed images",
     )
     parser.add_argument(
-        "--max_files",
-        default=-1,
-        type=int,
-        help="Limit loaded samples",
+        "--max_files", default=-1, type=int, help="Limit loaded samples",
     )
     parser.add_argument(
         "--bin_value", default=0.5, type=float, help="Mask binarization threshold"
@@ -250,9 +244,11 @@ if __name__ == "__main__":
     # Determine output dir
     try:
         tmp_dir = Path(os.environ["SLURM_TMPDIR"])
-    except:
-        tmp_dir = input("Enter tmp output directory: ")
-    plot_dir = tmp_dir.joinpath("plots")
+    except Exception as e:
+        print(e)
+        tmp_dir = Path(input("Enter tmp output directory: ")).resolve()
+
+    plot_dir = tmp_dir / "plots"
     plot_dir.mkdir(parents=True, exist_ok=True)
 
     # Build paths to data
@@ -392,7 +388,7 @@ if __name__ == "__main__":
                 "f1": metrics_dict["f1"],
                 "accuracy_must_may": metrics_dict["accuracy_must_may"],
                 "edge_coherence": edge_coherence,
-                "filename": os.path.basename(imgs_paths[idx]),
+                "filename": str(imgs_paths[idx].name),
             }
             df.loc[idx] = pd.Series(series_dict)
 
@@ -412,7 +408,7 @@ if __name__ == "__main__":
             )
             confmat = np.around(confmat, decimals=3)
             exp.log_confusion_matrix(
-                file_name=Path(imgs_paths[idx].name + ".json"),
+                file_name=imgs_paths[idx].name + ".json",
                 title=imgs_paths[idx].name,
                 matrix=confmat,
                 labels=["Cannot", "Must", "May"],
@@ -422,7 +418,7 @@ if __name__ == "__main__":
 
             if args.plot:
                 # Plot prediction images
-                fig_filename = plot_dir.joinpath(imgs_paths[idx].name)
+                fig_filename = plot_dir / imgs_paths[idx].name
                 plot_images(
                     fig_filename,
                     img,
@@ -438,11 +434,16 @@ if __name__ == "__main__":
             if not args.no_paint:
                 masked = img * (1 - pred[..., None])
                 combined = np.concatenate([masked, painted[idx]], 1)
-                exp.log_image(combined, Path(imgs_paths[idx]).name)
-            if args.write_csv:
-                if eval_item["eval_type"] == "model":
-                    f_csv = Path(eval_item["eval_path"]).joinpath("eval_masker.csv")
-                    df.to_csv(f_csv, index_label="idx")
+                exp.log_image(combined, imgs_paths[idx].name)
+
+            # --------------------------------
+            # -----  END OF IMAGES LOOP  -----
+            # --------------------------------
+
+        if args.write_csv:
+            if eval_item["eval_type"] == "model":
+                f_csv = Path(eval_item["eval_path"]) / "eval_masker.csv"
+                df.to_csv(f_csv, index_label="idx")
 
         print(" Done.")
         # Summary statistics
@@ -480,3 +481,7 @@ if __name__ == "__main__":
             exp.add_tags(args.tags)
         exp.log_parameter("model_name", Path(eval_item["eval_path"]).name)
         exp.end()
+
+        # --------------------------------
+        # -----  END OF MODElS LOOP  -----
+        # --------------------------------
