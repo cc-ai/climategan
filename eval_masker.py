@@ -15,6 +15,7 @@ from comet_ml import Experiment
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import h5py
 import torch
 import yaml
 from skimage.color import rgba2rgb
@@ -367,6 +368,11 @@ if __name__ == "__main__":
             ]
         )
 
+        # Initialize HDF5
+        if args.write_hdf5:
+            hdf5_file = h5py.File(Path(eval_item["eval_path"]) / "eval_masker.csv", 'w')
+            grp_maps = hdf5_file.create_group('maps')
+
         print("Compute metrics and plot images")
         for idx, (img, label, pred) in enumerate(zip(*(imgs, labels, preds))):
             print(idx, "/", len(imgs), end="\r")
@@ -439,10 +445,16 @@ if __name__ == "__main__":
                 masked = img * (1 - pred[..., None])
                 combined = np.concatenate([masked, painted[idx]], 1)
                 exp.log_image(combined, Path(imgs_paths[idx]).name)
-            if args.write_csv:
-                if eval_item["eval_type"] == "model":
-                    f_csv = Path(eval_item["eval_path"]).joinpath("eval_masker.csv")
-                    df.to_csv(f_csv, index_label="idx")
+
+            # Write images and prediction maps to HDF5
+            if args.write_hdf5:
+
+
+        # Write DataFrame to CSV
+        if args.write_csv:
+            if eval_item["eval_type"] == "model":
+                f_csv = Path(eval_item["eval_path"]) / "eval_masker.csv"
+                df.to_csv(f_csv, index_label="idx")
 
         print(" Done.")
         # Summary statistics
