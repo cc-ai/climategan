@@ -139,7 +139,7 @@ class DeepLabV2Decoder(nn.Module):
     def __init__(self, opts, no_init=False):
         super().__init__()
         self.aspp = ASPP("resnet", 16, nn.BatchNorm2d, no_init)
-        self.use_dada = ("d" in opts.tasks) & opts.gen.s.use_dada
+        self.use_dada = ("d" in opts.tasks) and opts.gen.s.use_dada
 
         conv_modules = [
             nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
