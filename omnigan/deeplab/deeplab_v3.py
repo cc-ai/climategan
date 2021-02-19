@@ -155,7 +155,7 @@ class DeepLabV3Decoder(nn.Module):
 
         num_classes = opts.gen.s.output_dim
         self.backbone = opts.gen.deeplabv3.backbone
-        self.use_dada = ("d" in opts.tasks) & opts.gen.s.use_dada
+        self.use_dada = ("d" in opts.tasks) and opts.gen.s.use_dada
 
         if self.backbone == "resnet":
             self.aspp = ASPPv3Plus(self.backbone, no_init)
