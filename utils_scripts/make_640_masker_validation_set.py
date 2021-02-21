@@ -54,13 +54,16 @@ def crop_and_resize(image_path, label_path):
     Returns:
         tuple((np.ndarray, np.ndarray)): (new image, new label)
     """
+    dolab = label_path is not None
+
     img = imread(image_path)
-    lab = imread(label_path)
+    if dolab:
+        lab = imread(label_path)
 
     if img.shape[-1] == 4:
         img = uint8(rgba2rgb(img) * 255)
 
-    if img.shape != lab.shape:
+    if dolab and img.shape != lab.shape:
         print("\nWARNING: shape mismatch. Entering breakpoint to investigate:")
         breakpoint()
 
@@ -72,11 +75,12 @@ def crop_and_resize(image_path, label_path):
         size = (int(640 * h / w), 640)
 
     r_img = resize(img, size, preserve_range=True, anti_aliasing=True)
-    # nearest neighbor for labels
-    r_lab = resize(lab, size, preserve_range=True, anti_aliasing=False, order=0)
-
     r_img = uint8(r_img)
-    r_lab = uint8(r_lab)
+
+    if dolab:
+        # nearest neighbor for labels
+        r_lab = resize(lab, size, preserve_range=True, anti_aliasing=False, order=0)
+        r_lab = uint8(r_lab)
 
     # crop in the center
     H, W = r_img.shape[:2]
@@ -85,7 +89,10 @@ def crop_and_resize(image_path, label_path):
     left = (W - 640) // 2
 
     rc_img = r_img[top : top + 640, left : left + 640, :]
-    rc_lab = r_lab[top : top + 640, left : left + 640, :]
+    if dolab:
+        rc_lab = r_lab[top : top + 640, left : left + 640, :]
+    else:
+        rc_lab = None
 
     return rc_img, rc_lab
 
@@ -102,24 +109,38 @@ if __name__ == "__main__":
         help="Where to writ the result of the script,"
         + " keeping the input dir's structure",
     )
+    parser.add_argument(
+        "--no_labels",
+        action="store_true",
+        help="Only process images, don't look for labels",
+    )
     args = parser.parse_args()
+
+    dolab = not args.no_labels
 
     input_base = Path(args.input_dir).expanduser().resolve()
     output_base = Path(args.output_dir).expanduser().resolve()
 
-    input_labels = input_base / "labels"
     input_images = input_base / "imgs"
-    output_labels = output_base / "labels"
     output_images = output_base / "imgs"
 
+    if dolab:
+        input_labels = input_base / "labels"
+        output_labels = output_base / "labels"
+
     print("Input images:", str(input_images))
-    print("Input labels:", str(input_labels))
     print("Output images:", str(output_images))
-    print("Output labels:", str(output_labels))
+    if dolab:
+        print("Input labels:", str(input_labels))
+        print("Output labels:", str(output_labels))
+    else:
+        print("NO LABEL PROCESSING (args.no_labels is specified)")
     print()
 
-    assert input_labels.exists()
     assert input_images.exists()
+    if dolab:
+        assert input_labels.exists()
+
     if output_base.exists():
         if (
             "n"
@@ -130,11 +151,15 @@ if __name__ == "__main__":
         ):
             sys.exit()
 
-    output_labels.mkdir(parents=True, exist_ok=True)
     output_images.mkdir(parents=True, exist_ok=True)
+    if dolab:
+        output_labels.mkdir(parents=True, exist_ok=True)
 
     images_paths = list(map(Path, sorted((map(str, find_images(input_images))))))
-    labels_paths = list(map(Path, sorted((map(str, find_images(input_labels))))))
+    if dolab:
+        labels_paths = list(map(Path, sorted((map(str, find_images(input_labels))))))
+    else:
+        labels_paths = [None] * len(images_paths)
 
     for i, (image_path, label_path) in enumerate(zip(images_paths, labels_paths)):
         print(
@@ -142,8 +167,9 @@ if __name__ == "__main__":
             end="\r",
             flush=True,
         )
-        resized_image, resized_label = crop_and_resize(image_path, label_path)
-        imsave(output_images / f"{image_path.stem}.png", resized_image)
-        imsave(output_labels / f"{label_path.stem}.png", resized_label)
+        processed_image, processed_label = crop_and_resize(image_path, label_path)
+        imsave(output_images / f"{image_path.stem}.png", processed_image)
+        if dolab:
+            imsave(output_labels / f"{label_path.stem}.png", processed_label)
 
     print("\nDone.")
