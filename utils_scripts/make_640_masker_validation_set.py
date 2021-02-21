@@ -3,6 +3,7 @@ from pathlib import Path
 from skimage.io import imread, imsave
 from skimage.transform import resize
 from argparse import ArgumentParser
+import numpy as np
 
 IMG_EXTENSIONS = set(
     [".jpg", ".JPG", ".jpeg", ".JPEG", ".png", ".PNG", ".ppm", ".PPM", ".bmp", ".BMP"]
@@ -59,8 +60,10 @@ def crop_and_resize(image_path, label_path):
     else:
         size = (int(640 * h / w), 640)
 
-    r_img = resize(img, size)
-    r_lab = resize(lab, size, order=0)  # nearest neighbor for labels
+    r_img = resize(img, size, preserve_range=True, anti_aliasing=True).astype(np.uint8)
+    r_lab = resize(lab, size, preserve_range=True, anti_aliasing=False, order=0).astype(
+        np.uint8
+    )  # nearest neighbor for labels
 
     # crop in the center
     H, W = r_img.shape[:2]
