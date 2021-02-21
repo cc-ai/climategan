@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 from skimage.io import imread, imsave
 from skimage.transform import resize
+from skimage.color import rgba2rgb
 from argparse import ArgumentParser
 import numpy as np
 
@@ -51,6 +52,10 @@ def crop_and_resize(image_path, label_path):
     """
     img = imread(image_path)
     lab = imread(label_path)
+
+    if img.shape[-1] == 4:
+        img = rgba2rgb(img)
+
     if img.shape != lab.shape:
         print("\nWARNING: shape mismatch. Entering breakpoint to investigate:")
         breakpoint()
