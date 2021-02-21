@@ -97,6 +97,10 @@ def crop_and_resize(image_path, label_path):
     return rc_img, rc_lab
 
 
+def label(img, label, alpha=0.4):
+    return uint8(alpha * label + (1 - alpha) * img)
+
+
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument(
@@ -114,9 +118,15 @@ if __name__ == "__main__":
         action="store_true",
         help="Only process images, don't look for labels",
     )
+    parser.add_argument(
+        "--store_labeled",
+        action="store_true",
+        help="Store a superposition of the label and the image in out/labeled/",
+    )
     args = parser.parse_args()
 
     dolab = not args.no_labels
+    labeled = args.store_labeled
 
     input_base = Path(args.input_dir).expanduser().resolve()
     output_base = Path(args.output_dir).expanduser().resolve()
@@ -127,6 +137,8 @@ if __name__ == "__main__":
     if dolab:
         input_labels = input_base / "labels"
         output_labels = output_base / "labels"
+        if labeled:
+            output_labeled = output_base / "labeled"
 
     print("Input images:", str(input_images))
     print("Output images:", str(output_images))
@@ -171,5 +183,8 @@ if __name__ == "__main__":
         imsave(output_images / f"{image_path.stem}.png", processed_image)
         if dolab:
             imsave(output_labels / f"{label_path.stem}.png", processed_label)
+            if labeled:
+                labeled = label(processed_image, processed_label)
+                imsave(output_labeled / f"{image_path.stem}.png", labeled)
 
     print("\nDone.")
