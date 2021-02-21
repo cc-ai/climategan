@@ -37,6 +37,10 @@ def find_images(path, recursive=False):
     return [i for i in p.glob(pattern) if i.is_file() and is_image_file(i)]
 
 
+def uint8(array):
+    return array.astype(np.uint8)
+
+
 def crop_and_resize(image_path, label_path):
     """
     Resizes an image so that it keeps the aspect ratio and the smallest dimensions
@@ -54,7 +58,7 @@ def crop_and_resize(image_path, label_path):
     lab = imread(label_path)
 
     if img.shape[-1] == 4:
-        img = rgba2rgb(img)
+        img = uint8(rgba2rgb(img) * 255)
 
     if img.shape != lab.shape:
         print("\nWARNING: shape mismatch. Entering breakpoint to investigate:")
@@ -67,10 +71,12 @@ def crop_and_resize(image_path, label_path):
     else:
         size = (int(640 * h / w), 640)
 
-    r_img = resize(img, size, preserve_range=True, anti_aliasing=True).astype(np.uint8)
-    r_lab = resize(lab, size, preserve_range=True, anti_aliasing=False, order=0).astype(
-        np.uint8
-    )  # nearest neighbor for labels
+    r_img = resize(img, size, preserve_range=True, anti_aliasing=True)
+    # nearest neighbor for labels
+    r_lab = resize(lab, size, preserve_range=True, anti_aliasing=False, order=0)
+
+    r_img = uint8(r_img)
+    r_lab = uint8(r_lab)
 
     # crop in the center
     H, W = r_img.shape[:2]
