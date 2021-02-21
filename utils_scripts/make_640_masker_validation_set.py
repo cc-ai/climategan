@@ -82,7 +82,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-o",
         "--output_dir",
-        type="str",
+        type=str,
         help="Where to writ the result of the script,"
         + " keeping the input dir's structure",
     )
