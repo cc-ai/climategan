@@ -51,7 +51,8 @@ def crop_and_resize(image_path, label_path):
     """
     img = imread(image_path)
     lab = imread(label_path)
-    assert img.shape == lab.shape
+    if img.shape != lab.shape:
+        print("\nWARNING: shape mismatch. Entering breakpoint to investigate:")
 
     # resize keeping aspect ratio: smallest dim is 640
     h, w = img.shape[:2]
