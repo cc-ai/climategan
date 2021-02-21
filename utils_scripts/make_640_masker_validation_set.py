@@ -126,7 +126,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     dolab = not args.no_labels
-    labeled = args.store_labeled
+    dolabeled = args.store_labeled
 
     input_base = Path(args.input_dir).expanduser().resolve()
     output_base = Path(args.output_dir).expanduser().resolve()
@@ -137,7 +137,7 @@ if __name__ == "__main__":
     if dolab:
         input_labels = input_base / "labels"
         output_labels = output_base / "labels"
-        if labeled:
+        if dolabeled:
             output_labeled = output_base / "labeled"
 
     print("Input images:", str(input_images))
@@ -166,7 +166,7 @@ if __name__ == "__main__":
     output_images.mkdir(parents=True, exist_ok=True)
     if dolab:
         output_labels.mkdir(parents=True, exist_ok=True)
-        if labeled:
+        if dolabeled:
             output_labeled.mkdir(parents=True, exist_ok=True)
 
     images_paths = list(map(Path, sorted((map(str, find_images(input_images))))))
@@ -185,7 +185,7 @@ if __name__ == "__main__":
         imsave(output_images / f"{image_path.stem}.png", processed_image)
         if dolab:
             imsave(output_labels / f"{label_path.stem}.png", processed_label)
-            if labeled:
+            if dolabeled:
                 labeled = label(processed_image, processed_label)
                 imsave(output_labeled / f"{image_path.stem}.png", labeled)
 
