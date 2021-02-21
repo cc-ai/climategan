@@ -92,9 +92,9 @@ if __name__ == "__main__":
     output_base = Path(args.output_dir).expanduser().resolve()
 
     input_labels = input_base / "labels"
-    input_images = input_base / "images"
+    input_images = input_base / "imgs"
     output_labels = output_base / "labels"
-    output_images = output_base / "images"
+    output_images = output_base / "imgs"
 
     print("Input images:", str(input_images))
     print("Input labels:", str(input_labels))
