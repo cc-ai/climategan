@@ -166,6 +166,8 @@ if __name__ == "__main__":
     output_images.mkdir(parents=True, exist_ok=True)
     if dolab:
         output_labels.mkdir(parents=True, exist_ok=True)
+        if labeled:
+            output_labeled.mkdir(parents=True, exist_ok=True)
 
     images_paths = list(map(Path, sorted((map(str, find_images(input_images))))))
     if dolab:
