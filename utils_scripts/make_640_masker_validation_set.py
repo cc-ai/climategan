@@ -145,6 +145,8 @@ if __name__ == "__main__":
     if dolab:
         print("Input labels:", str(input_labels))
         print("Output labels:", str(output_labels))
+        if dolabeled:
+            print("Output labeled:", str(output_labels))
     else:
         print("NO LABEL PROCESSING (args.no_labels is specified)")
     print()
