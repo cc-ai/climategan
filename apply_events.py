@@ -31,6 +31,50 @@ except ImportError:
     pass
 
 
+def to_m1_p1(img, i):
+    if (0 <= img <= 1).all():
+        return (img.astype(np.float32) - 0.5) * 2
+    raise ValueError(f"Data range mismatch for image {i} : ({img.min()}, {img.max()})")
+
+
+def uint8(array):
+    return array.astype(np.uint8)
+
+
+def resize_and_crop(img, to=640):
+    """
+    Resizes an image so that it keeps the aspect ratio and the smallest dimensions
+    is 640, then crops this resized image in its center so that the output is 640x640
+    without aspect ratio distortion
+
+    Args:
+        image_path (Path or str): Path to an image
+        label_path (Path or str): Path to the image's associated label
+
+    Returns:
+        tuple((np.ndarray, np.ndarray)): (new image, new label)
+    """
+    # resize keeping aspect ratio: smallest dim is 640
+    h, w = img.shape[:2]
+    if h < w:
+        size = (640, int(640 * w / h))
+    else:
+        size = (int(640 * h / w), 640)
+
+    r_img = resize(img, size, preserve_range=True, anti_aliasing=True)
+    r_img = uint8(r_img)
+
+    # crop in the center
+    H, W = r_img.shape[:2]
+
+    top = (H - 640) // 2
+    left = (W - 640) // 2
+
+    rc_img = r_img[top : top + 640, left : left + 640, :]
+
+    return rc_img / 255.0
+
+
 def print_time(text, time_series, purge=-1):
     """
     Print a timeseries's mean and std with a label
@@ -322,9 +366,11 @@ if __name__ == "__main__":
             new_sizes = [to_128(d, args.max_im_width) for d in data]
             data = [resize(d, ns, anti_aliasing=True) for d, ns in zip(data, new_sizes)]
         else:
-            data = [resize(d, (640, 640), anti_aliasing=True) for d in data]
+            data = [resize_and_crop(d, 640) for d in data]
         # normalize to -1:1
-        data = [(normalize(d.astype(np.float32)) - 0.5) * 2 for d in data]
+        # normalize is not necessary as resize outputs -1:1
+        # data = [(normalize(d.astype(np.float32)) - 0.5) * 2 for d in data]
+        data = [to_m1_p1(d, i) for i, d in enumerate(data)]
 
     n_batchs = len(data) // batch_size
     if len(data) % batch_size != 0:
