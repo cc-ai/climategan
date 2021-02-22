@@ -361,7 +361,7 @@ if __name__ == "__main__":
         # read images to numpy arrays
         data = [io.imread(str(d)) for d in data_paths]
         # rgba to rgb
-        data = [im if im.shape[-1] == 3 else rgba2rgb(im) for im in data]
+        data = [im if im.shape[-1] == 3 else uint8(rgba2rgb(im) * 255) for im in data]
         # resize to standard input size 640 x 640
         if args.keep_ratio_128:
             new_sizes = [to_128(d, args.max_im_width) for d in data]
