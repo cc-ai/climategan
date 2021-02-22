@@ -436,7 +436,9 @@ if __name__ == "__main__":
                     stem = Path(data_paths[idx]).stem
 
                     for event in events:
-                        im_path = outdir / f"{stem}_{event}.png"
+                        im_path = f"{stem}_{event}.png"
+                        if outdir is not None:
+                            im_path = outdir / im_path
                         im_data = events[event][i]
                         if outdir is not None:
                             io.imsave(im_path, im_data)
