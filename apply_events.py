@@ -32,7 +32,7 @@ except ImportError:
 
 
 def to_m1_p1(img, i):
-    if (0 <= img <= 1).all():
+    if img.min() >= 0 and img.max() <= 1:
         return (img.astype(np.float32) - 0.5) * 2
     raise ValueError(f"Data range mismatch for image {i} : ({img.min()}, {img.max()})")
 
