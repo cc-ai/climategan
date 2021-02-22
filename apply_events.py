@@ -238,7 +238,7 @@ def parse_args():
         default=-1,
         help="Maximum image width: will downsample larger images",
     )
-
+    parser.add_argument("--upload", action="store_true", help="Upload to comet")
     return parser.parse_args()
 
 
@@ -254,6 +254,7 @@ if __name__ == "__main__":
     )
 
     batch_size = args.batch_size
+    upload = args.upload
     half = args.half
     fuse = args.fuse
     bin_value = args.flood_mask_binarization
@@ -412,8 +413,12 @@ if __name__ == "__main__":
     # ----------------------------------------------
     # -----  Write events to output directory  -----
     # ----------------------------------------------
-    if outdir is not None:
-        print("\n• Writing")
+    if outdir is not None or upload:
+        if upload:
+            print("\n• Uploading")
+            exp = comet_ml.Experiment(project_name="omnigan-apply")
+        if outdir is not None:
+            print("\n• Writing")
         n_written = 0
         with Timer(store=stores.get("write", [])):
             for b, events in enumerate(all_events):
@@ -433,7 +438,10 @@ if __name__ == "__main__":
                     for event in events:
                         im_path = outdir / f"{stem}_{event}.png"
                         im_data = events[event][i]
-                        io.imsave(im_path, im_data)
+                        if outdir is not None:
+                            io.imsave(im_path, im_data)
+                        if upload:
+                            exp.log_image(im_data, im_path.name)
 
                     n_written += 1
 
