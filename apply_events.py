@@ -57,9 +57,9 @@ def resize_and_crop(img, to=640):
     # resize keeping aspect ratio: smallest dim is 640
     h, w = img.shape[:2]
     if h < w:
-        size = (640, int(640 * w / h))
+        size = (to, int(to * w / h))
     else:
-        size = (int(640 * h / w), 640)
+        size = (int(to * h / w), to)
 
     r_img = resize(img, size, preserve_range=True, anti_aliasing=True)
     r_img = uint8(r_img)
@@ -67,8 +67,8 @@ def resize_and_crop(img, to=640):
     # crop in the center
     H, W = r_img.shape[:2]
 
-    top = (H - 640) // 2
-    left = (W - 640) // 2
+    top = (H - to) // 2
+    left = (W - to) // 2
 
     rc_img = r_img[top : top + 640, left : left + 640, :]
 
