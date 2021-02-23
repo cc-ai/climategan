@@ -269,7 +269,7 @@ def get_inferences(image_arrays, model_path, paint=False, bin_value=0.5, verbose
     device = torch.device("cuda:0")
     torch.set_grad_enabled(False)
     to_tensor = ToTensor()
-    xs = [to_tensor(array) for array in image_arrays]
+    xs = [to_tensor(array).unsqueeze(0) for array in image_arrays]
     xs = [x.to(torch.float32).to(device) for x in xs]
     xs = [(x - 0.5) * 2 for x in xs]
     trainer = Trainer.resume_from_path(
