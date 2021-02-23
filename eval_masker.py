@@ -338,8 +338,8 @@ if __name__ == "__main__":
     else:
         evaluations = [args.model]
 
-    for e, eval_item in enumerate(evaluations):
-        print("\n>>>>> Evaluation", e, ":", eval_item["eval_path"])
+    for e, eval_path in enumerate(evaluations):
+        print("\n>>>>> Evaluation", e, ":", eval_path)
         print("=" * 50)
         print("=" * 50)
 
@@ -351,7 +351,7 @@ if __name__ == "__main__":
 
         preds, painted = get_inferences(
             imgs,
-            eval_item["eval_path"],
+            eval_path,
             paint=not args.no_paint,
             bin_value=args.bin_value,
             verbose=1,
@@ -484,9 +484,9 @@ if __name__ == "__main__":
             exp.log_table("metrics.csv", df)
             exp.log_html(df.to_html(col_space="80px"))
             exp.log_parameters(vars(args))
-            exp.log_parameters(eval_item)
+            exp.log_parameters(eval_path)
             exp.add_tag("eval_masker")
             if args.tags:
                 exp.add_tags(args.tags)
-            exp.log_parameter("model_name", Path(eval_item["eval_path"]).name)
+            exp.log_parameter("model_name", Path(eval_path).name)
             exp.end()
