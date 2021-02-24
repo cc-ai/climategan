@@ -10,14 +10,17 @@ import os.path
 import traceback
 from argparse import ArgumentParser
 from pathlib import Path
-from comet_ml import Experiment
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from comet_ml import Experiment
 import torch
 import yaml
 from skimage.color import rgba2rgb
+from skimage.io import imread
+from skimage.transform import resize
+from torchvision.transforms import ToTensor
 
 from omnigan.data import encode_mask_label
 from omnigan.eval_metrics import (
@@ -29,10 +32,62 @@ from omnigan.eval_metrics import (
     pred_cannot,
 )
 from omnigan.trainer import Trainer
-from omnigan.transforms import PrepareTest
 from omnigan.utils import find_images
 
 print("Ok.")
+
+
+def uint8(array):
+    return array.astype(np.uint8)
+
+
+def crop_and_resize(image_path, label_path):
+    """
+    Resizes an image so that it keeps the aspect ratio and the smallest dimensions
+    is 640, then crops this resized image in its center so that the output is 640x640
+    without aspect ratio distortion
+
+    Args:
+        image_path (Path or str): Path to an image
+        label_path (Path or str): Path to the image's associated label
+
+    Returns:
+        tuple((np.ndarray, np.ndarray)): (new image, new label)
+    """
+
+    img = imread(image_path)
+    lab = imread(label_path)
+
+    if img.shape[-1] == 4:
+        img = uint8(rgba2rgb(img) * 255)
+
+    if img.shape != lab.shape:
+        print("\nWARNING: shape mismatch. Entering breakpoint to investigate:")
+        breakpoint()
+
+    # resize keeping aspect ratio: smallest dim is 640
+    h, w = img.shape[:2]
+    if h < w:
+        size = (640, int(640 * w / h))
+    else:
+        size = (int(640 * h / w), 640)
+
+    r_img = resize(img, size, preserve_range=True, anti_aliasing=True)
+    r_img = uint8(r_img)
+
+    r_lab = resize(lab, size, preserve_range=True, anti_aliasing=False, order=0)
+    r_lab = uint8(r_lab)
+
+    # crop in the center
+    H, W = r_img.shape[:2]
+
+    top = (H - 640) // 2
+    left = (W - 640) // 2
+
+    rc_img = r_img[top : top + 640, left : left + 640, :]
+    rc_lab = r_lab[top : top + 640, left : left + 640, :]
+
+    return rc_img, rc_lab
 
 
 def parsed_args():
@@ -213,10 +268,9 @@ def get_inferences(image_arrays, model_path, paint=False, bin_value=0.5, verbose
     """
     device = torch.device("cuda:0")
     torch.set_grad_enabled(False)
-    xs = [torch.from_numpy(array) for array in image_arrays]
+    to_tensor = ToTensor()
+    xs = [to_tensor(array).unsqueeze(0) for array in image_arrays]
     xs = [x.to(torch.float32).to(device) for x in xs]
-    xs = [x - x.min() for x in xs]
-    xs = [x / x.max() for x in xs]
     xs = [(x - 0.5) * 2 for x in xs]
     trainer = Trainer.resume_from_path(
         model_path, inference=True, new_exp=None, device=device
@@ -244,7 +298,8 @@ if __name__ == "__main__":
     # Determine output dir
     try:
         tmp_dir = Path(os.environ["SLURM_TMPDIR"])
-    except:
+    except Exception as e:
+        print(e)
         tmp_dir = input("Enter tmp output directory: ")
     plot_dir = tmp_dir.joinpath("plots")
     plot_dir.mkdir(parents=True, exist_ok=True)
@@ -256,58 +311,35 @@ if __name__ == "__main__":
         imgs_paths = imgs_paths[: args.max_files]
         labels_paths = labels_paths[: args.max_files]
 
-    print(f"Loaded {len(imgs_paths)} images and labels")
+    print(f"Loading {len(imgs_paths)} images and labels...")
 
     # Pre-process images: resize + crop
     # TODO: ? make cropping more flexible, not only central
-    img_preprocessing = PrepareTest(target_size=args.image_size)
-    imgs = img_preprocessing(imgs_paths, normalize=False, rescale=False)
-    labels = img_preprocessing(labels_paths, normalize=False, rescale=False)
-
-    # RGBA to RGB
-    print("RGBA to RGB", end="", flush=True)
-    imgs = [
-        np.squeeze(np.moveaxis(img.numpy().astype(np.uint8), 1, -1)) for img in imgs
-    ]
-    imgs = [rgba2rgb(img) if img.shape[-1] == 4 else img for img in imgs]
-    imgs = [np.expand_dims(np.moveaxis(img, -1, 0), axis=0) for img in imgs]
+    ims_labs = [crop_and_resize(i, l) for i, l in zip(imgs_paths, labels_paths)]
+    imgs = [d[0] for d in ims_labs]
+    labels = [d[1] for d in ims_labs]
     print(" Done.")
 
     # Encode labels
-    print("Encode labels", end="", flush=True)
-    labels = [
-        encode_mask_label(
-            np.squeeze(np.moveaxis(label.numpy().astype(np.uint8), 1, -1)), "flood"
-        )
-        for label in labels
-    ]
-    print(" Done.")
+    print("Encode labels...", end="", flush=True)
+    # HW label
+    labels = [np.squeeze(encode_mask_label(label, "flood")) for label in labels]
+    print("Done.")
 
-    evaluations = []
     if args.yaml:
         y_path = Path(args.yaml)
         assert y_path.exists()
         assert y_path.suffix in {".yaml", ".yml"}
         with y_path.open("r") as f:
             data = yaml.safe_load(f)
-        assert "models" in data or "preds_dirs" in data
+        assert "models" in data
 
-        if "models" in data:
-            evaluations += [
-                {"eval_type": "model", "eval_path": m} for m in data["models"]
-            ]
-        if "preds_dirs" in data:
-            evaluations += [
-                {"eval_type": "preds_dir", "eval_path": p} for p in data["preds_dirs"]
-            ]
+        evaluations = [m for m in data["models"]]
     else:
-        if not os.path.isdir(args.model):
-            evaluations += [{"eval_type": "preds_dir", "eval_path": args.preds_dir}]
-        else:
-            evaluations += [{"eval_type": "model", "eval_path": args.model}]
+        evaluations = [args.model]
 
-    for e, eval_item in enumerate(evaluations):
-        print("\n>>>>> Evaluation", e, ":", eval_item["eval_path"])
+    for e, eval_path in enumerate(evaluations):
+        print("\n>>>>> Evaluation", e, ":", eval_path)
         print("=" * 50)
         print("=" * 50)
 
@@ -316,25 +348,15 @@ if __name__ == "__main__":
 
         # Obtain mask predictions
         print("Obtain mask predictions", end="", flush=True)
-        if eval_item["eval_type"] == "preds_dir":
-            preds_paths = sorted(find_images(eval_item["eval_path"], recursive=False))
-            if args.max_files > 0:
-                preds_paths = preds_paths[: args.max_files]
-            preds = img_preprocessing(preds_paths)
-            preds = [
-                np.squeeze(np.divide(pred.numpy(), np.max(pred.numpy()))[:, 0, :, :])
-                for pred in preds
-            ]
-            painted = None
-        else:
-            preds, painted = get_inferences(
-                imgs,
-                eval_item["eval_path"],
-                paint=not args.no_paint,
-                bin_value=args.bin_value,
-                verbose=1,
-            )
-            preds = [pred.numpy() for pred in preds]
+
+        preds, painted = get_inferences(
+            imgs,
+            eval_path,
+            paint=not args.no_paint,
+            bin_value=args.bin_value,
+            verbose=1,
+        )
+        preds = [pred.numpy() for pred in preds]
         print(" Done.")
 
         if args.bin_value > 0:
@@ -359,8 +381,6 @@ if __name__ == "__main__":
         print("Compute metrics and plot images", end="", flush=True)
         for idx, (img, label, pred) in enumerate(zip(*(imgs, labels, preds))):
             print(idx, "/", len(imgs), end="\r")
-            img = np.moveaxis(np.squeeze(img), 0, -1)  # HWC
-            label = np.squeeze(label)
 
             # Basic metrics
             fp_map, fpr = pred_cannot(pred, label, label_cannot=0)
@@ -464,9 +484,9 @@ if __name__ == "__main__":
             exp.log_table("metrics.csv", df)
             exp.log_html(df.to_html(col_space="80px"))
             exp.log_parameters(vars(args))
-            exp.log_parameters(eval_item)
+            exp.log_parameters(eval_path)
             exp.add_tag("eval_masker")
             if args.tags:
                 exp.add_tags(args.tags)
-            exp.log_parameter("model_name", Path(eval_item["eval_path"]).name)
+            exp.log_parameter("model_name", Path(eval_path).name)
             exp.end()

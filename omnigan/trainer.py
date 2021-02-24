@@ -295,7 +295,7 @@ class Trainer:
                 wildfire = self.compute_fire(x, segmentation)
             with Timer(store=stores.get("smog", [])):
                 smog = self.compute_smog(x, d=depth, s=segmentation)
-            with Timer(store=stores.get("flood", [])):
+            with Timer(store=stores.get("paint", [])):
                 flood = self.compute_flood(
                     x, m=mask, s=segmentation, cloudy=cloudy, bin_value=bin_value
                 )

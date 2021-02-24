@@ -256,7 +256,7 @@ def encode_mask_label(arr, domain):
     """Change a segmentation RGBA array to a segmentation array
                             with each pixel being the index of the class
     Arguments:
-        numpy array -- segmented image of size (H) x (W) x (4 RGBA values)
+        numpy array -- segmented image of size (H) x (W) x (3 RGB values)
     Returns:
         numpy array of size (1) x (H) x (W) with each pixel being the index of the class
     """
@@ -468,10 +468,7 @@ class OmniListDataset(Dataset):
             "data": self.transform(
                 {
                     task: tensor_loader(
-                        env_to_path(path),
-                        task,
-                        self.domain,
-                        self.opts,
+                        env_to_path(path), task, self.domain, self.opts,
                     )
                     for task, path in paths.items()
                 }
