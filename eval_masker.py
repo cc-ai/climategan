@@ -19,6 +19,7 @@ import yaml
 from skimage.color import rgba2rgb
 from skimage.io import imread, imsave
 from skimage.transform import resize
+from skimage.util import img_as_ubyte
 from torchvision.transforms import ToTensor
 
 from omnigan.data import encode_mask_label
@@ -451,7 +452,10 @@ if __name__ == "__main__":
                 exp.log_image(fig_filename)
             if not args.no_paint:
                 masked = img * (1 - pred[..., None])
-                combined = np.concatenate([masked, painted[idx]], 1)
+                flooded = img_as_ubyte(
+                    (painted[idx].permute(1, 2, 0).cpu().numpy() + 1) / 2
+                )
+                combined = np.concatenate([masked,], 1)
                 exp.log_image(combined, imgs_paths[idx].name)
 
             if args.write_metrics:
