@@ -17,7 +17,7 @@ from comet_ml import Experiment
 import torch
 import yaml
 from skimage.color import rgba2rgb
-from skimage.io import imread
+from skimage.io import imread, imsave
 from skimage.transform import resize
 from torchvision.transforms import ToTensor
 
@@ -150,7 +150,7 @@ def parsed_args():
         help="Do not log painted images",
     )
     parser.add_argument(
-        "--write_csv",
+        "--write_metrics",
         action="store_true",
         default=False,
         help="If True, write CSV file in model's path directory",
@@ -346,6 +346,9 @@ if __name__ == "__main__":
 
         # Initialize New Comet Experiment
         exp = Experiment(project_name="omnigan-masker-metrics", display_summary_level=0)
+        model_metrics_path = Path(eval_path) / "eval-metrics"
+        mmp = get_increased_path(model_metrics_path, True)
+        mmp.mkdir()
 
         # Obtain mask predictions
         print("Obtain mask predictions", end="", flush=True)
@@ -451,12 +454,19 @@ if __name__ == "__main__":
                 combined = np.concatenate([masked, painted[idx]], 1)
                 exp.log_image(combined, imgs_paths[idx].name)
 
+            if args.write_metrics:
+                for k, v in maps_dict.items():
+                    metric_out = mmp / k
+                    metric_out.mkdir(exist_ok=True)
+                    imsave(metric_out / f"{imgs_paths[idx].stem}_{k}.png", v)
+
             # --------------------------------
             # -----  END OF IMAGES LOOP  -----
             # --------------------------------
 
-        if args.write_csv:
-            f_csv = Path(eval_path) / "eval_masker.csv"
+        if args.write_metrics:
+            print(f"Writing metrics in {str(mmp)}")
+            f_csv = mmp / "eval_masker.csv"
             df.to_csv(f_csv, index_label="idx")
 
         print(" Done.")
