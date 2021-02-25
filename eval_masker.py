@@ -349,7 +349,8 @@ if __name__ == "__main__":
         exp = Experiment(project_name="omnigan-masker-metrics", display_summary_level=0)
         model_metrics_path = Path(eval_path) / "eval-metrics"
         mmp = get_increased_path(model_metrics_path, True)
-        mmp.mkdir()
+        if args.write_metrics:
+            mmp.mkdir()
 
         # Obtain mask predictions
         print("Obtain mask predictions", end="", flush=True)
