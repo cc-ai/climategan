@@ -216,10 +216,12 @@ class BaseDecoder(nn.Module):
         pad_type="zero",
         output_activ="tanh",
         low_level_feats_dim=-1,
+        use_dada=False,
     ):
         super().__init__()
 
         self.low_level_feats_dim = low_level_feats_dim
+        self.use_dada = use_dada
 
         self.model = []
         if proj_dim != -1:
@@ -287,7 +289,7 @@ class BaseDecoder(nn.Module):
         ]
         self.model = nn.Sequential(*self.model)
 
-    def forward(self, z, cond=None):
+    def forward(self, z, cond=None, z_depth=None):
         low_level_feat = None
         if isinstance(z, (list, tuple)):
             if self.low_level_conv is None:
@@ -298,6 +300,9 @@ class BaseDecoder(nn.Module):
                 low_level_feat = F.interpolate(
                     low_level_feat, size=z.shape[-2:], mode="bilinear"
                 )
+
+        if z_depth is not None and self.use_dada:
+            z = z * z_depth
 
         if self.proj_conv is not None:
             z = self.proj_conv(z)

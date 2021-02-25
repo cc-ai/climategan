@@ -175,6 +175,9 @@ def load_opts(
                 + " which is a non-implemented combination"
             )
 
+    if opts.gen.s.depth_feat_fusion is True or opts.gen.s.depth_dada_fusion is True:
+        opts.gen.s.use_dada = True
+
     return set_data_paths(opts)
 
 

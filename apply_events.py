@@ -31,6 +31,50 @@ except ImportError:
     pass
 
 
+def to_m1_p1(img, i):
+    if img.min() >= 0 and img.max() <= 1:
+        return (img.astype(np.float32) - 0.5) * 2
+    raise ValueError(f"Data range mismatch for image {i} : ({img.min()}, {img.max()})")
+
+
+def uint8(array):
+    return array.astype(np.uint8)
+
+
+def resize_and_crop(img, to=640):
+    """
+    Resizes an image so that it keeps the aspect ratio and the smallest dimensions
+    is 640, then crops this resized image in its center so that the output is 640x640
+    without aspect ratio distortion
+
+    Args:
+        image_path (Path or str): Path to an image
+        label_path (Path or str): Path to the image's associated label
+
+    Returns:
+        tuple((np.ndarray, np.ndarray)): (new image, new label)
+    """
+    # resize keeping aspect ratio: smallest dim is 640
+    h, w = img.shape[:2]
+    if h < w:
+        size = (to, int(to * w / h))
+    else:
+        size = (int(to * h / w), to)
+
+    r_img = resize(img, size, preserve_range=True, anti_aliasing=True)
+    r_img = uint8(r_img)
+
+    # crop in the center
+    H, W = r_img.shape[:2]
+
+    top = (H - to) // 2
+    left = (W - to) // 2
+
+    rc_img = r_img[top : top + 640, left : left + 640, :]
+
+    return rc_img / 255.0
+
+
 def print_time(text, time_series, purge=-1):
     """
     Print a timeseries's mean and std with a label
@@ -194,7 +238,7 @@ def parse_args():
         default=-1,
         help="Maximum image width: will downsample larger images",
     )
-
+    parser.add_argument("--upload", action="store_true", help="Upload to comet")
     return parser.parse_args()
 
 
@@ -210,6 +254,7 @@ if __name__ == "__main__":
     )
 
     batch_size = args.batch_size
+    upload = args.upload
     half = args.half
     fuse = args.fuse
     bin_value = args.flood_mask_binarization
@@ -316,15 +361,17 @@ if __name__ == "__main__":
         # read images to numpy arrays
         data = [io.imread(str(d)) for d in data_paths]
         # rgba to rgb
-        data = [im if im.shape[-1] == 3 else rgba2rgb(im) for im in data]
+        data = [im if im.shape[-1] == 3 else uint8(rgba2rgb(im) * 255) for im in data]
         # resize to standard input size 640 x 640
         if args.keep_ratio_128:
             new_sizes = [to_128(d, args.max_im_width) for d in data]
             data = [resize(d, ns, anti_aliasing=True) for d, ns in zip(data, new_sizes)]
         else:
-            data = [resize(d, (640, 640), anti_aliasing=True) for d in data]
+            data = [resize_and_crop(d, 640) for d in data]
         # normalize to -1:1
-        data = [(normalize(d.astype(np.float32)) - 0.5) * 2 for d in data]
+        # normalize is not necessary as resize outputs -1:1
+        # data = [(normalize(d.astype(np.float32)) - 0.5) * 2 for d in data]
+        data = [to_m1_p1(d, i) for i, d in enumerate(data)]
 
     n_batchs = len(data) // batch_size
     if len(data) % batch_size != 0:
@@ -366,8 +413,12 @@ if __name__ == "__main__":
     # ----------------------------------------------
     # -----  Write events to output directory  -----
     # ----------------------------------------------
-    if outdir is not None:
-        print("\n• Writing")
+    if outdir is not None or upload:
+        if upload:
+            print("\n• Uploading")
+            exp = comet_ml.Experiment(project_name="omnigan-apply")
+        if outdir is not None:
+            print("\n• Writing")
         n_written = 0
         with Timer(store=stores.get("write", [])):
             for b, events in enumerate(all_events):
@@ -385,9 +436,14 @@ if __name__ == "__main__":
                     stem = Path(data_paths[idx]).stem
 
                     for event in events:
-                        im_path = outdir / f"{stem}_{event}.png"
+                        im_path = Path(f"{stem}_{event}.png")
+                        if outdir is not None:
+                            im_path = outdir / im_path
                         im_data = events[event][i]
-                        io.imsave(im_path, im_data)
+                        if outdir is not None:
+                            io.imsave(im_path, im_data)
+                        if upload:
+                            exp.log_image(im_data, im_path.name)
 
                     n_written += 1
 

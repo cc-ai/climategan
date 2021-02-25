@@ -139,6 +139,8 @@ class DeepLabV2Decoder(nn.Module):
     def __init__(self, opts, no_init=False):
         super().__init__()
         self.aspp = ASPP("resnet", 16, nn.BatchNorm2d, no_init)
+        self.use_dada = ("d" in opts.tasks) and opts.gen.s.use_dada
+
         conv_modules = [
             nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(256),
@@ -188,7 +190,7 @@ class DeepLabV2Decoder(nn.Module):
                 "Segmentation decoder will only work with 2048 channels for z"
             )
 
-        if z_depth is not None:
+        if z_depth is not None and self.use_dada:
             z = z * z_depth
 
         y = self.aspp(z)

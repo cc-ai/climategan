@@ -84,6 +84,9 @@ class OmniGenerator(nn.Module):
         if "d" in opts.tasks:
             self.decoders["d"] = create_depth_decoder(opts, no_init, verbose)
 
+            if self.verbose > 0:
+                print(f"  - Add {self.decoders['d'].__class__.__name__}")
+
         if "s" in opts.tasks:
             self.decoders["s"] = create_segmentation_decoder(opts, no_init, verbose)
 
@@ -226,7 +229,7 @@ class OmniGenerator(nn.Module):
 
         return torch.cat(cats, dim=1)
 
-    def mask(self, x=None, z=None, cond=None, sigmoid=True):
+    def mask(self, x=None, z=None, cond=None, z_depth=None, sigmoid=True):
         """
         Create a mask from either an input x or a latent vector z.
         Optionally if the Masker has a spade architecture the conditioning tensor
@@ -255,15 +258,19 @@ class OmniGenerator(nn.Module):
         if cond is None and self.opts.gen.m.use_spade:
             assert "s" in self.opts.tasks and "d" in self.opts.tasks
             with torch.no_grad():
-                d_pred, z_depth = self.decoders["d"](z)
-                s_pred = self.decoders["s"](z, z_depth)
+                d_pred, z_d = self.decoders["d"](z)
+                s_pred = self.decoders["s"](z, z_d)
                 cond = self.make_m_cond(d_pred, s_pred, x)
+        if z_depth is None and self.opts.gen.m.use_dada:
+            assert "d" in self.opts.tasks
+            with torch.no_grad():
+                _, z_depth = self.decoders["d"](z)
 
         if cond is not None:
             device = z[0].device if isinstance(z, (tuple, list)) else z.device
             cond = cond.to(device)
 
-        logits = self.decoders["m"](z, cond)
+        logits = self.decoders["m"](z, cond, z_depth)
 
         if not sigmoid:
             return logits
@@ -321,7 +328,7 @@ class OmniGenerator(nn.Module):
         fake = self.paint(m, noised_x, no_paste=True)
         return x * (1.0 - m) + fake * m
 
-    def depth(self, x=None, z=None):
+    def depth(self, x=None, z=None, return_z_depth=False):
         """
         Compute the depth head's output
 
@@ -337,13 +344,16 @@ class OmniGenerator(nn.Module):
         assert not (x is not None and z is not None)
         if z is None:
             z = self.encode(x)
-        logits = self.decoders["d"](z)
+        depth, z_depth = self.decoders["d"](z)
 
-        if logits.shape[1] > 1:
-            logits = torch.argmax(logits, dim=1)
-            logits = logits / logits.max()
+        if depth.shape[1] > 1:
+            depth = torch.argmax(depth, dim=1)
+            depth = depth / depth.max()
 
-        return logits
+        if return_z_depth:
+            return depth, z_depth
+
+        return depth
 
     def load_val_painter(self):
         """

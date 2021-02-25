@@ -17,6 +17,7 @@ from torchvision.transforms.functional import (
 )
 
 from omnigan.tutils import normalize
+from skimage.util import img_as_float
 
 
 def interpolation(task):
@@ -361,7 +362,9 @@ class PrepareTest:
 
     def process(self, t, normalize=False, rescale=False):
         if isinstance(t, (str, Path)):
-            t = imread(str(t))
+            t = img_as_float(imread(str(t)))
+            if t.shape[-1] == 4:
+                t = rgba2rgb(t)
             if np.ndim(t) == 2:
                 t = np.repeat(t[:, :, np.newaxis], 3, axis=2)
 
@@ -372,14 +375,14 @@ class PrepareTest:
         if len(t.shape) == 3:
             t = t.unsqueeze(0)
 
-        t = t.to(torch.float16) if self.half else t.to(torch.float32)
-
         normalize(t) if normalize else t
         (t - 0.5) * 2 if rescale else t
         t = {"x": t}
         t = self.resize(t)
         t = self.crop(t)
         t = t["x"]
+
+        t = t.to(torch.float16) if self.half else t.to(torch.float32)
 
         return t
 
@@ -531,16 +534,10 @@ def rand_cutout(tensor, ratio=0.5):
     )
     size_ = [tensor.size(0), 1, 1]
     offset_x = torch.randint(
-        0,
-        tensor.size(-2) + (1 - cutout_size[0] % 2),
-        size=size_,
-        device=device_,
+        0, tensor.size(-2) + (1 - cutout_size[0] % 2), size=size_, device=device_,
     )
     offset_y = torch.randint(
-        0,
-        tensor.size(-1) + (1 - cutout_size[1] % 2),
-        size=size_,
-        device=device_,
+        0, tensor.size(-1) + (1 - cutout_size[1] % 2), size=size_, device=device_,
     )
     grid_x = torch.clamp(
         grid_x + offset_x - cutout_size[0] // 2, min=0, max=tensor.size(-2) - 1
