@@ -463,7 +463,10 @@ if __name__ == "__main__":
                 for k, v in maps_dict.items():
                     metric_out = mmp / k
                     metric_out.mkdir(exist_ok=True)
-                    imsave(metric_out / f"{imgs_paths[idx].stem}_{k}.png", v)
+                    imsave(
+                        metric_out / f"{imgs_paths[idx].stem}_{k}.png",
+                        v.astype(np.uint8),
+                    )
 
             # --------------------------------
             # -----  END OF IMAGES LOOP  -----
