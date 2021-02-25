@@ -364,11 +364,6 @@ if __name__ == "__main__":
             ]
         )
 
-        # Initialize HDF5
-        if args.write_hdf5:
-            hdf5_file = h5py.File(Path(eval_item["eval_path"]) / "eval_masker.csv", 'w')
-            grp_maps = hdf5_file.create_group('maps')
-
         print("Compute metrics and plot images")
         for idx, (img, label, pred) in enumerate(zip(*(imgs, labels, preds))):
             print(idx, "/", len(imgs), end="\r")
