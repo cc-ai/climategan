@@ -154,8 +154,8 @@ def masker_classification_metrics(pred, label, labels_dict={'cannot': 0, 'must':
         precision : float
             Precision, considering only cannot and must flood labels
 
-        f1 : float
-            F1 score, considering only cannot and must flood labels
+        f05 : float
+            F0.5 score, considering only cannot and must flood labels
 
         accuracy_must_may : float
             Accuracy considering only the must and may areas
@@ -198,7 +198,8 @@ def masker_classification_metrics(pred, label, labels_dict={'cannot': 0, 'must':
     assert np.isclose(mpr, 1.0 - mnr), "MPR: {:.4f}, MNR: {:.4f}".format(mpr, mnr)
 
     precision = np.sum(tp_map) / (np.sum(tp_map) + np.sum(fp_map))
-    f1 = 2 * (precision * tpr) / (precision + tpr)
+    beta = 0.5
+    f05 = ((1 + beta**2) * precision * tpr) / (beta**2 * precision + tpr)
     accuracy_must_may = (np.sum(tp_map) + np.sum(may_neg_map)) / (np.sum(label ==
         labels_dict['must']) + np.sum(label == labels_dict['may']))
 
@@ -210,7 +211,7 @@ def masker_classification_metrics(pred, label, labels_dict={'cannot': 0, 'must':
             'mpr': mpr,
             'mnr': mnr,
             'precision': precision,
-            'f1': f1,
+            'f05': f05,
             'accuracy_must_may': accuracy_must_may
             }
     maps_dict = {
