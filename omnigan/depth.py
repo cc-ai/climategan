@@ -9,6 +9,10 @@ from omnigan.utils import find_target_size
 def create_depth_decoder(opts, no_init=False, verbose=0):
     if opts.gen.d.architecture == "base":
         decoder = BaseDepthDecoder(opts)
+        if "s" in opts.task:
+            assert opts.gen.s.use_dada is False
+        if "m" in opts.tasks:
+            assert opts.gen.m.use_dada is False
     else:
         decoder = DADADepthDecoder(opts)
 
@@ -36,7 +40,7 @@ class DADADepthDecoder(nn.Module):
         mid_dim = 512
 
         self.do_feat_fusion = False
-        if "s" in opts.tasks and opts.gen.s.depth_feat_fusion:
+        if opts.gen.m.use_dada or ("s" in opts.tasks and opts.gen.s.use_dada):
             self.do_feat_fusion = True
             self.dec4 = Conv2dBlock(
                 128,

@@ -259,7 +259,9 @@ if __name__ == "__main__":
         # -----------------------------------
 
         if step == "last":
-            curr_step = max(i["step"] for i in ims)
+            curr_step = max(i["step"] or -1 for i in ims)
+            if curr_step == -1:
+                curr_step = None
         else:
             curr_step = step
 

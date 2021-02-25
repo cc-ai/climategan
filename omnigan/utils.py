@@ -1,6 +1,7 @@
 """All non-tensor utils
 """
 import contextlib
+import datetime
 import json
 import os
 import re
@@ -174,6 +175,9 @@ def load_opts(
                 + " which is a non-implemented combination"
             )
 
+    if opts.gen.s.depth_feat_fusion is True or opts.gen.s.depth_dada_fusion is True:
+        opts.gen.s.use_dada = True
+
     return set_data_paths(opts)
 
 
@@ -260,7 +264,21 @@ def shortuid():
     return str(uuid4()).split("-")[0]
 
 
-def get_increased_path(path: Union[str, Path]) -> Path:
+def datenowshort():
+    """
+    >>> a = str(datetime.datetime.now())
+    >>> print(a)
+    '2021-02-25 11:34:50.188072'
+    >>> print(a[5:].split(".")[0].replace(" ", "_"))
+    '02-25_11:35:41'
+
+    Returns:
+        str: month-day_h:m:s
+    """
+    return str(datetime.datetime.now())[5:].split(".")[0].replace(" ", "_")
+
+
+def get_increased_path(path: Union[str, Path], use_date: bool = False) -> Path:
     """Returns an increased path: if dir exists, returns `dir (1)`.
     If `dir (i)` exists, returns `dir (max(i) + 1)`
 
@@ -283,13 +301,25 @@ def get_increased_path(path: Union[str, Path]) -> Path:
         return fp
 
     if fp.is_file():
-        while fp.exists():
-            fp = fp.parent / f"{fp.stem}--{shortuid()}{fp.suffix}"
-        return fp
+        if not use_date:
+            while fp.exists():
+                fp = fp.parent / f"{fp.stem}--{shortuid()}{fp.suffix}"
+            return fp
+        else:
+            while fp.exists():
+                time.sleep(0.5)
+                fp = fp.parent / f"{fp.stem}--{datenowshort()}{fp.suffix}"
+            return fp
 
-    while fp.exists():
-        fp = fp.parent / f"{fp.name}--{shortuid()}"
-    return fp
+    if not use_date:
+        while fp.exists():
+            fp = fp.parent / f"{fp.name}--{shortuid()}"
+        return fp
+    else:
+        while fp.exists():
+            time.sleep(0.5)
+            fp = fp.parent / f"{fp.name}--{datenowshort()}"
+        return fp
 
     # vals = []
     # for n in fp.parent.glob("{}*".format(fp.stem)):
