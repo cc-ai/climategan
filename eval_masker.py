@@ -26,7 +26,7 @@ from omnigan.eval_metrics import (
 )
 from omnigan.trainer import Trainer
 from omnigan.transforms import PrepareTest
-from omnigan.utils import find_images
+from omnigan.utils import find_images, get_increased_path
 
 print("Ok.")
 
