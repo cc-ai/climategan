@@ -57,12 +57,6 @@ def parsed_args():
         help="Directory containing the labeled images",
     )
     parser.add_argument(
-        "--preds_dir",
-        default="/miniscratch/_groups/ccai/data/omnigan/flood_eval_inferred_masks",
-        type=str,
-        help="DEBUG: Directory containing pre-computed mask predictions",
-    )
-    parser.add_argument(
         "--image_size",
         default=640,
         type=int,
