@@ -32,36 +32,36 @@ from omnigan.trainer import Trainer
 from omnigan.utils import find_images, get_increased_path
 
 dict_metrics = {
-    'names': {
-        'tpr': 'TPR, Recall, Sensitivity',
-        'tnr': 'TNR, Specificity, Selectivity',
-        'fpr': 'FPR',
-        'fpt': 'False positives relative to image size',
-        'fnr': 'FNR, Miss rate',
-        'fnt': 'False negatives relative to image size',
-        'mpr': 'May positive rate (MPR)',
-        'mnr': 'May negative rate (MNR)',
-        'accuracy': 'Accuracy (ignoring may)',
-        'error': 'Error (ignoring may)',
-        'f05': 'F0.05 score',
-        'precision': 'Precision',
-        'edge_coherence': 'Edge coherence',
-        'accuracy_must_may': 'Accuracy (ignoring cannot)'
-    }
-    'threshold': {
-        'tpr': 0.95,
-        'tnr': 0.95,
-        'fpr': 0.05,
-        'fpt': 0.01,
-        'fnr': 0.05,
-        'fnt': 0.01,
-        'accuracy': 0.95,
-        'error': 0.05,
-        'f05': 0.95,
-        'precision': 0.95,
-        'edge_coherence': 0.02,
-        'accuracy_must_may': 0.5
-    }
+    "names": {
+        "tpr": "TPR, Recall, Sensitivity",
+        "tnr": "TNR, Specificity, Selectivity",
+        "fpr": "FPR",
+        "fpt": "False positives relative to image size",
+        "fnr": "FNR, Miss rate",
+        "fnt": "False negatives relative to image size",
+        "mpr": "May positive rate (MPR)",
+        "mnr": "May negative rate (MNR)",
+        "accuracy": "Accuracy (ignoring may)",
+        "error": "Error (ignoring may)",
+        "f05": "F0.05 score",
+        "precision": "Precision",
+        "edge_coherence": "Edge coherence",
+        "accuracy_must_may": "Accuracy (ignoring cannot)",
+    },
+    "threshold": {
+        "tpr": 0.95,
+        "tnr": 0.95,
+        "fpr": 0.05,
+        "fpt": 0.01,
+        "fnr": 0.05,
+        "fnt": 0.01,
+        "accuracy": 0.95,
+        "error": 0.05,
+        "f05": 0.95,
+        "precision": 0.95,
+        "edge_coherence": 0.02,
+        "accuracy_must_may": 0.5,
+    },
 }
 
 print("Ok.")
@@ -75,7 +75,9 @@ def parsed_args():
     """
     parser = ArgumentParser()
     parser.add_argument(
-        "--model", type=str, help="Path to a pre-trained model",
+        "--model",
+        type=str,
+        help="Path to a pre-trained model",
     )
     parser.add_argument(
         "--images_dir",
@@ -96,7 +98,10 @@ def parsed_args():
         help="The height and weight of the pre-processed images",
     )
     parser.add_argument(
-        "--max_files", default=-1, type=int, help="Limit loaded samples",
+        "--max_files",
+        default=-1,
+        type=int,
+        help="Limit loaded samples",
     )
     parser.add_argument(
         "--bin_value", default=0.5, type=float, help="Mask binarization threshold"
@@ -388,7 +393,7 @@ if __name__ == "__main__":
             if f_csv.exists() and pred_out.exits():
                 continue
         if args.write_metrics:
-            model_metrics_path.mkdir(exists_ok=True)
+            model_metrics_path.mkdir(exist_ok=True)
 
         # Obtain mask predictions
         print("Obtain mask predictions", end="", flush=True)
@@ -506,7 +511,12 @@ if __name__ == "__main__":
                 flooded = img_as_ubyte(
                     (painted[idx].permute(1, 2, 0).cpu().numpy() + 1) / 2
                 )
-                combined = np.concatenate([masked,], 1)
+                combined = np.concatenate(
+                    [
+                        masked,
+                    ],
+                    1,
+                )
                 exp.log_image(combined, imgs_paths[idx].name)
 
             if args.write_metrics:
@@ -578,36 +588,50 @@ if __name__ == "__main__":
 
         # Build DataFrame with all models
         models_df = {
-                m.name.split('--')[1]: pd.read_csv(Path(eval_path) / "eval-metrics" / "eval_masker.csv"), 
-                                                   index_col=False) 
-                for m in evaluations
+            m.name.split("--")[1]: pd.read_csv(
+                Path(eval_path) / "eval-metrics" / "eval_masker.csv", index_col=False
+            )
+            for m in evaluations
         }
         for k, v in models_df.items():
-                v['model'] = [k] * len(v)
+            v["model"] = [k] * len(v)
         df = pd.concat(list(models_df.values()), ignore_index=True)
 
         # Determine images with low metrics in any model
         idx_not_good_in_any = []
         for idx in df.idx.unique():
-            df_th = df.loc[((df.tpr <= dict_metrics['threshold']['tpr']) |\
-                            (df.fpr >= dict_metrics['threshold']['fpr']) |\
-                            (df.edge_coherence >= dict_metrics['threshold']['edge_coherence'])) &\
-                           ((df.idx == idx) &\
-                            (df.model.isin(df.model.unique())))]
+            df_th = df.loc[
+                (
+                    (df.tpr <= dict_metrics["threshold"]["tpr"])
+                    | (df.fpr >= dict_metrics["threshold"]["fpr"])
+                    | (df.edge_coherence >= dict_metrics["threshold"]["edge_coherence"])
+                )
+                & ((df.idx == idx) & (df.model.isin(df.model.unique())))
+            ]
             if len(df_th) > 0:
                 idx_not_good_in_any.append(idx)
-	filters = {'all': df.idx.unique(), 'not_good_in_any': idx_not_good_in_any}
+        filters = {"all": df.idx.unique(), "not_good_in_any": idx_not_good_in_any}
 
         # Boxplots of metrics
-        for m in dict_metrics['names'].keys():
-            for k, f in filters.items():		
+        for m in dict_metrics["names"].keys():
+            for k, f in filters.items():
                 fig_filename = plot_dir / f"boxplot_{m}_{k}.png"
-                if m in ['mnr', 'mpr', 'accuracy_must_may']:
-                    boxplot_metric(fig_filename, df.loc[df.idx.isin(f)], metric=m, 
-                                   do_stripplot=True, order=list(dict_models.keys()))
+                if m in ["mnr", "mpr", "accuracy_must_may"]:
+                    boxplot_metric(
+                        fig_filename,
+                        df.loc[df.idx.isin(f)],
+                        metric=m,
+                        do_stripplot=True,
+                        order=list(dict_models.keys()),
+                    )
                 else:
-                    boxplot_metric(fig_filename, df.loc[df.idx.isin(f)], metric=m, 
-                                   fliersize=1., order=list(dict_models.keys()))
+                    boxplot_metric(
+                        fig_filename,
+                        df.loc[df.idx.isin(f)],
+                        metric=m,
+                        fliersize=1.0,
+                        order=list(dict_models.keys()),
+                    )
                 exp.log_image(fig_filename)
 
     # Close comet
