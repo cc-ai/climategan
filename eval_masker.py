@@ -144,6 +144,12 @@ def parsed_args():
         default=False,
         help="If True, load predictions and metrics instead of re-computing",
     )
+    parser.add_argument(
+        "--prepare_torch",
+        action="store_true",
+        default=False,
+        help="If True, pre-process images as torch tensors",
+    )
 
     return parser.parse_args()
 
@@ -172,9 +178,10 @@ def crop_and_resize(image_path, label_path):
     # if img.shape[-1] == 4:
     #     img = uint8(rgba2rgb(img) * 255)
 
+    # TODO: remove (debug)
     if img.shape != lab.shape:
         print("\nWARNING: shape mismatch. Entering breakpoint to investigate:")
-        breakpoint()
+#         breakpoint()
 
     # resize keeping aspect ratio: smallest dim is 640
     h, w = img.shape[:2]
@@ -415,6 +422,7 @@ if __name__ == "__main__":
             model_metrics_path.mkdir(exist_ok=True)
 
         # Obtain mask predictions
+        # TODO: remove (debug)
         print("Obtain mask predictions", end="", flush=True)
 
         preds, painted = get_inferences(
