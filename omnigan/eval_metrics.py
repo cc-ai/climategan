@@ -3,6 +3,8 @@ import numpy as np
 import torch
 from skimage import filters
 from sklearn.metrics.pairwise import euclidean_distances
+import matplotlib.pyplot as plt
+import seaborn as sns
 from copy import deepcopy
 
 # ------------------------------------------------------------------------------
@@ -544,6 +546,7 @@ def boxplot_metric(
     output_filename,
     df,
     metric,
+    dict_metrics,
     do_stripplot=False,
     dict_models=None,
     dpi=300,
