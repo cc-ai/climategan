@@ -432,17 +432,11 @@ if __name__ == "__main__":
             # Confusion matrix
             confmat, _ = get_confusion_matrix(
                 metrics_dict["tpr"],
-                metrics_dict["tpt"],
                 metrics_dict["tnr"],
-                metrics_dict["tnt"],
                 metrics_dict["fpr"],
-                metrics_dict["fpt"],
                 metrics_dict["fnr"],
-                metrics_dict["fnt"],
                 metrics_dict["mnr"],
                 metrics_dict["mpr"],
-                metrics_dict["accuracy"],
-                metrics_dict["error"],
             )
             confmat = np.around(confmat, decimals=3)
             exp.log_confusion_matrix(
