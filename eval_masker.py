@@ -32,60 +32,40 @@ from omnigan.transforms import PrepareTest
 from omnigan.trainer import Trainer
 from omnigan.utils import find_images, get_increased_path
 
+dict_metrics = {
+    'names': {
+        'tpr': 'TPR, Recall, Sensitivity',
+        'tnr': 'TNR, Specificity, Selectivity',
+        'fpr': 'FPR',
+        'fpt': 'False positives relative to image size',
+        'fnr': 'FNR, Miss rate',
+        'fnt': 'False negatives relative to image size',
+        'mpr': 'May positive rate (MPR)',
+        'mnr': 'May negative rate (MNR)',
+        'accuracy': 'Accuracy (ignoring may)',
+        'error': 'Error (ignoring may)',
+        'f05': 'F0.05 score',
+        'precision': 'Precision',
+        'edge_coherence': 'Edge coherence',
+        'accuracy_must_may': 'Accuracy (ignoring cannot)'
+    }
+    'threshold': {
+        'tpr': 0.95,
+        'tnr': 0.95,
+        'fpr': 0.05,
+        'fpt': 0.01,
+        'fnr': 0.05,
+        'fnt': 0.01,
+        'accuracy': 0.95,
+        'error': 0.05,
+        'f05': 0.95,
+        'precision': 0.95,
+        'edge_coherence': 0.02,
+        'accuracy_must_may': 0.5
+    }
+}
+
 print("Ok.")
-
-
-def uint8(array):
-    return array.astype(np.uint8)
-
-
-def crop_and_resize(image_path, label_path):
-    """
-    Resizes an image so that it keeps the aspect ratio and the smallest dimensions
-    is 640, then crops this resized image in its center so that the output is 640x640
-    without aspect ratio distortion
-
-    Args:
-        image_path (Path or str): Path to an image
-        label_path (Path or str): Path to the image's associated label
-
-    Returns:
-        tuple((np.ndarray, np.ndarray)): (new image, new label)
-    """
-
-    img = imread(image_path)
-    lab = imread(label_path)
-
-    # if img.shape[-1] == 4:
-    #     img = img[:, :, :3]
-
-    if img.shape != lab.shape:
-        print("\nWARNING: shape mismatch. Entering breakpoint to investigate:")
-        breakpoint()
-
-    # resize keeping aspect ratio: smallest dim is 640
-    h, w = img.shape[:2]
-    if h < w:
-        size = (640, int(640 * w / h))
-    else:
-        size = (int(640 * h / w), 640)
-
-    r_img = resize(img, size, preserve_range=True, anti_aliasing=True)
-    r_img = uint8(r_img)
-
-    r_lab = resize(lab, size, preserve_range=True, anti_aliasing=False, order=0)
-    r_lab = uint8(r_lab)
-
-    # crop in the center
-    H, W = r_img.shape[:2]
-
-    top = (H - 640) // 2
-    left = (W - 640) // 2
-
-    rc_img = r_img[top : top + 640, left : left + 640, :]
-    rc_lab = r_lab[top : top + 640, left : left + 640, :]
-
-    return rc_img, rc_lab
 
 
 def parsed_args():
@@ -109,12 +89,6 @@ def parsed_args():
         default="/miniscratch/_groups/ccai/data/floodmasks_eval/labels",
         type=str,
         help="Directory containing the labeled images",
-    )
-    parser.add_argument(
-        "--preds_dir",
-        default="/miniscratch/_groups/ccai/data/omnigan/flood_eval_inferred_masks",
-        type=str,
-        help="DEBUG: Directory containing pre-computed mask predictions",
     )
     parser.add_argument(
         "--image_size",
@@ -155,10 +129,69 @@ def parsed_args():
         "--write_metrics",
         action="store_true",
         default=False,
-        help="If True, write CSV file in model's path directory",
+        help="If True, write CSV file and maps images in model's path directory",
+    )
+    parser.add_argument(
+        "--load_metrics",
+        action="store_true",
+        default=False,
+        help="If True, load predictions and metrics instead of re-computing",
     )
 
     return parser.parse_args()
+
+
+def uint8(array):
+    return array.astype(np.uint8)
+
+
+def crop_and_resize(image_path, label_path):
+    """
+    Resizes an image so that it keeps the aspect ratio and the smallest dimensions
+    is 640, then crops this resized image in its center so that the output is 640x640
+    without aspect ratio distortion
+
+    Args:
+        image_path (Path or str): Path to an image
+        label_path (Path or str): Path to the image's associated label
+
+    Returns:
+        tuple((np.ndarray, np.ndarray)): (new image, new label)
+    """
+
+    img = imread(image_path)
+    lab = imread(label_path)
+
+    # if img.shape[-1] == 4:
+    #     img = uint8(rgba2rgb(img) * 255)
+
+    if img.shape != lab.shape:
+        print("\nWARNING: shape mismatch. Entering breakpoint to investigate:")
+        breakpoint()
+
+    # resize keeping aspect ratio: smallest dim is 640
+    h, w = img.shape[:2]
+    if h < w:
+        size = (640, int(640 * w / h))
+    else:
+        size = (int(640 * h / w), 640)
+
+    r_img = resize(img, size, preserve_range=True, anti_aliasing=True)
+    r_img = uint8(r_img)
+
+    r_lab = resize(lab, size, preserve_range=True, anti_aliasing=False, order=0)
+    r_lab = uint8(r_lab)
+
+    # crop in the center
+    H, W = r_img.shape[:2]
+
+    top = (H - 640) // 2
+    left = (W - 640) // 2
+
+    rc_img = r_img[top : top + 640, left : left + 640, :]
+    rc_lab = r_lab[top : top + 640, left : left + 640, :]
+
+    return rc_img, rc_lab
 
 
 def plot_images(
@@ -359,10 +392,15 @@ if __name__ == "__main__":
 
         # Initialize New Comet Experiment
         exp = Experiment(project_name="omnigan-masker-metrics", display_summary_level=0)
+
         model_metrics_path = Path(eval_path) / "eval-metrics"
-        mmp = get_increased_path(model_metrics_path, True)
+        if args.load_metrics:
+            f_csv = model_metrics_path / "eval_masker.csv"
+            pred_out = model_metrics_path / "pred"
+            if f_csv.exists() and pred_out.exits():
+                continue
         if args.write_metrics:
-            mmp.mkdir()
+            model_metrics_path.mkdir(exists_ok=True)
 
         # Obtain mask predictions
         print("Obtain mask predictions", end="", flush=True)
@@ -383,14 +421,20 @@ if __name__ == "__main__":
         # Compute metrics
         df = pd.DataFrame(
             columns=[
+                "tpr",
+                "tpt",
+                "tnr",
+                "tnt",
                 "fpr",
+                "fpt",
                 "fnr",
+                "fnt",
                 "mnr",
                 "mpr",
-                "tpr",
-                "tnr",
+                "accuracy",
+                "error",
                 "precision",
-                "f1",
+                "f05",
                 "accuracy_must_may",
                 "edge_coherence",
                 "filename",
@@ -410,14 +454,20 @@ if __name__ == "__main__":
             edge_coherence, pred_edge, label_edge = edges_coherence_std_min(pred, label)
 
             series_dict = {
+                "tpr": metrics_dict["tpr"],
+                "tpt": metrics_dict["tpt"],
+                "tnr": metrics_dict["tnr"],
+                "tnt": metrics_dict["tnt"],
                 "fpr": metrics_dict["fpr"],
+                "fpt": metrics_dict["fpt"],
                 "fnr": metrics_dict["fnr"],
+                "fnt": metrics_dict["fnt"],
                 "mnr": metrics_dict["mnr"],
                 "mpr": metrics_dict["mpr"],
-                "tpr": metrics_dict["tpr"],
-                "tnr": metrics_dict["tnr"],
+                "accuracy": metrics_dict["accuracy"],
+                "error": metrics_dict["error"],
                 "precision": metrics_dict["precision"],
-                "f1": metrics_dict["f1"],
+                "f05": metrics_dict["f05"],
                 "accuracy_must_may": metrics_dict["accuracy_must_may"],
                 "edge_coherence": edge_coherence,
                 "filename": str(imgs_paths[idx].name),
@@ -435,8 +485,8 @@ if __name__ == "__main__":
                 metrics_dict["tnr"],
                 metrics_dict["fpr"],
                 metrics_dict["fnr"],
-                metrics_dict["mpr"],
                 metrics_dict["mnr"],
+                metrics_dict["mpr"],
             )
             confmat = np.around(confmat, decimals=3)
             exp.log_confusion_matrix(
@@ -472,8 +522,14 @@ if __name__ == "__main__":
                 exp.log_image(combined, imgs_paths[idx].name)
 
             if args.write_metrics:
+                pred_out = model_metrics_path / "pred"
+                pred_out.mkdir(exist_ok=True)
+                imsave(
+                    pred_out / f"{imgs_paths[idx].stem}_pred.png",
+                    pred.astype(np.uint8),
+                )
                 for k, v in maps_dict.items():
-                    metric_out = mmp / k
+                    metric_out = model_metrics_path / k
                     metric_out.mkdir(exist_ok=True)
                     imsave(
                         metric_out / f"{imgs_paths[idx].stem}_{k}.png",
@@ -485,8 +541,8 @@ if __name__ == "__main__":
             # --------------------------------
 
         if args.write_metrics:
-            print(f"Writing metrics in {str(mmp)}")
-            f_csv = mmp / "eval_masker.csv"
+            print(f"Writing metrics in {str(model_metrics_path)}")
+            f_csv = model_metrics_path / "eval_masker.csv"
             df.to_csv(f_csv, index_label="idx")
 
         print(" Done.")
@@ -524,8 +580,47 @@ if __name__ == "__main__":
         if args.tags:
             exp.add_tags(args.tags)
         exp.log_parameter("model_name", Path(eval_path).name)
-        exp.end()
 
         # --------------------------------
         # -----  END OF MODElS LOOP  -----
         # --------------------------------
+
+    # Compare models
+    if args.load_metrics or args.write_metrics:
+
+        # Build DataFrame with all models
+        models_df = {
+                m.name.split('--')[1]: pd.read_csv(Path(eval_path) / "eval-metrics" / "eval_masker.csv"), 
+                                                   index_col=False) 
+                for m in evaluations
+        }
+        for k, v in models_df.items():
+                v['model'] = [k] * len(v)
+        df = pd.concat(list(models_df.values()), ignore_index=True)
+
+        # Determine images with low metrics in any model
+        idx_not_good_in_any = []
+        for idx in df.idx.unique():
+            df_th = df.loc[((df.tpr <= dict_metrics['threshold']['tpr']) |\
+                            (df.fpr >= dict_metrics['threshold']['fpr']) |\
+                            (df.edge_coherence >= dict_metrics['threshold']['edge_coherence'])) &\
+                           ((df.idx == idx) &\
+                            (df.model.isin(df.model.unique())))]
+            if len(df_th) > 0:
+                idx_not_good_in_any.append(idx)
+	filters = {'all': df.idx.unique(), 'not_good_in_any': idx_not_good_in_any}
+
+        # Boxplots of metrics
+        for m in dict_metrics['names'].keys():
+            for k, f in filters.items():		
+                fig_filename = plot_dir / f"boxplot_{m}_{k}.png"
+                if m in ['mnr', 'mpr', 'accuracy_must_may']:
+                    boxplot_metric(fig_filename, df.loc[df.idx.isin(f)], metric=m, 
+                                   do_stripplot=True, order=list(dict_models.keys()))
+                else:
+                    boxplot_metric(fig_filename, df.loc[df.idx.isin(f)], metric=m, 
+                                   fliersize=1., order=list(dict_models.keys()))
+                exp.log_image(fig_filename)
+
+    # Close comet
+    exp.end()

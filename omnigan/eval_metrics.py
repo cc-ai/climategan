@@ -136,14 +136,26 @@ def masker_classification_metrics(pred, label, labels_dict={'cannot': 0, 'must':
         tpr : float
             True positive rate
 
+        tpt : float
+            True positive total (divided by total population)
+
         tnr : float
             True negative rate
+
+        tnt : float
+            True negative total (divided by total population)
 
         fpr : float
             False positive rate: rate of predicted mask on cannot flood
 
+        fpt : float
+            False positive total (divided by total population)
+
         fnr : float
             False negative rate: rate of missed mask on must flood
+
+        fnt : float
+            False negative total (divided by total population)
 
         mnr : float
             "May" negative rate (labeled as "may", predicted as no-mask)
@@ -151,11 +163,17 @@ def masker_classification_metrics(pred, label, labels_dict={'cannot': 0, 'must':
         mpr : float
             "May" positive rate (labeled as "may", predicted as mask)
 
+        accuracy : float
+            Accuracy
+
+        error : float
+            Error
+
         precision : float
             Precision, considering only cannot and must flood labels
 
-        f1 : float
-            F1 score, considering only cannot and must flood labels
+        f05 : float
+            F0.5 score, considering only cannot and must flood labels
 
         accuracy_must_may : float
             Accuracy considering only the must and may areas
@@ -181,16 +199,22 @@ def masker_classification_metrics(pred, label, labels_dict={'cannot': 0, 'must':
     """
     tp_map = pred * np.asarray(label == labels_dict['must'], dtype=int)
     tpr = np.sum(tp_map) / np.sum(label == labels_dict['must'])
+    tpt = np.sum(tp_map) / np.prod(label.shape)
     tn_map = (1.0 - pred) * np.asarray(label == labels_dict['cannot'], dtype=int)
     tnr = np.sum(tn_map) / np.sum(label == labels_dict['cannot'])
+    tnt = np.sum(tn_map) / np.prod(label.shape)
     fp_map = pred * np.asarray(label == labels_dict['cannot'], dtype=int)
     fpr = np.sum(fp_map) / np.sum(label == labels_dict['cannot'])
+    fpt = np.sum(fp_map) / np.prod(label.shape)
     fn_map = (1.0 - pred) * np.asarray(label == labels_dict['must'], dtype=int)
     fnr = np.sum(fn_map) / np.sum(label == labels_dict['must'])
+    fnt = np.sum(fn_map) / np.prod(label.shape)
     may_neg_map = (1.0 - pred) * np.asarray(label == labels_dict['may'], dtype=int)
     may_pos_map = pred * np.asarray(label == labels_dict['may'], dtype=int)
     mnr = np.sum(may_neg_map) / np.sum(label == labels_dict['may'])
     mpr = np.sum(may_pos_map) / np.sum(label == labels_dict['may'])
+    accuracy = tpt + tnt
+    error = fpt + fnt
 
     # Assertions
     assert np.isclose(tpr, 1.0 - fnr), "TPR: {:.4f}, FNR: {:.4f}".format(tpr, fnr)
@@ -198,19 +222,26 @@ def masker_classification_metrics(pred, label, labels_dict={'cannot': 0, 'must':
     assert np.isclose(mpr, 1.0 - mnr), "MPR: {:.4f}, MNR: {:.4f}".format(mpr, mnr)
 
     precision = np.sum(tp_map) / (np.sum(tp_map) + np.sum(fp_map))
-    f1 = 2 * (precision * tpr) / (precision + tpr)
+    beta = 0.5
+    f05 = ((1 + beta**2) * precision * tpr) / (beta**2 * precision + tpr)
     accuracy_must_may = (np.sum(tp_map) + np.sum(may_neg_map)) / (np.sum(label ==
         labels_dict['must']) + np.sum(label == labels_dict['may']))
 
     metrics_dict = {
             'tpr': tpr,
+            'tpt': tpt,
             'tnr': tnr,
+            'tnt': tnt,
             'fpr': fpr,
+            'fpt': fpt,
             'fnr': fnr,
+            'fnt': fnt,
             'mpr': mpr,
             'mnr': mnr,
+            'accuracy': accuracy,
+            'error': error,
             'precision': precision,
-            'f1': f1,
+            'f05': f05,
             'accuracy_must_may': accuracy_must_may
             }
     maps_dict = {
@@ -499,3 +530,39 @@ def edges_coherence_std_min(pred, label, label_must=1, bin_th=0.5):
     edge_coherence = np.std(np.min(dist_mat, axis=1))
 
     return edge_coherence, pred, label
+
+
+def boxplot_metric(output_filename, df, metric, do_stripplot=False, dict_models=None, dpi=300, **snskwargs):
+    f = plt.figure(dpi=dpi)
+    
+    if do_stripplot:
+        ax = sns.boxplot(x='model', y=metric, data=df, fliersize=0., **snskwargs)
+        ax = sns.stripplot(x='model', y=metric, data=df, size=2., color='gray', **snskwargs)
+    else:
+        ax = sns.boxplot(x='model', y=metric, data=df, **snskwargs)
+    
+    # Set axes labels
+    ax.set_xlabel('Models', rotation=0, fontsize='medium');
+    ax.set_ylabel(dict_metrics[metric], rotation=90, fontsize='medium');
+    
+    # Spines
+    sns.despine(left=True, bottom=True)
+    
+    # X-Tick labels
+    if dict_models:
+        xticklabels = [dict_models[t.get_text()] for t in ax.get_xticklabels()]
+        ax.set_xticklabels(xticklabels, 
+                           rotation=20, 
+                           verticalalignment='top',
+                           horizontalalignment='right',
+                           fontsize='xx-small');
+
+    f.savefig(
+        output_filename,
+        dpi=f.dpi,
+        bbox_inches="tight",
+        facecolor="white",
+        transparent=False,
+    )
+    plt.close(f)
+
