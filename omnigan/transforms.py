@@ -362,9 +362,11 @@ class PrepareTest:
 
     def process(self, t, normalize=False, rescale=False):
         if isinstance(t, (str, Path)):
-            t = img_as_float(imread(str(t)))
+            # t = img_as_float(imread(str(t)))
+            t = imread(str(t))
             if t.shape[-1] == 4:
-                t = rgba2rgb(t)
+                # t = rgba2rgb(t)
+                t = t[:, :, :3]
             if np.ndim(t) == 2:
                 t = np.repeat(t[:, :, np.newaxis], 3, axis=2)
 
@@ -375,6 +377,7 @@ class PrepareTest:
         if len(t.shape) == 3:
             t = t.unsqueeze(0)
 
+        t = t.to(torch.float32)
         normalize(t) if normalize else t
         (t - 0.5) * 2 if rescale else t
         t = {"x": t}
@@ -382,7 +385,8 @@ class PrepareTest:
         t = self.crop(t)
         t = t["x"]
 
-        t = t.to(torch.float16) if self.half else t.to(torch.float32)
+        if self.half:
+            return t.to(torch.float16)
 
         return t
 

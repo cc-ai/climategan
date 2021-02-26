@@ -28,6 +28,7 @@ from omnigan.eval_metrics import (
     get_confusion_matrix,
     edges_coherence_std_min,
 )
+from omnigan.transforms import PrepareTest
 from omnigan.trainer import Trainer
 from omnigan.utils import find_images, get_increased_path
 
@@ -55,8 +56,8 @@ def crop_and_resize(image_path, label_path):
     img = imread(image_path)
     lab = imread(label_path)
 
-    if img.shape[-1] == 4:
-        img = uint8(rgba2rgb(img) * 255)
+    # if img.shape[-1] == 4:
+    #     img = img[:, :, :3]
 
     if img.shape != lab.shape:
         print("\nWARNING: shape mismatch. Entering breakpoint to investigate:")
@@ -317,9 +318,20 @@ if __name__ == "__main__":
 
     # Pre-process images: resize + crop
     # TODO: ? make cropping more flexible, not only central
-    ims_labs = [crop_and_resize(i, l) for i, l in zip(imgs_paths, labels_paths)]
-    imgs = [d[0] for d in ims_labs]
-    labels = [d[1] for d in ims_labs]
+    if not args.prepare_torch:
+        ims_labs = [crop_and_resize(i, l) for i, l in zip(imgs_paths, labels_paths)]
+        imgs = [d[0] for d in ims_labs]
+        labels = [d[1] for d in ims_labs]
+    else:
+        prepare = PrepareTest()
+        imgs = prepare(imgs_paths, normalize=False, rescale=False)
+        labels = prepare(labels_paths, normalize=False, rescale=False)
+
+        imgs = [i.squeeze(0).permute(1, 2, 0).numpy().astype(np.uint8) for i in imgs]
+        labels = [
+            l.squeeze(0).permute(1, 2, 0).numpy().astype(np.uint8) for l in labels
+        ]
+    imgs = [rgba2rgb(img) if img.shape[-1] == 4 else img for img in imgs]
     print(" Done.")
 
     # Encode labels
@@ -456,7 +468,7 @@ if __name__ == "__main__":
                 flooded = img_as_ubyte(
                     (painted[idx].permute(1, 2, 0).cpu().numpy() + 1) / 2
                 )
-                combined = np.concatenate([masked,], 1)
+                combined = np.concatenate([img, masked, flooded], 1)
                 exp.log_image(combined, imgs_paths[idx].name)
 
             if args.write_metrics:

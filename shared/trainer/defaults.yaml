@@ -59,7 +59,7 @@ data:
       ignore: val
     - name: contrast
       ignore: val
-    - name: resize # ? this or change generator's output? Or resize larger then crop to 256?
+    - name: resize
       ignore: false
       new_size:
         default: 640
