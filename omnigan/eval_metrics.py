@@ -220,7 +220,6 @@ def masker_classification_metrics(pred, label, labels_dict={'cannot': 0, 'must':
     assert np.isclose(tpr, 1.0 - fnr), "TPR: {:.4f}, FNR: {:.4f}".format(tpr, fnr)
     assert np.isclose(tnr, 1.0 - fpr), "TNR: {:.4f}, FPR: {:.4f}".format(tnr, fpr)
     assert np.isclose(mpr, 1.0 - mnr), "MPR: {:.4f}, MNR: {:.4f}".format(mpr, mnr)
-    assert np.isclose(accuracy, 1.0 - error), "Accuracy: {:.4f}, Error: {:.4f}".format(accuracy, error)
 
     precision = np.sum(tp_map) / (np.sum(tp_map) + np.sum(fp_map))
     beta = 0.5
