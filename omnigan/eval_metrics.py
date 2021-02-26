@@ -136,20 +136,38 @@ def masker_classification_metrics(pred, label, labels_dict={'cannot': 0, 'must':
         tpr : float
             True positive rate
 
+        tpt : float
+            True positive total (divided by total population)
+
         tnr : float
             True negative rate
+
+        tnt : float
+            True negative total (divided by total population)
 
         fpr : float
             False positive rate: rate of predicted mask on cannot flood
 
+        fpt : float
+            False positive total (divided by total population)
+
         fnr : float
             False negative rate: rate of missed mask on must flood
+
+        fnt : float
+            False negative total (divided by total population)
 
         mnr : float
             "May" negative rate (labeled as "may", predicted as no-mask)
 
         mpr : float
             "May" positive rate (labeled as "may", predicted as mask)
+
+        accuracy : float
+            Accuracy
+
+        error : float
+            Error
 
         precision : float
             Precision, considering only cannot and must flood labels
@@ -181,21 +199,29 @@ def masker_classification_metrics(pred, label, labels_dict={'cannot': 0, 'must':
     """
     tp_map = pred * np.asarray(label == labels_dict['must'], dtype=int)
     tpr = np.sum(tp_map) / np.sum(label == labels_dict['must'])
+    tpt = np.sum(tp_map) / np.prod(label.shape)
     tn_map = (1.0 - pred) * np.asarray(label == labels_dict['cannot'], dtype=int)
     tnr = np.sum(tn_map) / np.sum(label == labels_dict['cannot'])
+    tnt = np.sum(tn_map) / np.prod(label.shape)
     fp_map = pred * np.asarray(label == labels_dict['cannot'], dtype=int)
     fpr = np.sum(fp_map) / np.sum(label == labels_dict['cannot'])
+    fpt = np.sum(fp_map) / np.prod(label.shape)
     fn_map = (1.0 - pred) * np.asarray(label == labels_dict['must'], dtype=int)
     fnr = np.sum(fn_map) / np.sum(label == labels_dict['must'])
+    fnt = np.sum(fn_map) / np.prod(label.shape)
     may_neg_map = (1.0 - pred) * np.asarray(label == labels_dict['may'], dtype=int)
     may_pos_map = pred * np.asarray(label == labels_dict['may'], dtype=int)
     mnr = np.sum(may_neg_map) / np.sum(label == labels_dict['may'])
     mpr = np.sum(may_pos_map) / np.sum(label == labels_dict['may'])
+    accuracy = tpt + tnt
+    error = fpt + fnt
 
     # Assertions
     assert np.isclose(tpr, 1.0 - fnr), "TPR: {:.4f}, FNR: {:.4f}".format(tpr, fnr)
     assert np.isclose(tnr, 1.0 - fpr), "TNR: {:.4f}, FPR: {:.4f}".format(tnr, fpr)
     assert np.isclose(mpr, 1.0 - mnr), "MPR: {:.4f}, MNR: {:.4f}".format(mpr, mnr)
+    assert np.isclose(accuracy, 1.0 - error), "Accuracy: {:.4f}, Error:
+        {:.4f}".format(accuracy, error)
 
     precision = np.sum(tp_map) / (np.sum(tp_map) + np.sum(fp_map))
     beta = 0.5
@@ -205,11 +231,17 @@ def masker_classification_metrics(pred, label, labels_dict={'cannot': 0, 'must':
 
     metrics_dict = {
             'tpr': tpr,
+            'tpt': tpt,
             'tnr': tnr,
+            'tnt': tnt,
             'fpr': fpr,
+            'fpt': fpt,
             'fnr': fnr,
+            'fnt': fnt,
             'mpr': mpr,
             'mnr': mnr,
+            'accuracy': accuracy,
+            'error': error,
             'precision': precision,
             'f05': f05,
             'accuracy_must_may': accuracy_must_may

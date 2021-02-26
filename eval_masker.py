@@ -371,12 +371,18 @@ if __name__ == "__main__":
         # Compute metrics
         df = pd.DataFrame(
             columns=[
+                "tpr",
+                "tpt",
+                "tnr",
+                "tnt",
                 "fpr",
+                "fpt",
                 "fnr",
+                "fnt",
                 "mnr",
                 "mpr",
-                "tpr",
-                "tnr",
+                "accuracy",
+                "error",
                 "precision",
                 "f05",
                 "accuracy_must_may",
@@ -398,12 +404,18 @@ if __name__ == "__main__":
             edge_coherence, pred_edge, label_edge = edges_coherence_std_min(pred, label)
 
             series_dict = {
+                "tpr": metrics_dict["tpr"],
+                "tpt": metrics_dict["tpt"],
+                "tnr": metrics_dict["tnr"],
+                "tnt": metrics_dict["tnt"],
                 "fpr": metrics_dict["fpr"],
+                "fpt": metrics_dict["fpt"],
                 "fnr": metrics_dict["fnr"],
+                "fnt": metrics_dict["fnt"],
                 "mnr": metrics_dict["mnr"],
                 "mpr": metrics_dict["mpr"],
-                "tpr": metrics_dict["tpr"],
-                "tnr": metrics_dict["tnr"],
+                "accuracy": metrics_dict["accuracy"],
+                "error": metrics_dict["error"],
                 "precision": metrics_dict["precision"],
                 "f05": metrics_dict["f05"],
                 "accuracy_must_may": metrics_dict["accuracy_must_may"],
@@ -420,11 +432,17 @@ if __name__ == "__main__":
             # Confusion matrix
             confmat, _ = get_confusion_matrix(
                 metrics_dict["tpr"],
+                metrics_dict["tpt"],
                 metrics_dict["tnr"],
+                metrics_dict["tnt"],
                 metrics_dict["fpr"],
+                metrics_dict["fpt"],
                 metrics_dict["fnr"],
-                metrics_dict["mpr"],
+                metrics_dict["fnt"],
                 metrics_dict["mnr"],
+                metrics_dict["mpr"],
+                metrics_dict["accuracy"],
+                metrics_dict["error"],
             )
             confmat = np.around(confmat, decimals=3)
             exp.log_confusion_matrix(
