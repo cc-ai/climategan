@@ -478,6 +478,12 @@ if __name__ == "__main__":
                 exp.log_image(combined, imgs_paths[idx].name)
 
             if args.write_metrics:
+                pred_out = mmp / "pred"
+                pred_out.mkdir(exist_ok=True)
+                imsave(
+                    pred_out / f"{imgs_paths[idx].stem}_pred.png",
+                    pred.astype(np.uint8),
+                )
                 for k, v in maps_dict.items():
                     metric_out = mmp / k
                     metric_out.mkdir(exist_ok=True)
