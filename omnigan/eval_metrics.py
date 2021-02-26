@@ -532,8 +532,8 @@ def edges_coherence_std_min(pred, label, label_must=1, bin_th=0.5):
     return edge_coherence, pred, label
 
 
-def boxplot_metric(df, metric, do_stripplot=False, dict_models=None, **snskwargs):
-    f = plt.figure(dpi=300)
+def boxplot_metric(output_filename, df, metric, do_stripplot=False, dict_models=None, dpi=300, **snskwargs):
+    f = plt.figure(dpi=dpi)
     
     if do_stripplot:
         ax = sns.boxplot(x='model', y=metric, data=df, fliersize=0., **snskwargs)
@@ -557,4 +557,12 @@ def boxplot_metric(df, metric, do_stripplot=False, dict_models=None, **snskwargs
                            horizontalalignment='right',
                            fontsize='xx-small');
 
-    return ax
+    f.savefig(
+        output_filename,
+        dpi=f.dpi,
+        bbox_inches="tight",
+        facecolor="white",
+        transparent=False,
+    )
+    plt.close(f)
+

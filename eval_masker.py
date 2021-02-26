@@ -32,20 +32,36 @@ from omnigan.trainer import Trainer
 from omnigan.utils import find_images, get_increased_path
 
 dict_metrics = {
-    'tpr': 'TPR, Recall, Sensitivity',
-    'tnr': 'TNR, Specificity, Selectivity',
-    'fpr': 'FPR',
-    'fpt': 'False positives relative to image size',
-    'fnr': 'FNR, Miss rate',
-    'fnt': 'False negatives relative to image size',
-    'mpr': 'May positive rate (MPR)',
-    'mnr': 'May negative rate (MNR)',
-    'accuracy': 'Accuracy (ignoring may)',
-    'error': 'Error (ignoring may)',
-    'f05': 'F0.05 score',
-    'precision': 'Precision',
-    'edge_coherence': 'Edge coherence',
-    'accuracy_must_may': 'Accuracy (ignoring cannot)'
+    'names': {
+        'tpr': 'TPR, Recall, Sensitivity',
+        'tnr': 'TNR, Specificity, Selectivity',
+        'fpr': 'FPR',
+        'fpt': 'False positives relative to image size',
+        'fnr': 'FNR, Miss rate',
+        'fnt': 'False negatives relative to image size',
+        'mpr': 'May positive rate (MPR)',
+        'mnr': 'May negative rate (MNR)',
+        'accuracy': 'Accuracy (ignoring may)',
+        'error': 'Error (ignoring may)',
+        'f05': 'F0.05 score',
+        'precision': 'Precision',
+        'edge_coherence': 'Edge coherence',
+        'accuracy_must_may': 'Accuracy (ignoring cannot)'
+    }
+    'threshold': {
+        'tpr': 0.95,
+        'tnr': 0.95,
+        'fpr': 0.05,
+        'fpt': 0.01,
+        'fnr': 0.05,
+        'fnt': 0.01,
+        'accuracy': 0.95,
+        'error': 0.05,
+        'f05': 0.95,
+        'precision': 0.95,
+        'edge_coherence': 0.02,
+        'accuracy_must_may': 0.5
+    }
 }
 
 print("Ok.")
@@ -357,9 +373,6 @@ if __name__ == "__main__":
     else:
         evaluations = [args.model]
 
-    if args.load_metrics or args.write_metrics:
-        metrics_paths = []
-
     for e, eval_path in enumerate(evaluations):
         print("\n>>>>> Evaluation", e, ":", eval_path)
         print("=" * 50)
@@ -373,10 +386,8 @@ if __name__ == "__main__":
             f_csv = model_metrics_path / "eval_masker.csv"
             pred_out = model_metrics_path / "pred"
             if f_csv.exists() and pred_out.exits():
-                metrics_paths.append(model_metrics_path)
                 continue
         if args.write_metrics:
-            metrics_paths.append(model_metrics_path)
             model_metrics_path.mkdir(exists_ok=True)
 
         # Obtain mask predictions
@@ -557,15 +568,47 @@ if __name__ == "__main__":
         if args.tags:
             exp.add_tags(args.tags)
         exp.log_parameter("model_name", Path(eval_path).name)
-        exp.end()
 
         # --------------------------------
         # -----  END OF MODElS LOOP  -----
         # --------------------------------
 
     # Compare models
-    if metrics_paths:
-        models_df = {m.name.split('--')[1]: pd.read_csv(m.joinpath('eval_masker.csv'), index_col=False) 
-                         for m in models_paths}
+    if args.load_metrics or args.write_metrics:
+
+        # Build DataFrame with all models
+        models_df = {
+                m.name.split('--')[1]: pd.read_csv(Path(eval_path) / "eval-metrics" / "eval_masker.csv"), 
+                                                   index_col=False) 
+                for m in evaluations
+        }
         for k, v in models_df.items():
                 v['model'] = [k] * len(v)
+        df = pd.concat(list(models_df.values()), ignore_index=True)
+
+        # Determine images with low metrics in any model
+        idx_not_good_in_any = []
+        for idx in df.idx.unique():
+            df_th = df.loc[((df.tpr <= dict_metrics['threshold']['tpr']) |\
+                            (df.fpr >= dict_metrics['threshold']['fpr']) |\
+                            (df.edge_coherence >= dict_metrics['threshold']['edge_coherence'])) &\
+                           ((df.idx == idx) &\
+                            (df.model.isin(df.model.unique())))]
+            if len(df_th) > 0:
+                idx_not_good_in_any.append(idx)
+	filters = {'all': df.idx.unique(), 'not_good_in_any': idx_not_good_in_any}
+
+        # Boxplots of metrics
+        for m in dict_metrics['names'].keys():
+            for k, f in filters.items():		
+                fig_filename = plot_dir / f"boxplot_{m}_{k}.png"
+                if m in ['mnr', 'mpr', 'accuracy_must_may']:
+                    boxplot_metric(fig_filename, df.loc[df.idx.isin(f)], metric=m, 
+                                   do_stripplot=True, order=list(dict_models.keys()))
+                else:
+                    boxplot_metric(fig_filename, df.loc[df.idx.isin(f)], metric=m, 
+                                   fliersize=1., order=list(dict_models.keys()))
+                exp.log_image(fig_filename)
+
+    # Close comet
+    exp.end()
