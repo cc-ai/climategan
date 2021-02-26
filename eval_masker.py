@@ -390,7 +390,12 @@ if __name__ == "__main__":
         if args.load_metrics:
             f_csv = model_metrics_path / "eval_masker.csv"
             pred_out = model_metrics_path / "pred"
-            if f_csv.exists() and pred_out.exits():
+            if f_csv.exists() and pred_out.exists():
+                print(
+                    "Skipping model because pre-computed metrics exist",
+                    end="",
+                    flush=True,
+                )
                 continue
         if args.write_metrics:
             model_metrics_path.mkdir(exist_ok=True)
@@ -587,6 +592,7 @@ if __name__ == "__main__":
     if args.load_metrics or args.write_metrics:
 
         # Build DataFrame with all models
+        import ipdb; ipdb.set_trace()
         models_df = {
             m.name.split("--")[1]: pd.read_csv(
                 Path(eval_path) / "eval-metrics" / "eval_masker.csv", index_col=False
