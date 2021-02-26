@@ -5,7 +5,7 @@ from skimage.io import imread, imsave
 
 if __name__ == "__main__":
     # output of download_labelbox.py
-    base_dir = Path("/Users/victor/Downloads/labelbox_test_flood")
+    base_dir = Path("/Users/victor/Downloads/labelbox_test_flood-v2")
     assert base_dir.exists()
 
     sub_dirs = [

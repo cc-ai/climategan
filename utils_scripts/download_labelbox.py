@@ -4,9 +4,9 @@ from pathlib import Path
 
 if __name__ == "__main__":
     # labelbox json export path
-    path = "/Users/victor/Downloads/export-2021-01-20T20_45_24.103Z.json"
+    path = "/Users/victor/Downloads/export-2021-02-26T17_38_48.044Z.json"
     # where to write the downloaded images
-    out = Path("/Users/victor/Downloads/labelbox_test_flood")
+    out = Path("/Users/victor/Downloads/labelbox_test_flood-v2")
     # create out dir
     out.mkdir(exist_ok=True, parents=True)
 
