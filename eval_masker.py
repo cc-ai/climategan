@@ -31,6 +31,23 @@ from omnigan.eval_metrics import (
 from omnigan.trainer import Trainer
 from omnigan.utils import find_images, get_increased_path
 
+dict_metrics = {
+    'tpr': 'TPR, Recall, Sensitivity',
+    'tnr': 'TNR, Specificity, Selectivity',
+    'fpr': 'FPR',
+    'fpt': 'False positives relative to image size',
+    'fnr': 'FNR, Miss rate',
+    'fnt': 'False negatives relative to image size',
+    'mpr': 'May positive rate (MPR)',
+    'mnr': 'May negative rate (MNR)',
+    'accuracy': 'Accuracy (ignoring may)',
+    'error': 'Error (ignoring may)',
+    'f05': 'F0.05 score',
+    'precision': 'Precision',
+    'edge_coherence': 'Edge coherence',
+    'accuracy_must_may': 'Accuracy (ignoring cannot)'
+}
+
 print("Ok.")
 
 
@@ -546,3 +563,10 @@ if __name__ == "__main__":
         # --------------------------------
         # -----  END OF MODElS LOOP  -----
         # --------------------------------
+
+    # Compare models
+    if metrics_paths:
+        models_df = {m.name.split('--')[1]: pd.read_csv(m.joinpath('eval_masker.csv'), index_col=False) 
+                         for m in models_paths}
+        for k, v in models_df.items():
+                v['model'] = [k] * len(v)

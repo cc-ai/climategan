@@ -530,3 +530,31 @@ def edges_coherence_std_min(pred, label, label_must=1, bin_th=0.5):
     edge_coherence = np.std(np.min(dist_mat, axis=1))
 
     return edge_coherence, pred, label
+
+
+def boxplot_metric(df, metric, do_stripplot=False, dict_models=None, **snskwargs):
+    f = plt.figure(dpi=300)
+    
+    if do_stripplot:
+        ax = sns.boxplot(x='model', y=metric, data=df, fliersize=0., **snskwargs)
+        ax = sns.stripplot(x='model', y=metric, data=df, size=2., color='gray', **snskwargs)
+    else:
+        ax = sns.boxplot(x='model', y=metric, data=df, **snskwargs)
+    
+    # Set axes labels
+    ax.set_xlabel('Models', rotation=0, fontsize='medium');
+    ax.set_ylabel(dict_metrics[metric], rotation=90, fontsize='medium');
+    
+    # Spines
+    sns.despine(left=True, bottom=True)
+    
+    # X-Tick labels
+    if dict_models:
+        xticklabels = [dict_models[t.get_text()] for t in ax.get_xticklabels()]
+        ax.set_xticklabels(xticklabels, 
+                           rotation=20, 
+                           verticalalignment='top',
+                           horizontalalignment='right',
+                           fontsize='xx-small');
+
+    return ax
