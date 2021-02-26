@@ -95,7 +95,13 @@ def parsed_args():
         "--write_metrics",
         action="store_true",
         default=False,
-        help="If True, write CSV file in model's path directory",
+        help="If True, write CSV file and maps images in model's path directory",
+    )
+    parser.add_argument(
+        "--load_metrics",
+        action="store_true",
+        default=False,
+        help="If True, load predictions and metrics instead of re-computing",
     )
 
     return parser.parse_args()
@@ -334,6 +340,9 @@ if __name__ == "__main__":
     else:
         evaluations = [args.model]
 
+    if args.load_metrics or args.write_metrics:
+        metrics_paths = []
+
     for e, eval_path in enumerate(evaluations):
         print("\n>>>>> Evaluation", e, ":", eval_path)
         print("=" * 50)
@@ -341,9 +350,17 @@ if __name__ == "__main__":
 
         # Initialize New Comet Experiment
         exp = Experiment(project_name="omnigan-masker-metrics", display_summary_level=0)
+
         model_metrics_path = Path(eval_path) / "eval-metrics"
+        if args.load_metrics:
+            f_csv = model_metrics_path / "eval_masker.csv"
+            pred_out = model_metrics_path / "pred"
+            if f_csv.exists() and pred_out.exits():
+                metrics_paths.append(model_metrics_path)
+                continue
         mmp = get_increased_path(model_metrics_path, True)
         if args.write_metrics:
+            metrics_paths.append(mmp)
             mmp.mkdir()
 
         # Obtain mask predictions
