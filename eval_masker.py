@@ -78,7 +78,9 @@ def parsed_args():
     """
     parser = ArgumentParser()
     parser.add_argument(
-        "--model", type=str, help="Path to a pre-trained model",
+        "--model",
+        type=str,
+        help="Path to a pre-trained model",
     )
     parser.add_argument(
         "--images_dir",
@@ -99,7 +101,10 @@ def parsed_args():
         help="The height and weight of the pre-processed images",
     )
     parser.add_argument(
-        "--max_files", default=-1, type=int, help="Limit loaded samples",
+        "--max_files",
+        default=-1,
+        type=int,
+        help="Limit loaded samples",
     )
     parser.add_argument(
         "--bin_value", default=0.5, type=float, help="Mask binarization threshold"
@@ -588,9 +593,15 @@ if __name__ == "__main__":
             exp.add_tags(args.tags)
         exp.log_parameter("model_name", Path(eval_path).name)
 
+        # Close comet
+        exp.end()
+
         # --------------------------------
         # -----  END OF MODElS LOOP  -----
         # --------------------------------
+
+    # Initialize New Comet Experiment
+    exp = Experiment(project_name="omnigan-masker-metrics", display_summary_level=0)
 
     # Compare models
     if args.load_metrics or args.write_metrics:
