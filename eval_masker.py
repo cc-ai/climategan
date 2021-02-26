@@ -27,6 +27,7 @@ from omnigan.eval_metrics import (
     masker_classification_metrics,
     get_confusion_matrix,
     edges_coherence_std_min,
+    boxplot_metric,
 )
 from omnigan.trainer import Trainer
 from omnigan.utils import find_images, get_increased_path
@@ -592,15 +593,14 @@ if __name__ == "__main__":
     if args.load_metrics or args.write_metrics:
 
         # Build DataFrame with all models
-        import ipdb; ipdb.set_trace()
-        models_df = {
-            m.name.split("--")[1]: pd.read_csv(
-                Path(eval_path) / "eval-metrics" / "eval_masker.csv", index_col=False
+        models_df = {}
+        for model_path in evaluations:
+            model_path = Path(model_path)
+            df_m = pd.read_csv(
+                model_path / "eval-metrics" / "eval_masker.csv", index_col=False
             )
-            for m in evaluations
-        }
-        for k, v in models_df.items():
-            v["model"] = [k] * len(v)
+            df_m["model"] = [model_path.name] * len(df_m)
+            models_df.update({model_path.name: df_m})
         df = pd.concat(list(models_df.values()), ignore_index=True)
 
         # Determine images with low metrics in any model
