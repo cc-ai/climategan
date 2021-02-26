@@ -63,6 +63,7 @@ dict_metrics = {
         "edge_coherence": 0.02,
         "accuracy_must_may": 0.5,
     },
+    "key_metrics": ["f05", "error", "edge_coherence", "mnr"],
 }
 
 print("Ok.")
@@ -627,18 +628,44 @@ if __name__ == "__main__":
                         fig_filename,
                         df.loc[df.idx.isin(f)],
                         metric=m,
+                        dict_metrics=dict_metrics["names"],
                         do_stripplot=True,
-                        order=list(dict_models.keys()),
+                        order=list(df.model.unique()),
                     )
                 else:
                     boxplot_metric(
                         fig_filename,
                         df.loc[df.idx.isin(f)],
                         metric=m,
+                        dict_metrics=dict_metrics["names"],
                         fliersize=1.0,
-                        order=list(dict_models.keys()),
+                        order=list(df.model.unique()),
                     )
                 exp.log_image(fig_filename)
+
+        # Cluster Maps
+        n_models = len(df.model.unique())
+        metrics_ext = {metric: metric for metric in dict_metrics["names"].keys()}
+        metrics_ext.update({"comb": dict_metrics["key_metrics"]})
+        dict_distances_mat = {
+            metric: np.zeros([n_models, n_models]) for metric in metrics_ext.keys()
+        }
+        for metric_key, metric in metrics_ext.items():
+            for idx_i, m_i in enumerate(df.model.unique()):
+                for idx_j, m_j in enumerate(df.model.unique()):
+                    for k, f in filters.items():
+                        v_m_i = (
+                            df.loc[(df.model == m_i) & df.idx.isin(f)]
+                            .sort_values(by="idx")[metric]
+                            .values
+                        )
+                        v_m_j = (
+                            df.loc[(df.model == m_j) & df.idx.isin(f)]
+                            .sort_values(by="idx")[metric]
+                            .values
+                        )
+                        dist = np.mean(np.square(v_m_i - v_m_j))
+                        dict_distances_mat[metric_key][idx_i, idx_j] = dist
 
     # Close comet
     exp.end()
