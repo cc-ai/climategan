@@ -375,10 +375,9 @@ if __name__ == "__main__":
             if f_csv.exists() and pred_out.exits():
                 metrics_paths.append(model_metrics_path)
                 continue
-        mmp = get_increased_path(model_metrics_path, True)
         if args.write_metrics:
-            metrics_paths.append(mmp)
-            mmp.mkdir()
+            metrics_paths.append(model_metrics_path)
+            model_metrics_path.mkdir(exists_ok=True)
 
         # Obtain mask predictions
         print("Obtain mask predictions", end="", flush=True)
@@ -500,14 +499,14 @@ if __name__ == "__main__":
                 exp.log_image(combined, imgs_paths[idx].name)
 
             if args.write_metrics:
-                pred_out = mmp / "pred"
+                pred_out = model_metrics_path / "pred"
                 pred_out.mkdir(exist_ok=True)
                 imsave(
                     pred_out / f"{imgs_paths[idx].stem}_pred.png",
                     pred.astype(np.uint8),
                 )
                 for k, v in maps_dict.items():
-                    metric_out = mmp / k
+                    metric_out = model_metrics_path / k
                     metric_out.mkdir(exist_ok=True)
                     imsave(
                         metric_out / f"{imgs_paths[idx].stem}_{k}.png",
@@ -519,8 +518,8 @@ if __name__ == "__main__":
             # --------------------------------
 
         if args.write_metrics:
-            print(f"Writing metrics in {str(mmp)}")
-            f_csv = mmp / "eval_masker.csv"
+            print(f"Writing metrics in {str(model_metrics_path)}")
+            f_csv = model_metrics_path / "eval_masker.csv"
             df.to_csv(f_csv, index_label="idx")
 
         print(" Done.")
