@@ -182,7 +182,7 @@ def crop_and_resize(image_path, label_path):
     # TODO: remove (debug)
     if img.shape != lab.shape:
         print("\nWARNING: shape mismatch. Entering breakpoint to investigate:")
-#         breakpoint()
+    #         breakpoint()
 
     # resize keeping aspect ratio: smallest dim is 640
     h, w = img.shape[:2]
@@ -666,13 +666,19 @@ if __name__ == "__main__":
                 exp.log_image(fig_filename)
 
         # Cluster Maps
-        for metric in dict_metrics['names'].keys():
+        for metric in dict_metrics["names"].keys():
             for k, f in filters.items():
                 fig_filename = plot_dir / f"clustermap_{metric}_{k}.png"
-                df_mf = df.loc[df.idx.isin(f)].pivot('idx', 'model', metric)
-                clustermap_metric(output_filename=fig_filename, df=df_mf, metric=metric,
-                        dict_metrics=dict_metrics["names"],
-                        method='average', cluster_metric='euclidean', row_cluster=False)
+                df_mf = df.loc[df.idx.isin(f)].pivot("idx", "model", metric)
+                clustermap_metric(
+                    output_filename=fig_filename,
+                    df=df_mf,
+                    metric=metric,
+                    dict_metrics=dict_metrics["names"],
+                    method="average",
+                    cluster_metric="euclidean",
+                    row_cluster=False,
+                )
                 exp.log_image(fig_filename)
 
     # Close comet
