@@ -79,19 +79,17 @@ def parsed_args():
     """
     parser = ArgumentParser()
     parser.add_argument(
-        "--model",
-        type=str,
-        help="Path to a pre-trained model",
+        "--model", type=str, help="Path to a pre-trained model",
     )
     parser.add_argument(
         "--images_dir",
-        default="/miniscratch/_groups/ccai/data/omnigan/metrics-full/imgs",
+        default="/miniscratch/_groups/ccai/data/omnigan/masker-test-set/imgs",
         type=str,
         help="Directory containing the original test images",
     )
     parser.add_argument(
         "--labels_dir",
-        default="/miniscratch/_groups/ccai/data/omnigan/metrics-full/labels",
+        default="/miniscratch/_groups/ccai/data/omnigan/masker-test-set/labels",
         type=str,
         help="Directory containing the labeled images",
     )
@@ -102,10 +100,7 @@ def parsed_args():
         help="The height and weight of the pre-processed images",
     )
     parser.add_argument(
-        "--max_files",
-        default=-1,
-        type=int,
-        help="Limit loaded samples",
+        "--max_files", default=-1, type=int, help="Limit loaded samples",
     )
     parser.add_argument(
         "--bin_value", default=0.5, type=float, help="Mask binarization threshold"
@@ -180,9 +175,13 @@ def crop_and_resize(image_path, label_path):
     #     img = uint8(rgba2rgb(img) * 255)
 
     # TODO: remove (debug)
-    if img.shape != lab.shape:
-        print("\nWARNING: shape mismatch. Entering breakpoint to investigate:")
-    #         breakpoint()
+    if img.shape[:2] != lab.shape[:2]:
+        print(
+            "\nWARNING: shape mismatch: im -> {}, lab -> {}".format(
+                image_path.name, label_path.name
+            )
+        )
+        # breakpoint()
 
     # resize keeping aspect ratio: smallest dim is 640
     h, w = img.shape[:2]
@@ -614,6 +613,8 @@ if __name__ == "__main__":
 
         # Initialize New Comet Experiment
         exp = Experiment(project_name="omnigan-masker-metrics", display_summary_level=0)
+        if args.tags:
+            exp.add_tags(args.tags)
 
         # Build DataFrame with all models
         models_df = {}
