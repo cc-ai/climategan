@@ -683,5 +683,5 @@ if __name__ == "__main__":
                 )
                 exp.log_image(fig_filename)
 
-    # Close comet
-    exp.end()
+        # Close comet
+        exp.end()
