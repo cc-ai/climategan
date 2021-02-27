@@ -82,13 +82,13 @@ def parsed_args():
     )
     parser.add_argument(
         "--images_dir",
-        default="/miniscratch/_groups/ccai/data/floodmasks_eval/imgs",
+        default="/miniscratch/_groups/ccai/data/omnigan/metrics-full/imgs",
         type=str,
         help="Directory containing the original test images",
     )
     parser.add_argument(
         "--labels_dir",
-        default="/miniscratch/_groups/ccai/data/floodmasks_eval/labels",
+        default="/miniscratch/_groups/ccai/data/omnigan/metrics-full/labels",
         type=str,
         help="Directory containing the labeled images",
     )
