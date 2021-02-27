@@ -175,9 +175,13 @@ def crop_and_resize(image_path, label_path):
     #     img = uint8(rgba2rgb(img) * 255)
 
     # TODO: remove (debug)
-    if img.shape != lab.shape:
-        print("\nWARNING: shape mismatch. Entering breakpoint to investigate:")
-    #         breakpoint()
+    if img.shape[:2] != lab.shape[:2]:
+        print(
+            "\nWARNING: shape mismatch: im -> {}, lab -> {}".format(
+                image_path.name, label_path.name
+            )
+        )
+        # breakpoint()
 
     # resize keeping aspect ratio: smallest dim is 640
     h, w = img.shape[:2]
@@ -606,7 +610,8 @@ if __name__ == "__main__":
 
     # Initialize New Comet Experiment
     exp = Experiment(project_name="omnigan-masker-metrics", display_summary_level=0)
-
+    if args.tags:
+        exp.add_tags(args.tags)
     # Compare models
     if args.load_metrics or args.write_metrics:
 
