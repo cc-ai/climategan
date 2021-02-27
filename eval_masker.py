@@ -670,7 +670,9 @@ if __name__ == "__main__":
             for k, f in filters.items():
                 fig_filename = plot_dir / f"clustermap_{metric}_{k}.png"
                 df_mf = df.loc[df.idx.isin(f)].pivot('idx', 'model', metric)
-                clustermap_metric(output_filename=filename, df=df_mf, metric='average', metric='euclidean', row_cluster=False)
+                clustermap_metric(output_filename=fig_filename, df=df_mf, metric=metric,
+                        dict_metrics=dict_metrics["names"],
+                        method='average', cluster_metric='euclidean', row_cluster=False)
                 exp.log_image(fig_filename)
 
     # Close comet
