@@ -28,6 +28,7 @@ from omnigan.eval_metrics import (
     get_confusion_matrix,
     edges_coherence_std_min,
     boxplot_metric,
+    clustermap_metric,
 )
 from omnigan.transforms import PrepareTest
 from omnigan.trainer import Trainer
@@ -404,9 +405,6 @@ if __name__ == "__main__":
         print("=" * 50)
         print("=" * 50)
 
-        # Initialize New Comet Experiment
-        exp = Experiment(project_name="omnigan-masker-metrics", display_summary_level=0)
-
         model_metrics_path = Path(eval_path) / "eval-metrics"
         if args.load_metrics:
             f_csv = model_metrics_path / "eval_masker.csv"
@@ -420,6 +418,9 @@ if __name__ == "__main__":
                 continue
         if args.write_metrics:
             model_metrics_path.mkdir(exist_ok=True)
+
+        # Initialize New Comet Experiment
+        exp = Experiment(project_name="omnigan-masker-metrics", display_summary_level=0)
 
         # Obtain mask predictions
         # TODO: remove (debug)
@@ -641,14 +642,14 @@ if __name__ == "__main__":
         filters = {"all": df.idx.unique(), "not_good_in_any": idx_not_good_in_any}
 
         # Boxplots of metrics
-        for m in dict_metrics["names"].keys():
+        for metric in dict_metrics["names"].keys():
             for k, f in filters.items():
-                fig_filename = plot_dir / f"boxplot_{m}_{k}.png"
-                if m in ["mnr", "mpr", "accuracy_must_may"]:
+                fig_filename = plot_dir / f"boxplot_{metric}_{k}.png"
+                if metric in ["mnr", "mpr", "accuracy_must_may"]:
                     boxplot_metric(
                         fig_filename,
                         df.loc[df.idx.isin(f)],
-                        metric=m,
+                        metric=metric,
                         dict_metrics=dict_metrics["names"],
                         do_stripplot=True,
                         order=list(df.model.unique()),
@@ -657,7 +658,7 @@ if __name__ == "__main__":
                     boxplot_metric(
                         fig_filename,
                         df.loc[df.idx.isin(f)],
-                        metric=m,
+                        metric=metric,
                         dict_metrics=dict_metrics["names"],
                         fliersize=1.0,
                         order=list(df.model.unique()),
@@ -665,28 +666,12 @@ if __name__ == "__main__":
                 exp.log_image(fig_filename)
 
         # Cluster Maps
-        n_models = len(df.model.unique())
-        metrics_ext = {metric: metric for metric in dict_metrics["names"].keys()}
-        metrics_ext.update({"comb": dict_metrics["key_metrics"]})
-        dict_distances_mat = {
-            metric: np.zeros([n_models, n_models]) for metric in metrics_ext.keys()
-        }
-        for metric_key, metric in metrics_ext.items():
-            for idx_i, m_i in enumerate(df.model.unique()):
-                for idx_j, m_j in enumerate(df.model.unique()):
-                    for k, f in filters.items():
-                        v_m_i = (
-                            df.loc[(df.model == m_i) & df.idx.isin(f)]
-                            .sort_values(by="idx")[metric]
-                            .values
-                        )
-                        v_m_j = (
-                            df.loc[(df.model == m_j) & df.idx.isin(f)]
-                            .sort_values(by="idx")[metric]
-                            .values
-                        )
-                        dist = np.mean(np.square(v_m_i - v_m_j))
-                        dict_distances_mat[metric_key][idx_i, idx_j] = dist
+        for metric in dict_metrics['names'].keys():
+            for k, f in filters.items():
+                fig_filename = plot_dir / f"clustermap_{metric}_{k}.png"
+                df_mf = df.loc[df.idx.isin(f)].pivot('idx', 'model', metric)
+                clustermap_metric(output_filename=filename, df=df_mf, metric='average', metric='euclidean', row_cluster=False)
+                exp.log_image(fig_filename)
 
     # Close comet
     exp.end()

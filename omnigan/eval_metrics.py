@@ -588,3 +588,45 @@ def boxplot_metric(
         transparent=False,
     )
     plt.close(f)
+
+
+def clustermap_metric(
+    output_filename,
+    df,
+    metric,
+    dict_metrics,
+    method="average",
+    metric="euclidean",
+    dict_models=None,
+    dpi=300,
+    **snskwargs
+):
+    f = plt.figure(dpi=dpi)
+
+    ax_grid = sns.clustermap(data=df, method=method, metric=metric, **snskwargs)
+    ax_heatmap = ax_grid.ax_heatmap
+    ax_cbar = ax_grid.ax_cbar
+
+    # Set axes labels
+    ax_heatmap.set_xlabel("Models", rotation=0, fontsize="medium")
+    ax_heatmap.set_ylabel("Images", rotation=90, fontsize="medium")
+
+    # X-Tick labels
+    if dict_models:
+        xticklabels = [dict_models[t.get_text()] for t in ax_heatmap.get_xticklabels()]
+        ax_heatmap.set_xticklabels(
+            xticklabels,
+            rotation=20,
+            verticalalignment="top",
+            horizontalalignment="right",
+            fontsize="small",
+        )
+
+    f.savefig(
+        output_filename,
+        dpi=f.dpi,
+        bbox_inches="tight",
+        facecolor="white",
+        transparent=False,
+    )
+    plt.close(f)
