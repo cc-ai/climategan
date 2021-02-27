@@ -609,11 +609,11 @@ if __name__ == "__main__":
         # -----  END OF MODElS LOOP  -----
         # --------------------------------
 
-    # Initialize New Comet Experiment
-    exp = Experiment(project_name="omnigan-masker-metrics", display_summary_level=0)
-
     # Compare models
-    if args.load_metrics or args.write_metrics:
+    if (args.load_metrics or args.write_metrics) and len(evaluations) > 1:
+
+        # Initialize New Comet Experiment
+        exp = Experiment(project_name="omnigan-masker-metrics", display_summary_level=0)
 
         # Build DataFrame with all models
         models_df = {}
@@ -631,6 +631,7 @@ if __name__ == "__main__":
         for idx in df.idx.unique():
             df_th = df.loc[
                 (
+                    # TODO: rethink thresholds
                     (df.tpr <= dict_metrics["threshold"]["tpr"])
                     | (df.fpr >= dict_metrics["threshold"]["fpr"])
                     | (df.edge_coherence >= dict_metrics["threshold"]["edge_coherence"])
