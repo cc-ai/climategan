@@ -1,8 +1,9 @@
 """Define ExtraAdam and schedulers
 """
-import torch
 import math
-from torch.optim import Optimizer, Adam, lr_scheduler, RMSprop
+
+import torch
+from torch.optim import Adam, Optimizer, RMSprop, lr_scheduler
 from torch_optimizer import NovoGrad, RAdam
 
 
@@ -281,9 +282,9 @@ class ExtraAdam(Extragradient):
         exp_avg_sq.mul_(beta2).addcmul_(1 - beta2, grad, grad)
         if amsgrad:
             # Maintains the maximum of all 2nd moment running avg. till now
-            torch.max(max_exp_avg_sq, exp_avg_sq, out=max_exp_avg_sq)
+            torch.max(max_exp_avg_sq, exp_avg_sq, out=max_exp_avg_sq)  # type: ignore
             # Use the max. for normalizing running avg. of gradient
-            denom = max_exp_avg_sq.sqrt().add_(group["eps"])
+            denom = max_exp_avg_sq.sqrt().add_(group["eps"])  # type: ignore
         else:
             denom = exp_avg_sq.sqrt().add_(group["eps"])
 

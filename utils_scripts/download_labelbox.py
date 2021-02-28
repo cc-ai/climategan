@@ -30,7 +30,7 @@ if __name__ == "__main__":
 
             # create verbose label -> "cannotflood", "mustflood"
             label = obj["value"].replace("_", "")
-            # unique polygon mask finlename
+            # unique polygon mask filename
             m_path = m_out / f"{stem}_{label}_{o}.png"
             # download address for curl
             uri = obj["instanceURI"]

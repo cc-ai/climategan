@@ -1,20 +1,22 @@
 """Tensor-utils
 """
-from pathlib import Path
 import io
+import math
 from contextlib import redirect_stdout
+from pathlib import Path
 
 # from copy import copy
 from threading import Thread
-from torch import autograd
+
 import numpy as np
 import torch
-from torch.autograd import Variable
-from skimage import io as skio
-from torch.nn import init
 import torch.nn as nn
+from skimage import io as skio
+from torch import autograd
+from torch.autograd import Variable
+from torch.nn import init
+
 from omnigan.utils import all_texts_to_array
-import math
 
 
 def transforms_string(ts):
@@ -471,7 +473,7 @@ def divide_pred(disc_output):
 def is_tpu_available():
     _torch_tpu_available = False
     try:
-        import torch_xla.core.xla_model as xm  # noqa: F401
+        import torch_xla.core.xla_model as xm  # type: ignore
 
         if "xla" in str(xm.xla_device()):
             _torch_tpu_available = True

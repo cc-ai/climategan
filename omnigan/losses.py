@@ -1,11 +1,12 @@
 """Define all losses. When possible, as inheriting from nn.Module
 To send predictions to target.device
 """
+from random import random as rand
+
 import numpy as np
 import torch
-import torch.nn.functional as F
 import torch.nn as nn
-from random import random as rand
+import torch.nn.functional as F
 from torchvision import models
 
 
