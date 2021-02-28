@@ -1326,7 +1326,7 @@ class Trainer:
                 loss = self.masker_c_loss(z, batch["domain"])
                 m_loss += loss
                 self.logger.losses.gen.classifier[domain] = loss.item()
-                  
+
             # --------------------------------------
             # -----  task-specific losses (2)  -----
             # --------------------------------------
@@ -1362,7 +1362,7 @@ class Trainer:
                             s_pred = s_pred.clone()
                         cond = self.G.make_m_cond(d_pred, s_pred, x)
 
-                    loss, _ = self.masker_m_loss(
+                    loss_m, _ = self.masker_m_loss(
                         x,
                         z,
                         target,
@@ -1372,8 +1372,8 @@ class Trainer:
                         z_depth=z_depth,
                         depth_preds=d_pred,
                     )
-                    m_loss += loss
-                    self.logger.losses.gen.task["m"][domain] = loss.item()
+                    m_loss += loss_m
+                    self.logger.losses.gen.task["m"][domain] = loss_m.item()
                     losses.append(loss_m)
 
                 if (
@@ -1384,7 +1384,7 @@ class Trainer:
                 elif (
                     "mt" in self.opts.tasks and self.opts.gen.multi_task.method == "DWA"
                 ):
-                # reference code: https://github.com/lorenmt/mtan/blob/master/im2im_pred/utils.py
+                    # reference code: https://github.com/lorenmt/mtan/blob/master/im2im_pred/utils.py
                     if self.logger.epoch == 0 or self.logger.epoch == 1:
                         self.lambda_weight[:, self.logger.epoch] = 1.0
                     else:
