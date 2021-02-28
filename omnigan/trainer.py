@@ -1326,10 +1326,11 @@ class Trainer:
                 loss = self.masker_c_loss(z, batch["domain"])
                 m_loss += loss
                 self.logger.losses.gen.classifier[domain] = loss.item()
-
+                  
             # --------------------------------------
             # -----  task-specific losses (2)  -----
             # --------------------------------------
+            losses = []
             d_pred = s_pred = z_depth = None
             for task in ["d", "s", "m"]:
                 if task not in batch["data"]:
