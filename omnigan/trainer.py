@@ -1383,6 +1383,7 @@ class Trainer:
                 elif (
                     "mt" in self.opts.tasks and self.opts.gen.multi_task.method == "DWA"
                 ):
+                # reference code: https://github.com/lorenmt/mtan/blob/master/im2im_pred/utils.py
                     if self.logger.epoch == 0 or self.logger.epoch == 1:
                         self.lambda_weight[:, self.logger.epoch] = 1.0
                     else:
