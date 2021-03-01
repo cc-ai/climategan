@@ -587,6 +587,7 @@ def boxplot_metric(
         facecolor="white",
         transparent=False,
     )
+    f.clear()
     plt.close(f)
 
 
@@ -632,4 +633,5 @@ def clustermap_metric(
         facecolor="white",
         transparent=False,
     )
+    f.clear()
     plt.close(f)
