@@ -602,8 +602,6 @@ def clustermap_metric(
     dpi=300,
     **snskwargs
 ):
-    f = plt.figure(dpi=dpi)
-
     ax_grid = sns.clustermap(data=df, method=method, metric=cluster_metric, **snskwargs)
     ax_heatmap = ax_grid.ax_heatmap
     ax_cbar = ax_grid.ax_cbar
@@ -613,7 +611,7 @@ def clustermap_metric(
     ax_heatmap.set_ylabel("Images", rotation=90, fontsize="medium")
 
     # Set title
-    ax_heatmap.set_title(dict_metrics[metric], rotation=0, fontsize="medium")
+    ax_cbar.set_title(dict_metrics[metric], rotation=0, fontsize="x-large")
 
     # X-Tick labels
     if dict_models:
@@ -626,12 +624,12 @@ def clustermap_metric(
             fontsize="small",
         )
 
-    f.savefig(
+    ax_grid.fig.savefig(
         output_filename,
-        dpi=f.dpi,
+        dpi=dpi,
         bbox_inches="tight",
         facecolor="white",
         transparent=False,
     )
-    f.clear()
-    plt.close(f)
+    ax_grid.fig.clear()
+    plt.close(ax_grid.fig)
