@@ -604,7 +604,6 @@ def clustermap_metric(
 ):
     f = plt.figure(dpi=dpi)
 
-    import ipdb; ipdb.set_trace()
     ax_grid = sns.clustermap(data=df, method=method, metric=cluster_metric, **snskwargs)
     ax_heatmap = ax_grid.ax_heatmap
     ax_cbar = ax_grid.ax_cbar
