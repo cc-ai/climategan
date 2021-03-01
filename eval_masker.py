@@ -610,6 +610,7 @@ if __name__ == "__main__":
 
     # Compare models
     if (args.load_metrics or args.write_metrics) and len(evaluations) > 1:
+        print("Plots for comparing the input models will be created and logged to comet")
 
         # Initialize New Comet Experiment
         exp = Experiment(project_name="omnigan-masker-metrics", display_summary_level=0)
@@ -617,6 +618,7 @@ if __name__ == "__main__":
             exp.add_tags(args.tags)
 
         # Build DataFrame with all models
+        print("Building pandas DataFrame...")
         models_df = {}
         for model_path in evaluations:
             model_path = Path(model_path)
@@ -626,8 +628,10 @@ if __name__ == "__main__":
             df_m["model"] = [model_path.name] * len(df_m)
             models_df.update({model_path.name: df_m})
         df = pd.concat(list(models_df.values()), ignore_index=True)
+        print("Done")
 
         # Determine images with low metrics in any model
+        print("Constructing filter based on metrics thresholds...")
         idx_not_good_in_any = []
         for idx in df.idx.unique():
             df_th = df.loc[
@@ -642,10 +646,13 @@ if __name__ == "__main__":
             if len(df_th) > 0:
                 idx_not_good_in_any.append(idx)
         filters = {"all": df.idx.unique(), "not_good_in_any": idx_not_good_in_any}
+        print("Done")
 
         # Boxplots of metrics
+        print("Plotting boxplots of metrics...")
         for metric in dict_metrics["names"].keys():
             for k, f in filters.items():
+                print(f"\tDistribution of [{k}] images...")
                 fig_filename = plot_dir / f"boxplot_{metric}_{k}.png"
                 if metric in ["mnr", "mpr", "accuracy_must_may"]:
                     boxplot_metric(
@@ -666,10 +673,13 @@ if __name__ == "__main__":
                         order=list(df.model.unique()),
                     )
                 exp.log_image(fig_filename)
+        print("Done")
 
         # Cluster Maps
+        print("Plotting boxplots of metrics...")
         for metric in dict_metrics["names"].keys():
             for k, f in filters.items():
+                print(f"\tDistribution of [{k}] images...")
                 fig_filename = plot_dir / f"clustermap_{metric}_{k}.png"
                 df_mf = df.loc[df.idx.isin(f)].pivot("idx", "model", metric)
                 clustermap_metric(
@@ -682,6 +692,7 @@ if __name__ == "__main__":
                     row_cluster=False,
                 )
                 exp.log_image(fig_filename)
+        print("Done")
 
         # Close comet
         exp.end()
