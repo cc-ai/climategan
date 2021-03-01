@@ -676,7 +676,7 @@ if __name__ == "__main__":
         print("Done")
 
         # Cluster Maps
-        print("Plotting boxplots of metrics...")
+        print("Plotting clustermaps...")
         for k, f in filters.items():
             print(f"\tDistribution of [{k}] images...")
             for metric in dict_metrics["names"].keys():
