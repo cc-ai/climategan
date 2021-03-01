@@ -650,9 +650,9 @@ if __name__ == "__main__":
 
         # Boxplots of metrics
         print("Plotting boxplots of metrics...")
-        for metric in dict_metrics["names"].keys():
-            for k, f in filters.items():
-                print(f"\tDistribution of [{k}] images...")
+        for k, f in filters.items():
+            print(f"\tDistribution of [{k}] images...")
+            for metric in dict_metrics["names"].keys():
                 fig_filename = plot_dir / f"boxplot_{metric}_{k}.png"
                 if metric in ["mnr", "mpr", "accuracy_must_may"]:
                     boxplot_metric(
@@ -677,9 +677,9 @@ if __name__ == "__main__":
 
         # Cluster Maps
         print("Plotting boxplots of metrics...")
-        for metric in dict_metrics["names"].keys():
-            for k, f in filters.items():
-                print(f"\tDistribution of [{k}] images...")
+        for k, f in filters.items():
+            print(f"\tDistribution of [{k}] images...")
+            for metric in dict_metrics["names"].keys():
                 fig_filename = plot_dir / f"clustermap_{metric}_{k}.png"
                 df_mf = df.loc[df.idx.isin(f)].pivot("idx", "model", metric)
                 clustermap_metric(
