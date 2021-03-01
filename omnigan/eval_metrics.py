@@ -225,7 +225,7 @@ def masker_classification_metrics(
     assert np.isclose(tnr, 1.0 - fpr), "TNR: {:.4f}, FPR: {:.4f}".format(tnr, fpr)
     assert np.isclose(mpr, 1.0 - mnr), "MPR: {:.4f}, MNR: {:.4f}".format(mpr, mnr)
 
-    precision = np.sum(tp_map) / (np.sum(tp_map) + np.sum(fp_map))
+    precision = np.sum(tp_map) / (np.sum(tp_map) + np.sum(fp_map) + 1e-9)
     beta = 0.5
     f05 = ((1 + beta ** 2) * precision * tpr) / (beta ** 2 * precision + tpr)
     accuracy_must_may = (np.sum(tp_map) + np.sum(may_neg_map)) / (
@@ -604,6 +604,7 @@ def clustermap_metric(
 ):
     f = plt.figure(dpi=dpi)
 
+    import ipdb; ipdb.set_trace()
     ax_grid = sns.clustermap(data=df, method=method, metric=cluster_metric, **snskwargs)
     ax_heatmap = ax_grid.ax_heatmap
     ax_cbar = ax_grid.ax_cbar
