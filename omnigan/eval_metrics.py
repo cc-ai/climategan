@@ -612,7 +612,7 @@ def clustermap_metric(
     ax_heatmap.set_ylabel("Images", rotation=90, fontsize="medium")
 
     # Set title
-    ax.set_title(dict_metrics[metric], rotation=0, fontsize="medium")
+    ax_grid.set_title(dict_metrics[metric], rotation=0, fontsize="medium")
 
     # X-Tick labels
     if dict_models:
