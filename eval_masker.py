@@ -641,14 +641,12 @@ if __name__ == "__main__":
             df_m = pd.read_csv(
                 model_path / "eval-metrics" / "eval_masker.csv", index_col=False
             )
-            df_m["model_id"] = [model_id] * len(df_m)
-            models_df.update({model_id: df_m})
+            df_m["model"] = [model_id] * len(df_m)
             df_m["model_idx"] = [m] * len(df_m)
-            models_df.update({m: df_m})
             df_m["model_feats"] = [model_feats] * len(df_m)
-            models_df.update({model_feats: df_m})
+            models_df.update({model_id: df_m})
         df = pd.concat(list(models_df.values()), ignore_index=True)
-        import ipdb; ipdb.set_trace()
+        dict_models_labels = {k: f"{v['model_idx'][0]}: {v['model_feats'][0]}" for k, v in models_df.items()}
         print("Done")
 
         # Determine images with low metrics in any model
@@ -662,7 +660,7 @@ if __name__ == "__main__":
                     | (df.fpr >= dict_metrics["threshold"]["fpr"])
                     | (df.edge_coherence >= dict_metrics["threshold"]["edge_coherence"])
                 )
-                & ((df.idx == idx) & (df.model_id.isin(df.model_id.unique())))
+                & ((df.idx == idx) & (df.model.isin(df.model.unique())))
             ]
             if len(df_th) > 0:
                 idx_not_good_in_any.append(idx)
@@ -682,7 +680,8 @@ if __name__ == "__main__":
                         metric=metric,
                         dict_metrics=dict_metrics["names"],
                         do_stripplot=True,
-                        order=list(df.model_id.unique()),
+                        dict_models=dict_models_labels,
+                        order=list(df.model.unique()),
                     )
                 else:
                     boxplot_metric(
@@ -690,8 +689,9 @@ if __name__ == "__main__":
                         df.loc[df.idx.isin(f)],
                         metric=metric,
                         dict_metrics=dict_metrics["names"],
+                        dict_models=dict_models_labels,
                         fliersize=1.0,
-                        order=list(df.model_id.unique()),
+                        order=list(df.model.unique()),
                     )
                 exp.log_image(fig_filename)
         print("Done")
@@ -702,7 +702,7 @@ if __name__ == "__main__":
             print(f"\tDistribution of [{k}] images...")
             for metric in dict_metrics["names"].keys():
                 fig_filename = plot_dir / f"clustermap_{metric}_{k}.png"
-                df_mf = df.loc[df.idx.isin(f)].pivot("idx", "model_id", metric)
+                df_mf = df.loc[df.idx.isin(f)].pivot("idx", "model", metric)
                 clustermap_metric(
                     output_filename=fig_filename,
                     df=df_mf,
@@ -710,6 +710,7 @@ if __name__ == "__main__":
                     dict_metrics=dict_metrics["names"],
                     method="average",
                     cluster_metric="euclidean",
+                    dict_models=dict_models_labels,
                     row_cluster=False,
                 )
                 exp.log_image(fig_filename)
