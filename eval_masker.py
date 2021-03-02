@@ -415,11 +415,7 @@ if __name__ == "__main__":
             f_csv = model_metrics_path / "eval_masker.csv"
             pred_out = model_metrics_path / "pred"
             if f_csv.exists() and pred_out.exists():
-                print(
-                    "Skipping model because pre-computed metrics exist",
-                    end="",
-                    flush=True,
-                )
+                print("Skipping model because pre-computed metrics exist")
                 continue
 
         # Initialize New Comet Experiment
@@ -626,7 +622,7 @@ if __name__ == "__main__":
         # Build DataFrame with all models
         print("Building pandas DataFrame...")
         models_df = {}
-        for (m, model_path) in evaluations:
+        for (m, model_path) in enumerate(evaluations):
             model_path = Path(model_path)
             with open(model_path / "opts.yaml", "r") as f:
                 opt = yaml.safe_load(f)
@@ -651,6 +647,7 @@ if __name__ == "__main__":
             df_m["name"] = [human_name] * len(df_m)
             models_df.update({human_name: df_m})
         df = pd.concat(list(models_df.values()), ignore_index=True)
+        import ipdb; ipdb.set_trace()
         print("Done")
 
         # Determine images with low metrics in any model
