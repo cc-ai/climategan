@@ -355,8 +355,13 @@ if __name__ == "__main__":
     plot_dir.mkdir(parents=True, exist_ok=True)
 
     # Build paths to data
-    imgs_paths = sorted(find_images(args.images_dir, recursive=False))
-    labels_paths = sorted(find_images(args.labels_dir, recursive=False))
+    imgs_paths = sorted(
+        find_images(args.images_dir, recursive=False), key=lambda x: x.name
+    )
+    labels_paths = sorted(
+        find_images(args.labels_dir, recursive=False),
+        key=lambda x: x.name.replace("_labeled.", "."),
+    )
     if args.max_files > 0:
         imgs_paths = imgs_paths[: args.max_files]
         labels_paths = labels_paths[: args.max_files]
