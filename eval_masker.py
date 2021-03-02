@@ -622,16 +622,21 @@ if __name__ == "__main__":
         # Build DataFrame with all models
         print("Building pandas DataFrame...")
         models_df = {}
-        for model_path in evaluations:
+        for (m, model_path) in evaluations:
             model_path = Path(model_path)
             with open(model_path / "opts.yaml", "r") as f:
                 opt = yaml.safe_load(f)
-            human_name = ", ".join(
-                [
-                    t
-                    for t in sorted(opt["comet"]["tags"])
-                    if "branch" not in t and "ablation" not in t and "trash" not in t
-                ]
+            human_name = (
+                ", ".join(
+                    [
+                        t
+                        for t in sorted(opt["comet"]["tags"])
+                        if "branch" not in t
+                        and "ablation" not in t
+                        and "trash" not in t
+                    ]
+                )
+                + f" ({m})"
             )
             model_name = f"{model_path.parent.name[-2:]}/{model_path.name}"
             df_m = pd.read_csv(
