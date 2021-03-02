@@ -146,6 +146,12 @@ def parsed_args():
         default=False,
         help="If True, pre-process images as torch tensors",
     )
+    parser.add_argument(
+        "--output_csv",
+        default=None,
+        type=str,
+        help="Filename of the output CSV with the metrics of all models",
+    )
 
     return parser.parse_args()
 
@@ -646,8 +652,13 @@ if __name__ == "__main__":
             df_m["model_feats"] = [model_feats] * len(df_m)
             models_df.update({model_id: df_m})
         df = pd.concat(list(models_df.values()), ignore_index=True)
+        df["model_idx"] = df.model.astype(str) + "-" + df.idx.astype(str)
         dict_models_labels = {k: f"{v['model_idx'][0]}: {v['model_feats'][0]}" for k, v in models_df.items()}
         print("Done")
+
+        if args.output_csv:
+            print(f"Writing DataFrame to {args.output_csv}")
+            df.to_csv(args.output_csv, index_label="model_idx")
 
         # Determine images with low metrics in any model
         print("Constructing filter based on metrics thresholds...")
