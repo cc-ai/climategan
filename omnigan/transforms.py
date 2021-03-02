@@ -302,7 +302,7 @@ class PrepareInference:
                 raise ValueError(
                     f"Received a target_size of {target_size}, which is not a "
                     + "multiple of 2^7 = 128. Set enforce_128 to False to disable "
-                    + "this error"
+                    + "this error."
                 )
         self.resize = Resize(target_size, keep_aspect_ratio=True)
         self.crop = RandomCrop((target_size, target_size), center=True)
