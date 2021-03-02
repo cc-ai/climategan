@@ -405,6 +405,7 @@ if __name__ == "__main__":
         print("=" * 50)
 
         model_metrics_path = Path(eval_path) / "eval-metrics"
+        model_metrics_path.mkdir(exist_ok=True)
         if args.load_metrics:
             f_csv = model_metrics_path / "eval_masker.csv"
             pred_out = model_metrics_path / "pred"
@@ -415,8 +416,6 @@ if __name__ == "__main__":
                     flush=True,
                 )
                 continue
-        if args.write_metrics:
-            model_metrics_path.mkdir(exist_ok=True)
 
         # Initialize New Comet Experiment
         exp = Experiment(project_name="omnigan-masker-metrics", display_summary_level=0)
