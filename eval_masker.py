@@ -644,7 +644,7 @@ if __name__ == "__main__":
             df_m["model_id"] = [model_id] * len(df_m)
             models_df.update({model_id: df_m})
             df_m["model_idx"] = [m] * len(df_m)
-            models_df.update({model_idx: df_m})
+            models_df.update({m: df_m})
             df_m["model_feats"] = [model_feats] * len(df_m)
             models_df.update({model_feats: df_m})
         df = pd.concat(list(models_df.values()), ignore_index=True)
