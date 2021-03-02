@@ -599,7 +599,7 @@ if __name__ == "__main__":
         exp.add_tag("eval_masker")
         if args.tags:
             exp.add_tags(args.tags)
-        exp.log_parameter("model_name", Path(eval_path).name)
+        exp.log_parameter("model_id", Path(eval_path).name)
 
         # Close comet
         exp.end()
@@ -626,7 +626,7 @@ if __name__ == "__main__":
             model_path = Path(model_path)
             with open(model_path / "opts.yaml", "r") as f:
                 opt = yaml.safe_load(f)
-            human_name = (
+            model_feats = (
                 ", ".join(
                     [
                         t
@@ -636,16 +636,17 @@ if __name__ == "__main__":
                         and "trash" not in t
                     ]
                 )
-                + f" ({m})"
             )
-            model_name = f"{model_path.parent.name[-2:]}/{model_path.name}"
+            model_id = f"{model_path.parent.name[-2:]}/{model_path.name}"
             df_m = pd.read_csv(
                 model_path / "eval-metrics" / "eval_masker.csv", index_col=False
             )
-            df_m["model"] = [model_name] * len(df_m)
-            models_df.update({model_name: df_m})
-            df_m["name"] = [human_name] * len(df_m)
-            models_df.update({human_name: df_m})
+            df_m["model_id"] = [model_id] * len(df_m)
+            models_df.update({model_id: df_m})
+            df_m["model_idx"] = [m] * len(df_m)
+            models_df.update({model_idx: df_m})
+            df_m["model_feats"] = [model_feats] * len(df_m)
+            models_df.update({model_feats: df_m})
         df = pd.concat(list(models_df.values()), ignore_index=True)
         import ipdb; ipdb.set_trace()
         print("Done")
@@ -661,7 +662,7 @@ if __name__ == "__main__":
                     | (df.fpr >= dict_metrics["threshold"]["fpr"])
                     | (df.edge_coherence >= dict_metrics["threshold"]["edge_coherence"])
                 )
-                & ((df.idx == idx) & (df.model.isin(df.model.unique())))
+                & ((df.idx == idx) & (df.model_id.isin(df.model_id.unique())))
             ]
             if len(df_th) > 0:
                 idx_not_good_in_any.append(idx)
@@ -681,7 +682,7 @@ if __name__ == "__main__":
                         metric=metric,
                         dict_metrics=dict_metrics["names"],
                         do_stripplot=True,
-                        order=list(df.model.unique()),
+                        order=list(df.model_id.unique()),
                     )
                 else:
                     boxplot_metric(
@@ -690,7 +691,7 @@ if __name__ == "__main__":
                         metric=metric,
                         dict_metrics=dict_metrics["names"],
                         fliersize=1.0,
-                        order=list(df.model.unique()),
+                        order=list(df.model_id.unique()),
                     )
                 exp.log_image(fig_filename)
         print("Done")
@@ -701,7 +702,7 @@ if __name__ == "__main__":
             print(f"\tDistribution of [{k}] images...")
             for metric in dict_metrics["names"].keys():
                 fig_filename = plot_dir / f"clustermap_{metric}_{k}.png"
-                df_mf = df.loc[df.idx.isin(f)].pivot("idx", "model", metric)
+                df_mf = df.loc[df.idx.isin(f)].pivot("idx", "model_id", metric)
                 clustermap_metric(
                     output_filename=fig_filename,
                     df=df_mf,
