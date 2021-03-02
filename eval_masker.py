@@ -610,7 +610,9 @@ if __name__ == "__main__":
 
     # Compare models
     if (args.load_metrics or args.write_metrics) and len(evaluations) > 1:
-        print("Plots for comparing the input models will be created and logged to comet")
+        print(
+            "Plots for comparing the input models will be created and logged to comet"
+        )
 
         # Initialize New Comet Experiment
         exp = Experiment(project_name="omnigan-masker-metrics", display_summary_level=0)
@@ -622,11 +624,23 @@ if __name__ == "__main__":
         models_df = {}
         for model_path in evaluations:
             model_path = Path(model_path)
+            with open(model_path / "opts.yaml", "r") as f:
+                opt = yaml.safe_load(f)
+            human_name = ", ".join(
+                [
+                    t
+                    for t in sorted(opt["comet"]["tags"])
+                    if "branch" not in t and "ablation" not in t and "trash" not in t
+                ]
+            )
+            model_name = f"{model_path.parent.name[-2:]}/{model_path.name}"
             df_m = pd.read_csv(
                 model_path / "eval-metrics" / "eval_masker.csv", index_col=False
             )
-            df_m["model"] = [model_path.name] * len(df_m)
-            models_df.update({model_path.name: df_m})
+            df_m["model"] = [model_name] * len(df_m)
+            models_df.update({model_name: df_m})
+            df_m["name"] = [human_name] * len(df_m)
+            models_df.update({human_name: df_m})
         df = pd.concat(list(models_df.values()), ignore_index=True)
         print("Done")
 
