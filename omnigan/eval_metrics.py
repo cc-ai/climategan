@@ -227,7 +227,7 @@ def masker_classification_metrics(
 
     precision = np.sum(tp_map) / (np.sum(tp_map) + np.sum(fp_map) + 1e-9)
     beta = 0.5
-    f05 = ((1 + beta ** 2) * precision * tpr) / (beta ** 2 * precision + tpr)
+    f05 = ((1 + beta ** 2) * precision * tpr) / (beta ** 2 * precision + tpr + 1e-9)
     accuracy_must_may = (np.sum(tp_map) + np.sum(may_neg_map)) / (
         np.sum(label == labels_dict["must"]) + np.sum(label == labels_dict["may"])
     )
