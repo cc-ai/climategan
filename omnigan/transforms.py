@@ -120,7 +120,9 @@ class Resize:
         try:
             if not self.sizes:
                 d = {}
-                new_size = self.compute_new_default_size(data["x"])
+                new_size = self.compute_new_default_size(
+                    data["x"] if "x" in data else list(data.values())[0]
+                )
                 for task, tensor in data.items():
                     d[task] = F.interpolate(
                         tensor, size=new_size, **interpolation(task)
