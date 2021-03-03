@@ -209,7 +209,11 @@ def crop_and_resize(image_path, label_path):
     left = (W - 640) // 2
 
     rc_img = r_img[top : top + 640, left : left + 640, :]
-    rc_lab = r_lab[top : top + 640, left : left + 640, :]
+    rc_lab = (
+        r_lab[top : top + 640, left : left + 640, :]
+        if r_lab.ndim == 3
+        else r_lab[top : top + 640, left : left + 640]
+    )
 
     return rc_img, rc_lab
 
