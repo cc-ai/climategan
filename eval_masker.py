@@ -159,7 +159,6 @@ def parsed_args():
 def uint8(array):
     return array.astype(np.uint8)
 
-
 def crop_and_resize(image_path, label_path):
     """
     Resizes an image so that it keeps the aspect ratio and the smallest dimensions
@@ -319,8 +318,8 @@ def load_ground(ground_output_path, ref_image_path):
             + f" {list(map(str, ground_paths))}"
         )
 
-    ground_path = ground_paths[0]
-    ground = (imread(ground_path) > 0).astype(np.float32)
+    _, ground = crop_and_resize(rip, gop)
+    ground = (ground > 0).astype(np.float32)
     return torch.from_numpy(ground).unsqueeze(0).unsqueeze(0).cuda()
 
 
