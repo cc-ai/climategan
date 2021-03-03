@@ -161,7 +161,9 @@ class RandomCrop:
         self.center = center
 
     def __call__(self, data):
-        H, W = data["x"].size()[-2:]
+        H, W = (
+            data["x"].size()[-2:] if "x" in data else list(data.values())[0].size()[-2:]
+        )
 
         if not self.center:
             top = np.random.randint(0, H - self.h)
