@@ -354,6 +354,7 @@ def get_inferences(
 
     if is_ground:
         # we just care about he painter here
+        ground_path = model_path
         model_path = (
             "/miniscratch/_groups/ccai/experiments/runs/ablation-v1/out--38858350"
         )
@@ -373,7 +374,7 @@ def get_inferences(
         if not is_ground:
             m = trainer.G.mask(x=x)
         else:
-            m = load_ground(model_path, image_paths[idx])
+            m = load_ground(ground_path, image_paths[idx])
 
         masks.append(m.squeeze().cpu())
         if paint:
