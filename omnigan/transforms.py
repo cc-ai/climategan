@@ -330,7 +330,7 @@ class PrepareInference:
             t = normalize(t)
             t = (t - 0.5) * 2
 
-        t = {"m": t} if self.is_label else {"m": t}
+        t = {"m": t} if self.is_label else {"x": t}
         t = self.resize(t)
         t = self.crop(t)
         t = t["m"] if self.is_label else t["x"]
