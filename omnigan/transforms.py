@@ -17,7 +17,6 @@ from torchvision.transforms.functional import (
 )
 
 from omnigan.tutils import normalize
-from skimage.util import img_as_float
 
 
 def interpolation(task):
