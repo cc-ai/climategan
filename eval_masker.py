@@ -32,7 +32,7 @@ from omnigan.eval_metrics import (
 )
 from omnigan.transforms import PrepareTest
 from omnigan.trainer import Trainer
-from omnigan.utils import find_images, get_increased_path
+from omnigan.utils import find_images
 
 dict_metrics = {
     "names": {
@@ -79,7 +79,9 @@ def parsed_args():
     """
     parser = ArgumentParser()
     parser.add_argument(
-        "--model", type=str, help="Path to a pre-trained model",
+        "--model",
+        type=str,
+        help="Path to a pre-trained model",
     )
     parser.add_argument(
         "--images_dir",
@@ -100,7 +102,10 @@ def parsed_args():
         help="The height and weight of the pre-processed images",
     )
     parser.add_argument(
-        "--max_files", default=-1, type=int, help="Limit loaded samples",
+        "--max_files",
+        default=-1,
+        type=int,
+        help="Limit loaded samples",
     )
     parser.add_argument(
         "--bin_value", default=0.5, type=float, help="Mask binarization threshold"
@@ -209,7 +214,11 @@ def crop_and_resize(image_path, label_path):
     left = (W - 640) // 2
 
     rc_img = r_img[top : top + 640, left : left + 640, :]
-    rc_lab = r_lab[top : top + 640, left : left + 640, :]
+    rc_lab = (
+        r_lab[top : top + 640, left : left + 640, :]
+        if r_lab.ndim == 3
+        else r_lab[top : top + 640, left : left + 640]
+    )
 
     return rc_img, rc_lab
 
@@ -304,7 +313,31 @@ def plot_images(
     plt.close(f)
 
 
-def get_inferences(image_arrays, model_path, paint=False, bin_value=0.5, verbose=0):
+def load_ground(ground_output_path, ref_image_path):
+    gop = Path(ground_output_path)
+    rip = Path(ref_image_path)
+
+    ground_paths = list((gop / "eval-metrics" / "pred").glob(f"{rip.stem}.jpg")) + list(
+        (gop / "eval-metrics" / "pred").glob(f"{rip.stem}.png")
+    )
+    if len(ground_paths) == 0:
+        raise ValueError(
+            f"Could not find a ground match in {str(gop)} for image {str(rip)}"
+        )
+    elif len(ground_paths) > 1:
+        raise ValueError(
+            f"Found more than 1 ground match in {str(gop)} for image {str(rip)}:"
+            + f" {list(map(str, ground_paths))}"
+        )
+    ground_path = ground_paths[0]
+    _, ground = crop_and_resize(rip, ground_path)
+    ground = (ground > 0).astype(np.float32)
+    return torch.from_numpy(ground).unsqueeze(0).unsqueeze(0).cuda()
+
+
+def get_inferences(
+    image_arrays, model_path, image_paths, paint=False, bin_value=0.5, verbose=0
+):
     """
     Obtains the mask predictions of a model for a set of images
 
@@ -312,6 +345,9 @@ def get_inferences(image_arrays, model_path, paint=False, bin_value=0.5, verbose
     ----------
     image_arrays : array-like
         A list of (1, CH, H, W) images
+
+    image_paths: list(Path)
+        A list of paths for images, in the same order as image_arrays
 
     model_path : str
         The path to a pre-trained model
@@ -324,6 +360,16 @@ def get_inferences(image_arrays, model_path, paint=False, bin_value=0.5, verbose
     device = torch.device("cuda:0")
     torch.set_grad_enabled(False)
     to_tensor = ToTensor()
+
+    is_ground = "ground" in Path(model_path).name
+
+    if is_ground:
+        # we just care about he painter here
+        ground_path = model_path
+        model_path = (
+            "/miniscratch/_groups/ccai/experiments/runs/ablation-v1/out--38858350"
+        )
+
     xs = [to_tensor(array).unsqueeze(0) for array in image_arrays]
     xs = [x.to(torch.float32).to(device) for x in xs]
     xs = [(x - 0.5) * 2 for x in xs]
@@ -335,7 +381,12 @@ def get_inferences(image_arrays, model_path, paint=False, bin_value=0.5, verbose
     for idx, x in enumerate(xs):
         if verbose > 0:
             print(idx, "/", len(xs), end="\r")
-        m = trainer.G.mask(x=x)
+
+        if not is_ground:
+            m = trainer.G.mask(x=x)
+        else:
+            m = load_ground(ground_path, image_paths[idx])
+
         masks.append(m.squeeze().cpu())
         if paint:
             p = trainer.G.paint(m > bin_value, x)
@@ -434,6 +485,7 @@ if __name__ == "__main__":
         preds, painted = get_inferences(
             imgs,
             eval_path,
+            imgs_paths,
             paint=not args.no_paint,
             bin_value=args.bin_value,
             verbose=1,
@@ -632,16 +684,12 @@ if __name__ == "__main__":
             model_path = Path(model_path)
             with open(model_path / "opts.yaml", "r") as f:
                 opt = yaml.safe_load(f)
-            model_feats = (
-                ", ".join(
-                    [
-                        t
-                        for t in sorted(opt["comet"]["tags"])
-                        if "branch" not in t
-                        and "ablation" not in t
-                        and "trash" not in t
-                    ]
-                )
+            model_feats = ", ".join(
+                [
+                    t
+                    for t in sorted(opt["comet"]["tags"])
+                    if "branch" not in t and "ablation" not in t and "trash" not in t
+                ]
             )
             model_id = f"{model_path.parent.name[-2:]}/{model_path.name}"
             df_m = pd.read_csv(
@@ -653,7 +701,10 @@ if __name__ == "__main__":
             models_df.update({model_id: df_m})
         df = pd.concat(list(models_df.values()), ignore_index=True)
         df["model_img_idx"] = df.model.astype(str) + "-" + df.idx.astype(str)
-        dict_models_labels = {k: f"{v['model_idx'][0]}: {v['model_feats'][0]}" for k, v in models_df.items()}
+        dict_models_labels = {
+            k: f"{v['model_idx'][0]}: {v['model_feats'][0]}"
+            for k, v in models_df.items()
+        }
         print("Done")
 
         if args.output_csv:

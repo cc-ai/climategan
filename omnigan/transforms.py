@@ -17,7 +17,6 @@ from torchvision.transforms.functional import (
 )
 
 from omnigan.tutils import normalize
-from skimage.util import img_as_float
 
 
 def interpolation(task):
@@ -121,7 +120,9 @@ class Resize:
         try:
             if not self.sizes:
                 d = {}
-                new_size = self.compute_new_default_size(data["x"])
+                new_size = self.compute_new_default_size(
+                    data["x"] if "x" in data else list(data.values())[0]
+                )
                 for task, tensor in data.items():
                     d[task] = F.interpolate(
                         tensor, size=new_size, **interpolation(task)
@@ -160,7 +161,9 @@ class RandomCrop:
         self.center = center
 
     def __call__(self, data):
-        H, W = data["x"].size()[-2:]
+        H, W = (
+            data["x"].size()[-2:] if "x" in data else list(data.values())[0].size()[-2:]
+        )
 
         if not self.center:
             top = np.random.randint(0, H - self.h)
@@ -296,7 +299,7 @@ class PrepareInference:
       - rescale to -1:1
     """
 
-    def __init__(self, target_size=640, half=False, enforce_128=True):
+    def __init__(self, target_size=640, half=False, is_label=False, enforce_128=True):
         if enforce_128:
             if target_size % 2 ** 7 != 0:
                 raise ValueError(
@@ -307,6 +310,7 @@ class PrepareInference:
         self.resize = Resize(target_size, keep_aspect_ratio=True)
         self.crop = RandomCrop((target_size, target_size), center=True)
         self.half = half
+        self.is_label = is_label
 
     def process(self, t):
         if isinstance(t, (str, Path)):
@@ -317,21 +321,25 @@ class PrepareInference:
                 t = rgba2rgb(t)
 
             t = torch.from_numpy(t)
-            t = t.permute(2, 0, 1)
+            if t.ndim == 3:
+                t = t.permute(2, 0, 1)
 
-        if len(t.shape) == 3:
+        if t.ndim == 3:
             t = t.unsqueeze(0)
+        elif t.ndim == 2:
+            t = t.unsqueeze(0).unsqueeze(0)
 
-        t = t.to(torch.float32)
+        if not self.is_label:
+            t = t.to(torch.float32)
+            t = normalize(t)
+            t = (t - 0.5) * 2
 
-        t = normalize(t)
-        t = (t - 0.5) * 2
-        t = {"x": t}
+        t = {"m": t} if self.is_label else {"x": t}
         t = self.resize(t)
         t = self.crop(t)
-        t = t["x"]
+        t = t["m"] if self.is_label else t["x"]
 
-        if self.half:
+        if self.half and not self.is_label:
             t = t.half()
 
         return t
