@@ -312,7 +312,9 @@ def load_ground(ground_output_path, ref_image_path):
     gop = Path(ground_output_path)
     rip = Path(ref_image_path)
 
-    ground_paths = list((gop / "eval-metrics" / "pred").glob(f"{rip.stem}*"))
+    ground_paths = list((gop / "eval-metrics" / "pred").glob(f"{rip.stem}.jpg")) + list(
+        (gop / "eval-metrics" / "pred").glob(f"{rip.stem}.png")
+    )
     if len(ground_paths) == 0:
         raise ValueError(
             f"Could not find a ground match in {str(gop)} for image {str(rip)}"
