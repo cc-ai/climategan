@@ -221,7 +221,9 @@ def concat_npy_for_model(data):
     assert "x" in data
     assert "p" in data
 
-    xpm = np.concatenate([data["x"], data["p"], (1 - data["m"]) * data["x"]], axis=1)
+    xpm = np.concatenate(
+        [data["x"], data["p"], (1 - gray2rgb(data["m"])) * data["x"]], axis=1
+    )
 
     if "d" in data:
         depth = gray2rgb(resize(data["d"], anti_aliasing=False, order=0))
