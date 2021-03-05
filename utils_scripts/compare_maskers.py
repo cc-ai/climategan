@@ -7,10 +7,10 @@ from skimage.color import gray2rgb
 import torch
 import sys
 import yaml
-from eval_masker import load_ground
 
 sys.path.append(str(Path(__file__).resolve().parent))
 
+from ... import eval_masker
 import omnigan
 
 
@@ -95,7 +95,7 @@ def get_or_load_inferences(
         if not is_ground:
             out = trainer.G.decode(x=x)
         else:
-            out = {"m": load_ground(GROUND_MODEL, im_paths[i])}
+            out = {"m": eval_masker.load_ground(GROUND_MODEL, im_paths[i])}
         out["p"] = trainer.G.paint(out["m"] > 0.5, x)
         out["x"] = x
         inference = {k: v.cpu() for k, v in out.items()}
