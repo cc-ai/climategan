@@ -304,7 +304,7 @@ if __name__ == "__main__":
     for i in range(len(xs)):
         all_models_for_image = []
         for name in names:
-            xpmds = concat_npy_for_model(np_outs[name])
+            xpmds = concat_npy_for_model(np_outs[name][i])
             all_models_for_image.append(xpmds)
         full_im = np.concatenate(all_models_for_image, axis=0)
         exp.log_image((full_im * 255).astype(np.uint8), name=im_paths[i], step=i)
