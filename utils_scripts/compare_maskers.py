@@ -147,7 +147,10 @@ def load_inferences(inf_path, im_paths):
         assert sorted([i.stem for i in im_paths]) == sorted(
             [i.stem for i in inf_path.glob("*.pt")]
         )
-        return [torch.load(str(i)) for i in inf_path.glob("*.pt")]
+        return [
+            print(i, end="\r", flush=True) or torch.load(str(i))
+            for i in inf_path.glob("*.pt")
+        ]
     except Exception as e:
         print()
         print(e)
@@ -161,6 +164,7 @@ def get_or_load_inferences(
 ):
     inf_path = Path(m_path) / "inferences"
     if try_load:
+        print("Trying to load existing inferences...", end="", flush=True)
         outputs = load_inferences(inf_path, im_paths)
         if outputs is not None:
             print("Successfully loaded existing inferences")
@@ -177,7 +181,7 @@ def get_or_load_inferences(
     outputs = []
     for i, x in enumerate(xs):
         x = x.to(trainer.device)
-        print(i, end=" | ")
+        print(i, end="\r", flush=True)
         if not is_ground:
             out = trainer.G.decode(x=x)
         else:
@@ -194,8 +198,8 @@ def get_or_load_inferences(
 
 def numpify(outputs):
     nps = []
+    print("Numpifying...", end="", flush=True)
     for k, o in enumerate(outputs):
-        print(k, end=" | ")
         x = (o["x"][0].permute(1, 2, 0).numpy() + 1) / 2
         m = o["m"]
         m = (m[0, 0, :, :].numpy() > 0).astype(np.float32)
@@ -208,7 +212,7 @@ def numpify(outputs):
             d = omnigan.tutils.normalize_tensor(o["d"]).numpy()
             data["d"] = d
         nps.append({k: img_as_ubyte(v) for k, v in data.items()})
-    print()
+    print("Done.")
     return nps
 
 
