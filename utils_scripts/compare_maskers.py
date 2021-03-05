@@ -9,7 +9,7 @@ import torch
 import sys
 import yaml
 
-sys.path.append(str(Path(__file__).resolve().parent))
+sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 import omnigan
 
