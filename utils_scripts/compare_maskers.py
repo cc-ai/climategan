@@ -226,13 +226,15 @@ def concat_npy_for_model(data):
     )
 
     if "d" in data:
-        depth = gray2rgb(resize(data["d"], anti_aliasing=False, order=0))
+        depth = gray2rgb(
+            resize(data["d"], data["x"].shape[:2], anti_aliasing=False, order=0)
+        )
     else:
         depth = np.ones_like(data["x"], dtype=np.float32)
     xpmd = np.concatenate([xpm, depth], axis=1)
 
     if "s" in data:
-        seg = resize(data["s"], anti_aliasing=False, order=0)
+        seg = resize(data["s"], data["x"].shape[:2]ƒ, anti_aliasing=False, order=0)
     else:
         seg = np.ones_like(data["x"], dtype=np.float32)
     xpmds = np.concatenate([xpmd, seg], axis=1)
