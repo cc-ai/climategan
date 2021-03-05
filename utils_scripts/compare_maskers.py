@@ -151,6 +151,7 @@ def load_inferences(inf_path, im_paths):
         print()
         print(e)
         print("Aborting Loading")
+        print()
         return None
 
 
@@ -159,7 +160,7 @@ def get_or_load_inferences(
 ):
     inf_path = Path(m_path) / "inferences"
     if try_load:
-        outputs = load_inferences(m_path, im_paths)
+        outputs = load_inferences(inf_path, im_paths)
         if outputs is not None:
             print("Successfully loaded existing inferences")
             return outputs
