@@ -79,7 +79,9 @@ def parsed_args():
     """
     parser = ArgumentParser()
     parser.add_argument(
-        "--model", type=str, help="Path to a pre-trained model",
+        "--model",
+        type=str,
+        help="Path to a pre-trained model",
     )
     parser.add_argument(
         "--images_dir",
@@ -100,7 +102,10 @@ def parsed_args():
         help="The height and weight of the pre-processed images",
     )
     parser.add_argument(
-        "--max_files", default=-1, type=int, help="Limit loaded samples",
+        "--max_files",
+        default=-1,
+        type=int,
+        help="Limit loaded samples",
     )
     parser.add_argument(
         "--bin_value", default=0.5, type=float, help="Mask binarization threshold"
@@ -695,7 +700,8 @@ if __name__ == "__main__":
             df_m["model_feats"] = [model_feats] * len(df_m)
             models_df.update({model_id: df_m})
         df = pd.concat(list(models_df.values()), ignore_index=True)
-        df["model_img"] = df.model.astype(str) + "-" + df.idx.astype(str)
+        df["model_img_idx"] = df.model.astype(str) + "-" + df.idx.astype(str)
+        df.rename(columns={'idx': 'img_idx'}, inplace=True)
         dict_models_labels = {
             k: f"{v['model_idx'][0]}: {v['model_feats'][0]}"
             for k, v in models_df.items()
@@ -704,12 +710,12 @@ if __name__ == "__main__":
 
         if args.output_csv:
             print(f"Writing DataFrame to {args.output_csv}")
-            df.to_csv(args.output_csv, index_label="model_img")
+            df.to_csv(args.output_csv, index_label="model_img_idx")
 
         # Determine images with low metrics in any model
         print("Constructing filter based on metrics thresholds...")
         idx_not_good_in_any = []
-        for idx in df.idx.unique():
+        for idx in df.img_idx.unique():
             df_th = df.loc[
                 (
                     # TODO: rethink thresholds
@@ -717,11 +723,11 @@ if __name__ == "__main__":
                     | (df.fpr >= dict_metrics["threshold"]["fpr"])
                     | (df.edge_coherence >= dict_metrics["threshold"]["edge_coherence"])
                 )
-                & ((df.idx == idx) & (df.model.isin(df.model.unique())))
+                & ((df.img_idx == idx) & (df.model.isin(df.model.unique())))
             ]
             if len(df_th) > 0:
                 idx_not_good_in_any.append(idx)
-        filters = {"all": df.idx.unique(), "not_good_in_any": idx_not_good_in_any}
+        filters = {"all": df.img_idx.unique(), "not_good_in_any": idx_not_good_in_any}
         print("Done")
 
         # Boxplots of metrics
@@ -733,7 +739,7 @@ if __name__ == "__main__":
                 if metric in ["mnr", "mpr", "accuracy_must_may"]:
                     boxplot_metric(
                         fig_filename,
-                        df.loc[df.idx.isin(f)],
+                        df.loc[df.img_idx.isin(f)],
                         metric=metric,
                         dict_metrics=dict_metrics["names"],
                         do_stripplot=True,
@@ -743,7 +749,7 @@ if __name__ == "__main__":
                 else:
                     boxplot_metric(
                         fig_filename,
-                        df.loc[df.idx.isin(f)],
+                        df.loc[df.img_idx.isin(f)],
                         metric=metric,
                         dict_metrics=dict_metrics["names"],
                         dict_models=dict_models_labels,
@@ -759,7 +765,7 @@ if __name__ == "__main__":
             print(f"\tDistribution of [{k}] images...")
             for metric in dict_metrics["names"].keys():
                 fig_filename = plot_dir / f"clustermap_{metric}_{k}.png"
-                df_mf = df.loc[df.idx.isin(f)].pivot("idx", "model", metric)
+                df_mf = df.loc[df.img_idx.isin(f)].pivot("img_idx", "model", metric)
                 clustermap_metric(
                     output_filename=fig_filename,
                     df=df_mf,
