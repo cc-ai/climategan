@@ -20,6 +20,15 @@ GROUND_MODEL = "/miniscratch/_groups/ccai/experiments/runs/ablation-v1/out--grou
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument("-y", "--yaml", help="Path to a list of models")
+    parser.add_argument(
+        "--disable_loading",
+        action="store_true",
+        default=False,
+        help="Disable loading of existing inferences",
+    )
+    parser.add_argument(
+        "-t", "--tags", nargs="*", help="Comet.ml tags", default=[], type=str
+    )
     args = parser.parse_args()
 
     print("Received args:")
@@ -141,10 +150,14 @@ def concat_npy_for_model(data):
 
 if __name__ == "__main__":
     args = parse_args()
+
     with open(args.yaml, "r") as f:
         maskers = yaml.safe_load(f)
     if "models" in maskers:
         maskers = maskers["models"]
+
+    load = not args.disable_loading
+    tags = args.tags
 
     ground_model = None
     for m in maskers:
@@ -159,7 +172,6 @@ if __name__ == "__main__":
     xs, ys, im_paths, lab_paths = load_images_and_labels()
 
     np_outs = {}
-
     names = []
 
     for m_path in maskers:
@@ -179,7 +191,6 @@ if __name__ == "__main__":
             if "--ground" not in m_path
             else "ground"
         )
-
         names.append(name)
 
         is_ground = name == "ground"
@@ -189,7 +200,7 @@ if __name__ == "__main__":
         print()
 
         outputs = get_or_load_inferences(
-            m_path, device, xs, is_ground, im_paths, ground_model, load=True
+            m_path, device, xs, is_ground, im_paths, ground_model, load
         )
         nps = numpify(outputs)
 
@@ -197,6 +208,8 @@ if __name__ == "__main__":
 
     exp = Experiment(project_name="omnigan-inferences", display_summary_level=0)
     exp.log_parameter("names", names)
+    exp.add_tags(tags)
+
     for i in range(len(xs)):
         all_models_for_image = []
         for name in names:
