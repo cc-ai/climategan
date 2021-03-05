@@ -4,6 +4,7 @@ import numpy as np
 from comet_ml import Experiment
 from skimage.transform import resize
 from skimage.color import gray2rgb
+from skimage.util import img_as_ubyte
 from skimage.io import imread
 import torch
 import sys
@@ -206,7 +207,7 @@ def numpify(outputs):
         if "d" in o:
             d = omnigan.tutils.normalize_tensor(o["d"]).numpy()
             data["d"] = d
-        nps.append(data)
+        nps.append({k: img_as_ubyte(v) for v in data.items()})
     print()
     return nps
 
