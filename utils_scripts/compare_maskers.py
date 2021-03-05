@@ -253,6 +253,7 @@ if __name__ == "__main__":
         raise ValueError("Could not find a non-ground model to get a painter")
 
     device = torch.device("cuda:0")
+    torch.set_grad_enabled(False)
 
     xs, ys, im_paths, lab_paths = load_images_and_labels()
 
