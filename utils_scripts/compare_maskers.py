@@ -4,17 +4,101 @@ import numpy as np
 from comet_ml import Experiment
 from skimage.transform import resize
 from skimage.color import gray2rgb
+from skimage.io import imread
 import torch
 import sys
 import yaml
 
 sys.path.append(str(Path(__file__).resolve().parent))
 
-from ... import eval_masker
 import omnigan
 
 
 GROUND_MODEL = "/miniscratch/_groups/ccai/experiments/runs/ablation-v1/out--ground"
+
+
+def uint8(array):
+    return array.astype(np.uint8)
+
+
+def crop_and_resize(image_path, label_path):
+    """
+    Resizes an image so that it keeps the aspect ratio and the smallest dimensions
+    is 640, then crops this resized image in its center so that the output is 640x640
+    without aspect ratio distortion
+
+    Args:
+        image_path (Path or str): Path to an image
+        label_path (Path or str): Path to the image's associated label
+
+    Returns:
+        tuple((np.ndarray, np.ndarray)): (new image, new label)
+    """
+
+    img = imread(image_path)
+    lab = imread(label_path)
+
+    # if img.shape[-1] == 4:
+    #     img = uint8(rgba2rgb(img) * 255)
+
+    # TODO: remove (debug)
+    if img.shape[:2] != lab.shape[:2]:
+        print(
+            "\nWARNING: shape mismatch: im -> {}, lab -> {}".format(
+                image_path.name, label_path.name
+            )
+        )
+        # breakpoint()
+
+    # resize keeping aspect ratio: smallest dim is 640
+    h, w = img.shape[:2]
+    if h < w:
+        size = (640, int(640 * w / h))
+    else:
+        size = (int(640 * h / w), 640)
+
+    r_img = resize(img, size, preserve_range=True, anti_aliasing=True)
+    r_img = uint8(r_img)
+
+    r_lab = resize(lab, size, preserve_range=True, anti_aliasing=False, order=0)
+    r_lab = uint8(r_lab)
+
+    # crop in the center
+    H, W = r_img.shape[:2]
+
+    top = (H - 640) // 2
+    left = (W - 640) // 2
+
+    rc_img = r_img[top : top + 640, left : left + 640, :]
+    rc_lab = (
+        r_lab[top : top + 640, left : left + 640, :]
+        if r_lab.ndim == 3
+        else r_lab[top : top + 640, left : left + 640]
+    )
+
+    return rc_img, rc_lab
+
+
+def load_ground(ground_output_path, ref_image_path):
+    gop = Path(ground_output_path)
+    rip = Path(ref_image_path)
+
+    ground_paths = list((gop / "eval-metrics" / "pred").glob(f"{rip.stem}.jpg")) + list(
+        (gop / "eval-metrics" / "pred").glob(f"{rip.stem}.png")
+    )
+    if len(ground_paths) == 0:
+        raise ValueError(
+            f"Could not find a ground match in {str(gop)} for image {str(rip)}"
+        )
+    elif len(ground_paths) > 1:
+        raise ValueError(
+            f"Found more than 1 ground match in {str(gop)} for image {str(rip)}:"
+            + f" {list(map(str, ground_paths))}"
+        )
+    ground_path = ground_paths[0]
+    _, ground = crop_and_resize(rip, ground_path)
+    ground = (ground > 0).astype(np.float32)
+    return torch.from_numpy(ground).unsqueeze(0).unsqueeze(0).cuda()
 
 
 def parse_args():
