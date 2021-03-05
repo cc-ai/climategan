@@ -148,8 +148,8 @@ def load_inferences(inf_path, im_paths):
             [i.stem for i in inf_path.glob("*.pt")]
         )
         return [
-            print(i, end="\r", flush=True) or torch.load(str(i))
-            for i in inf_path.glob("*.pt")
+            print(k, end="\r", flush=True) or torch.load(str(i))
+            for k, i in enumerate(inf_path.glob("*.pt"))
         ]
     except Exception as e:
         print()
