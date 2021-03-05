@@ -164,10 +164,10 @@ def get_or_load_inferences(
 ):
     inf_path = Path(m_path) / "inferences"
     if try_load:
-        print("Trying to load existing inferences...", end="", flush=True)
+        print("Trying to load existing inferences:")
         outputs = load_inferences(inf_path, im_paths)
         if outputs is not None:
-            print("Successfully loaded existing inferences")
+            print("\nSuccessfully loaded existing inferences")
             return outputs
 
     trainer = omnigan.trainer.Trainer.resume_from_path(
