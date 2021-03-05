@@ -193,7 +193,7 @@ def get_or_load_inferences(
 
 def numpify(outputs):
     nps = []
-    for k, o in outputs.items():
+    for k, o in enumerate(outputs):
         print(o, end=" | ")
         x = (o["x"][0].permute(1, 2, 0).numpy() + 1) / 2
         m = o["m"]
