@@ -207,7 +207,7 @@ def numpify(outputs):
         if "d" in o:
             d = omnigan.tutils.normalize_tensor(o["d"]).numpy()
             data["d"] = d
-        nps.append({k: img_as_ubyte(v) for v in data.items()})
+        nps.append({k: img_as_ubyte(v) for k, v in data.items()})
     print()
     return nps
 
