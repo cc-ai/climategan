@@ -227,13 +227,13 @@ def concat_npy_for_model(data):
             resize(data["d"], data["x"].shape[:2], anti_aliasing=False, order=0)
         )
     else:
-        depth = np.ones_like(data["x"], dtype=np.float32)
+        depth = np.ones_like(data["x"])
     xpmd = np.concatenate([xpm, depth], axis=1)
 
     if "s" in data:
         seg = resize(data["s"], data["x"].shape[:2], anti_aliasing=False, order=0)
     else:
-        seg = np.ones_like(data["x"], dtype=np.float32)
+        seg = np.ones_like(data["x"])
     xpmds = np.concatenate([xpmd, seg], axis=1)
 
     return xpmds
