@@ -10,6 +10,7 @@ import torch
 import sys
 import yaml
 from tqdm import tqdm
+from PIL import Image
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
@@ -307,4 +308,4 @@ if __name__ == "__main__":
             xpmds = concat_npy_for_model(np_outs[name][i])
             all_models_for_image.append(xpmds)
         full_im = np.concatenate(all_models_for_image, axis=0)
-        exp.log_image((full_im * 255).astype(np.uint8), name=im_paths[i], step=i)
+        exp.log_image(Image.fromarray(full_im), name=im_paths[i], step=i)
