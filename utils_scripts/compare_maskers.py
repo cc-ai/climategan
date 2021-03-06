@@ -148,7 +148,7 @@ def load_inferences(inf_path, im_paths):
         assert sorted([i.stem for i in im_paths]) == sorted(
             [i.stem for i in inf_path.glob("*.pt")]
         )
-        return [torch.load(str(i)) for i in tqdm(inf_path.glob("*.pt"))]
+        return [torch.load(str(i)) for i in tqdm(list(inf_path.glob("*.pt")))]
     except Exception as e:
         print()
         print(e)
