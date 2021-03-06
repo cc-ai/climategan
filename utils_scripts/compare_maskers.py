@@ -200,7 +200,7 @@ def numpify(outputs):
     for o in tqdm(outputs):
         x = (o["x"][0].permute(1, 2, 0).numpy() + 1) / 2
         m = o["m"]
-        m = (m[0, 0, :, :].numpy() > 0).astype(np.float32)
+        m = (m[0, 0, :, :].numpy() > 0).astype(np.uint8)
         p = (o["p"][0].permute(1, 2, 0).numpy() + 1) / 2
         data = {"m": m, "p": p, "x": x}
         if "s" in o:
