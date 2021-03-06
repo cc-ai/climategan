@@ -204,7 +204,7 @@ def numpify(outputs):
         data = {"m": m, "p": p, "x": x}
         if "s" in o:
             s = omnigan.data.decode_segmap_merged_labels(o["s"], "r", False) / 255.0
-            data["s"] = s[0]
+            data["s"] = s[0].permute(1, 2, 0).numpy()
         if "d" in o:
             d = omnigan.tutils.normalize_tensor(o["d"]).numpy()
             data["d"] = d
