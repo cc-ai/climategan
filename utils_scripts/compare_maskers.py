@@ -1,21 +1,22 @@
-from pathlib import Path
-from argparse import ArgumentParser
-import numpy as np
-from comet_ml import Experiment
-from skimage.transform import resize
-from skimage.color import gray2rgb
-from skimage.util import img_as_ubyte
-from skimage.io import imread
-import torch
 import sys
+from argparse import ArgumentParser
+from pathlib import Path
+from time import sleep
+from comet_ml import Experiment
+
+import numpy as np
+import torch
 import yaml
-from tqdm import tqdm
 from PIL import Image
+from skimage.color import gray2rgb
+from skimage.io import imread
+from skimage.transform import resize
+from skimage.util import img_as_ubyte
+from tqdm import tqdm
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 import omnigan
-
 
 GROUND_MODEL = "/miniscratch/_groups/ccai/experiments/runs/ablation-v1/out--ground"
 
@@ -200,7 +201,7 @@ def numpify(outputs):
     for o in tqdm(outputs):
         x = (o["x"][0].permute(1, 2, 0).numpy() + 1) / 2
         m = o["m"]
-        m = (m[0, 0, :, :].numpy() > 0).astype(np.uint8)
+        m = (m[0, 0, :, :].numpy() > 0.5).astype(np.uint8)
         p = (o["p"][0].permute(1, 2, 0).numpy() + 1) / 2
         data = {"m": m, "p": p, "x": x}
         if "s" in o:
@@ -312,4 +313,6 @@ if __name__ == "__main__":
             xpmds = concat_npy_for_model(np_outs[name][i])
             all_models_for_image.append(xpmds)
         full_im = np.concatenate(all_models_for_image, axis=0)
-        exp.log_image(Image.fromarray(full_im), name=im_paths[i], step=i)
+        pil_im = Image.fromarray(full_im)
+        exp.log_image(pil_im, name=im_paths[i], step=i)
+        sleep(0.25)
