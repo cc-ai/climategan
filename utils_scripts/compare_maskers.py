@@ -208,7 +208,7 @@ def numpify(outputs):
             s = omnigan.data.decode_segmap_merged_labels(o["s"], "r", False) / 255.0
             data["s"] = s[0].permute(1, 2, 0).numpy()
         if "d" in o:
-            d = omnigan.tutils.normalize_tensor(o["d"]).numpy()
+            d = omnigan.tutils.normalize_tensor(o["d"]).squeeze().numpy()
             data["d"] = d
         nps.append({k: img_as_ubyte(v) for k, v in data.items()})
     return nps
