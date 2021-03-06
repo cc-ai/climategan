@@ -314,5 +314,4 @@ if __name__ == "__main__":
             all_models_for_image.append(xpmds)
         full_im = np.concatenate(all_models_for_image, axis=0)
         pil_im = Image.fromarray(full_im)
-        exp.log_image(pil_im, name=im_paths[i], step=i)
-        sleep(0.25)
+        exp.log_image(pil_im, name=im_paths[i].name, step=i)
