@@ -9,6 +9,7 @@ from skimage.io import imread
 import torch
 import sys
 import yaml
+from tqdm import tqdm
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
@@ -147,10 +148,7 @@ def load_inferences(inf_path, im_paths):
         assert sorted([i.stem for i in im_paths]) == sorted(
             [i.stem for i in inf_path.glob("*.pt")]
         )
-        return [
-            print(k, end="\r", flush=True) or torch.load(str(i))
-            for k, i in enumerate(inf_path.glob("*.pt"))
-        ]
+        return [torch.load(str(i)) for i in tqdm(inf_path.glob("*.pt"))]
     except Exception as e:
         print()
         print(e)
@@ -167,7 +165,7 @@ def get_or_load_inferences(
         print("Trying to load existing inferences:")
         outputs = load_inferences(inf_path, im_paths)
         if outputs is not None:
-            print("\nSuccessfully loaded existing inferences")
+            print("Successfully loaded existing inferences")
             return outputs
 
     trainer = omnigan.trainer.Trainer.resume_from_path(
@@ -179,9 +177,8 @@ def get_or_load_inferences(
 
     inf_path.mkdir(exist_ok=True)
     outputs = []
-    for i, x in enumerate(xs):
+    for i, x in enumerate(tqdm(xs)):
         x = x.to(trainer.device)
-        print(i, end="\r", flush=True)
         if not is_ground:
             out = trainer.G.decode(x=x)
         else:
@@ -198,8 +195,8 @@ def get_or_load_inferences(
 
 def numpify(outputs):
     nps = []
-    print("Numpifying...", end="", flush=True)
-    for k, o in enumerate(outputs):
+    print("Numpifying...")
+    for o in tqdm(outputs):
         x = (o["x"][0].permute(1, 2, 0).numpy() + 1) / 2
         m = o["m"]
         m = (m[0, 0, :, :].numpy() > 0).astype(np.float32)
@@ -212,7 +209,6 @@ def numpify(outputs):
             d = omnigan.tutils.normalize_tensor(o["d"]).numpy()
             data["d"] = d
         nps.append({k: img_as_ubyte(v) for k, v in data.items()})
-    print("Done.")
     return nps
 
 
@@ -305,7 +301,7 @@ if __name__ == "__main__":
     exp.log_parameter("names", names)
     exp.add_tags(tags)
 
-    for i in range(len(xs)):
+    for i in tqdm(range(len(xs))):
         all_models_for_image = []
         for name in names:
             xpmds = concat_npy_for_model(np_outs[name][i])
