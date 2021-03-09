@@ -291,11 +291,28 @@ from omnigan.transforms import PrepareInference
 
 model_path = "some/path/to/output/folder" # not .ckpt
 input_folder = "path/to/a/folder/with/images"
+
+# resume trainer
 trainer = Trainer.resume_from_path(model_path, new_exp=None, inference=True)
+
+# find paths for all images in the input folder. There is a recursive option. 
 im_paths = sorted(find_images(input_folder), key=lambda x: x.name)
 
+# Load images into tensors 
+#   * smaller side resized to 640 - keeping aspect ratio
+#   * then longer side is cropped in the center
+#   * result is a 1x3x640x640 float tensor in [-1; 1]
 xs = PrepareInference()(im_paths)
+
+# send to device
 xs = [x.to(trainer.device) for x in xs]
+
+# compute flood
+#   * compute mask
+#   * binarize mask if bin_value > 0
+#   * paint x using this mask
 ys = [trainer.compute_flood(x, bin_value=0.5) for x in tqdm(xs)]
+
+# convert 1x3x640x640 float tensors in [-1; 1] into 640x640x3 numpy arrays in [0, 255]
 np_ys = [tensor_ims_to_np_uint8s(y) for y in tqdm(ys)]
 ```
