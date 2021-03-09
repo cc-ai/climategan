@@ -721,4 +721,4 @@ def tensor_ims_to_np_uint8s(ims):
         n = (n + 1) / 2 * 255
         nps.append(n.astype(np.uint8))
 
-    return nps
+    return nps[0] if len(nps) == 1 else nps
