@@ -251,7 +251,6 @@ class OmniGenerator(nn.Module):
             torch.Tensor: B1HW mask tensor
         """
         assert x is not None or z is not None
-        assert not (x is not None and z is not None)
         if z is None:
             z = self.encode(x)
 
