@@ -2004,7 +2004,7 @@ class Trainer:
                 z = self.G.encode(x)
             if "d" in self.opts.tasks and self.opts.gen.m.use_dada:
                 _, z_depth = self.G.decoders["d"](z)
-            m = self.G.mask(z=z, z_depth=z_depth)
+            m = self.G.mask(x=x, z=z, z_depth=z_depth)
 
         if bin_value >= 0:
             m = (m > bin_value).to(m.dtype)
