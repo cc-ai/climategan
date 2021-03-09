@@ -14,6 +14,7 @@
   - [Logging on comet](#logging-on-comet)
     - [Tests](#tests)
   - [Resources](#resources)
+  - [Example](#example)
 
 ## Setup
 
@@ -272,3 +273,29 @@ Write tests as scenarios by adding to the list `test_scenarios` in the file. A s
 [Tricks and Tips for Training a GAN](https://chloes-dl.com/2019/11/19/tricks-and-tips-for-training-a-gan/)
 [GAN Hacks](https://github.com/soumith/ganhacks)
 [Keep Calm and train a GAN. Pitfalls and Tips on training Generative Adversarial Networks](https://medium.com/@utk.is.here/keep-calm-and-train-a-gan-pitfalls-and-tips-on-training-generative-adversarial-networks-edd529764aa9)
+
+## Example
+
+**Inference:**
+
+```python
+from pathlib import Path
+
+from tqdm import tqdm
+
+from omnigan.trainer import Trainer
+from omnigan.utils import find_images
+from omnigan.tutils import tensor_ims_to_np_uint8s
+from omnigan.transforms import PrepareInference
+
+
+model_path = "some/path/to/output/folder" # not .ckpt
+input_folder = "path/to/a/folder/with/images"
+trainer = Trainer.resume_from_path(model_path, new_exp=None, inference=True)
+im_paths = sorted(find_images(input_folder), key=lambda x: x.name)
+
+xs = PrepareInference()(im_paths)
+xs = [x.to(trainer.device) for x in xs]
+ys = [trainer.compute_flood(x, bin_value=0.5) for x in tqdm(xs)]
+np_ys = [tensor_ims_to_np_uint8s(y) for y in tqdm(ys)]
+```

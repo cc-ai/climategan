@@ -706,7 +706,7 @@ def tensor_ims_to_np_uint8s(ims):
         ims (torch.Tensor | list): [description]
     """
     if not isinstance(ims, list):
-        assert isinstance(ims, torch.TensorType)
+        assert isinstance(ims, torch.Tensor)
         if ims.ndim == 3:
             ims = [ims]
 
