@@ -276,7 +276,7 @@ Write tests as scenarios by adding to the list `test_scenarios` in the file. A s
 
 ## Example
 
-**Inference:**
+**Inference: computing floods**
 
 ```python
 from pathlib import Path
