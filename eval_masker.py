@@ -79,9 +79,7 @@ def parsed_args():
     """
     parser = ArgumentParser()
     parser.add_argument(
-        "--model",
-        type=str,
-        help="Path to a pre-trained model",
+        "--model", type=str, help="Path to a pre-trained model",
     )
     parser.add_argument(
         "--images_dir",
@@ -102,10 +100,7 @@ def parsed_args():
         help="The height and weight of the pre-processed images",
     )
     parser.add_argument(
-        "--max_files",
-        default=-1,
-        type=int,
-        help="Limit loaded samples",
+        "--max_files", default=-1, type=int, help="Limit loaded samples",
     )
     parser.add_argument(
         "--bin_value", default=0.5, type=float, help="Mask binarization threshold"
@@ -362,8 +357,9 @@ def get_inferences(
     to_tensor = ToTensor()
 
     is_ground = "ground" in Path(model_path).name
+    is_instagan = "instagan" in Path(model_path).name
 
-    if is_ground:
+    if is_ground or is_instagan:
         # we just care about he painter here
         ground_path = model_path
         model_path = (
@@ -382,7 +378,7 @@ def get_inferences(
         if verbose > 0:
             print(idx, "/", len(xs), end="\r")
 
-        if not is_ground:
+        if not is_ground and not is_instagan:
             m = trainer.G.mask(x=x)
         else:
             m = load_ground(ground_path, image_paths[idx])
@@ -701,7 +697,7 @@ if __name__ == "__main__":
             models_df.update({model_id: df_m})
         df = pd.concat(list(models_df.values()), ignore_index=True)
         df["model_img_idx"] = df.model.astype(str) + "-" + df.idx.astype(str)
-        df.rename(columns={'idx': 'img_idx'}, inplace=True)
+        df.rename(columns={"idx": "img_idx"}, inplace=True)
         dict_models_labels = {
             k: f"{v['model_idx'][0]}: {v['model_feats'][0]}"
             for k, v in models_df.items()

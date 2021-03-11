@@ -280,7 +280,7 @@ Write tests as scenarios by adding to the list `test_scenarios` in the file. A s
 
 ```python
 from pathlib import Path
-
+from skimage.io import imsave
 from tqdm import tqdm
 
 from omnigan.trainer import Trainer
@@ -291,6 +291,7 @@ from omnigan.transforms import PrepareInference
 
 model_path = "some/path/to/output/folder" # not .ckpt
 input_folder = "path/to/a/folder/with/images"
+output_path = "path/where/images/will/be/written"
 
 # resume trainer
 trainer = Trainer.resume_from_path(model_path, new_exp=None, inference=True)
@@ -315,4 +316,8 @@ ys = [trainer.compute_flood(x, bin_value=0.5) for x in tqdm(xs)]
 
 # convert 1x3x640x640 float tensors in [-1; 1] into 640x640x3 numpy arrays in [0, 255]
 np_ys = [tensor_ims_to_np_uint8s(y) for y in tqdm(ys)]
+
+# write images
+for i, n in tqdm(zip(im_paths, np_ys), total=len(im_paths)):
+    imsave(Path(output_path) / i.name, n)
 ```
