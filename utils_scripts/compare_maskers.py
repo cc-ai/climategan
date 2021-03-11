@@ -121,7 +121,7 @@ def parse_args():
         "--tasks",
         nargs="*",
         help="Comet.ml tags",
-        default=["m", "d", "s", "p"],
+        default=["x", "d", "s", "m", "mx", "p"],
         type=str,
     )
     args = parser.parse_args()

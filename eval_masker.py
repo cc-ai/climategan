@@ -183,8 +183,8 @@ def crop_and_resize(image_path, label_path):
     # TODO: remove (debug)
     if img.shape[:2] != lab.shape[:2]:
         print(
-            "\nWARNING: shape mismatch: im -> {}, lab -> {}".format(
-                image_path.name, label_path.name
+            "\nWARNING: shape mismatch: im -> ({}) {}, lab -> ({}) {}".format(
+                img.shape[:2], image_path.name, lab.shape[:2], label_path.name
             )
         )
         # breakpoint()
