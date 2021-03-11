@@ -190,16 +190,22 @@ def crop_and_resize(image_path, label_path):
         # breakpoint()
 
     # resize keeping aspect ratio: smallest dim is 640
-    h, w = img.shape[:2]
-    if h < w:
-        size = (640, int(640 * w / h))
+    i_h, i_w = img.shape[:2]
+    if i_h < i_w:
+        i_size = (640, int(640 * i_w / i_h))
     else:
-        size = (int(640 * h / w), 640)
+        i_size = (int(640 * i_h / i_w), 640)
 
-    r_img = resize(img, size, preserve_range=True, anti_aliasing=True)
+    l_h, l_w = img.shape[:2]
+    if l_h < l_w:
+        l_size = (640, int(640 * l_w / l_h))
+    else:
+        l_size = (int(640 * l_h / l_w), 640)
+
+    r_img = resize(img, i_size, preserve_range=True, anti_aliasing=True)
     r_img = uint8(r_img)
 
-    r_lab = resize(lab, size, preserve_range=True, anti_aliasing=False, order=0)
+    r_lab = resize(lab, l_size, preserve_range=True, anti_aliasing=False, order=0)
     r_lab = uint8(r_lab)
 
     # crop in the center
@@ -326,6 +332,8 @@ def load_ground(ground_output_path, ref_image_path):
         )
     ground_path = ground_paths[0]
     _, ground = crop_and_resize(rip, ground_path)
+    if ground.ndim == 3:
+        ground = ground[:, :, 0]
     ground = (ground > 0).astype(np.float32)
     return torch.from_numpy(ground).unsqueeze(0).unsqueeze(0).cuda()
 

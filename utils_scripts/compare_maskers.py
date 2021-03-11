@@ -117,6 +117,13 @@ def parse_args():
     parser.add_argument(
         "-t", "--tags", nargs="*", help="Comet.ml tags", default=[], type=str
     )
+    parser.add_argument(
+        "--tasks",
+        nargs="*",
+        help="Comet.ml tags",
+        default=["m", "d", "s", "p"],
+        type=str,
+    )
     args = parser.parse_args()
 
     print("Received args:")
@@ -214,34 +221,54 @@ def numpify(outputs):
     return nps
 
 
-def concat_npy_for_model(data):
+def concat_npy_for_model(data, tasks):
     assert "m" in data
     assert "x" in data
     assert "p" in data
 
-    xpm = np.concatenate(
-        [data["x"], data["p"], (1 - gray2rgb(data["m"])) * data["x"]], axis=1
-    )
+    x = mask = depth = seg = painted = masked = None
+
+    x = data["x"]
+    painted = data["p"]
+    mask = (gray2rgb(data["m"]) * 255).astype(np.uint8)
+    painted = data["p"]
+    masked = (1 - gray2rgb(data["m"])) * x
+
+    concats = []
 
     if "d" in data:
         depth = img_as_ubyte(
             gray2rgb(
-                resize(data["d"], data["x"].shape[:2], anti_aliasing=False, order=0)
+                resize(data["d"], data["x"].shape[:2], anti_aliasing=True, order=1)
             )
         )
     else:
-        depth = np.ones_like(data["x"])
-    xpmd = np.concatenate([xpm, depth], axis=1)
+        depth = np.ones_like(data["x"]) * 255
 
     if "s" in data:
         seg = img_as_ubyte(
             resize(data["s"], data["x"].shape[:2], anti_aliasing=False, order=0)
         )
     else:
-        seg = np.ones_like(data["x"])
-    xpmds = np.concatenate([xpmd, seg], axis=1)
+        seg = np.ones_like(data["x"]) * 255
 
-    return xpmds
+    for t in tasks:
+        if t == "x":
+            concats.append(x)
+        if t == "m":
+            concats.append(mask)
+        elif t == "mx":
+            concats.append(masked)
+        elif t == "d":
+            concats.append(depth)
+        elif t == "s":
+            concats.append(seg)
+        elif t == "p":
+            concats.append(painted)
+
+    row = np.concatenate(concats, axis=1)
+
+    return row
 
 
 if __name__ == "__main__":
@@ -254,6 +281,7 @@ if __name__ == "__main__":
 
     load = not args.disable_loading
     tags = args.tags
+    tasks = args.tasks
 
     ground_model = None
     for m in maskers:
@@ -310,7 +338,7 @@ if __name__ == "__main__":
     for i in tqdm(range(len(xs))):
         all_models_for_image = []
         for name in names:
-            xpmds = concat_npy_for_model(np_outs[name][i])
+            xpmds = concat_npy_for_model(np_outs[name][i], tasks)
             all_models_for_image.append(xpmds)
         full_im = np.concatenate(all_models_for_image, axis=0)
         pil_im = Image.fromarray(full_im)
