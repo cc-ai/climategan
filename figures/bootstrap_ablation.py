@@ -1,5 +1,5 @@
 """
-This scripts evaluates the contribution of a technique from the ablation study for
+This script evaluates the contribution of a technique from the ablation study for
 improving the masker evaluation metrics. The differences in the metrics are computed
 for all images of paired models, that is those which only differ in the inclusion or
 not of the given technique. Then, statistical inference is performed through the
@@ -97,7 +97,7 @@ def parsed_args():
         "--output_dir",
         default=None,
         type=str,
-        help="CSV containing the results of the ablation study",
+        help="Output directory",
     )
     parser.add_argument(
         "--technique",
@@ -245,7 +245,7 @@ def plot_bootstrap_distr(sample_measure, bs_samples, alpha, color_ci, color_pval
     alpha_plot = 0.5
 
     # Initialize the matplotlib figure
-    fig, ax = plt.subplots(figsize=(30, 12))
+    fig, ax = plt.subplots(figsize=(30, 12), dpi=args.dpi)
     
     # Plot distribution of bootstrap means
     sns.kdeplot(bs_samples,
@@ -330,7 +330,7 @@ if __name__ == "__main__":
     with open(output_yml, 'w') as f:
         yaml.dump(vars(args), f)
 
-    # Determine output dir
+    # Determine technique
     if args.technique.lower() not in dict_techniques:
         raise ValueError('{} is not a valid technique'.format(args.technique))
     else:
