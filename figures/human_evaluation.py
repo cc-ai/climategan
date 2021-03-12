@@ -25,7 +25,7 @@ comparables_dict = {
     "munit_flooded": "MUNIT",
     "cyclegan": "CycleGAN",
     "instagan": "InstaGAN",
-    "instagan_copypaste": "InstaGAN +\nCopy&Paste",
+    "instagan_copypaste": "Mask-InstaGAN",
     "painted_ground": "Painted ground",
 }
 
@@ -35,12 +35,17 @@ palette_colorblind = sns.color_palette("colorblind")
 color_omnigan = palette_colorblind[9]
 
 palette_colorblind = sns.color_palette("colorblind")
+color_munit = palette_colorblind[1]
+color_cyclegan = palette_colorblind[2]
+color_instagan = palette_colorblind[3]
+color_maskinstagan = palette_colorblind[6]
+color_paintedground = palette_colorblind[8]
 palette_comparables = [
-    palette_colorblind[1],
-    palette_colorblind[2],
-    palette_colorblind[3],
-    palette_colorblind[6],
-    palette_colorblind[8],
+    color_munit,
+    color_cyclegan,
+    color_instagan,
+    color_maskinstagan,
+    color_paintedground,
 ]
 palette_comparables_light = [
     sns.light_palette(color, n_colors=3)[1] for color in palette_comparables
@@ -143,7 +148,7 @@ if __name__ == "__main__":
     fontsize = "medium"
 
     # Initialize the matplotlib figure
-    fig, ax = plt.subplots(figsize=(14, 3), dpi=args.dpi)
+    fig, ax = plt.subplots(figsize=(10.5, 3), dpi=args.dpi)
 
     # Plot the total (right)
     sns.barplot(
@@ -181,7 +186,11 @@ if __name__ == "__main__":
 
     # Change Y-Tick labels
     yticklabels = [comparables_dict[ytick.get_text()] for ytick in ax.get_yticklabels()]
-    ax.set_yticklabels(yticklabels, fontsize=fontsize)
+    yticklabels_text = ax.set_yticklabels(
+        yticklabels, fontsize=fontsize, horizontalalignment="right", x=0.96
+    )
+    for ytl in yticklabels_text:
+        ax.add_artist(ytl)
 
     # Remove Y-label
     ax.set_ylabel(ylabel="")
@@ -193,9 +202,7 @@ if __name__ == "__main__":
     plt.setp(ax.get_xticklabels(), fontsize=fontsize)
 
     # Set X-label
-    ax.set_xlabel(
-        xlabel="Rate of ClimateGAN selected", y=-5.0, visible=True, fontsize=fontsize
-    )
+    ax.set_xlabel(None)
 
     # Change spines
     sns.despine(left=True, bottom=True)
