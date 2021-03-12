@@ -1,0 +1,205 @@
+"""
+This script plots the result of the human evaluation on Amazon Mechanical Turk, where
+human participants chose between an image from ClimateGAN or from a different method.
+"""
+print("Imports...", end="")
+from argparse import ArgumentParser
+import yaml
+import numpy as np
+import pandas as pd
+import seaborn as sns
+from scipy.special import comb
+from scipy.stats import trim_mean
+from tqdm import tqdm
+from collections import OrderedDict
+from pathlib import Path
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+
+
+# -----------------------
+# -----  Constants  -----
+# -----------------------
+
+comparables_dict = {
+    "munit_flooded": "MUNIT",
+    "cyclegan": "CycleGAN",
+    "instagan": "InstaGAN",
+    "instagan_copypaste": "InstaGAN +\nCopy&Paste",
+    "painted_ground": "Painted ground",
+}
+
+
+# Colors
+palette_colorblind = sns.color_palette("colorblind")
+color_omnigan = palette_colorblind[9]
+
+palette_colorblind = sns.color_palette("colorblind")
+palette_comparables = [
+    palette_colorblind[1],
+    palette_colorblind[2],
+    palette_colorblind[3],
+    palette_colorblind[6],
+    palette_colorblind[8],
+]
+palette_comparables_light = [
+    sns.light_palette(color, n_colors=3)[1] for color in palette_comparables
+]
+
+
+def parsed_args():
+    """
+    Parse and returns command-line args
+
+    Returns:
+        argparse.Namespace: the parsed arguments
+    """
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--input_csv",
+        default="amt_omni-vs-other.csv",
+        type=str,
+        help="CSV containing the results of the human evaluation, pre-processed",
+    )
+    parser.add_argument(
+        "--output_dir",
+        default=None,
+        type=str,
+        help="Output directory",
+    )
+    parser.add_argument(
+        "--dpi",
+        default=200,
+        type=int,
+        help="DPI for the output images",
+    )
+    parser.add_argument(
+        "--n_bs",
+        default=1e6,
+        type=int,
+        help="Number of bootrstrap samples",
+    )
+    parser.add_argument(
+        "--bs_seed",
+        default=17,
+        type=int,
+        help="Bootstrap random seed, for reproducibility",
+    )
+
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    # -----------------------------
+    # -----  Parse arguments  -----
+    # -----------------------------
+    args = parsed_args()
+    print("Args:\n" + "\n".join([f"    {k:20}: {v}" for k, v in vars(args).items()]))
+
+    # Determine output dir
+    if args.output_dir is None:
+        output_dir = Path(os.environ["SLURM_TMPDIR"])
+    else:
+        output_dir = Path(args.output_dir)
+    if not output_dir.exists():
+        output_dir.mkdir(parents=True, exist_ok=False)
+
+    # Store args
+    output_yml = output_dir / "args_human_evaluation.yml"
+    with open(output_yml, "w") as f:
+        yaml.dump(vars(args), f)
+
+    # Read CSV
+    df = pd.read_csv(args.input_csv)
+
+    # Sort Y labels
+    comparables = df.comparable.unique()
+    is_omnigan_sum = [
+        df.loc[df.comparable == c, "is_omnigan"].sum() for c in comparables
+    ]
+    comparables = comparables[np.argsort(is_omnigan_sum)[::-1]]
+
+    # Plot setup
+    sns.set(style="whitegrid")
+    plt.rcParams.update({"font.family": "serif"})
+    plt.rcParams.update(
+        {
+            "font.serif": [
+                "Computer Modern Roman",
+                "Times New Roman",
+                "Utopia",
+                "New Century Schoolbook",
+                "Century Schoolbook L",
+                "ITC Bookman",
+                "Bookman",
+                "Times",
+                "Palatino",
+                "Charter",
+                "serif" "Bitstream Vera Serif",
+                "DejaVu Serif",
+            ]
+        }
+    )
+    fontsize = "medium"
+
+    # Initialize the matplotlib figure
+    fig, ax = plt.subplots(figsize=(14, 3), dpi=args.dpi)
+
+    # Plot the total (right)
+    sns.barplot(
+        data=df.loc[df.is_valid],
+        x="is_valid",
+        y="comparable",
+        order=comparables,
+        orient="h",
+        label="comparable",
+        palette=palette_comparables_light,
+        ci=None,
+    )
+
+    # Plot the left
+    sns.barplot(
+        data=df.loc[df.is_valid],
+        x="is_omnigan",
+        y="comparable",
+        order=comparables,
+        orient="h",
+        label="omnigan",
+        color=color_omnigan,
+        ci=99,
+        n_boot=args.n_bs,
+        seed=args.bs_seed,
+        errcolor="black",
+        errwidth=1.5,
+        capsize=0.1,
+    )
+
+    # Draw line at 0.5
+    y = np.arange(ax.get_ylim()[1] + 0.1, ax.get_ylim()[0], 0.1)
+    x = 0.5 * np.ones(y.shape[0])
+    ax.plot(x, y, linestyle=":", linewidth=1.5, color="black")
+
+    # Change Y-Tick labels
+    yticklabels = [comparables_dict[ytick.get_text()] for ytick in ax.get_yticklabels()]
+    ax.set_yticklabels(yticklabels, fontsize=fontsize)
+
+    # Remove Y-label
+    ax.set_ylabel(ylabel="")
+
+    # Change X-Tick labels
+    xlim = [0.0, 1.1]
+    xticks = np.arange(xlim[0], xlim[1], 0.1)
+    ax.set(xticks=xticks)
+    plt.setp(ax.get_xticklabels(), fontsize=fontsize)
+
+    # Set X-label
+    ax.set_xlabel(
+        xlabel="Rate of ClimateGAN selected", y=-5.0, visible=True, fontsize=fontsize
+    )
+
+    # Change spines
+    sns.despine(left=True, bottom=True)
+
+    # Save figure
+    output_fig = output_dir / "human_evaluation_rate_omnigan.png"
+    fig.savefig(output_fig, dpi=fig.dpi, bbox_inches="tight")
