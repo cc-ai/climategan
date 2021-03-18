@@ -695,3 +695,30 @@ def mix_noise(x, mask, res=(8, 3), weight=0.1):
     mask = mask.repeat(1, 3, 1, 1).to(x.device).to(torch.float16)
     y = mask * (weight * noise + (1 - weight) * x) + (1 - mask) * x
     return y
+
+
+def tensor_ims_to_np_uint8s(ims):
+    """
+    transform a CHW of NCHW tensor into a list of np.uint8 [0, 255]
+    image arrays
+
+    Args:
+        ims (torch.Tensor | list): [description]
+    """
+    if not isinstance(ims, list):
+        assert isinstance(ims, torch.Tensor)
+        if ims.ndim == 3:
+            ims = [ims]
+
+    nps = []
+    for t in ims:
+        if t.shape[0] == 3:
+            t = t.permute(1, 2, 0)
+        else:
+            assert t.shape[-1] == 3
+
+        n = t.cpu().numpy()
+        n = (n + 1) / 2 * 255
+        nps.append(n.astype(np.uint8))
+
+    return nps[0] if len(nps) == 1 else nps

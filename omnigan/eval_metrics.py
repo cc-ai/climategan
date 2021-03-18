@@ -3,7 +3,10 @@ import numpy as np
 import torch
 from skimage import filters
 from sklearn.metrics.pairwise import euclidean_distances
+import matplotlib.pyplot as plt
+import seaborn as sns
 from copy import deepcopy
+
 # ------------------------------------------------------------------------------
 # ----- Evaluation metrics for a pair of binary mask images (pred, target) -----
 # ------------------------------------------------------------------------------
@@ -127,6 +130,137 @@ def mIOU(pred, label, average="macro"):
         return np.mean(present_iou_list)
 
 
+def masker_classification_metrics(
+    pred, label, labels_dict={"cannot": 0, "must": 1, "may": 2}
+):
+    """
+    Classification metrics for the masker, and the corresponding maps. If the
+    predictions are soft, the errors are weighted accordingly. Metrics computed:
+
+        tpr : float
+            True positive rate
+
+        tpt : float
+            True positive total (divided by total population)
+
+        tnr : float
+            True negative rate
+
+        tnt : float
+            True negative total (divided by total population)
+
+        fpr : float
+            False positive rate: rate of predicted mask on cannot flood
+
+        fpt : float
+            False positive total (divided by total population)
+
+        fnr : float
+            False negative rate: rate of missed mask on must flood
+
+        fnt : float
+            False negative total (divided by total population)
+
+        mnr : float
+            "May" negative rate (labeled as "may", predicted as no-mask)
+
+        mpr : float
+            "May" positive rate (labeled as "may", predicted as mask)
+
+        accuracy : float
+            Accuracy
+
+        error : float
+            Error
+
+        precision : float
+            Precision, considering only cannot and must flood labels
+
+        f05 : float
+            F0.5 score, considering only cannot and must flood labels
+
+        accuracy_must_may : float
+            Accuracy considering only the must and may areas
+
+    Parameters
+    ----------
+    pred : array-like
+        Mask prediction
+
+    label : array-like
+        Mask ground truth labels
+
+    labels_dict : dict
+        A dictionary with the identifier of each class (cannot, must, may)
+
+    Returns
+    -------
+    metrics_dict : dict
+        A dictionary with metric name and value pairs
+
+    maps_dict : dict
+        A dictionary containing the metric maps
+    """
+    tp_map = pred * np.asarray(label == labels_dict["must"], dtype=int)
+    tpr = np.sum(tp_map) / np.sum(label == labels_dict["must"])
+    tpt = np.sum(tp_map) / np.prod(label.shape)
+    tn_map = (1.0 - pred) * np.asarray(label == labels_dict["cannot"], dtype=int)
+    tnr = np.sum(tn_map) / np.sum(label == labels_dict["cannot"])
+    tnt = np.sum(tn_map) / np.prod(label.shape)
+    fp_map = pred * np.asarray(label == labels_dict["cannot"], dtype=int)
+    fpr = np.sum(fp_map) / np.sum(label == labels_dict["cannot"])
+    fpt = np.sum(fp_map) / np.prod(label.shape)
+    fn_map = (1.0 - pred) * np.asarray(label == labels_dict["must"], dtype=int)
+    fnr = np.sum(fn_map) / np.sum(label == labels_dict["must"])
+    fnt = np.sum(fn_map) / np.prod(label.shape)
+    may_neg_map = (1.0 - pred) * np.asarray(label == labels_dict["may"], dtype=int)
+    may_pos_map = pred * np.asarray(label == labels_dict["may"], dtype=int)
+    mnr = np.sum(may_neg_map) / np.sum(label == labels_dict["may"])
+    mpr = np.sum(may_pos_map) / np.sum(label == labels_dict["may"])
+    accuracy = tpt + tnt
+    error = fpt + fnt
+
+    # Assertions
+    assert np.isclose(tpr, 1.0 - fnr), "TPR: {:.4f}, FNR: {:.4f}".format(tpr, fnr)
+    assert np.isclose(tnr, 1.0 - fpr), "TNR: {:.4f}, FPR: {:.4f}".format(tnr, fpr)
+    assert np.isclose(mpr, 1.0 - mnr), "MPR: {:.4f}, MNR: {:.4f}".format(mpr, mnr)
+
+    precision = np.sum(tp_map) / (np.sum(tp_map) + np.sum(fp_map) + 1e-9)
+    beta = 0.5
+    f05 = ((1 + beta ** 2) * precision * tpr) / (beta ** 2 * precision + tpr + 1e-9)
+    accuracy_must_may = (np.sum(tp_map) + np.sum(may_neg_map)) / (
+        np.sum(label == labels_dict["must"]) + np.sum(label == labels_dict["may"])
+    )
+
+    metrics_dict = {
+        "tpr": tpr,
+        "tpt": tpt,
+        "tnr": tnr,
+        "tnt": tnt,
+        "fpr": fpr,
+        "fpt": fpt,
+        "fnr": fnr,
+        "fnt": fnt,
+        "mpr": mpr,
+        "mnr": mnr,
+        "accuracy": accuracy,
+        "error": error,
+        "precision": precision,
+        "f05": f05,
+        "accuracy_must_may": accuracy_must_may,
+    }
+    maps_dict = {
+        "tp": tp_map,
+        "tn": tn_map,
+        "fp": fp_map,
+        "fn": fn_map,
+        "may_pos": may_pos_map,
+        "may_neg": may_neg_map,
+    }
+
+    return metrics_dict, maps_dict
+
+
 def pred_cannot(pred, label, label_cannot=0):
     """
     Metric for the masker: Computes false positive rate and its map. If the
@@ -248,10 +382,10 @@ def masker_metrics(pred, label, label_cannot=0, label_must=1):
     tnr : float
         True negative rate
 
-    precision : precision
+    precision : float
         Precision, considering only cannot and must flood labels
 
-    f1 : precision
+    f1 : float
         F1 score, considering only cannot and must flood labels
     """
     tp_map = pred * np.asarray(label == label_must, dtype=int)
@@ -315,9 +449,15 @@ def get_confusion_matrix(tpr, tnr, fpr, fnr, mpr, mnr):
     mnr_s = np.std(mnr)
 
     # Assertions
-    assert np.isclose(tpr_m, 1.0 - fnr_m)
-    assert np.isclose(tnr_m, 1.0 - fpr_m)
-    assert np.isclose(mpr_m, 1.0 - mnr_m)
+    assert np.isclose(tpr_m, 1.0 - fnr_m), "TPR: {:.4f}, FNR: {:.4f}".format(
+        tpr_m, fnr_m
+    )
+    assert np.isclose(tnr_m, 1.0 - fpr_m), "TNR: {:.4f}, FPR: {:.4f}".format(
+        tnr_m, fpr_m
+    )
+    assert np.isclose(mpr_m, 1.0 - mnr_m), "MPR: {:.4f}, MNR: {:.4f}".format(
+        mpr_m, mnr_m
+    )
 
     # Fill confusion matrix
     confusion_matrix = np.zeros((3, 3))
@@ -389,6 +529,10 @@ def edges_coherence_std_min(pred, label, label_must=1, bin_th=0.5):
     pred_coord = np.argwhere(pred > 0)
     label_coord = np.argwhere(label > 0)
 
+    # Handle blank predictions
+    if pred_coord.shape[0] == 0:
+        return 1.0, pred, label
+
     # Normalized pairwise distances between pred and label
     dist_mat = np.divide(euclidean_distances(pred_coord, label_coord), pred.shape[0])
 
@@ -396,3 +540,96 @@ def edges_coherence_std_min(pred, label, label_must=1, bin_th=0.5):
     edge_coherence = np.std(np.min(dist_mat, axis=1))
 
     return edge_coherence, pred, label
+
+
+def boxplot_metric(
+    output_filename,
+    df,
+    metric,
+    dict_metrics,
+    do_stripplot=False,
+    dict_models=None,
+    dpi=300,
+    **snskwargs
+):
+    f = plt.figure(dpi=dpi)
+
+    if do_stripplot:
+        ax = sns.boxplot(x="model", y=metric, data=df, fliersize=0.0, **snskwargs)
+        ax = sns.stripplot(
+            x="model", y=metric, data=df, size=2.0, color="gray", **snskwargs
+        )
+    else:
+        ax = sns.boxplot(x="model", y=metric, data=df, **snskwargs)
+
+    # Set axes labels
+    ax.set_xlabel("Models", rotation=0, fontsize="medium")
+    ax.set_ylabel(dict_metrics[metric], rotation=90, fontsize="medium")
+
+    # Spines
+    sns.despine(left=True, bottom=True)
+
+    # X-Tick labels
+    if dict_models:
+        xticklabels = [dict_models[t.get_text()] for t in ax.get_xticklabels()]
+        ax.set_xticklabels(
+            xticklabels,
+            rotation=20,
+            verticalalignment="top",
+            horizontalalignment="right",
+            fontsize="xx-small",
+        )
+
+    f.savefig(
+        output_filename,
+        dpi=f.dpi,
+        bbox_inches="tight",
+        facecolor="white",
+        transparent=False,
+    )
+    f.clear()
+    plt.close(f)
+
+
+def clustermap_metric(
+    output_filename,
+    df,
+    metric,
+    dict_metrics,
+    method="average",
+    cluster_metric="euclidean",
+    dict_models=None,
+    dpi=300,
+    **snskwargs
+):
+    ax_grid = sns.clustermap(data=df, method=method, metric=cluster_metric, **snskwargs)
+    ax_heatmap = ax_grid.ax_heatmap
+    ax_cbar = ax_grid.ax_cbar
+
+    # Set axes labels
+    ax_heatmap.set_xlabel("Models", rotation=0, fontsize="medium")
+    ax_heatmap.set_ylabel("Images", rotation=90, fontsize="medium")
+
+    # Set title
+    ax_cbar.set_title(dict_metrics[metric], rotation=0, fontsize="x-large")
+
+    # X-Tick labels
+    if dict_models:
+        xticklabels = [dict_models[t.get_text()] for t in ax_heatmap.get_xticklabels()]
+        ax_heatmap.set_xticklabels(
+            xticklabels,
+            rotation=20,
+            verticalalignment="top",
+            horizontalalignment="right",
+            fontsize="small",
+        )
+
+    ax_grid.fig.savefig(
+        output_filename,
+        dpi=dpi,
+        bbox_inches="tight",
+        facecolor="white",
+        transparent=False,
+    )
+    ax_grid.fig.clear()
+    plt.close(ax_grid.fig)

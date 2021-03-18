@@ -171,9 +171,13 @@ if __name__ == "__main__":
         if dolabeled:
             output_labeled.mkdir(parents=True, exist_ok=True)
 
-    images_paths = list(map(Path, sorted((map(str, find_images(input_images))))))
+    images_paths = list(
+        map(Path, sorted((map(str, find_images(input_images, recursive=True)))))
+    )
     if dolab:
-        labels_paths = list(map(Path, sorted((map(str, find_images(input_labels))))))
+        labels_paths = list(
+            map(Path, sorted((map(str, find_images(input_labels, recursive=True)))))
+        )
     else:
         labels_paths = [None] * len(images_paths)
 
