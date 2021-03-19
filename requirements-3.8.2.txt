@@ -99,7 +99,7 @@ parso==0.7.1
 pbr==5.5.1
 pexpect==4.8.0
 pickleshare==0.7.5
-Pillow==7.2.0
+Pillow==8.1.1
 plotly==4.9.0
 prometheus-client==0.8.0
 prompt-toolkit @ file:///tmp/build/80754af9/prompt-toolkit_1598885458782/work
