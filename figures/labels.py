@@ -1,10 +1,5 @@
 """
-This script evaluates the contribution of a technique from the ablation study for
-improving the masker evaluation metrics. The differences in the metrics are computed
-for all images of paired models, that is those which only differ in the inclusion or
-not of the given technique. Then, statistical inference is performed through the
-percentile bootstrap to obtain robust estimates of the differences in the metrics and
-confidence intervals. The script plots the distribution of the bootrstraped estimates.
+This scripts plots images from the Masker test set overlaid with their labels.
 """
 print("Imports...", end="")
 from argparse import ArgumentParser
