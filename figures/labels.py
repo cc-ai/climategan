@@ -70,12 +70,6 @@ def parsed_args():
         help="Directory containing the test images",
     )
     parser.add_argument(
-        "--best_model",
-        default="dada, msd_spade, pseudo",
-        type=str,
-        help="The string identifier of the best model",
-    )
-    parser.add_argument(
         "--images",
         nargs="+",
         help="List of image file names to plot",
