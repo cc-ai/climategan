@@ -303,7 +303,8 @@ def plot_median_metrics(
         }
     )
 
-    fig, axes = plt.subplots(nrows=1, ncols=3, sharey=True, dpi=dpi, figsize=(18, 3))
+    fig_h = 0.33 * len(df.model_feats.unique())
+    fig, axes = plt.subplots(nrows=1, ncols=3, sharey=True, dpi=dpi, figsize=(18, fig_h))
 
     # Error
     plot_metric(
@@ -364,7 +365,7 @@ if __name__ == "__main__":
         pass
     else:
         if "no_baseline" in args.models.lower():
-            df = df.loc[(df.ground == False) & (df.ground == False)]
+            df = df.loc[(df.ground == False) & (df.instagan == False)]
         if "pseudo" in args.models.lower():
             df = df.loc[
                 (df.pseudo == True) | (df.ground == True) | (df.instagan == True)
