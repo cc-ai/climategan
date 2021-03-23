@@ -129,6 +129,10 @@ def parsed_args():
     return parser.parse_args()
 
 
+def trim_mean_wrapper(a):
+    return trim_mean(a, proportiontocut=0.2)
+
+
 def find_model_pairs(technique, model_feats):
     model_pairs = []
     for mi in df.loc[df[technique]].model_feats.unique():
@@ -246,7 +250,7 @@ if __name__ == "__main__":
             errwidth=1.5,
             scale=0.6,
             join=False,
-            estimator=np.median,
+            estimator=trim_mean_wrapper,
             ci=int(args.alpha * 100), n_boot=args.n_bs, seed=args.bs_seed
         )
         leg_handles, leg_labels = ax.get_legend_handles_labels()
