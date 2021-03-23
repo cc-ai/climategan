@@ -393,6 +393,8 @@ def scatterplot_metrics_pair(ax, df, x_metric, y_metric, dict_images):
     # Set Y-label
     ax.set_ylabel(dict_metrics["names"][y_metric], rotation=90, fontsize="medium")
 
+    annotate_scatterplot(ax, dict_images, x_metric, y_metric)
+
 def scatterplot_metrics(ax, df, dict_images):
 
     sns.scatterplot(data=df, x='error', y='f05', hue='edge_coherence',
@@ -404,9 +406,9 @@ def scatterplot_metrics(ax, df, dict_images):
     # Set Y-label
     ax.set_ylabel(dict_metrics["names"]['f05'], rotation=90, fontsize="medium")
 
-    annotate_scatterplot(ax, dict_images)
+    annotate_scatterplot(ax, dict_images, 'error', 'f05')
 
-def annotate_scatterplot(ax, dict_images, offset=0.1):
+def annotate_scatterplot(ax, dict_images, x_metric, y_metric, offset=0.1):
     xlim = ax.get_xlim()
     ylim = ax.get_ylim()
     x_len = (xlim[1] - xlim[0])
@@ -414,8 +416,8 @@ def annotate_scatterplot(ax, dict_images, offset=0.1):
     x_th = xlim[1] - x_len / 2.
     y_th = ylim[1] - y_len / 2.
     for text, d in dict_images.items():
-        x = d.error
-        y = d.f05
+        x = d[x_metric]
+        y = d[y_metric]
         x_text = x + x_len * offset if x < x_th else x - x_len * offset
         y_text = y + y_len * offset if y < y_th else y - y_len * offset
         ax.annotate(xy=(x, y), xycoords='data', xytext=(x_text, y_text),
@@ -504,7 +506,7 @@ if __name__ == "__main__":
         img_filename = srs_sel.filename
 
         axes_row = axes[0, :]
-#         plot_images_metric(axes_row, metric, img_filename, img_id, do_legend=True)
+        plot_images_metric(axes_row, metric, img_filename, img_id, do_legend=True)
 
 #         fig.suptitle('Error: {:.4f}        F05 score: {:.4f}        Edge coherence: {:.4f}'.format(srs_sel.error, srs_sel.f05, srs_sel.edge_coherence), y=0.5, fontsize='medium');
 
@@ -524,7 +526,7 @@ if __name__ == "__main__":
         img_filename = srs_sel.filename
 
         axes_row = axes[1, :]
-#         plot_images_metric(axes_row, metric, img_filename, img_id, do_legend=False)
+        plot_images_metric(axes_row, metric, img_filename, img_id, do_legend=False)
 
 #         fig.suptitle('Error: {:.4f}        F05 score: {:.4f}        Edge coherence: {:.4f}'.format(srs_sel.error, srs_sel.f05, srs_sel.edge_coherence), y=0., fontsize='medium');
 
@@ -532,16 +534,16 @@ if __name__ == "__main__":
 
         # Save figure
         output_fig = output_dir / "{}.png".format(metric)
-#         fig.savefig(output_fig, dpi=fig.dpi, bbox_inches="tight")
+        fig.savefig(output_fig, dpi=fig.dpi, bbox_inches="tight")
 
-    fig = plt.figure(dpi=200)
-    scatterplot_metrics(fig.gca(), df, dict_images)
+#     fig = plt.figure(dpi=200)
+#     scatterplot_metrics(fig.gca(), df, dict_images)
 
-#     fig, axes = plt.subplots(nrows=1, ncols=3, dpi=200, figsize=(18, 5))
-# 
-#     scatterplot_metrics_pair(axes[0], df, 'error', 'f05', dict_images)
-#     scatterplot_metrics_pair(axes[1], df, 'error', 'edge_coherence', dict_images)
-#     scatterplot_metrics_pair(axes[2], df, 'f05', 'edge_coherence', dict_images)
+    fig, axes = plt.subplots(nrows=1, ncols=3, dpi=200, figsize=(18, 5))
+
+    scatterplot_metrics_pair(axes[0], df, 'error', 'f05', dict_images)
+    scatterplot_metrics_pair(axes[1], df, 'error', 'edge_coherence', dict_images)
+    scatterplot_metrics_pair(axes[2], df, 'f05', 'edge_coherence', dict_images)
 
     output_fig = output_dir / "scatterplots.png"
     fig.savefig(output_fig, dpi=fig.dpi, bbox_inches="tight")
