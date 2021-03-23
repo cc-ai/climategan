@@ -127,7 +127,7 @@ def parsed_args():
     )
     parser.add_argument(
         "--seed",
-        default=17,
+        default=None,
         type=int,
         help="Bootstrap random seed, for reproducibility",
     )
@@ -484,7 +484,8 @@ if __name__ == "__main__":
         }
     )
 
-#     np.random.seed(args.seed)
+    if args.seed:
+        np.random.seed(args.seed)
     img_ids = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
     dict_images = {}
     idx = 0
