@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+import random
 from PIL import Image, ImageFilter
 from torchvision.transforms import ToTensor
 from torchvision.transforms.functional import adjust_brightness, adjust_contrast
@@ -60,7 +61,7 @@ def paste_filter(x, filter_, mask):
     return x
 
 
-def add_fire(x, seg_preds, filter_color, blur_radius):
+def add_fire(x, seg_preds, fire_opts):
     """
     Transforms input tensor given wildfires event
     Args:
@@ -83,8 +84,12 @@ def add_fire(x, seg_preds, filter_color, blur_radius):
     wildfire_tens = wildfire_tens.type(torch.uint8)
 
     # Darken the picture and increase contrast
-    wildfire_tens = adjust_contrast(wildfire_tens, contrast_factor=0.8)
-    wildfire_tens = adjust_brightness(wildfire_tens, brightness_factor=0.7)
+    wildfire_tens = adjust_contrast(
+        wildfire_tens, contrast_factor=fire_opts.contrast_factor
+    )
+    wildfire_tens = adjust_brightness(
+        wildfire_tens, brightness_factor=fire_opts.brightness_factor
+    )
 
     # Find sky proportion in picture
     sky_mask = retrieve_sky_mask(seg_preds)
@@ -102,13 +107,18 @@ def add_fire(x, seg_preds, filter_color, blur_radius):
         im_array = wildfire_tens.permute(1, 2, 0).cpu().detach().numpy()
         im = Image.fromarray(im_array).convert("RGB")
 
+        green_value = random.randint(0, 150)
+        filter_color = (255, green_value, 0)
+
         filter_ = Image.new("RGB", im.size, filter_color)
 
-        sky_mask = increase_sky_mask(sky_mask, 0.2, 0.2)
-        im_mask = Image.fromarray((sky_mask.cpu().numpy() * 255.0).squeeze()).convert(
-            "L"
+        sky_mask = increase_sky_mask(
+            sky_mask, fire_opts.sky_inc_factor, fire_opts.sky_inc_factor
         )
-        filter_mask = im_mask.filter(ImageFilter.GaussianBlur(blur_radius))
+        im_mask = Image.fromarray(
+            (sky_mask.cpu().numpy() * fire_opts.transparency).squeeze()
+        ).convert("L")
+        filter_mask = im_mask.filter(ImageFilter.GaussianBlur(fire_opts.blur_radius))
 
         im.paste(filter_, (0, 0), filter_mask)
 
