@@ -316,7 +316,7 @@ if __name__ == "__main__":
         )
 
     # Set X-label (title)                                                                                                     │
-    fig.suptitle('Bootstrapped median difference and confidence intervals',
+    fig.suptitle('Bootstrapped 20 % trimmed mean difference and confidence intervals',
                  y=0., fontsize='x-small');
 
     # Save figure
