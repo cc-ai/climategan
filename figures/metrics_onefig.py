@@ -484,8 +484,21 @@ def scatterplot_metrics_pair(ax, df, x_metric, y_metric, dict_images):
     annotate_scatterplot(ax, dict_images, x_metric, y_metric)
 
 
-def scatterplot_metrics(ax, df, dict_images):
+def scatterplot_metrics(ax, df, df_all, dict_images):
 
+    sns.scatterplot(
+            data=df_all.loc[df_all.ground == True], 
+            x="error", y="f05", hue="edge_coherence", ax=ax,
+            marker='+', alpha=0.25)
+    sns.scatterplot(
+            data=df_all.loc[df_all.instagan == True], 
+            x="error", y="f05", hue="edge_coherence", ax=ax,
+            marker='x', alpha=0.25)
+    sns.scatterplot(
+            data=df_all.loc[(df_all.instagan == False) & (df_all.instagan == False) &
+                (df.model_feats != args.best_model)], 
+            x="error", y="f05", hue="edge_coherence", ax=ax,
+            marker='s', alpha=0.25)
     sns.scatterplot(data=df, x="error", y="f05", hue="edge_coherence", ax=ax)
 
     # Set X-label
@@ -555,10 +568,10 @@ if __name__ == "__main__":
     labels_path = Path(args.masker_test_set_dir) / "labels"
 
     # Read CSV
-    df = pd.read_csv(args.input_csv, index_col="model_img_idx")
+    df_all = pd.read_csv(args.input_csv, index_col="model_img_idx")
 
     # Select best model
-    df = df.loc[df.model_feats == args.best_model]
+    df = df_all.loc[df_all.model_feats == args.best_model]
     v_key, model_dir = df.model.unique()[0].split("/")
     model_path = Path(args.models_log_path) / "ablation-{}".format(v_key) / model_dir
 
@@ -681,7 +694,7 @@ if __name__ == "__main__":
     # Scatter plot
     fig2 = plt.figure(dpi=200)
 
-    scatterplot_metrics(fig2.gca(), df, dict_images)
+    scatterplot_metrics(fig2.gca(), df, df_all, dict_images)
 
 #     fig2, axes = plt.subplots(nrows=1, ncols=3, dpi=200, figsize=(18, 5))
 # 
