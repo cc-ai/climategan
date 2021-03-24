@@ -18,6 +18,7 @@ from skimage.color import rgba2rgb
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.transforms as transforms
+from matplotlib.gridspec import GridSpec
 
 import sys
 
@@ -590,22 +591,28 @@ if __name__ == "__main__":
     dict_images = {}
     idx = 0
 
-    fig1, axes = plt.subplots(
-        nrows=6, ncols=4, dpi=200, figsize=(11, 16), frameon=False
-    )
+    # Define grid of subplots
+    grid_vmargin = 0.03 # Extent of the vertical margin between metric grids
+    ax_hspace = 0.04 # Extent of the vertical space between axes of same grid
+    ax_wspace = 0.05 # Extent of the horizontal space between axes of same grid
+    n_grids = len(metrics)
+    n_cols = 4 
+    n_rows = 2
+    h_grid = (1. / n_grids) - ((n_grids - 1) * grid_vmargin) / n_grids
 
-    # left = 0.125  # the left side of the subplots of the figure
-    # right = 0.9  # the right side of the subplots of the figure
-    # bottom = 0.1  # the bottom of the subplots of the figure
-    # top = 0.9  # the top of the subplots of the figure
-    # wspace = 0.2  # the amount of width reserved for blank space between subplots
-    # hspace = 0.2  # the amount of height reserved for white space between subplots
+    fig1 = plt.figure(dpi=200, figsize=(11, 13))
 
-    # fig1.subplots_adjust(left, bottom, right, top, wspace, hspace)
 
     n_ = 0
     add_title = False
     for metric_id, metric in enumerate(metrics):
+
+        # Create grid
+        top_grid = 1. - metric_id * h_grid - metric_id * grid_vmargin
+        bottom_grid = top_grid - h_grid
+        gridspec = GridSpec(n_rows, n_cols, wspace=ax_wspace, hspace=ax_hspace,
+                bottom=bottom_grid, top=top_grid)
+
         # Select best
         if metric == "error":
             ascending = True
@@ -618,8 +625,8 @@ if __name__ == "__main__":
         # Read images
         img_filename = srs_sel.filename
 
+        axes_row = [fig1.add_subplot(gridspec[0, c]) for c in range(n_cols)]
         if not args.no_images:
-            axes_row = axes[n_, :]
             n_ += 1
             if metric_id == 0:
                 add_title = True
@@ -634,7 +641,7 @@ if __name__ == "__main__":
                 do_legend=False,
             )
             add_title = False
-        #         fig.suptitle('Error: {:.4f}        F05 score: {:.4f}        Edge coherence: {:.4f}'.format(srs_sel.error, srs_sel.f05, srs_sel.edge_coherence), y=0.5, fontsize='medium');
+
         idx += 1
         print("1 more row done.")
         # Select worst
@@ -648,8 +655,9 @@ if __name__ == "__main__":
         dict_images.update({img_id: srs_sel})
         # Read images
         img_filename = srs_sel.filename
+
+        axes_row = [fig1.add_subplot(gridspec[1, c]) for c in range(n_cols)]
         if not args.no_images:
-            axes_row = axes[n_, :]
             n_ += 1
             plot_images_metric(
                 axes_row,
@@ -661,7 +669,7 @@ if __name__ == "__main__":
                 add_title=add_title,
                 do_legend=False,
             )
-        #         fig.suptitle('Error: {:.4f}        F05 score: {:.4f}        Edge coherence: {:.4f}'.format(srs_sel.error, srs_sel.f05, srs_sel.edge_coherence), y=0., fontsize='medium');
+
         idx += 1
         print("1 more row done.")
 
@@ -670,15 +678,16 @@ if __name__ == "__main__":
     fig1.tight_layout()  # (pad=1.5)  #
     fig1.savefig(output_fig, dpi=fig1.dpi, bbox_inches="tight")
 
-    fig = plt.figure(dpi=200)
+    # Scatter plot
+    fig2 = plt.figure(dpi=200)
 
-    scatterplot_metrics(fig.gca(), df, dict_images)
+    scatterplot_metrics(fig2.gca(), df, dict_images)
 
-    fig, axes = plt.subplots(nrows=1, ncols=3, dpi=200, figsize=(18, 5))
-
-    scatterplot_metrics_pair(axes[0], df, "error", "f05", dict_images)
-    scatterplot_metrics_pair(axes[1], df, "error", "edge_coherence", dict_images)
-    scatterplot_metrics_pair(axes[2], df, "f05", "edge_coherence", dict_images)
+#     fig2, axes = plt.subplots(nrows=1, ncols=3, dpi=200, figsize=(18, 5))
+# 
+#     scatterplot_metrics_pair(axes[0], df, "error", "f05", dict_images)
+#     scatterplot_metrics_pair(axes[1], df, "error", "edge_coherence", dict_images)
+#     scatterplot_metrics_pair(axes[2], df, "f05", "edge_coherence", dict_images)
 
     output_fig = output_dir / "scatterplots.png"
-    fig.savefig(output_fig, dpi=fig.dpi, bbox_inches="tight")
+    fig2.savefig(output_fig, dpi=fig2.dpi, bbox_inches="tight")
