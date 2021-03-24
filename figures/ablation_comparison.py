@@ -19,6 +19,7 @@ from collections import OrderedDict
 from pathlib import Path
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import matplotlib.transforms as transforms
 
 
 # -----------------------
@@ -82,6 +83,13 @@ dict_techniques = {
     "pseudo_labels": "pseudo",
 }
 
+# Markers
+dict_markers = {
+        'error': 'o',
+        'f05': 's',
+        'edge_coherence': '^'
+}
+
 # Model features
 model_feats = [
     "masker",
@@ -99,10 +107,10 @@ model_feats = [
 palette_colorblind = sns.color_palette("colorblind")
 color_climategan = palette_colorblind[0]
 color_munit = palette_colorblind[1]
-color_cyclegan = palette_colorblind[2]
-color_instagan = palette_colorblind[3]
-color_maskinstagan = palette_colorblind[6]
-color_paintedground = palette_colorblind[8]
+color_cyclegan = palette_colorblind[6]
+color_instagan = palette_colorblind[8]
+color_maskinstagan = palette_colorblind[2]
+color_paintedground = palette_colorblind[3]
 
 color_cat1 = palette_colorblind[0]
 color_cat2 = palette_colorblind[1]
@@ -193,7 +201,7 @@ def plot_median_metrics(
     df, do_stripplot=True, dpi=200, bs_seed=37, n_bs=1000, **snskwargs
 ):
     def plot_metric(
-        ax, df, metric, do_stripplot=True, dpi=200, bs_seed=37, **snskwargs
+        ax, df, metric, do_stripplot=True, dpi=200, bs_seed=37, marker='o', **snskwargs
     ):
 
         y_labels = [dict_models[f] for f in df.model_feats.unique()]
@@ -227,13 +235,14 @@ def plot_median_metrics(
             x=metric,
             y="model_feats",
             order=y_order,
+            markers=marker,
             estimator=np.median,
             ci=99,
             seed=bs_seed,
             n_boot=n_bs,
             join=False,
-            scale=0.5,
-            errwidth=0.5,
+            scale=0.6,
+            errwidth=1.5,
             capsize=0.1,
             palette=palette,
         )
@@ -262,6 +271,16 @@ def plot_median_metrics(
         # Change spines
         sns.despine(ax=ax, left=True, bottom=True)
 
+        # Draw gray area on final model
+        xlim = ax.get_xlim()
+        ylim = ax.get_ylim()
+        trans = transforms.blended_transform_factory(
+            ax.transAxes, ax.transData)
+        rect = mpatches.Rectangle(xy=(0., 5.5), width=1, height=1,
+                                  transform=trans,
+                                  linewidth=0., edgecolor='none', facecolor='gray', alpha=0.05)
+        ax.add_patch(rect)
+
     # Set up plot
     sns.set(style="whitegrid")
     plt.rcParams.update({"font.family": "serif"})
@@ -284,15 +303,20 @@ def plot_median_metrics(
         }
     )
 
-    fig, axes = plt.subplots(nrows=1, ncols=3, sharey=True, dpi=dpi, figsize=(10, 3))
+    fig_h = 0.33 * len(df.model_feats.unique())
+    fig, axes = plt.subplots(nrows=1, ncols=3, sharey=True, dpi=dpi, figsize=(18, fig_h))
 
     # Error
     plot_metric(
-        axes[0], df, "error", do_stripplot=do_stripplot, dpi=dpi, bs_seed=bs_seed
+        axes[0], df, "error", do_stripplot=do_stripplot, dpi=dpi, bs_seed=bs_seed,
+        marker=dict_markers['error']
     )
+    axes[0].set_ylabel('Models')
+
 
     # F05
-    plot_metric(axes[1], df, "f05", do_stripplot=do_stripplot, dpi=dpi, bs_seed=bs_seed)
+    plot_metric(axes[1], df, "f05", do_stripplot=do_stripplot, dpi=dpi, bs_seed=bs_seed,
+        marker=dict_markers['f05'])
 
     # Edge coherence
     plot_metric(
@@ -302,7 +326,13 @@ def plot_median_metrics(
         do_stripplot=do_stripplot,
         dpi=dpi,
         bs_seed=bs_seed,
+        marker=dict_markers['edge_coherence']
     )
+    xticks = axes[2].get_xticks()
+    xticklabels = ["{:.3f}".format(x) for x in xticks]
+    axes[2].set(xticks=xticks, xticklabels=xticklabels)
+
+    plt.subplots_adjust(wspace=0.12)
 
     return fig
 
@@ -335,7 +365,7 @@ if __name__ == "__main__":
         pass
     else:
         if "no_baseline" in args.models.lower():
-            df = df.loc[(df.ground == False) & (df.ground == False)]
+            df = df.loc[(df.ground == False) & (df.instagan == False)]
         if "pseudo" in args.models.lower():
             df = df.loc[
                 (df.pseudo == True) | (df.ground == True) | (df.instagan == True)

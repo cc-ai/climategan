@@ -129,6 +129,10 @@ def parsed_args():
     return parser.parse_args()
 
 
+def trim_mean_wrapper(a):
+    return trim_mean(a, proportiontocut=0.2)
+
+
 def find_model_pairs(technique, model_feats):
     model_pairs = []
     for mi in df.loc[df[technique]].model_feats.unique():
@@ -232,6 +236,7 @@ if __name__ == "__main__":
     fig, axes = plt.subplots(nrows=1, ncols=3, sharey=True, dpi=args.dpi, figsize=(6, 3))
 
     metrics = ['error', 'f05', 'edge_coherence']
+    dict_ci = {m: {} for m in metrics}
 
     for idx, metric in enumerate(dict_metrics['key_metrics']): 
 
@@ -246,9 +251,19 @@ if __name__ == "__main__":
             errwidth=1.5,
             scale=0.6,
             join=False,
-            estimator=np.median,
+            estimator=trim_mean_wrapper,
             ci=int(args.alpha * 100), n_boot=args.n_bs, seed=args.bs_seed
         )
+
+        # Retrieve confidence intervals and update results dictionary
+        for line, technique in zip(ax.lines, dict_techniques.keys()):
+            dict_ci[metric].update({technique: {
+                '20_trimmed_mean': float(trim_mean_wrapper(dfbs.loc[(dfbs.technique ==
+                    technique) & (dfbs.metric == metrics[idx]), 'diff'].values)),
+                'ci_left': float(line.get_xdata()[0]),
+                'ci_right': float(line.get_xdata()[1])
+                }})
+
         leg_handles, leg_labels = ax.get_legend_handles_labels()
 
         # Change spines
@@ -312,10 +327,14 @@ if __name__ == "__main__":
         )
 
     # Set X-label (title)                                                                                                     │
-    fig.suptitle('Bootstrapped median difference and confidence intervals',
+    fig.suptitle('20 % trimmed mean difference and bootstrapped confidence intervals',
                  y=0., fontsize='x-small');
 
     # Save figure
     output_fig = output_dir / "bootstrap_summary.png"
     fig.savefig(output_fig, dpi=fig.dpi, bbox_inches="tight")
 
+    # Store results
+    output_results = output_dir / "bootstrap_summary_results.yml"
+    with open(output_results, "w") as f:
+        yaml.dump(dict_ci, f)
