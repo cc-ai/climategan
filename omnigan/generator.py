@@ -137,7 +137,7 @@ class OmniGenerator(nn.Module):
 
         self.decoders = nn.ModuleDict(self.decoders)
 
-        if "p" in self.opts.tasks:
+        if "p" in opts.tasks:
             self.painter = PainterSpadeDecoder(opts)
             if self.verbose > 0:
                 print("  - Created PainterSpadeDecoder Painter")
@@ -253,6 +253,9 @@ class OmniGenerator(nn.Module):
 
     def load_val_painter(self):
         try:
+            device = torch.device(
+            "cuda:0" if torch.cuda.is_available() else "cpu"
+        )
             assert self.opts.val.val_painter
             ckpt_path = Path(self.opts.val.val_painter).resolve()
             assert ckpt_path.exists()
@@ -260,7 +263,7 @@ class OmniGenerator(nn.Module):
             assert opts_path.exists()
             with opts_path.open("r") as f:
                 val_painter_opts = Dict(yaml.safe_load(f))
-            state_dict = torch.load(ckpt_path)
+            state_dict = torch.load(ckpt_path, map_location=device)
             painter = PainterSpadeDecoder(val_painter_opts)
             painter.load_state_dict(
                 {k.replace("painter.", ""): v for k, v in state_dict["G"].items()}

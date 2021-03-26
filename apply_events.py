@@ -335,6 +335,7 @@ if __name__ == "__main__":
     all_events = []
 
     with Timer(store=stores.get("inference on all images", [])):
+        print(f"Number of batches {n_batchs}")
         for b in range(n_batchs):
             print(f"Batch {b + 1}/{n_batchs}", end="\r")
             images = data[b * batch_size : (b + 1) * batch_size]

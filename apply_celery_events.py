@@ -1,24 +1,33 @@
 print("\n• Imports\n")
-from ast import Bytes
+# from ast import Bytes
+import os
 import logging
 import time
 
+logger = logging.getLogger('azure.storage')
+logger.setLevel(logging.ERROR)
+
 import_time = time.time()
-import os
+import sys
 from io import BytesIO
 from PIL import Image
-from omnigan.data import is_image_file
-from omnigan.utils import Timer
+# from omnigan.data import is_image_file
 from omnigan.tutils import normalize
-import skimage.io as io
+from skimage.color import rgba2rgb
 from skimage.transform import resize
 from pathlib import Path
 import numpy as np
 from datetime import datetime
 from collections import OrderedDict
+import concurrent.futures
+import threading
 
-from azure.storage.blob import BlobServiceClient
-
+from omnigan.utils import (
+    Timer,
+    get_git_revision_hash,
+    to_128,
+    # find_images,
+)
 
 import_time = time.time() - import_time
 
@@ -30,6 +39,15 @@ try:
     XLA = True
 except ImportError:
     pass
+
+
+def write_apply_config(out):
+    command = " ".join(sys.argv)
+    git_hash = get_git_revision_hash()
+    with (out / "command.txt").open("w") as f:
+        f.write(command)
+    with (out / "hash.txt").open("w") as f:
+        f.write(git_hash)
 
 
 def print_time(text, time_series, purge=-1):
@@ -81,36 +99,73 @@ def print_store(store, purge=-1):
         print_time(k, multiples[k], purge)
     print()
 
+def download_blob_and_preprocess(container_client, path, output):
+    dld = container_client.download_blob(path)
+    filestream = BytesIO()
+    dld.readinto(filestream)
 
-def connect_to_container(container):
-    stringauth = 'DefaultEndpointsProtocol=https;AccountName=ccviz;AccountKey=RWl7PcQoR3HqeEVr9M1ECCg6AIc8X1RlpqjF1TgsDbZjFqMZxY4heBpk5x3WvNSyT8iSfQJSx7lAKoYj4Cl8Bg==;EndpointSuffix=core.windows.net'
-    return BlobServiceClient.from_connection_string(stringauth).get_container_client(container)
+    image = np.array(Image.open(filestream))
 
-def download_blobs(container_client, path_on_container='input/'):
+    data = image if image.shape[-1] == 3 else rgba2rgb(image)
+    # resize to standard input size 640 x 640
+    data = resize(data, (640, 640), anti_aliasing=True)
+    # normalize to -1:1
+    data = (normalize(data.astype(np.float32)) - 0.5) * 2
+
+    return (output, data)
+
+def download_blobs_and_preprocess(container_client, paths_on_container=['input/'], output_paths=['ouput/']):
     """
     Download images from container
     """
-    for blob in container_client.list_blobs(name_starts_with=path_on_container):
-        dld = container_client.download_blob(blob)
-        filestream = BytesIO()
-        dld.readinto(filestream)
-        yield Path(blob.name).stem, np.array(Image.open(filestream))
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future_images = [executor.submit(download_blob_and_preprocess, container_client, path, output) for path, output in zip(paths_on_container, output_paths)]
+        for future in future_images:
+            try:
+                data = future.result()
+            except Exception as exc:
+                logging.error(exc)
+            else:
+                yield data
 
 
-def run_inference_from_trainer(trainer, container, path_on_container='input/', output_path='output/', time_inference=True, \
-    batch_size=8,
-    flood_mask_binarization=-1,
-    half=False,
-    n_images=-1,
-    xla_purge_samples=-1
+def upload_blobs(container_client, all_events, image_paths, stores):
+    """This upload blob method supposes that there is only one batch"""
+    def daemon(output, container_client):
+        for im_path, im_data in output:
+            imagefile = BytesIO()
+            im_data.save(imagefile, format='JPEG', quality=80)
+            container_client.upload_blob(
+                str(im_path),
+                imagefile.getvalue(),
+                overwrite=True
+                )            
+
+    print("\n• Writing")
+    with Timer(store=stores.get("write", [])):
+        output_images = dict(zip(image_paths, [[]]*len(image_paths)))
+        for event_type, events in all_events.items():
+            for event, path in zip(events, image_paths):
+                fpath = path if path[-1]=='/' else path+'/'
+                im_path = fpath + f"{event_type}.jpg"
+                im_data = Image.fromarray(event)
+                output_images[path].append((im_path, im_data))
+
+        for uploads in output_images.values():
+            d = threading.Thread(name='daemon', target=daemon, args=(uploads, container_client))
+            d.setDaemon(True)
+            d.start()
+
+def run_inference_from_trainer(trainer, container_client, paths_on_container=['input/'], output_paths=['output/'], time_inference=True, \
+    flood_mask_binarization=0.5,
+    half=True,
+    cloudy = True,
+    xla_purge_samples=-1,
     ):
 
-    # print(
-    #     "• Using args\n\n"
-    #     + "\n".join(["{:25}: {}".format(k, v) for k, v in vars(kwargs).items()]),
-    # )
+    batch_size = len(paths_on_container)
 
-    container_client = connect_to_container(container)
     bin_value = flood_mask_binarization
 
     # -------------------------------
@@ -122,10 +177,7 @@ def run_inference_from_trainer(trainer, container, path_on_container='input/', o
             {
                 "imports": [import_time],
                 "setup": [],
-                "data 1: download": [],
-                "data 2: resize": [],
-                "data 3: normalize": [],
-                "data 4: full pre-processing": [],
+                "data: download and pre-processing": [],
                 "encode": [],
                 "mask": [],
                 "flood": [],
@@ -137,52 +189,30 @@ def run_inference_from_trainer(trainer, container, path_on_container='input/', o
                 "numpy": [],
                 "inference on all images": [],
                 "write": [],
+                "active_threads": [threading.active_count()],
             }
         )
 
-    # -------------------------------------
-    # -----  Resume Trainer instance  -----
-    # -------------------------------------
-    print("\n• Initializing trainer\n")
-
-    with Timer(store=stores.get("setup", [])):
-
-        if half:
-            trainer.G.half()
 
     # --------------------------------------------
     # -----  Read data from input directory  -----
     # --------------------------------------------
     print("\n• Downloading & Pre-processing Data\n")
 
-    with Timer(store=stores.get("data 4: full pre-processing", [])):
-        with Timer(store=stores.get("data 1: download", [])):
-            images = list(download_blobs(container_client, path_on_container))
-        base_images = images
-        n_image_streams = len(base_images)
-        # filter images
-        nstreams = len(images)
-        if 0 < n_images < nstreams:
-            images = images[:n_images]
-        # repeat data
-        elif n_images > nstreams:
-            repeats = n_images // nstreams + 1
-            images = base_images * repeats
-            images = images[:n_images]
-
-        image_names, data = zip(*images)
-        with Timer(store=stores.get("data 2: resize", [])):
-            # resize to standard input size 640 x 640
-            data = [resize(d, (640, 640), anti_aliasing=True) for d in data]
-        with Timer(store=stores.get("data 3: normalize", [])):
-            # normalize to -1:1
-            data = [(normalize(d.astype(np.float32)) - 0.5) * 2 for d in data]
-
+    with Timer(store=stores.get("data: download and pre-processing", [])):
+        images = list(
+            download_blobs_and_preprocess(
+                container_client,
+                paths_on_container,
+                output_paths)
+            )
+    
+    valid_output, data = zip(*images)
     n_batchs = len(data) // batch_size
     if len(data) % batch_size != 0:
         n_batchs += 1
 
-    print("Found", n_image_streams, "images. Inferring on", len(data), "images.")
+    print("Found", len(paths_on_container), "images. Inferring on", len(data), "images.")
 
     # --------------------------------------------
     # -----  Batch-process images to events  -----
@@ -192,47 +222,24 @@ def run_inference_from_trainer(trainer, container, path_on_container='input/', o
     all_events = []
 
     with Timer(store=stores.get("inference on all images", [])):
-        for b in range(n_batchs):
-            print(f"Batch {b + 1}/{n_batchs}", end="\r")
-            images = data[b * batch_size : (b + 1) * batch_size]
-            if not images:
-                continue
-            # concatenate images in a batch batch_size x height x width x 3
-            images = np.stack(images)
+        # concatenate images in a batch batch_size x height x width x 3
+        images = np.stack(data)
 
-            # Retreive numpy events as a dict {event: array}
-            events = trainer.infer_all(
-                images,
-                numpy=True,
-                stores=stores,
-                bin_value=bin_value,
-                half=half,
-                xla=XLA,
-                cloudy=cloudy,
-            )
-
-            # store events to write after inference loop
-            all_events.append(events)
-    print()
+        # Retreive numpy events as a dict {event: array}
+        events = trainer.infer_all(
+            images,
+            numpy=True,
+            stores=stores,
+            bin_value=bin_value,
+            half=half,
+            xla=XLA,
+            cloudy=cloudy,
+        )
 
     # ----------------------------------------------
     # -----  Write events to output directory  -----
     # ----------------------------------------------
-    if output_path is not None:
-        print("\n• Writing")
-        with Timer(store=stores.get("write", [])):
-            for b, events in enumerate(all_events):
-                for i in range(len(list(events.values())[0])):
-                    idx = b * batch_size + i
-                    idx = idx % n_image_streams
-                    stem = image_names[idx]
-                    for event in events:
-                        im_path = output_path + f"{stem}_{event}.png"
-                        im_data = Image.fromarray(events[event][i])
-                        imagefile = BytesIO()
-                        im_data.save(imagefile, format='PNG')
-                        container_client.upload_blob(str(im_path), imagefile.getvalue(), overwrite=True)
-
+    upload_blobs(container_client, events, valid_output, stores)
     # ---------------------------
     # -----  Print timings  -----
     # ---------------------------
@@ -247,3 +254,5 @@ def run_inference_from_trainer(trainer, container, path_on_container='input/', o
         with open(metrics_dir / f"xla_metrics_{now}.txt", "w",) as f:
             report = met.metrics_report()
             print(report, file=f)
+
+

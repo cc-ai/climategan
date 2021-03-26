@@ -1,14 +1,33 @@
 # from celery.signals import worker_process_init
 import os
 import logging
+import ssl
+
 from celery import Celery, Task
 
-# import torch
+from azure.storage.blob import BlobServiceClient
+# from typing_extensions import TypeVarTuple
+import torch
 
 from omnigan.trainer import Trainer
 from apply_celery_events import run_inference_from_trainer
 
-app = Celery('inference_task', broker=os.environ.get('CELERY_BROKER_URL', 'amqp://admin:mypass@rabbitmq:5672'))
+try:
+    app = Celery('inference_task', broker=os.environ.get('CELERY_BROKER_URL', 'amqp://admin:mypass@rabbitmq:5672'))
+except:
+    app = Celery('inference_task', broker='amqp://user:otiZlPbTy7@10.0.71.54:5672/')
+
+broker_use_ssl = {
+  'ca_certs': '/etc/ssl/certs/cacert.pem',
+  'cert_reqs': ssl.CERT_REQUIRED
+}
+app.conf.update(
+    broker_use_ssl=broker_use_ssl,
+)
+
+def connect_to_container(container):
+    stringauth = os.environ.get('STORAGE_CONNECTION_STRING')
+    return BlobServiceClient.from_connection_string(stringauth).get_container_client(container)
 
 class OmniGAN(Task):
 
@@ -16,22 +35,33 @@ class OmniGAN(Task):
         logging.info(f"Initializing the Trainer")
         # torch.multiprocessing.set_start_method('spawn')
         device = None
+        while str(device) != 'cuda:0':
+            device = torch.device(
+            "cuda:0" if torch.cuda.is_available() else "cpu"
+            )
         # if XLA:
         #     device = xm.xla_device()
-        resume_path = os.environ.get('RESUME_PATH', "tests-v1/model")
+        resume_path = os.environ.get('RESUME_PATH', "model/masker")
         self._trainer = Trainer.resume_from_path(
             resume_path,
             setup=True,
             inference=True,
             new_exp=None,
-            input_shapes=(3, 640, 640),
             device=device,
         )
+        self._trainer.G.half()
+        self._container_client = connect_to_container('vicc')
 
     @property
     def trainer(self):
         return self._trainer
 
+    @property
+    def container(self):
+        return self._container_client
+
+
+
 @app.task(base=OmniGAN)
-def infer(container='test-images', input='input/', output='output/'):
-    run_inference_from_trainer(infer.trainer, container, path_on_container=input, output_path=output, time_inference=True)
+def infer(**kwargs):
+    run_inference_from_trainer(infer.trainer, infer.container, **kwargs)

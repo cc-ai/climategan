@@ -5,6 +5,7 @@ Main component: the trainer handles everything:
     * saving
 """
 import inspect
+import logging
 import warnings
 from copy import deepcopy
 from pathlib import Path
@@ -481,6 +482,7 @@ class Trainer:
 
             # specified m
             elif str(m_path) != "none":
+                print(f"m_path is {m_path}")
                 assert m_path.exists()
                 assert "m" in self.opts.tasks
                 model = "M"
