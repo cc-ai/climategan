@@ -107,7 +107,7 @@ def add_fire(x, seg_preds, fire_opts):
         im_array = wildfire_tens.permute(1, 2, 0).cpu().detach().numpy()
         im = Image.fromarray(im_array).convert("RGB")
 
-        green_value = random.randint(0, 150)
+        green_value = random.randint(110, 150)
         filter_color = (255, green_value, 0)
 
         filter_ = Image.new("RGB", im.size, filter_color)
