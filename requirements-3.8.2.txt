@@ -108,7 +108,7 @@ ptyprocess==0.6.0
 pyasn1==0.4.8
 pyasn1-modules==0.2.8
 pycparser==2.20
-Pygments==2.6.1
+Pygments==2.7.4
 pyJoules==0.5.1
 pynvml==8.0.4
 pyOpenSSL==19.1.0
