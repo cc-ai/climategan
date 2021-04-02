@@ -484,22 +484,38 @@ def scatterplot_metrics_pair(ax, df, x_metric, y_metric, dict_images):
     annotate_scatterplot(ax, dict_images, x_metric, y_metric)
 
 
-def scatterplot_metrics(ax, df, df_all, dict_images):
+def scatterplot_metrics(ax, df, df_all, dict_images, plot_all=False):
 
+    # Other
+    if plot_all:
+        sns.scatterplot(
+                data=df_all.loc[df_all.ground == True], 
+                x="error", y="f05", hue="edge_coherence", ax=ax,
+                marker='+', alpha=0.25)
+        sns.scatterplot(
+                data=df_all.loc[df_all.instagan == True], 
+                x="error", y="f05", hue="edge_coherence", ax=ax,
+                marker='x', alpha=0.25)
+        sns.scatterplot(
+                data=df_all.loc[(df_all.instagan == False) & (df_all.instagan == False) &
+                    (df_all.model_feats != args.best_model)], 
+                x="error", y="f05", hue="edge_coherence", ax=ax,
+                marker='s', alpha=0.25)
+
+    # Best model
+    cmap_ = sns.cubehelix_palette(as_cmap=True)
     sns.scatterplot(
-            data=df_all.loc[df_all.ground == True], 
-            x="error", y="f05", hue="edge_coherence", ax=ax,
-            marker='+', alpha=0.25)
-    sns.scatterplot(
-            data=df_all.loc[df_all.instagan == True], 
-            x="error", y="f05", hue="edge_coherence", ax=ax,
-            marker='x', alpha=0.25)
-    sns.scatterplot(
-            data=df_all.loc[(df_all.instagan == False) & (df_all.instagan == False) &
-                (df.model_feats != args.best_model)], 
-            x="error", y="f05", hue="edge_coherence", ax=ax,
-            marker='s', alpha=0.25)
-    sns.scatterplot(data=df, x="error", y="f05", hue="edge_coherence", ax=ax)
+        data=df, x="error", y="f05", hue="edge_coherence", ax=ax, palette=cmap_
+    )
+
+    norm = plt.Normalize(df["edge_coherence"].min(), df["edge_coherence"].max())
+    sm = plt.cm.ScalarMappable(cmap=cmap_, norm=norm)
+    sm.set_array([])
+
+    # Remove the legend and add a colorbar
+    ax.get_legend().remove()
+    ax_cbar = ax.figure.colorbar(sm)
+    ax_cbar.set_label("Edge coherence", labelpad=8)
 
     # Set X-label
     ax.set_xlabel(dict_metrics["names"]["error"], rotation=0, fontsize="medium")
@@ -527,20 +543,50 @@ def annotate_scatterplot(ax, dict_images, x_metric, y_metric, offset=0.1):
     x_th = xlim[1] - x_len / 2.0
     y_th = ylim[1] - y_len / 2.0
     for text, d in dict_images.items():
-        x = d[x_metric]
-        y = d[y_metric]
-        x_text = x + x_len * offset if x < x_th else x - x_len * offset
-        y_text = y + y_len * offset if y < y_th else y - y_len * offset
-        ax.annotate(
-            xy=(x, y),
-            xycoords="data",
-            xytext=(x_text, y_text),
-            textcoords="data",
-            text=text,
-            arrowprops=dict(facecolor="black", shrink=0.05),
-            fontsize="medium",
-            color="black",
-        )
+        if text in ["B", "D", "F"]:
+            x = d[x_metric]
+            y = d[y_metric]
+
+            x_text = x + x_len * offset if x < x_th else x - x_len * offset
+            y_text = y + y_len * offset if y < y_th else y - y_len * offset
+
+            ax.annotate(
+                xy=(x, y),
+                xycoords="data",
+                xytext=(x_text, y_text),
+                textcoords="data",
+                text=text,
+                arrowprops=dict(facecolor="black", shrink=0.05),
+                fontsize="medium",
+                color="black",
+            )
+        elif text == "A":
+            x = (
+                dict_images["A"][x_metric]
+                + dict_images["C"][x_metric]
+                + dict_images["E"][x_metric]
+            ) / 3
+            y = (
+                dict_images["A"][y_metric]
+                + dict_images["C"][y_metric]
+                + dict_images["E"][y_metric]
+            ) / 3
+
+            x_text = x + x_len * 2 * offset if x < x_th else x - x_len * 2 * offset
+            y_text = (
+                y + y_len * 0.45 * offset if y < y_th else y - y_len * 0.45 * offset
+            )
+
+            ax.annotate(
+                xy=(x, y),
+                xycoords="data",
+                xytext=(x_text, y_text),
+                textcoords="data",
+                text="A, C, E",
+                arrowprops=dict(facecolor="black", shrink=0.05),
+                fontsize="medium",
+                color="black",
+            )
 
 
 if __name__ == "__main__":
@@ -605,26 +651,31 @@ if __name__ == "__main__":
     idx = 0
 
     # Define grid of subplots
-    grid_vmargin = 0.03 # Extent of the vertical margin between metric grids
-    ax_hspace = 0.04 # Extent of the vertical space between axes of same grid
-    ax_wspace = 0.05 # Extent of the horizontal space between axes of same grid
+    grid_vmargin = 0.03  # Extent of the vertical margin between metric grids
+    ax_hspace = 0.04  # Extent of the vertical space between axes of same grid
+    ax_wspace = 0.05  # Extent of the horizontal space between axes of same grid
     n_grids = len(metrics)
-    n_cols = 4 
+    n_cols = 4
     n_rows = 2
-    h_grid = (1. / n_grids) - ((n_grids - 1) * grid_vmargin) / n_grids
+    h_grid = (1.0 / n_grids) - ((n_grids - 1) * grid_vmargin) / n_grids
 
     fig1 = plt.figure(dpi=200, figsize=(11, 13))
-
 
     n_ = 0
     add_title = False
     for metric_id, metric in enumerate(metrics):
 
         # Create grid
-        top_grid = 1. - metric_id * h_grid - metric_id * grid_vmargin
+        top_grid = 1.0 - metric_id * h_grid - metric_id * grid_vmargin
         bottom_grid = top_grid - h_grid
-        gridspec = GridSpec(n_rows, n_cols, wspace=ax_wspace, hspace=ax_hspace,
-                bottom=bottom_grid, top=top_grid)
+        gridspec = GridSpec(
+            n_rows,
+            n_cols,
+            wspace=ax_wspace,
+            hspace=ax_hspace,
+            bottom=bottom_grid,
+            top=top_grid,
+        )
 
         # Select best
         if metric == "error":
@@ -696,11 +747,11 @@ if __name__ == "__main__":
 
     scatterplot_metrics(fig2.gca(), df, df_all, dict_images)
 
-#     fig2, axes = plt.subplots(nrows=1, ncols=3, dpi=200, figsize=(18, 5))
-# 
-#     scatterplot_metrics_pair(axes[0], df, "error", "f05", dict_images)
-#     scatterplot_metrics_pair(axes[1], df, "error", "edge_coherence", dict_images)
-#     scatterplot_metrics_pair(axes[2], df, "f05", "edge_coherence", dict_images)
+    #     fig2, axes = plt.subplots(nrows=1, ncols=3, dpi=200, figsize=(18, 5))
+    #
+    #     scatterplot_metrics_pair(axes[0], df, "error", "f05", dict_images)
+    #     scatterplot_metrics_pair(axes[1], df, "error", "edge_coherence", dict_images)
+    #     scatterplot_metrics_pair(axes[2], df, "f05", "edge_coherence", dict_images)
 
     output_fig = output_dir / "scatterplots.png"
     fig2.savefig(output_fig, dpi=fig2.dpi, bbox_inches="tight")
