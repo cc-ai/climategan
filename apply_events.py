@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 import comet_ml  # noqa: F401
+import torch
 import numpy as np
 import skimage.io as io
 from skimage.color import rgba2rgb
@@ -325,7 +326,7 @@ if __name__ == "__main__":
     print("\n• Initializing trainer\n")
 
     with Timer(store=stores.get("setup", [])):
-
+        torch.set_grad_enabled(False)
         device = None
         if XLA:
             device = xm.xla_device()  # type: ignore
