@@ -292,12 +292,14 @@ class Trainer:
 
             # apply events
             with Timer(store=stores.get("wildfire", [])):
-                wildfire = self.compute_fire(x, segmentation)
+                wildfire = self.compute_fire(
+                    x, seg_preds=segmentation, z=z, z_depth=z_depth
+                )
             with Timer(store=stores.get("smog", [])):
-                smog = self.compute_smog(x, d=depth, s=segmentation)
+                smog = self.compute_smog(x, z=z, d=depth, s=segmentation)
             with Timer(store=stores.get("paint", [])):
                 flood = self.compute_flood(
-                    x, m=mask, s=segmentation, cloudy=cloudy, bin_value=bin_value
+                    x, z=z, m=mask, s=segmentation, cloudy=cloudy, bin_value=bin_value
                 )
 
         if xla:
