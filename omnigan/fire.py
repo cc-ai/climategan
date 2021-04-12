@@ -81,8 +81,7 @@ def add_fire(x, seg_preds, fire_opts):
     wildfire_tens[:, 2, :, :] -= 20
     wildfire_tens[:, 1, :, :] -= 10
     wildfire_tens[:, 0, :, :] += 40
-    wildfire_tens[wildfire_tens > 255] = 255
-    wildfire_tens[wildfire_tens < 0] = 0
+    wildfire_tens.clamp_(0, 255)
     wildfire_tens = wildfire_tens.to(torch.uint8)
 
     # Darken the picture and increase contrast

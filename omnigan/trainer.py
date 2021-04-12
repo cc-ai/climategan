@@ -301,7 +301,7 @@ class Trainer:
                 with Timer(store=stores.get("smog", [])):
                     smog = self.compute_smog(x, z=z, d=depth, s=segmentation)
             if "flood" not in ignore_event:
-                with Timer(store=stores.get("paint", [])):
+                with Timer(store=stores.get("flood", [])):
                     flood = self.compute_flood(
                         x,
                         z=z,
