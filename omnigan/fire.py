@@ -1,6 +1,8 @@
 import torch
 import torch.nn.functional as F
 import random
+import kornia
+import time
 from PIL import Image, ImageFilter
 from torchvision.transforms import ToTensor
 from torchvision.transforms.functional import adjust_brightness, adjust_contrast
@@ -98,33 +100,42 @@ def add_fire(x, seg_preds, fire_opts):
         (wildfire_tens.shape[-2], wildfire_tens.shape[-1]),
     )
     sky_mask = sky_mask.squeeze(0).squeeze(0)
-    num_sky_pixels = torch.sum(sky_mask)
-    sky_proportion = num_sky_pixels / (sky_mask.shape[0] * sky_mask.shape[1])
-    has_sky = sky_proportion > 0.01
 
-    # Adding red-ish color mostly in the sky
-    if has_sky:
-        im_array = wildfire_tens.permute(1, 2, 0).cpu().detach().numpy()
-        im = Image.fromarray(im_array).convert("RGB")
+    filter_ = torch.ones(wildfire_tens.shape)
+    filter_[0, :, :] = 255
+    filter_[1, :, :] = random.randint(110, 150)
+    filter_[2, :, :] = 0
+    filter_ = filter_.to(x.device)
 
-        green_value = random.randint(110, 150)
-        filter_color = (255, green_value, 0)
+    sky_mask = increase_sky_mask(
+        sky_mask, fire_opts.sky_inc_factor, fire_opts.sky_inc_factor
+    )
 
-        filter_ = Image.new("RGB", im.size, filter_color)
+    kernel_size = (301, 301)
+    sigma = (150.5, 150.5)
+    # kernel_size = (fire_opts.kernel_size, fire_opts.kernel_size)
+    # sigma = (fire_opts.kernel_sigma, fire_opts.kernel_sigma)
+    border_type = "reflect"
+    kernel = torch.unsqueeze(
+        kornia.filters.kernels.get_gaussian_kernel2d(kernel_size, sigma), dim=0
+    )
 
-        sky_mask = increase_sky_mask(
-            sky_mask, fire_opts.sky_inc_factor, fire_opts.sky_inc_factor
-        )
-        im_mask = Image.fromarray(
-            (sky_mask.cpu().numpy() * fire_opts.transparency).squeeze()
-        ).convert("L")
-        filter_mask = im_mask.filter(ImageFilter.GaussianBlur(fire_opts.blur_radius))
+    sky_mask = sky_mask.unsqueeze(0).unsqueeze(0)
+    sky_mask = kornia.filters.filter2D(sky_mask, kernel, border_type)
+    sky_mask = sky_mask.squeeze(0).squeeze(0)
 
-        im.paste(filter_, (0, 0), filter_mask)
+    wildfire_tens = paste_tensor(
+        wildfire_tens, filter_, sky_mask, fire_opts.transparency
+    )
 
-        wildfire_tens = (255.0 * ToTensor()(im).to(x.device)).type(torch.uint8)
-
+    wildfire_tens = wildfire_tens.type(torch.uint8)
     wildfire_tens = adjust_brightness(wildfire_tens, brightness_factor=0.8)
     wildfire_tens = wildfire_tens.unsqueeze(0).type(torch.float)
 
     return wildfire_tens
+
+
+def paste_tensor(source, filter_, mask, transparency):
+    mask = transparency / 255.0 * mask
+    new = mask * filter_ + (1.0 - mask) * source
+    return new

@@ -335,6 +335,8 @@ comet:
 events:
   fire:
     blur_radius: 90
+    kernel_size: 301
+    kernel_sigma: 150.5
     transparency: 200
     sky_inc_factor: 0.12
     contrast_factor: 1.5
