@@ -86,10 +86,10 @@ def add_fire(x, seg_preds, fire_opts):
 
     # Darken the picture and increase contrast
     wildfire_tens = adjust_contrast(
-        wildfire_tens, contrast_factor=fire_opts.contrast_factor
+        wildfire_tens, contrast_factor=fire_opts.get("contrast_factor", 1.5)
     )
     wildfire_tens = adjust_brightness(
-        wildfire_tens, brightness_factor=fire_opts.brightness_factor
+        wildfire_tens, brightness_factor=fire_opts.get("brightness_factor", 0.7)
     )
 
     sky_mask = retrieve_sky_mask(seg_preds).unsqueeze(1)
@@ -97,13 +97,13 @@ def add_fire(x, seg_preds, fire_opts):
         sky_mask.to(torch.float), (wildfire_tens.shape[-2], wildfire_tens.shape[-1]),
     )
     sky_mask = increase_sky_mask(
-        sky_mask, fire_opts.sky_inc_factor, fire_opts.sky_inc_factor
+        sky_mask,
+        fire_opts.get("sky_inc_factor", 0.12),
+        fire_opts.get("sky_inc_factor", 0.12),
     )
 
-    kernel_size = (301, 301)
-    sigma = (150.5, 150.5)
-    # kernel_size = (fire_opts.kernel_size, fire_opts.kernel_size)
-    # sigma = (fire_opts.kernel_sigma, fire_opts.kernel_sigma)
+    kernel_size = (fire_opts.get("kernel_size", 301), fire_opts.get("kernel_size", 301))
+    sigma = (fire_opts.get("kernel_sigma", 150.5), fire_opts.get("kernel_sigma", 150.5))
     border_type = "reflect"
     kernel = torch.unsqueeze(
         kornia.filters.kernels.get_gaussian_kernel2d(kernel_size, sigma), dim=0
@@ -116,7 +116,7 @@ def add_fire(x, seg_preds, fire_opts):
     filter_[:, 2, :, :] = 0
 
     wildfire_tens = paste_tensor(
-        wildfire_tens, filter_, sky_mask, fire_opts.transparency
+        wildfire_tens, filter_, sky_mask, fire_opts.get("transparency", 200)
     )
 
     wildfire_tens = adjust_brightness(
