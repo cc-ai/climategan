@@ -334,7 +334,6 @@ comet:
     d: 4
 events:
   fire:
-    blur_radius: 90
     kernel_size: 301
     kernel_sigma: 150.5
     transparency: 200

@@ -591,7 +591,7 @@ def retrieve_sky_mask(seg):
         torch.Tensor: Sky mask
     """
     if len(seg.shape) == 4:  # Predictions
-        seg_ind = torch.argmax(seg.squeeze(), dim=0)
+        seg_ind = torch.argmax(seg, dim=1)
     else:
         seg_ind = seg
 

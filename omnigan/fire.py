@@ -27,18 +27,18 @@ def increase_sky_mask(mask, p_w=0, p_h=0):
     if p_h <= 0 and p_w <= 0:
         return mask
 
-    n_lines = int(p_h * mask.shape[0])
-    n_cols = int(p_w * mask.shape[1])
+    n_lines = int(p_h * mask.shape[-2])
+    n_cols = int(p_w * mask.shape[-1])
 
     temp_mask = mask.clone().detach()
     for i in range(1, n_cols):
-        temp_mask[:, i::] += mask[:, 0:-i]
-        temp_mask[:, 0:-i] += mask[:, i::]
+        temp_mask[:, :, :, i::] += mask[:, :, :, 0:-i]
+        temp_mask[:, :, :, 0:-i] += mask[:, :, :, i::]
 
     new_mask = temp_mask.clone().detach()
     for i in range(1, n_lines):
-        new_mask[i::, :] += temp_mask[0:-i, :]
-        new_mask[0:-i, :] += temp_mask[i::, :]
+        new_mask[:, :, i::, :] += temp_mask[:, :, 0:-i, :]
+        new_mask[:, :, 0:-i, :] += temp_mask[:, :, i::, :]
 
     new_mask[new_mask >= 1] = 1
 
@@ -78,9 +78,9 @@ def add_fire(x, seg_preds, fire_opts):
     wildfire_tens = normalize(x, 0, 255).squeeze(0)
 
     # Warm the image
-    wildfire_tens[2, :, :] -= 20
-    wildfire_tens[1, :, :] -= 10
-    wildfire_tens[0, :, :] += 40
+    wildfire_tens[:, 2, :, :] -= 20
+    wildfire_tens[:, 1, :, :] -= 10
+    wildfire_tens[:, 0, :, :] += 40
     wildfire_tens[wildfire_tens > 255] = 255
     wildfire_tens[wildfire_tens < 0] = 0
     wildfire_tens = wildfire_tens.type(torch.uint8)
@@ -93,20 +93,10 @@ def add_fire(x, seg_preds, fire_opts):
         wildfire_tens, brightness_factor=fire_opts.brightness_factor
     )
 
-    # Find sky proportion in picture
-    sky_mask = retrieve_sky_mask(seg_preds)
+    sky_mask = retrieve_sky_mask(seg_preds).unsqueeze(1)
     sky_mask = F.interpolate(
-        sky_mask.unsqueeze(0).unsqueeze(0).type(torch.float),
-        (wildfire_tens.shape[-2], wildfire_tens.shape[-1]),
+        sky_mask.type(torch.float), (wildfire_tens.shape[-2], wildfire_tens.shape[-1]),
     )
-    sky_mask = sky_mask.squeeze(0).squeeze(0)
-
-    filter_ = torch.ones(wildfire_tens.shape)
-    filter_[0, :, :] = 255
-    filter_[1, :, :] = random.randint(110, 150)
-    filter_[2, :, :] = 0
-    filter_ = filter_.to(x.device)
-
     sky_mask = increase_sky_mask(
         sky_mask, fire_opts.sky_inc_factor, fire_opts.sky_inc_factor
     )
@@ -118,19 +108,23 @@ def add_fire(x, seg_preds, fire_opts):
     border_type = "reflect"
     kernel = torch.unsqueeze(
         kornia.filters.kernels.get_gaussian_kernel2d(kernel_size, sigma), dim=0
-    )
-
-    sky_mask = sky_mask.unsqueeze(0).unsqueeze(0)
+    ).to(x.device)
     sky_mask = kornia.filters.filter2D(sky_mask, kernel, border_type)
-    sky_mask = sky_mask.squeeze(0).squeeze(0)
+
+    filter_ = torch.ones(wildfire_tens.shape)
+    filter_[:, 0, :, :] = 255
+    filter_[:, 1, :, :] = random.randint(110, 150)
+    filter_[:, 2, :, :] = 0
+    filter_ = filter_.to(x.device)
 
     wildfire_tens = paste_tensor(
         wildfire_tens, filter_, sky_mask, fire_opts.transparency
     )
 
-    wildfire_tens = wildfire_tens.type(torch.uint8)
-    wildfire_tens = adjust_brightness(wildfire_tens, brightness_factor=0.8)
-    wildfire_tens = wildfire_tens.unsqueeze(0).type(torch.float)
+    wildfire_tens = adjust_brightness(
+        wildfire_tens.type(torch.uint8), brightness_factor=0.8
+    )
+    wildfire_tens = wildfire_tens.type(torch.float)
 
     return wildfire_tens
 

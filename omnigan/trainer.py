@@ -1959,18 +1959,6 @@ class Trainer:
                 z = self.G.encode(x)
             seg_preds = self.G.decoders["s"](z, z_depth)
 
-        if x.shape[0] > 0:
-            return torch.cat(
-                [
-                    add_fire(
-                        x[i].unsqueeze(0),
-                        seg_preds[i].unsqueeze(0),
-                        self.opts.events.fire,
-                    )
-                    for i in range(x.shape[0])
-                ]
-            )
-
         return add_fire(x, seg_preds, self.opts.events.fire)
 
     def compute_flood(self, x, z=None, m=None, s=None, cloudy=None, bin_value=-1):
