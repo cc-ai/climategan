@@ -81,50 +81,48 @@ def add_fire(x, seg_preds, fire_opts):
     wildfire_tens[:, 2, :, :] -= 20
     wildfire_tens[:, 1, :, :] -= 10
     wildfire_tens[:, 0, :, :] += 40
-    wildfire_tens[wildfire_tens > 255] = 255
-    wildfire_tens[wildfire_tens < 0] = 0
-    wildfire_tens = wildfire_tens.type(torch.uint8)
+    wildfire_tens.clamp_(0, 255)
+    wildfire_tens = wildfire_tens.to(torch.uint8)
 
     # Darken the picture and increase contrast
     wildfire_tens = adjust_contrast(
-        wildfire_tens, contrast_factor=fire_opts.contrast_factor
+        wildfire_tens, contrast_factor=fire_opts.get("contrast_factor", 1.5)
     )
     wildfire_tens = adjust_brightness(
-        wildfire_tens, brightness_factor=fire_opts.brightness_factor
+        wildfire_tens, brightness_factor=fire_opts.get("brightness_factor", 0.7)
     )
 
     sky_mask = retrieve_sky_mask(seg_preds).unsqueeze(1)
     sky_mask = F.interpolate(
-        sky_mask.type(torch.float), (wildfire_tens.shape[-2], wildfire_tens.shape[-1]),
+        sky_mask.to(torch.float), (wildfire_tens.shape[-2], wildfire_tens.shape[-1]),
     )
     sky_mask = increase_sky_mask(
-        sky_mask, fire_opts.sky_inc_factor, fire_opts.sky_inc_factor
+        sky_mask,
+        fire_opts.get("sky_inc_factor", 0.12),
+        fire_opts.get("sky_inc_factor", 0.12),
     )
 
-    kernel_size = (301, 301)
-    sigma = (150.5, 150.5)
-    # kernel_size = (fire_opts.kernel_size, fire_opts.kernel_size)
-    # sigma = (fire_opts.kernel_sigma, fire_opts.kernel_sigma)
+    kernel_size = (fire_opts.get("kernel_size", 301), fire_opts.get("kernel_size", 301))
+    sigma = (fire_opts.get("kernel_sigma", 150.5), fire_opts.get("kernel_sigma", 150.5))
     border_type = "reflect"
     kernel = torch.unsqueeze(
         kornia.filters.kernels.get_gaussian_kernel2d(kernel_size, sigma), dim=0
     ).to(x.device)
     sky_mask = kornia.filters.filter2D(sky_mask, kernel, border_type)
 
-    filter_ = torch.ones(wildfire_tens.shape)
+    filter_ = torch.ones(wildfire_tens.shape, device=x.device)
     filter_[:, 0, :, :] = 255
     filter_[:, 1, :, :] = random.randint(110, 150)
     filter_[:, 2, :, :] = 0
-    filter_ = filter_.to(x.device)
 
     wildfire_tens = paste_tensor(
-        wildfire_tens, filter_, sky_mask, fire_opts.transparency
+        wildfire_tens, filter_, sky_mask, fire_opts.get("transparency", 200)
     )
 
     wildfire_tens = adjust_brightness(
-        wildfire_tens.type(torch.uint8), brightness_factor=0.8
+        wildfire_tens.to(torch.uint8), brightness_factor=0.8
     )
-    wildfire_tens = wildfire_tens.type(torch.float)
+    wildfire_tens = wildfire_tens.to(torch.float)
 
     return wildfire_tens
 

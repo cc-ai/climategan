@@ -229,6 +229,7 @@ class Trainer:
         xla=False,
         cloudy=False,
         auto_resize_640=False,
+        ignore_event=set(),
     ):
         """
         Create a dictionnary of events from a numpy or tensor,
@@ -291,16 +292,24 @@ class Trainer:
                     xm.mark_step()
 
             # apply events
-            with Timer(store=stores.get("wildfire", [])):
-                wildfire = self.compute_fire(
-                    x, seg_preds=segmentation, z=z, z_depth=z_depth
-                )
-            with Timer(store=stores.get("smog", [])):
-                smog = self.compute_smog(x, z=z, d=depth, s=segmentation)
-            with Timer(store=stores.get("paint", [])):
-                flood = self.compute_flood(
-                    x, z=z, m=mask, s=segmentation, cloudy=cloudy, bin_value=bin_value
-                )
+            if "wildfire" not in ignore_event:
+                with Timer(store=stores.get("wildfire", [])):
+                    wildfire = self.compute_fire(
+                        x, seg_preds=segmentation, z=z, z_depth=z_depth
+                    )
+            if "smog" not in ignore_event:
+                with Timer(store=stores.get("smog", [])):
+                    smog = self.compute_smog(x, z=z, d=depth, s=segmentation)
+            if "flood" not in ignore_event:
+                with Timer(store=stores.get("flood", [])):
+                    flood = self.compute_flood(
+                        x,
+                        z=z,
+                        m=mask,
+                        s=segmentation,
+                        cloudy=cloudy,
+                        bin_value=bin_value,
+                    )
 
         if xla:
             xm.mark_step()
