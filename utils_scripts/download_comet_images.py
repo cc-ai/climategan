@@ -202,7 +202,7 @@ if __name__ == "__main__":
         step = int(args.step)
     except ValueError:
         step = args.step
-        assert step in {"last", "all"}
+        assert step in {"last", "all", "any"}
 
     api = comet_ml.api.API()
 
@@ -265,7 +265,8 @@ if __name__ == "__main__":
         else:
             curr_step = step
 
-        ims = [i for i in ims if i["step"] == curr_step]
+        if step != "any":
+            ims = [i for i in ims if i["step"] == curr_step]
 
         ddir = ddir / str(curr_step)
 

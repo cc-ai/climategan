@@ -293,7 +293,10 @@ model_path = "some/path/to/output/folder" # not .ckpt
 input_folder = "path/to/a/folder/with/images"
 output_path = "path/where/images/will/be/written"
 
-# resume trainer
+# Disable gradients globally
+torch.set_grad_enabled(False)
+
+# Resume trainer
 trainer = Trainer.resume_from_path(model_path, new_exp=None, inference=True)
 
 # find paths for all images in the input folder. There is a recursive option. 
