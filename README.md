@@ -171,7 +171,8 @@ batch = Dict({
 | train_r_nopeople.json, val_r_nopeople.json     |   r    | Same training data as above with people removed                            |   Sasha   |
 | train_rf_with_sim.json                         |   rf   | Doubled train_rf's size with sim data  (randomly chosen)                   |  Victor   |
 | train_rf.json                                  |   rf   | UPDATE (12/12/20): added 50 ims & masks from ADE20K Outdoors               |  Victor   |
-
+| train_allres.json, val_allres.json             |   rf   | includes both lowres and highres from ORCA_water_seg                       |  Tianyu   |
+| train_highres_only.json, val_highres_only.json |   rf   | includes only highres from ORCA_water_seg                                  |  Tianyu   |
 
 
 ```yaml
