@@ -294,17 +294,14 @@ class Trainer:
             # apply events
             if "wildfire" not in ignore_event:
                 with Timer(store=stores.get("wildfire", [])):
-                    wildfire = self.compute_fire(
-                        x, seg_preds=segmentation, z=z, z_depth=z_depth
-                    )
+                    wildfire = self.compute_fire(x, seg_preds=segmentation)
             if "smog" not in ignore_event:
                 with Timer(store=stores.get("smog", [])):
-                    smog = self.compute_smog(x, z=z, d=depth, s=segmentation)
+                    smog = self.compute_smog(x, d=depth, s=segmentation)
             if "flood" not in ignore_event:
                 with Timer(store=stores.get("flood", [])):
                     flood = self.compute_flood(
                         x,
-                        z=z,
                         m=mask,
                         s=segmentation,
                         cloudy=cloudy,
@@ -1972,7 +1969,9 @@ class Trainer:
 
         return add_fire(x, seg_preds, self.opts.events.fire)
 
-    def compute_flood(self, x, z=None, m=None, s=None, cloudy=None, bin_value=-1):
+    def compute_flood(
+        self, x, z=None, z_depth=None, m=None, s=None, cloudy=None, bin_value=-1
+    ):
         """
         Applies a flood (mask + paint) to an input image, with optionally
         pre-computed masker z or mask
@@ -1990,10 +1989,9 @@ class Trainer:
         """
 
         if m is None:
-            z_depth = None
             if z is None:
                 z = self.G.encode(x)
-            if "d" in self.opts.tasks and self.opts.gen.m.use_dada:
+            if "d" in self.opts.tasks and self.opts.gen.m.use_dada and z_depth is None:
                 _, z_depth = self.G.decoders["d"](z)
             m = self.G.mask(x=x, z=z, z_depth=z_depth)
 
