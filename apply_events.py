@@ -369,6 +369,7 @@ if __name__ == "__main__":
             data = [resize(d, ns, anti_aliasing=True) for d, ns in zip(data, new_sizes)]
         else:
             data = [resize_and_crop(d, 640) for d in data]
+            new_sizes = [(640, 640) for _ in data]
         # normalize to -1:1
         # normalize is not necessary as resize outputs -1:1
         # data = [(normalize(d.astype(np.float32)) - 0.5) * 2 for d in data]
@@ -418,6 +419,7 @@ if __name__ == "__main__":
         if upload:
             print("\n• Uploading")
             exp = comet_ml.Experiment(project_name="omnigan-apply")
+            exp.log_parameters(vars(args))
         if outdir is not None:
             print("\n• Writing")
         n_written = 0
@@ -435,9 +437,14 @@ if __name__ == "__main__":
                     idx = b * batch_size + i
                     idx = idx % len(base_data_paths)
                     stem = Path(data_paths[idx]).stem
+                    width = new_sizes[idx][1]
+                    if args.keep_ratio_128:
+                        ar = "_AR"
+                    else:
+                        ar = ""
 
                     for event in events:
-                        im_path = Path(f"{stem}_{event}.png")
+                        im_path = Path(f"{stem}_{event}_{width}{ar}.png")
                         if outdir is not None:
                             im_path = outdir / im_path
                         im_data = events[event][i]
