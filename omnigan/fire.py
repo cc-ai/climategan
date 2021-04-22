@@ -75,7 +75,7 @@ def add_fire(x, seg_preds, fire_opts):
     Returns:
         torch.Tensor: Wildfire version of input tensor
     """
-    wildfire_tens = normalize(x, 0, 255).squeeze(0)
+    wildfire_tens = normalize(x, 0, 255)
 
     # Warm the image
     wildfire_tens[:, 2, :, :] -= 20
