@@ -419,6 +419,7 @@ if __name__ == "__main__":
         if upload:
             print("\n• Uploading")
             exp = comet_ml.Experiment(project_name="omnigan-apply")
+            exp.log_parameters(vars(args))
         if outdir is not None:
             print("\n• Writing")
         n_written = 0
