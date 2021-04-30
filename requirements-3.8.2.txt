@@ -129,7 +129,7 @@ requests-oauthlib==1.3.0
 requests-toolbelt==0.9.1
 retry-decorator==1.1.1
 retrying==1.3.3
-rsa==4.6
+rsa==4.7
 scikit-image==0.17.2
 scikit-learn==0.23.2
 scipy==1.5.2
