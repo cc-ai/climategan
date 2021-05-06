@@ -99,8 +99,8 @@ def add_fire(x, seg_preds, fire_opts):
         fire_opts.get("sky_inc_factor", 0.12),
     )
 
-    kernel_size = (fire_opts.get("kernel_size", 301), fire_opts.get("kernel_size", 281))
-    sigma = (fire_opts.get("kernel_sigma", 150.5), fire_opts.get("kernel_sigma", 140.5))
+    kernel_size = (fire_opts.get("kernel_size", 301), fire_opts.get("kernel_size", 301))
+    sigma = (fire_opts.get("kernel_sigma", 150.5), fire_opts.get("kernel_sigma", 150.5))
     border_type = "reflect"
     kernel = torch.unsqueeze(
         kornia.filters.kernels.get_gaussian_kernel2d(kernel_size, sigma), dim=0
@@ -109,16 +109,16 @@ def add_fire(x, seg_preds, fire_opts):
 
     filter_ = torch.ones(wildfire_tens.shape, device=x.device)
     filter_[:, 0, :, :] = 255
-    filter_[:, 1, :, :] = random.randint(110, 150)
+    filter_[:, 1, :, :] = random.randint(100, 150)
     filter_[:, 2, :, :] = 0
 
     wildfire_tens = paste_tensor(
-        wildfire_tens, filter_, sky_mask, fire_opts.get("transparency", 210)
-    )
+        wildfire_tens, filter_, sky_mask, 210
+    )  # fire_opts.get("transparency", 210)
 
     wildfire_tens = adjust_brightness(
-        wildfire_tens.to(torch.uint8), fire_opts.get("brightness_factor", 0.95)
-    )
+        wildfire_tens.to(torch.uint8), 0.9
+    )  # fire_opts.get("brightness_factor", 0.95)
     wildfire_tens = wildfire_tens.to(torch.float)
 
     # dummy pixels to fool scaling and preserve range
