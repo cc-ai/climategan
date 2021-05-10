@@ -100,6 +100,7 @@ def print_store(store, purge=-1):
     print()
 
 def download_blob_and_preprocess(container_client, path, output):
+    """Download a blob and preprocess the image"""
     dld = container_client.download_blob(path)
     filestream = BytesIO()
     dld.readinto(filestream)
@@ -114,13 +115,12 @@ def download_blob_and_preprocess(container_client, path, output):
 
     return (output, data)
 
-def download_blobs_and_preprocess(container_client, paths_on_container=['input/'], output_paths=['ouput/']):
-    """
-    Download images from container
-    """
+def download_blobs_and_preprocess(container_client, paths_on_container=['input/'], output_paths=['output/']):
+    """Download images from container using a thread pool"""
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        future_images = [executor.submit(download_blob_and_preprocess, container_client, path, output) for path, output in zip(paths_on_container, output_paths)]
+        future_images = [executor.submit(download_blob_and_preprocess, container_client, path, output) 
+                        for path, output in zip(paths_on_container, output_paths)]
         for future in future_images:
             try:
                 data = future.result()
@@ -131,8 +131,10 @@ def download_blobs_and_preprocess(container_client, paths_on_container=['input/'
 
 
 def upload_blobs(container_client, all_events, image_paths, stores):
-    """This upload blob method supposes that there is only one batch"""
+    """Upload blobs using multithreading"""
+
     def daemon(output, container_client):
+        """Task for the daemon threads to complete"""
         for im_path, im_data in output:
             imagefile = BytesIO()
             im_data.save(imagefile, format='JPEG', quality=80)

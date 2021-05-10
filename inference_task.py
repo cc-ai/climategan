@@ -64,4 +64,9 @@ class OmniGAN(Task):
 
 @app.task(base=OmniGAN)
 def infer(**kwargs):
+    """This is the interface that the rabbitMQ task payload conforms to.
+    Expected kwargs:
+        paths_on_container [str]: list of paths to fetch the images from
+        output_paths [str]: list of output paths to upload transformed images to
+    """
     run_inference_from_trainer(infer.trainer, infer.container, **kwargs)
