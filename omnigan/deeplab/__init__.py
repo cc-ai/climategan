@@ -2,11 +2,42 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
-from .resnet101 import ResNet101
-from .resnetmulti import ResNetMulti
-from .deeplabv3 import DeepLabV3Decoder  # noqa: F401
-from .deeplabv2 import DeepLabV2Decoder  # noqa: F401
-from .mobilenetv2 import MobileNetV2
+from omnigan.deeplab.deeplab_v2 import DeepLabV2Decoder
+from omnigan.deeplab.deeplab_v3 import DeepLabV3Decoder
+from omnigan.deeplab.mobilenet_v3 import MobileNetV2
+from omnigan.deeplab.resnet101_v3 import ResNet101
+from omnigan.deeplab.resnetmulti_v2 import ResNetMulti
+
+
+def create_encoder(opts, no_init=False, verbose=0):
+    if opts.gen.encoder.architecture == "deeplabv2":
+        if verbose > 0:
+            print("  - Add Deeplabv2 Encoder")
+        return DeeplabV2Encoder(opts, no_init, verbose)
+    elif opts.gen.encoder.architecture == "deeplabv3":
+        if verbose > 0:
+            backone = opts.gen.deeplabv3.backbone
+            print("  - Add Deeplabv3 ({}) Encoder".format(backone))
+        return build_v3_backbone(opts, no_init)
+    else:
+        raise NotImplementedError(
+            "Unknown encoder: {}".format(opts.gen.encoder.architecture)
+        )
+
+
+def create_segmentation_decoder(opts, no_init=False, verbose=0):
+    if opts.gen.s.architecture == "deeplabv2":
+        if verbose > 0:
+            print("  - Add DeepLabV2Decoder")
+        return DeepLabV2Decoder(opts)
+    elif opts.gen.s.architecture == "deeplabv3":
+        if verbose > 0:
+            print("  - Add DeepLabV3Decoder")
+        return DeepLabV3Decoder(opts, no_init)
+    else:
+        raise NotImplementedError(
+            "Unknown Segmentation architecture: {}".format(opts.gen.s.architecture)
+        )
 
 
 def build_v3_backbone(opts, no_init, verbose=0):

@@ -14,6 +14,7 @@
   - [Logging on comet](#logging-on-comet)
     - [Tests](#tests)
   - [Resources](#resources)
+  - [Example](#example)
 
 ## Setup
 
@@ -272,3 +273,51 @@ Write tests as scenarios by adding to the list `test_scenarios` in the file. A s
 [Tricks and Tips for Training a GAN](https://chloes-dl.com/2019/11/19/tricks-and-tips-for-training-a-gan/)
 [GAN Hacks](https://github.com/soumith/ganhacks)
 [Keep Calm and train a GAN. Pitfalls and Tips on training Generative Adversarial Networks](https://medium.com/@utk.is.here/keep-calm-and-train-a-gan-pitfalls-and-tips-on-training-generative-adversarial-networks-edd529764aa9)
+
+## Example
+
+**Inference: computing floods**
+
+```python
+from pathlib import Path
+from skimage.io import imsave
+from tqdm import tqdm
+
+from omnigan.trainer import Trainer
+from omnigan.utils import find_images
+from omnigan.tutils import tensor_ims_to_np_uint8s
+from omnigan.transforms import PrepareInference
+
+
+model_path = "some/path/to/output/folder" # not .ckpt
+input_folder = "path/to/a/folder/with/images"
+output_path = "path/where/images/will/be/written"
+
+# resume trainer
+trainer = Trainer.resume_from_path(model_path, new_exp=None, inference=True)
+
+# find paths for all images in the input folder. There is a recursive option. 
+im_paths = sorted(find_images(input_folder), key=lambda x: x.name)
+
+# Load images into tensors 
+#   * smaller side resized to 640 - keeping aspect ratio
+#   * then longer side is cropped in the center
+#   * result is a 1x3x640x640 float tensor in [-1; 1]
+xs = PrepareInference()(im_paths)
+
+# send to device
+xs = [x.to(trainer.device) for x in xs]
+
+# compute flood
+#   * compute mask
+#   * binarize mask if bin_value > 0
+#   * paint x using this mask
+ys = [trainer.compute_flood(x, bin_value=0.5) for x in tqdm(xs)]
+
+# convert 1x3x640x640 float tensors in [-1; 1] into 640x640x3 numpy arrays in [0, 255]
+np_ys = [tensor_ims_to_np_uint8s(y) for y in tqdm(ys)]
+
+# write images
+for i, n in tqdm(zip(im_paths, np_ys), total=len(im_paths)):
+    imsave(Path(output_path) / i.name, n)
+```

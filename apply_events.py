@@ -2,37 +2,78 @@ print("\n• Imports\n")
 import time
 
 import_time = time.time()
-import sys
 import argparse
+import sys
 from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
 
+import comet_ml  # noqa: F401
+import torch
 import numpy as np
 import skimage.io as io
 from skimage.color import rgba2rgb
 from skimage.transform import resize
-import comet_ml  # noqa: F401
 
 from omnigan.trainer import Trainer
+from omnigan.bn_fusion import bn_fuse
 from omnigan.tutils import normalize, print_num_parameters
-from omnigan.utils import (
-    Timer,
-    get_git_revision_hash,
-    to_128,
-    find_images,
-)
+from omnigan.utils import Timer, find_images, get_git_revision_hash, to_128
 
 import_time = time.time() - import_time
 
 XLA = False
 try:
-    import torch_xla.core.xla_model as xm
-    import torch_xla.debug.metrics as met
+    import torch_xla.core.xla_model as xm  # type: ignore
+    import torch_xla.debug.metrics as met  # type: ignore
 
     XLA = True
 except ImportError:
     pass
+
+
+def to_m1_p1(img, i):
+    if img.min() >= 0 and img.max() <= 1:
+        return (img.astype(np.float32) - 0.5) * 2
+    raise ValueError(f"Data range mismatch for image {i} : ({img.min()}, {img.max()})")
+
+
+def uint8(array):
+    return array.astype(np.uint8)
+
+
+def resize_and_crop(img, to=640):
+    """
+    Resizes an image so that it keeps the aspect ratio and the smallest dimensions
+    is 640, then crops this resized image in its center so that the output is 640x640
+    without aspect ratio distortion
+
+    Args:
+        image_path (Path or str): Path to an image
+        label_path (Path or str): Path to the image's associated label
+
+    Returns:
+        tuple((np.ndarray, np.ndarray)): (new image, new label)
+    """
+    # resize keeping aspect ratio: smallest dim is 640
+    h, w = img.shape[:2]
+    if h < w:
+        size = (to, int(to * w / h))
+    else:
+        size = (int(to * h / w), to)
+
+    r_img = resize(img, size, preserve_range=True, anti_aliasing=True)
+    r_img = uint8(r_img)
+
+    # crop in the center
+    H, W = r_img.shape[:2]
+
+    top = (H - to) // 2
+    left = (W - to) // 2
+
+    rc_img = r_img[top : top + 640, left : left + 640, :]
+
+    return rc_img / 255.0
 
 
 def print_time(text, time_series, purge=-1):
@@ -187,12 +228,18 @@ def parse_args():
         help="Keeps approximately the aspect ratio to match multiples of 128",
     )
     parser.add_argument(
+        "--fuse",
+        action="store_true",
+        default=False,
+        help="Use batch norm fusion to speed up inference",
+    )
+    parser.add_argument(
         "--max_im_width",
         type=int,
         default=-1,
         help="Maximum image width: will downsample larger images",
     )
-
+    parser.add_argument("--upload", action="store_true", help="Upload to comet")
     return parser.parse_args()
 
 
@@ -208,19 +255,21 @@ if __name__ == "__main__":
     )
 
     batch_size = args.batch_size
+    upload = args.upload
     half = args.half
-    cloudy = not args.no_cloudy
-    images_paths = Path(args.images_paths).expanduser().resolve()
+    fuse = args.fuse
     bin_value = args.flood_mask_binarization
+    resume_path = args.resume_path
+    xla_purge_samples = args.xla_purge_samples
+    n_images = args.n_images
+    cloudy = not args.no_cloudy
+    time_inference = not args.no_time
+    images_paths = Path(args.images_paths).expanduser().resolve()
     outdir = (
         Path(args.output_path).expanduser().resolve()
         if args.output_path is not None
         else None
     )
-    resume_path = args.resume_path
-    time_inference = not args.no_time
-    n_images = args.n_images
-    xla_purge_samples = args.xla_purge_samples
     if args.keep_ratio_128:
         if batch_size != 1:
             print("\nWARNING: batch_size overwritten to 1 when using keep_ratio_128")
@@ -277,16 +326,18 @@ if __name__ == "__main__":
     print("\n• Initializing trainer\n")
 
     with Timer(store=stores.get("setup", [])):
-
+        torch.set_grad_enabled(False)
         device = None
         if XLA:
-            device = xm.xla_device()
+            device = xm.xla_device()  # type: ignore
 
         trainer = Trainer.resume_from_path(
             resume_path, setup=True, inference=True, new_exp=None, device=device,
         )
         print()
         print_num_parameters(trainer, True)
+        if fuse:
+            trainer.G = bn_fuse(trainer.G)
         if half:
             trainer.G.half()
 
@@ -311,18 +362,21 @@ if __name__ == "__main__":
         # read images to numpy arrays
         data = [io.imread(str(d)) for d in data_paths]
         # rgba to rgb
-        data = [im if im.shape[-1] == 3 else rgba2rgb(im) for im in data]
+        data = [im if im.shape[-1] == 3 else uint8(rgba2rgb(im) * 255) for im in data]
         # resize to standard input size 640 x 640
         if args.keep_ratio_128:
             new_sizes = [to_128(d, args.max_im_width) for d in data]
             data = [resize(d, ns, anti_aliasing=True) for d, ns in zip(data, new_sizes)]
         else:
-            data = [resize(d, (640, 640), anti_aliasing=True) for d in data]
+            data = [resize_and_crop(d, 640) for d in data]
+            new_sizes = [(640, 640) for _ in data]
         # normalize to -1:1
-        data = [(normalize(d.astype(np.float32)) - 0.5) * 2 for d in data]
+        # normalize is not necessary as resize outputs -1:1
+        # data = [(normalize(d.astype(np.float32)) - 0.5) * 2 for d in data]
+        data = [to_m1_p1(d, i) for i, d in enumerate(data)]
 
-    n_batchs = len(data) // args.batch_size
-    if len(data) % args.batch_size != 0:
+    n_batchs = len(data) // batch_size
+    if len(data) % batch_size != 0:
         n_batchs += 1
 
     print("Found", len(base_data_paths), "images. Inferring on", len(data), "images.")
@@ -362,8 +416,13 @@ if __name__ == "__main__":
     # ----------------------------------------------
     # -----  Write events to output directory  -----
     # ----------------------------------------------
-    if outdir is not None:
-        print("\n• Writing")
+    if outdir is not None or upload:
+        if upload:
+            print("\n• Uploading")
+            exp = comet_ml.Experiment(project_name="omnigan-apply")
+            exp.log_parameters(vars(args))
+        if outdir is not None:
+            print("\n• Writing")
         n_written = 0
         with Timer(store=stores.get("write", [])):
             for b, events in enumerate(all_events):
@@ -379,11 +438,21 @@ if __name__ == "__main__":
                     idx = b * batch_size + i
                     idx = idx % len(base_data_paths)
                     stem = Path(data_paths[idx]).stem
+                    width = new_sizes[idx][1]
+                    if args.keep_ratio_128:
+                        ar = "_AR"
+                    else:
+                        ar = ""
 
                     for event in events:
-                        im_path = outdir / f"{stem}_{event}.png"
+                        im_path = Path(f"{stem}_{event}_{width}{ar}.png")
+                        if outdir is not None:
+                            im_path = outdir / im_path
                         im_data = events[event][i]
-                        io.imsave(im_path, im_data)
+                        if outdir is not None:
+                            io.imsave(im_path, im_data)
+                        if upload:
+                            exp.log_image(im_data, im_path.name)
 
                     n_written += 1
 
@@ -399,7 +468,7 @@ if __name__ == "__main__":
         metrics_dir.mkdir(exist_ok=True, parents=True)
         now = str(datetime.now()).replace(" ", "_")
         with open(metrics_dir / f"xla_metrics_{now}.txt", "w",) as f:
-            report = met.metrics_report()
+            report = met.metrics_report()  # type: ignore
             print(report, file=f)
 
     if not args.no_conf and outdir is not None:

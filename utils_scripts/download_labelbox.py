@@ -4,9 +4,9 @@ from pathlib import Path
 
 if __name__ == "__main__":
     # labelbox json export path
-    path = "/Users/victor/Downloads/export-2021-01-20T20_45_24.103Z.json"
+    path = "/Users/victor/Downloads/export-2021-02-27T17_15_30.291Z.json"
     # where to write the downloaded images
-    out = Path("/Users/victor/Downloads/labelbox_test_flood")
+    out = Path("/Users/victor/Downloads/labelbox_test_flood-v2")
     # create out dir
     out.mkdir(exist_ok=True, parents=True)
 
@@ -30,7 +30,7 @@ if __name__ == "__main__":
 
             # create verbose label -> "cannotflood", "mustflood"
             label = obj["value"].replace("_", "")
-            # unique polygon mask finlename
+            # unique polygon mask filename
             m_path = m_out / f"{stem}_{label}_{o}.png"
             # download address for curl
             uri = obj["instanceURI"]

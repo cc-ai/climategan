@@ -1,19 +1,22 @@
 """All non-tensor utils
 """
+import contextlib
+import datetime
+import json
 import os
 import re
-import subprocess
-import json
-from pathlib import Path
 import shutil
+import subprocess
+import time
+import traceback
+from pathlib import Path
+from typing import Any, List, Optional, Union
+
+import numpy as np
 import yaml
 from addict import Dict
-import contextlib
-import numpy as np
-from typing import Union, Optional, List, Any
-import traceback
-import time
 from comet_ml import Experiment
+from uuid import uuid4
 
 comet_kwargs = {
     "auto_metric_logging": False,
@@ -172,6 +175,9 @@ def load_opts(
                 + " which is a non-implemented combination"
             )
 
+    if opts.gen.s.depth_feat_fusion is True or opts.gen.s.depth_dada_fusion is True:
+        opts.gen.s.use_dada = True
+
     return set_data_paths(opts)
 
 
@@ -254,7 +260,25 @@ def write_hash(path: Union[str, Path]) -> None:
         f.write(hash_code)
 
 
-def get_increased_path(path: Union[str, Path]) -> Path:
+def shortuid():
+    return str(uuid4()).split("-")[0]
+
+
+def datenowshort():
+    """
+    >>> a = str(datetime.datetime.now())
+    >>> print(a)
+    '2021-02-25 11:34:50.188072'
+    >>> print(a[5:].split(".")[0].replace(" ", "_"))
+    '02-25_11:35:41'
+
+    Returns:
+        str: month-day_h:m:s
+    """
+    return str(datetime.datetime.now())[5:].split(".")[0].replace(" ", "_")
+
+
+def get_increased_path(path: Union[str, Path], use_date: bool = False) -> Path:
     """Returns an increased path: if dir exists, returns `dir (1)`.
     If `dir (i)` exists, returns `dir (max(i) + 1)`
 
@@ -273,20 +297,44 @@ def get_increased_path(path: Union[str, Path]) -> Path:
         pathlib.Path: increased path
     """
     fp = Path(path).resolve()
-    vals = []
-    for n in fp.parent.glob("{}*".format(fp.stem)):
-        if re.match(r".+\(\d+\)", str(n.name)) is not None:
-            name = str(n.name)
-            start = name.index("(")
-            end = name.index(")")
-            vals.append(int(name[start + 1 : end]))
-    if vals:
-        ext = " ({})".format(max(vals) + 1)
-    elif fp.exists():
-        ext = " (1)"
+    if not fp.exists():
+        return fp
+
+    if fp.is_file():
+        if not use_date:
+            while fp.exists():
+                fp = fp.parent / f"{fp.stem}--{shortuid()}{fp.suffix}"
+            return fp
+        else:
+            while fp.exists():
+                time.sleep(0.5)
+                fp = fp.parent / f"{fp.stem}--{datenowshort()}{fp.suffix}"
+            return fp
+
+    if not use_date:
+        while fp.exists():
+            fp = fp.parent / f"{fp.name}--{shortuid()}"
+        return fp
     else:
-        ext = ""
-    return fp.parent / (fp.stem + ext + fp.suffix)
+        while fp.exists():
+            time.sleep(0.5)
+            fp = fp.parent / f"{fp.name}--{datenowshort()}"
+        return fp
+
+    # vals = []
+    # for n in fp.parent.glob("{}*".format(fp.stem)):
+    #     if re.match(r".+\(\d+\)", str(n.name)) is not None:
+    #         name = str(n.name)
+    #         start = name.index("(")
+    #         end = name.index(")")
+    #         vals.append(int(name[start + 1 : end]))
+    # if vals:
+    #     ext = " ({})".format(max(vals) + 1)
+    # elif fp.exists():
+    #     ext = " (1)"
+    # else:
+    #     ext = ""
+    # return fp.parent / (fp.stem + ext + fp.suffix)
 
 
 def env_to_path(path: str) -> str:
@@ -712,7 +760,7 @@ def find_existing_training(opts: Dict) -> Optional[Path]:
         print("WARNING: current JOBID is None")
         return
 
-    print("Current job id:", opts.jobID)
+    print("---------- Current job id:", opts.jobID)
 
     path = Path(opts.output_path).resolve()
     parent = path.parent
@@ -723,12 +771,12 @@ def find_existing_training(opts: Dict) -> Optional[Path]:
 
         for sd in similar_dirs:
             candidate_jobID = get_existing_jobID(sd)
-            if candidate_jobID is not None and opts.jobID == candidate_jobID:
-                print(f"Found matching job id in {sd}")
+            if candidate_jobID is not None and str(opts.jobID) == str(candidate_jobID):
+                print(f"Found matching job id in {sd}\n")
                 return sd
-        print("Did not find a matching job id")
+        print("Did not find a matching job id in \n {}\n".format(str(similar_dirs)))
     except Exception as e:
-        print("Could not resume (find_existing_training)", e)
+        print("ERROR: Could not resume (find_existing_training)", e)
 
 
 def pprint(*args: List[Any]):
@@ -937,10 +985,32 @@ def find_images(path, recursive=False):
     return [i for i in p.glob(pattern) if i.is_file() and is_image_file(i)]
 
 
-def upload_images_to_exp(path, exp=None, project_name="omnigan-eval"):
+def cols():
+    try:
+        col = os.get_terminal_size().columns
+    except Exception:
+        col = 50
+    return col
+
+
+def upload_images_to_exp(
+    path, exp=None, project_name="omnigan-eval", sleep=-1, verbose=0
+):
     ims = find_images(path)
+    end = None
+    c = cols()
+    if verbose == 1:
+        end = "\r"
+    if verbose > 1:
+        end = "\n"
     if exp is None:
         exp = Experiment(project_name=project_name)
     for im in ims:
         exp.log_image(str(im))
+        if verbose > 0:
+            if verbose == 1:
+                print(" " * (c - 1), end="\r", flush=True)
+            print(str(im), end=end, flush=True)
+        if sleep > 0:
+            time.sleep(sleep)
     return exp

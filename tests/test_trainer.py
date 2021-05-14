@@ -1,3 +1,5 @@
+print("Imports...", end="", flush=True)
+
 import sys
 from pathlib import Path
 
@@ -8,16 +10,17 @@ import logging
 from argparse import ArgumentParser
 from copy import deepcopy
 
-from comet_ml import Experiment
-from comet_ml.api import API
-
+import comet_ml
 import omnigan
+from comet_ml.api import API
 from omnigan.trainer import Trainer
 from omnigan.utils import get_comet_rest_api_key
 
 logging.basicConfig()
 logging.getLogger().setLevel(logging.ERROR)
 import traceback
+
+print("Done.")
 
 
 def set_opts(opts, str_nested_key, value):
@@ -160,8 +163,12 @@ if __name__ == "__main__":
     # --------------------------------------
     # -----  Create global experiment  -----
     # --------------------------------------
+    print("Creating comet Experiment...", end="", flush=True)
+    global_exp = comet_ml.Experiment(
+        project_name="omnigan-test", display_summary_level=0
+    )
+    print("Done.")
 
-    global_exp = Experiment(project_name="omnigan-test", display_summary_level=0)
     if not args.no_delete:
         delete_on_exit(global_exp)
 
@@ -171,6 +178,7 @@ if __name__ == "__main__":
     # -------------------------------------
     # -----  Base Test Scenario Opts  -----
     # -------------------------------------
+    print("Loading opts...", end="", flush=True)
     base_opts = omnigan.utils.load_opts()
     base_opts.data.check_samples = False
     base_opts.train.fid.n_images = 5
@@ -185,6 +193,7 @@ if __name__ == "__main__":
         base_opts.data.transforms[-1].new_size = 256
     else:
         base_opts.data.transforms[-1].new_size.default = 256
+    print("Done.")
 
     # --------------------------------------
     # -----  Configure Test Scenarios  -----
@@ -207,6 +216,7 @@ if __name__ == "__main__":
             "__doc": "M no exp low level feats",  # 4
             "__use_comet": False,
             "gen.m.use_low_level_feats": True,
+            "gen.m.use_dada": False,
             "tasks": ["m"],
         },
         {
@@ -242,11 +252,18 @@ if __name__ == "__main__":
             "train.kitti.batch_size": 2,
         },
         {"__doc": "Depth Dada archi", "gen.d.architecture": "dada"},  # 10
-        {"__doc": "Depth Base archi", "gen.d.architecture": "base"},  # 11
+        {
+            "__doc": "Depth Base archi",
+            "gen.d.architecture": "base",
+            "gen.m.use_dada": False,
+            "gen.s.use_dada": False,
+        },  # 11
         {
             "__doc": "Depth Base Classification",  # 12
             "gen.d.architecture": "base",
             "gen.d.classify.enable": True,
+            "gen.m.use_dada": False,
+            "gen.s.use_dada": False,
         },
         {"__doc": "MSD Resnet V3+ backbone", "gen.deeplabv3.backbone": "resnet",},  # 13
         {
@@ -273,11 +290,18 @@ if __name__ == "__main__":
         },  # 15
         {
             "__use_comet": False,
-            "__doc": "MSD DADA",
+            "__doc": "MSD DADA_s",
             "__verbose": 1,
-            "gen.s.depth_feat_fusion": True,
-            "gen.s.depth_dada_fusion": True,
+            "gen.s.use_dada": True,
+            "gen.m.use_dada": False,
         },  # 16
+        {
+            "__use_comet": False,
+            "__doc": "MSD DADA_ms",
+            "__verbose": 1,
+            "gen.s.use_dada": True,
+            "gen.m.use_dada": True,
+        },  # 17
     ]
 
     n_confs = len(test_scenarios)

@@ -25,11 +25,11 @@ from tqdm import tqdm
 
 from omnigan.classifier import OmniClassifier, get_classifier
 from omnigan.data import get_all_loaders
-from omnigan.discriminator import OmniDiscriminator, get_dis
+from omnigan.discriminator import OmniDiscriminator, create_discriminator
 from omnigan.eval_metrics import accuracy, mIOU
 from omnigan.fid import compute_val_fid
 from omnigan.fire import add_fire
-from omnigan.generator import OmniGenerator, get_gen
+from omnigan.generator import OmniGenerator, create_generator
 from omnigan.logger import Logger
 from omnigan.losses import get_losses
 from omnigan.optim import get_optimizer
@@ -62,7 +62,7 @@ from omnigan.utils import (
 )
 
 try:
-    import torch_xla.core.xla_model as xm
+    import torch_xla.core.xla_model as xm  # type: ignore
 except ImportError:
     pass
 
@@ -129,6 +129,15 @@ class Trainer:
             self.grad_scaler_d = GradScaler()
             self.grad_scaler_g = GradScaler()
             self.grad_scaler_c = GradScaler()
+
+        # -------------------------------
+        # -----  Legacy Overwrites  -----
+        # -------------------------------
+        if (
+            self.opts.gen.s.depth_feat_fusion is True
+            or self.opts.gen.s.depth_dada_fusion is True
+        ):
+            self.opts.gen.s.use_dada = True
 
     @torch.no_grad()
     def paint_and_mask(self, image_batch, mask_batch=None, resolution="approx"):
@@ -221,6 +230,7 @@ class Trainer:
         xla=False,
         cloudy=False,
         auto_resize_640=False,
+        ignore_event=set(),
     ):
         """
         Create a dictionnary of events from a numpy or tensor,
@@ -278,19 +288,26 @@ class Trainer:
                     xm.mark_step()
             with Timer(store=stores.get("mask", [])):
                 cond = self.G.make_m_cond(depth, segmentation, x)
-                mask = self.G.mask(z=z, cond=cond)
+                mask = self.G.mask(z=z, cond=cond, z_depth=z_depth)
                 if xla:
                     xm.mark_step()
 
             # apply events
-            with Timer(store=stores.get("wildfire", [])):
-                wildfire = self.compute_fire(x, segmentation)
-            with Timer(store=stores.get("smog", [])):
-                smog = self.compute_smog(x, d=depth, s=segmentation)
-            with Timer(store=stores.get("flood", [])):
-                flood = self.compute_flood(
-                    x, m=mask, s=segmentation, cloudy=cloudy, bin_value=bin_value
-                )
+            if "wildfire" not in ignore_event:
+                with Timer(store=stores.get("wildfire", [])):
+                    wildfire = self.compute_fire(x, seg_preds=segmentation)
+            if "smog" not in ignore_event:
+                with Timer(store=stores.get("smog", [])):
+                    smog = self.compute_smog(x, d=depth, s=segmentation)
+            if "flood" not in ignore_event:
+                with Timer(store=stores.get("flood", [])):
+                    flood = self.compute_flood(
+                        x,
+                        m=mask,
+                        s=segmentation,
+                        cloudy=cloudy,
+                        bin_value=bin_value,
+                    )
 
         if xla:
             xm.mark_step()
@@ -540,10 +557,6 @@ class Trainer:
         for _ in range(self.logger.epoch + 1):
             self.update_learning_rates()
 
-        # Round step to even number for extraGradient
-        if self.logger.global_step % 2 != 0:
-            self.logger.global_step += 1
-
         # -----------------------
         # -----  Restore D  -----
         # -----------------------
@@ -563,6 +576,11 @@ class Trainer:
         # ---------------------------
         self.logger.epoch = checkpoint["epoch"]
         self.logger.global_step = checkpoint["step"]
+        self.exp.log_text(
+            "Resuming from epoch {} & step {}".format(
+                checkpoint["epoch"], checkpoint["step"]
+            )
+        )
         # Round step to even number for extraGradient
         if self.logger.global_step % 2 != 0:
             self.logger.global_step += 1
@@ -724,19 +742,18 @@ class Trainer:
         __t = time()
         print("Creating generator...")
 
-        self.G: OmniGenerator = get_gen(self.opts, verbose=verbose, no_init=inference)
+        self.G: OmniGenerator = create_generator(
+            self.opts, device=self.device, no_init=inference, verbose=verbose
+        )
 
         self.has_painter = get_num_params(self.G.painter) or self.G.load_val_painter()
-
-        print("Sending to", self.device)
-        self.G = self.G.to(self.device)
 
         if self.has_painter:
             self.G.painter.set_latent_shape(find_target_size(self.opts, "x"), True)
 
         print(f"Generator OK in {time() - __t:.1f}s.")
 
-        if inference:
+        if inference:  # Inference mode: no more than a Generator needed
             print("Inference mode: no Discriminator, no Classifier, no optimizers")
             print_num_parameters(self)
             self.switch_data(to="base")
@@ -752,7 +769,9 @@ class Trainer:
         # -----  Discriminator  -----
         # ---------------------------
 
-        self.D: OmniDiscriminator = get_dis(self.opts, verbose=verbose).to(self.device)
+        self.D: OmniDiscriminator = create_discriminator(
+            self.opts, self.device, verbose=verbose
+        )
         print("Discriminator OK.")
 
         # ------------------------
@@ -810,15 +829,31 @@ class Trainer:
         # ----------------------------
         self.set_display_images()
 
+        # -------------------------------
+        # -----  Log Architectures  -----
+        # -------------------------------
         self.logger.log_architecture()
 
+        # -----------------------------
+        # -----  Set data source  -----
+        # -----------------------------
         if self.kitti_pretrain:
             self.switch_data(to="kitti")
         else:
             self.switch_data(to="base")
 
+        # -------------------------
+        # -----  Setup Done.  -----
+        # -------------------------
         print(" " * 50, end="\r")
         print("Done creating display images")
+
+        if self.opts.train.resume:
+            print("Resuming Model (inference: False)")
+            self.resume(False)
+        else:
+            print("Not resuming: starting a new model")
+
         print("Setup done.")
         self.is_setup = True
 
@@ -904,11 +939,17 @@ class Trainer:
         for self.logger.epoch in range(
             self.logger.epoch, self.logger.epoch + self.opts.train.epochs
         ):
-
             # backprop painter's disc loss to masker
-            if self.logger.epoch == self.opts.gen.p.pl4m_epoch:
-                if get_num_params(self.G.painter) > 0:
-                    self.use_pl4m = True
+            if (
+                self.logger.epoch == self.opts.gen.p.pl4m_epoch
+                and get_num_params(self.G.painter) > 0
+                and "p" in self.opts.tasks
+                and self.opts.gen.m.use_pl4m
+            ):
+                print(
+                    "\n\n >>> Enabling pl4m at epoch {}\n\n".format(self.logger.epoch)
+                )
+                self.use_pl4m = True
 
             self.run_epoch()
             self.run_evaluation(verbose=1)
@@ -1176,26 +1217,37 @@ class Trainer:
             # --------------------
             else:
                 z = self.G.encode(x)
-                s_pred = d_pred = cond = depth_preds = None
+                s_pred = d_pred = cond = z_depth = None
 
                 if "s" in batch["data"]:
-                    d_pred, z_depth = self.G.decoders["d"](z)
-                    if self.opts.gen.s.depth_dada_fusion:
-                        depth_preds = d_pred
+                    if "d" in self.opts.tasks and self.opts.gen.s.use_dada:
+                        d_pred, z_depth = self.G.decoders["d"](z)
+
                     step_loss, s_pred = self.masker_s_loss(
-                        x, z, depth_preds, z_depth, None, domain, for_="D"
+                        x, z, d_pred, z_depth, None, domain, for_="D"
                     )
                     step_loss *= self.opts.train.lambdas.advent.adv_main
                     disc_loss["s"]["Advent"] += step_loss
 
                 if "m" in batch["data"]:
-                    if self.opts.gen.m.use_spade:
-                        if d_pred is None:
-                            d_pred, _ = self.G.decoders["d"](z)
-                        cond = self.G.make_m_cond(d_pred, s_pred, x)
+                    if "d" in self.opts.tasks:
+                        if self.opts.gen.m.use_spade:
+                            if d_pred is None:
+                                d_pred, z_depth = self.G.decoders["d"](z)
+                            cond = self.G.make_m_cond(d_pred, s_pred, x)
+                        elif self.opts.gen.m.use_dada:
+                            if d_pred is None:
+                                d_pred, z_depth = self.G.decoders["d"](z)
 
                     step_loss, _ = self.masker_m_loss(
-                        x, z, None, domain, for_="D", cond=cond
+                        x,
+                        z,
+                        None,
+                        domain,
+                        for_="D",
+                        cond=cond,
+                        z_depth=z_depth,
+                        depth_preds=d_pred,
                     )
                     step_loss *= self.opts.train.lambdas.advent.adv_main
                     disc_loss["m"]["Advent"] += step_loss
@@ -1271,34 +1323,45 @@ class Trainer:
             # --------------------------------------
             # -----  task-specific losses (2)  -----
             # --------------------------------------
-            z_depth = None
-            d_pred = s_pred = None
+            d_pred = s_pred = z_depth = None
             for task in ["d", "s", "m"]:
                 if task not in batch["data"]:
                     continue
 
                 target = batch["data"][task]
 
-                if task == "s":
-                    loss, s_pred = self.masker_s_loss(
-                        x, z, d_pred, z_depth, target, domain, "G"
-                    )
-                    m_loss += loss
-                    self.logger.losses.gen.task["s"][domain] = loss.item()
-
-                elif task == "d":
+                if task == "d":
                     loss, d_pred, z_depth = self.masker_d_loss(
                         x, z, target, domain, "G"
                     )
                     m_loss += loss
                     self.logger.losses.gen.task["d"][domain] = loss.item()
 
+                elif task == "s":
+                    loss, s_pred = self.masker_s_loss(
+                        x, z, d_pred, z_depth, target, domain, "G"
+                    )
+                    m_loss += loss
+                    self.logger.losses.gen.task["s"][domain] = loss.item()
+
                 elif task == "m":
                     cond = None
                     if self.opts.gen.m.use_spade:
+                        if not self.opts.gen.m.detach:
+                            d_pred = d_pred.clone()
+                            s_pred = s_pred.clone()
                         cond = self.G.make_m_cond(d_pred, s_pred, x)
 
-                    loss, _ = self.masker_m_loss(x, z, target, domain, "G", cond=cond)
+                    loss, _ = self.masker_m_loss(
+                        x,
+                        z,
+                        target,
+                        domain,
+                        "G",
+                        cond=cond,
+                        z_depth=z_depth,
+                        depth_preds=d_pred,
+                    )
                     m_loss += loss
                     self.logger.losses.gen.task["m"][domain] = loss.item()
 
@@ -1520,15 +1583,16 @@ class Trainer:
 
         # Fool ADVENT discriminator
         if self.opts.gen.s.use_advent:
+            if self.opts.gen.s.use_dada and depth_preds is not None:
+                depth_preds = depth_preds.detach()
+            else:
+                depth_preds = None
+
             if for_ == "D":
                 domain_label = domain
                 logger = {}
                 loss_func = self.losses["D"]["advent"]
                 pred = pred.detach()
-                if self.opts.gen.s.depth_dada_fusion:
-                    depth_preds = depth_preds.detach()
-                else:
-                    depth_preds = None
                 weight = self.opts.train.lambdas.advent.adv_main
             else:
                 domain_label = "s"
@@ -1570,7 +1634,9 @@ class Trainer:
 
         return full_loss, pred
 
-    def masker_m_loss(self, x, z, target, domain, for_="G", cond=None):
+    def masker_m_loss(
+        self, x, z, target, domain, for_="G", cond=None, z_depth=None, depth_preds=None
+    ):
         assert for_ in {"G", "D"}
         assert domain in {"r", "s"}
         self.assert_z_matches_x(x, z)
@@ -1578,7 +1644,7 @@ class Trainer:
         full_loss = torch.tensor(0.0, device=self.device)
 
         # ? output features classifier
-        pred_logits = self.G.decoders["m"](z, cond)
+        pred_logits = self.G.decoders["m"](z, cond=cond, z_depth=z_depth)
         pred_prob = sigmoid(pred_logits)
         pred_prob_complementary = 1 - pred_prob
         prob = torch.cat([pred_prob, pred_prob_complementary], dim=1)
@@ -1629,6 +1695,14 @@ class Trainer:
 
         if self.opts.gen.m.use_advent:
             # AdvEnt loss
+            if self.opts.gen.m.use_dada and depth_preds is not None:
+                depth_preds = depth_preds.detach()
+                depth_preds = torch.nn.functional.interpolate(
+                    depth_preds, size=x.shape[-2:], mode="nearest"
+                )
+            else:
+                depth_preds = None
+
             if for_ == "D":
                 domain_label = domain
                 logger = {}
@@ -1646,6 +1720,7 @@ class Trainer:
                     prob.to(self.device),
                     self.domain_labels[domain_label],
                     self.D["m"]["Advent"],
+                    depth_preds,
                 )
                 loss *= weight
                 full_loss += loss
@@ -1796,7 +1871,7 @@ class Trainer:
 
             if "s" in metric_avg_scores:
                 if z_depth is None:
-                    if "d" in self.opts.tasks and self.opts.gen.s.depth_feat_fusion:
+                    if self.opts.gen.s.use_dada and "d" in self.opts.tasks:
                         _, z_depth = self.G.decoders["d"](z)
                 s_pred = self.G.decoders["s"](z, z_depth).detach().cpu()
                 s = im_set["data"]["s"].unsqueeze(0).detach()
@@ -1809,7 +1884,13 @@ class Trainer:
                 cond = None
                 if s_pred is not None and d_pred is not None:
                     cond = self.G.make_m_cond(d_pred, s_pred, x)
-                pred_mask = self.G.mask(z=z, cond=cond).detach().cpu()
+                if z_depth is None:
+                    if self.opts.gen.m.use_dada and "d" in self.opts.tasks:
+                        _, z_depth = self.G.decoders["d"](z)
+
+                pred_mask = (
+                    (self.G.mask(z=z, cond=cond, z_depth=z_depth)).detach().cpu()
+                )
                 pred_mask = (pred_mask > 0.5).to(torch.float32)
                 pred_prob = torch.cat([1 - pred_mask, pred_mask], dim=1)
 
@@ -1887,28 +1968,12 @@ class Trainer:
             if z is None:
                 z = self.G.encode(x)
             seg_preds = self.G.decoders["s"](z, z_depth)
-        fire_color = (
-            self.opts.events.fire.color.r,
-            self.opts.events.fire.color.g,
-            self.opts.events.fire.color.b,
-        )
-        blur_radius = self.opts.events.fire.blur_radius
-        if x.shape[0] > 0:
-            return torch.cat(
-                [
-                    add_fire(
-                        x[i].unsqueeze(0),
-                        seg_preds[i].unsqueeze(0),
-                        fire_color,
-                        blur_radius,
-                    )
-                    for i in range(x.shape[0])
-                ]
-            )
 
-        return add_fire(x, seg_preds, fire_color, blur_radius)
+        return add_fire(x, seg_preds, self.opts.events.fire)
 
-    def compute_flood(self, x, z=None, m=None, s=None, cloudy=None, bin_value=-1):
+    def compute_flood(
+        self, x, z=None, z_depth=None, m=None, s=None, cloudy=None, bin_value=-1
+    ):
         """
         Applies a flood (mask + paint) to an input image, with optionally
         pre-computed masker z or mask
@@ -1928,7 +1993,9 @@ class Trainer:
         if m is None:
             if z is None:
                 z = self.G.encode(x)
-            m = self.G.mask(z=z)
+            if "d" in self.opts.tasks and self.opts.gen.m.use_dada and z_depth is None:
+                _, z_depth = self.G.decoders["d"](z)
+            m = self.G.mask(x=x, z=z, z_depth=z_depth)
 
         if bin_value >= 0:
             m = (m > bin_value).to(m.dtype)

@@ -1,17 +1,19 @@
 """Discriminator architecture for OmniGAN's GAN components (a and t)
 """
+import functools
+
 import torch
 import torch.nn as nn
-import functools
-from omnigan.tutils import init_weights
+
 from omnigan.blocks import SpectralNorm
+from omnigan.tutils import init_weights
 
 # from torch.optim import lr_scheduler
 
 # mainly from https://github.com/sangwoomo/instagan/blob/master/models/networks.py
 
 
-def get_dis(opts, verbose, no_init=False):
+def create_discriminator(opts, device, no_init=False, verbose=0):
     disc = OmniDiscriminator(opts)
     if no_init:
         return disc
@@ -24,7 +26,7 @@ def get_dis(opts, verbose, no_init=False):
                     init_type=opts.dis[task].init_type,
                     init_gain=opts.dis[task].init_gain,
                     verbose=verbose,
-                    caller=f"get_dis {task} {domain}",
+                    caller=f"create_discriminator {task} {domain}",
                 )
         else:
             init_weights(
@@ -32,9 +34,9 @@ def get_dis(opts, verbose, no_init=False):
                 init_type=opts.dis[task].init_type,
                 init_gain=opts.dis[task].init_gain,
                 verbose=verbose,
-                caller=f"get_dis {task}",
+                caller=f"create_discriminator {task}",
             )
-    return disc
+    return disc.to(device)
 
 
 def define_D(

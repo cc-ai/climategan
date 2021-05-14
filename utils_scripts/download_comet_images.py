@@ -1,11 +1,12 @@
-import comet_ml
-from comet_ml import config
-from pathlib import Path
 import argparse
 import os
 from collections import Counter
-from addict import Dict
+from pathlib import Path
+
+import comet_ml
 import yaml
+from addict import Dict
+from comet_ml import config
 
 
 def parse_tags(tags_str):
@@ -258,7 +259,9 @@ if __name__ == "__main__":
         # -----------------------------------
 
         if step == "last":
-            curr_step = max(i["step"] for i in ims)
+            curr_step = max(i["step"] or -1 for i in ims)
+            if curr_step == -1:
+                curr_step = None
         else:
             curr_step = step
 

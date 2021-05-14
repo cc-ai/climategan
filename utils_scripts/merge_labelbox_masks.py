@@ -1,16 +1,20 @@
 from pathlib import Path
+
 import numpy as np
 from skimage.io import imread, imsave
+from shutil import copyfile
 
 if __name__ == "__main__":
     # output of download_labelbox.py
-    base_dir = Path("/Users/victor/Downloads/labelbox_test_flood")
+    base_dir = Path("/Users/victor/Downloads/labelbox_test_flood-v2")
+    labeled_dir = base_dir / "__labeled"
     assert base_dir.exists()
+    labeled_dir.mkdir(exist_ok=True)
 
     sub_dirs = [
         d
         for d in base_dir.expanduser().resolve().iterdir()
-        if d.is_dir() and not d.name.startswith(".")
+        if d.is_dir() and not d.name.startswith(".") and d.name != "__labeled"
     ]
 
     for k, sd in enumerate(sub_dirs):
@@ -34,3 +38,4 @@ if __name__ == "__main__":
         stem = "_".join(list(sd.glob("*must*.png"))[0].stem.split("_")[:-2])
         # save label
         imsave(sd / f"{stem}_labeled.png", label)
+        copyfile(sd / f"{stem}_labeled.png", labeled_dir / f"{stem}_labeled.png")

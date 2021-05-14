@@ -1,18 +1,21 @@
 """Data transforms for the loaders
 """
+import random
+import traceback
+from pathlib import Path
+
+import numpy as np
 import torch
 import torch.nn.functional as F
+from skimage.color import rgba2rgb
+from skimage.io import imread
 from torchvision import transforms as trsfs
 from torchvision.transforms.functional import (
     adjust_brightness,
     adjust_contrast,
     adjust_saturation,
 )
-import numpy as np
-import random
-import traceback
-from pathlib import Path
-from skimage.io import imread
+
 from omnigan.tutils import normalize
 
 
@@ -117,7 +120,9 @@ class Resize:
         try:
             if not self.sizes:
                 d = {}
-                new_size = self.compute_new_default_size(data["x"])
+                new_size = self.compute_new_default_size(
+                    data["x"] if "x" in data else list(data.values())[0]
+                )
                 for task, tensor in data.items():
                     d[task] = F.interpolate(
                         tensor, size=new_size, **interpolation(task)
@@ -156,7 +161,9 @@ class RandomCrop:
         self.center = center
 
     def __call__(self, data):
-        H, W = data["x"].size()[-2:]
+        H, W = (
+            data["x"].size()[-2:] if "x" in data else list(data.values())[0].size()[-2:]
+        )
 
         if not self.center:
             top = np.random.randint(0, H - self.h)
@@ -292,30 +299,48 @@ class PrepareInference:
       - rescale to -1:1
     """
 
-    def __init__(self, target_size=640, half=False):
+    def __init__(self, target_size=640, half=False, is_label=False, enforce_128=True):
+        if enforce_128:
+            if target_size % 2 ** 7 != 0:
+                raise ValueError(
+                    f"Received a target_size of {target_size}, which is not a "
+                    + "multiple of 2^7 = 128. Set enforce_128 to False to disable "
+                    + "this error."
+                )
         self.resize = Resize(target_size, keep_aspect_ratio=True)
         self.crop = RandomCrop((target_size, target_size), center=True)
         self.half = half
+        self.is_label = is_label
 
     def process(self, t):
         if isinstance(t, (str, Path)):
             t = imread(str(t))
 
         if isinstance(t, np.ndarray):
+            if t.shape[-1] == 4:
+                t = rgba2rgb(t)
+
             t = torch.from_numpy(t)
-            t = t.permute(2, 0, 1)
+            if t.ndim == 3:
+                t = t.permute(2, 0, 1)
 
-        if len(t.shape) == 3:
+        if t.ndim == 3:
             t = t.unsqueeze(0)
+        elif t.ndim == 2:
+            t = t.unsqueeze(0).unsqueeze(0)
 
-        t = t.to(torch.float16) if self.half else t.to(torch.float32)
+        if not self.is_label:
+            t = t.to(torch.float32)
+            t = normalize(t)
+            t = (t - 0.5) * 2
 
-        t = normalize(t)
-        t = (t - 0.5) * 2
-        t = {"x": t}
+        t = {"m": t} if self.is_label else {"x": t}
         t = self.resize(t)
         t = self.crop(t)
-        t = t["x"]
+        t = t["m"] if self.is_label else t["x"]
+
+        if self.half and not self.is_label:
+            t = t.half()
 
         return t
 
@@ -333,6 +358,67 @@ class PrepareInference:
             return [self.process(t) for t in x]
 
         return self.process(x)
+
+
+class PrepareTest:
+    """
+    Transform which:
+      - transforms a str or an array into a tensor
+      - resizes the image to keep the aspect ratio
+      - crops in the center of the resized image
+      - normalize to 0:1 (optional)
+      - rescale to -1:1 (optional)
+    """
+
+    def __init__(self, target_size=640, half=False):
+        self.resize = Resize(target_size, keep_aspect_ratio=True)
+        self.crop = RandomCrop((target_size, target_size), center=True)
+        self.half = half
+
+    def process(self, t, normalize=False, rescale=False):
+        if isinstance(t, (str, Path)):
+            # t = img_as_float(imread(str(t)))
+            t = imread(str(t))
+            if t.shape[-1] == 4:
+                # t = rgba2rgb(t)
+                t = t[:, :, :3]
+            if np.ndim(t) == 2:
+                t = np.repeat(t[:, :, np.newaxis], 3, axis=2)
+
+        if isinstance(t, np.ndarray):
+            t = torch.from_numpy(t)
+            t = t.permute(2, 0, 1)
+
+        if len(t.shape) == 3:
+            t = t.unsqueeze(0)
+
+        t = t.to(torch.float32)
+        normalize(t) if normalize else t
+        (t - 0.5) * 2 if rescale else t
+        t = {"x": t}
+        t = self.resize(t)
+        t = self.crop(t)
+        t = t["x"]
+
+        if self.half:
+            return t.to(torch.float16)
+
+        return t
+
+    def __call__(self, x, normalize=False, rescale=False):
+        """
+        Call process()
+
+        x can be: dict {"task": data} list [data, ..] or data
+        data ^ can be a str, a Path, a numpy arrray or a Tensor
+        """
+        if isinstance(x, dict):
+            return {k: self.process(v, normalize, rescale) for k, v in x.items()}
+
+        if isinstance(x, list):
+            return [self.process(t, normalize, rescale) for t in x]
+
+        return self.process(x, normalize, rescale)
 
 
 def get_transform(transform_item, mode):
