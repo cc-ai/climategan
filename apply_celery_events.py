@@ -40,7 +40,9 @@ try:
 except ImportError:
     pass
 
-
+def uint8(array):
+    return array.astype(np.uint8)
+    
 def write_apply_config(out):
     command = " ".join(sys.argv)
     git_hash = get_git_revision_hash()
@@ -106,8 +108,7 @@ def download_blob_and_preprocess(container_client, path, output):
     dld.readinto(filestream)
 
     image = np.array(Image.open(filestream))
-
-    data = image if image.shape[-1] == 3 else rgba2rgb(image)
+    data = image if image.shape[-1] == 3 else uint8(rgba2rgb(image) * 255)
     # resize to standard input size 640 x 640
     data = resize(data, (640, 640), anti_aliasing=True)
     # normalize to -1:1

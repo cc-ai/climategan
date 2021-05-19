@@ -367,6 +367,7 @@ class Trainer:
         c = p / "checkpoints"
         assert c.exists() and c.is_dir()
 
+        print(f"The path is {p}")
         opts = get_latest_opts(p)
         opts = Dict(merge(overrides, opts))
         opts.train.resume = True
