@@ -38,7 +38,7 @@ class OmniGAN(Task):
         )
         # if XLA:
         #     device = xm.xla_device()
-        resume_path = os.environ.get('RESUME_PATH', "model/masker/release-may-14")
+        resume_path = os.environ.get('RESUME_PATH', "model/masker/release-may-20")
         self._trainer = Trainer.resume_from_path(
             resume_path,
             setup=True,
