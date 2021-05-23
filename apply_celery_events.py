@@ -40,9 +40,48 @@ try:
 except ImportError:
     pass
 
+def to_m1_p1(img, i):
+    if img.min() >= 0 and img.max() <= 1:
+        return (img.astype(np.float32) - 0.5) * 2
+    raise ValueError(f"Data range mismatch for image {i} : ({img.min()}, {img.max()})")
+
 def uint8(array):
     return array.astype(np.uint8)
-    
+
+
+def resize_and_crop(img, to=640):
+    """
+    Resizes an image so that it keeps the aspect ratio and the smallest dimensions
+    is 640, then crops this resized image in its center so that the output is 640x640
+    without aspect ratio distortion
+
+    Args:
+        image_path (Path or str): Path to an image
+        label_path (Path or str): Path to the image's associated label
+
+    Returns:
+        tuple((np.ndarray, np.ndarray)): (new image, new label)
+    """
+    # resize keeping aspect ratio: smallest dim is 640
+    h, w = img.shape[:2]
+    if h < w:
+        size = (to, int(to * w / h))
+    else:
+        size = (int(to * h / w), to)
+
+    r_img = resize(img, size, preserve_range=True, anti_aliasing=True)
+    r_img = uint8(r_img)
+
+    # crop in the center
+    H, W = r_img.shape[:2]
+
+    top = (H - to) // 2
+    left = (W - to) // 2
+
+    rc_img = r_img[top : top + 640, left : left + 640, :]
+
+    return rc_img / 255.0
+
 def write_apply_config(out):
     command = " ".join(sys.argv)
     git_hash = get_git_revision_hash()
@@ -110,9 +149,9 @@ def download_blob_and_preprocess(container_client, path, output):
     image = np.array(Image.open(filestream))
     data = image if image.shape[-1] == 3 else uint8(rgba2rgb(image) * 255)
     # resize to standard input size 640 x 640
-    data = resize(data, (640, 640), anti_aliasing=True)
+    data = resize_and_crop(data, 640)
     # normalize to -1:1
-    data = (normalize(data.astype(np.float32)) - 0.5) * 2
+    data = to_m1_p1(data, 1)
 
     return (output, data)
 

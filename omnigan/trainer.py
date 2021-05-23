@@ -746,7 +746,6 @@ class Trainer:
         self.G: OmniGenerator = create_generator(
             self.opts, device=self.device, no_init=inference, verbose=verbose
         )
-
         self.has_painter = get_num_params(self.G.painter) or self.G.load_val_painter()
 
         if self.has_painter:

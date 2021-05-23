@@ -33,16 +33,12 @@ class OmniGAN(Task):
 
     def __init__(self):
         logging.info(f"Initializing the Trainer")
-        # torch.multiprocessing.set_start_method('spawn')
-        device = None
-        while str(device) != 'cuda:0':
-            device = torch.device(
-            "cuda:0" if torch.cuda.is_available() else "cpu"
-            )
+        device = torch.device(
+        "cuda:0" if torch.cuda.is_available() else "cpu"
+        )
         # if XLA:
         #     device = xm.xla_device()
         resume_path = os.environ.get('RESUME_PATH', "model/masker/release-may-14")
-        print(f"RESUME PATH IS {resume_path}")
         self._trainer = Trainer.resume_from_path(
             resume_path,
             setup=True,
