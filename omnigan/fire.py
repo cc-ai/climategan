@@ -85,20 +85,15 @@ def add_fire(x, seg_preds, fire_opts):
     wildfire_tens = wildfire_tens.to(torch.uint8)
 
     # Darken the picture and increase contrast
-    wildfire_tens = adjust_contrast(
-        wildfire_tens, contrast_factor=fire_opts.get("contrast_factor", 1.5)
-    )
+    wildfire_tens = adjust_contrast(wildfire_tens, contrast_factor=1.5)
+    wildfire_tens = adjust_brightness(wildfire_tens, brightness_factor=0.73)
 
     sky_mask = retrieve_sky_mask(seg_preds).unsqueeze(1)
     sky_mask = F.interpolate(
         sky_mask.to(torch.float),
         (wildfire_tens.shape[-2], wildfire_tens.shape[-1]),
     )
-    sky_mask = increase_sky_mask(
-        sky_mask,
-        fire_opts.get("sky_inc_factor", 0.12),
-        fire_opts.get("sky_inc_factor", 0.12),
-    )
+    sky_mask = increase_sky_mask(sky_mask, 0.18, 0.18)
 
     if fire_opts.get("crop_bottom_sky_mask"):
         i = sky_mask.shape[-2] // 2
@@ -117,13 +112,9 @@ def add_fire(x, seg_preds, fire_opts):
     filter_[:, 1, :, :] = random.randint(100, 150)
     filter_[:, 2, :, :] = 0
 
-    wildfire_tens = paste_tensor(
-        wildfire_tens, filter_, sky_mask, 210
-    )  # fire_opts.get("transparency", 210)
+    wildfire_tens = paste_tensor(wildfire_tens, filter_, sky_mask, 200)
 
-    wildfire_tens = adjust_brightness(
-        wildfire_tens.to(torch.uint8), 0.9
-    )  # fire_opts.get("brightness_factor", 0.95)
+    wildfire_tens = adjust_brightness(wildfire_tens.to(torch.uint8), 0.8)
     wildfire_tens = wildfire_tens.to(torch.float)
 
     # dummy pixels to fool scaling and preserve range
