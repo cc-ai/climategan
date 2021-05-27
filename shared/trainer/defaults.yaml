@@ -332,16 +332,3 @@ comet:
     m: 6
     s: 4
     d: 4
-events:
-  fire:
-    kernel_size: 281
-    kernel_sigma: 140.5
-    transparency: 200
-    sky_inc_factor: 0.12
-    contrast_factor: 1.5
-    brightness_factor: 0.95
-    crop_bottom_sky_mask: true
-  smog:
-    airlight: 0.76
-    beta: 2
-    vr: 1

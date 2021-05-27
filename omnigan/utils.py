@@ -18,6 +18,8 @@ from addict import Dict
 from comet_ml import Experiment
 from uuid import uuid4
 
+from yaml import events
+
 comet_kwargs = {
     "auto_metric_logging": False,
     "parse_args": True,
@@ -177,6 +179,13 @@ def load_opts(
 
     if opts.gen.s.depth_feat_fusion is True or opts.gen.s.depth_dada_fusion is True:
         opts.gen.s.use_dada = True
+
+    events_path = Path(__file__).parent.parent / "shared" / "trainer" / "events.yaml"
+    if events_path.exists():
+        with events_path.open("r") as f:
+            events_dict = yaml.safe_load(f)
+        events_dict = Dict(events_dict)
+        opts.events = events_dict
 
     return set_data_paths(opts)
 
@@ -582,8 +591,7 @@ def append_task_to_json(
 
 
 def sum_dict(dict1: Union[dict, Dict], dict2: Union[Dict, dict]) -> Union[dict, Dict]:
-    """Add dict2 into dict1
-    """
+    """Add dict2 into dict1"""
     for k, v in dict2.items():
         if not isinstance(v, dict):
             dict1[k] += v
@@ -593,8 +601,7 @@ def sum_dict(dict1: Union[dict, Dict], dict2: Union[Dict, dict]) -> Union[dict, 
 
 
 def div_dict(dict1: Union[dict, Dict], div_by: float) -> dict:
-    """Divide elements of dict1 by div_by
-    """
+    """Divide elements of dict1 by div_by"""
     for k, v in dict1.items():
         if not isinstance(v, dict):
             dict1[k] /= div_by
@@ -960,8 +967,7 @@ def to_128(im, w_target=-1):
 
 
 def is_image_file(filename):
-    """Check that a file's name points to a known image format
-    """
+    """Check that a file's name points to a known image format"""
     if isinstance(filename, Path):
         return filename.suffix in IMG_EXTENSIONS
 
