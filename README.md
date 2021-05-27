@@ -2,19 +2,12 @@
 - [omnigan](#omnigan)
   - [Setup](#setup)
   - [Coding conventions](#coding-conventions)
-    - [Resuming](#resuming)
-    - [Generator](#generator)
-    - [Discriminator](#discriminator)
   - [updates](#updates)
   - [interfaces](#interfaces)
-    - [batches](#batches)
-    - [data](#data)
-      - [json files](#json-files)
-    - [losses](#losses)
   - [Logging on comet](#logging-on-comet)
-    - [Tests](#tests)
   - [Resources](#resources)
   - [Example](#example)
+  - [Release process](#release-process)
 
 ## Setup
 
@@ -322,3 +315,14 @@ np_ys = [tensor_ims_to_np_uint8s(y) for y in tqdm(ys)]
 for i, n in tqdm(zip(im_paths, np_ys), total=len(im_paths)):
     imsave(Path(output_path) / i.name, n)
 ```
+
+## Release process
+
+In the `release/` folder
+* create `model/` folder
+* create `model/masker/` and `model/painter/` directories
+* add the omnigan code in `release/`: `git clone git@github.com:cc-ai/omnigan.git`
+* move the code to `release/`: `cp omnigan/* . && rm -rf omnigan`
+* update `model/masker/opts/events` with `events:` from `shared/trainer/opts.yaml`
+* update `model/masker/opts/val.val_painter` to `"model/painter/checkpoints/latest_ckpt.pth"`
+* update `model/masker/opts/load_paths.m` to `"model/masker/checkpoints/latest_ckpt.pth"`

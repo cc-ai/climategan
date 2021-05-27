@@ -393,7 +393,7 @@ def masker_metrics(pred, label, label_cannot=0, label_must=1):
     tn_map = (1.0 - pred) * np.asarray(label == label_cannot, dtype=int)
     tnr = np.sum(tn_map) / np.sum(label == label_cannot)
     fp_map = pred * np.asarray(label == label_cannot, dtype=int)
-    fn_map = (1.0 - pred) * np.asarray(label == label_must, dtype=int)
+    fn_map = (1.0 - pred) * np.asarray(label == label_must, dtype=int)  # noqa: F841
     precision = np.sum(tp_map) / (np.sum(tp_map) + np.sum(fp_map))
     f1 = 2 * (precision * tpr) / (precision + tpr)
     return tpr, tnr, precision, f1

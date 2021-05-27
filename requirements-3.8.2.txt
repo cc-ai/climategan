@@ -56,16 +56,15 @@ httplib2==0.18.1
 hydra-core==0.11.3
 idna==2.10
 imageio==2.9.0
-ipykernel @ file:///tmp/build/80754af9/ipykernel_1596207638929/work/dist/ipykernel-5.3.4-py3-none-any.whl
-ipython @ file:///tmp/build/80754af9/ipython_1598883821407/work
+ipython
 ipython-genutils==0.2.0
 ipywidgets==7.5.1
 itsdangerous==1.1.0
-jedi @ file:///tmp/build/80754af9/jedi_1598371611696/work
+jedi
 Jinja2==2.11.2
 joblib==0.17.0
 jsonschema==3.2.0
-jupyter-client @ file:///tmp/build/80754af9/jupyter_client_1594826976318/work
+jupyter-client
 jupyter-core==4.6.3
 jupyterlab-pygments==0.1.2
 Keras-Preprocessing==1.1.2
@@ -102,7 +101,7 @@ pickleshare==0.7.5
 Pillow==7.2.0
 plotly==4.9.0
 prometheus-client==0.8.0
-prompt-toolkit @ file:///tmp/build/80754af9/prompt-toolkit_1598885458782/work
+prompt-toolkit
 protobuf==3.14.0
 ptyprocess==0.6.0
 pyasn1==0.4.8
@@ -155,7 +154,7 @@ traitlets==5.0.0
 typing-extensions==3.7.4.3
 tzlocal==2.1
 urllib3==1.25.10
-wcwidth @ file:///tmp/build/80754af9/wcwidth_1593447189090/work
+wcwidth 
 webencodings==0.5.1
 websocket-client==0.57.0
 Werkzeug==1.0.1

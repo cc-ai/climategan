@@ -84,11 +84,7 @@ dict_techniques = {
 }
 
 # Markers
-dict_markers = {
-        'error': 'o',
-        'f05': 's',
-        'edge_coherence': '^'
-}
+dict_markers = {"error": "o", "f05": "s", "edge_coherence": "^"}
 
 # Model features
 model_feats = [
@@ -158,10 +154,7 @@ def parsed_args():
         help="CSV containing the results of the ablation study",
     )
     parser.add_argument(
-        "--output_dir",
-        default=None,
-        type=str,
-        help="Output directory",
+        "--output_dir", default=None, type=str, help="Output directory",
     )
     parser.add_argument(
         "--models",
@@ -170,22 +163,13 @@ def parsed_args():
         help="Models to display: all, pseudo, no_dada_masker, no_baseline",
     )
     parser.add_argument(
-        "--dpi",
-        default=200,
-        type=int,
-        help="DPI for the output images",
+        "--dpi", default=200, type=int, help="DPI for the output images",
     )
     parser.add_argument(
-        "--n_bs",
-        default=1e6,
-        type=int,
-        help="Number of bootrstrap samples",
+        "--n_bs", default=1e6, type=int, help="Number of bootrstrap samples",
     )
     parser.add_argument(
-        "--alpha",
-        default=0.99,
-        type=float,
-        help="Confidence level",
+        "--alpha", default=0.99, type=float, help="Confidence level",
     )
     parser.add_argument(
         "--bs_seed",
@@ -201,7 +185,7 @@ def plot_median_metrics(
     df, do_stripplot=True, dpi=200, bs_seed=37, n_bs=1000, **snskwargs
 ):
     def plot_metric(
-        ax, df, metric, do_stripplot=True, dpi=200, bs_seed=37, marker='o', **snskwargs
+        ax, df, metric, do_stripplot=True, dpi=200, bs_seed=37, marker="o", **snskwargs
     ):
 
         y_labels = [dict_models[f] for f in df.model_feats.unique()]
@@ -274,11 +258,17 @@ def plot_median_metrics(
         # Draw gray area on final model
         xlim = ax.get_xlim()
         ylim = ax.get_ylim()
-        trans = transforms.blended_transform_factory(
-            ax.transAxes, ax.transData)
-        rect = mpatches.Rectangle(xy=(0., 5.5), width=1, height=1,
-                                  transform=trans,
-                                  linewidth=0., edgecolor='none', facecolor='gray', alpha=0.05)
+        trans = transforms.blended_transform_factory(ax.transAxes, ax.transData)
+        rect = mpatches.Rectangle(
+            xy=(0.0, 5.5),
+            width=1,
+            height=1,
+            transform=trans,
+            linewidth=0.0,
+            edgecolor="none",
+            facecolor="gray",
+            alpha=0.05,
+        )
         ax.add_patch(rect)
 
     # Set up plot
@@ -304,19 +294,32 @@ def plot_median_metrics(
     )
 
     fig_h = 0.33 * len(df.model_feats.unique())
-    fig, axes = plt.subplots(nrows=1, ncols=3, sharey=True, dpi=dpi, figsize=(18, fig_h))
+    fig, axes = plt.subplots(
+        nrows=1, ncols=3, sharey=True, dpi=dpi, figsize=(18, fig_h)
+    )
 
     # Error
     plot_metric(
-        axes[0], df, "error", do_stripplot=do_stripplot, dpi=dpi, bs_seed=bs_seed,
-        marker=dict_markers['error']
+        axes[0],
+        df,
+        "error",
+        do_stripplot=do_stripplot,
+        dpi=dpi,
+        bs_seed=bs_seed,
+        marker=dict_markers["error"],
     )
-    axes[0].set_ylabel('Models')
-
+    axes[0].set_ylabel("Models")
 
     # F05
-    plot_metric(axes[1], df, "f05", do_stripplot=do_stripplot, dpi=dpi, bs_seed=bs_seed,
-        marker=dict_markers['f05'])
+    plot_metric(
+        axes[1],
+        df,
+        "f05",
+        do_stripplot=do_stripplot,
+        dpi=dpi,
+        bs_seed=bs_seed,
+        marker=dict_markers["f05"],
+    )
 
     # Edge coherence
     plot_metric(
@@ -326,7 +329,7 @@ def plot_median_metrics(
         do_stripplot=do_stripplot,
         dpi=dpi,
         bs_seed=bs_seed,
-        marker=dict_markers['edge_coherence']
+        marker=dict_markers["edge_coherence"],
     )
     xticks = axes[2].get_xticks()
     xticklabels = ["{:.3f}".format(x) for x in xticks]
