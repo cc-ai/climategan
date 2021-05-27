@@ -319,8 +319,8 @@ for i, n in tqdm(zip(im_paths, np_ys), total=len(im_paths)):
 ## Release process
 
 In the `release/` folder
-* create `model/` folder
-* create `model/masker/` and `model/painter/` directories
+* create a `model/` folder
+* create folders `model/masker/` and `model/painter/` 
 * add the omnigan code in `release/`: `git clone git@github.com:cc-ai/omnigan.git`
 * move the code to `release/`: `cp omnigan/* . && rm -rf omnigan`
 * update `model/masker/opts/events` with `events:` from `shared/trainer/opts.yaml`
