@@ -93,6 +93,9 @@ def add_fire(x, seg_preds, fire_opts):
         sky_mask.to(torch.float),
         (wildfire_tens.shape[-2], wildfire_tens.shape[-1]),
     )
+    if fire_opts.get("crop_bottom_sky_mask"):
+        i = 2 * sky_mask.shape[-2] // 3
+        sky_mask[..., i:, :] = 0.0
     sky_mask = increase_sky_mask(sky_mask, 0.18, 0.18)
 
     kernel_size = (fire_opts.get("kernel_size", 301), fire_opts.get("kernel_size", 301))
@@ -102,10 +105,6 @@ def add_fire(x, seg_preds, fire_opts):
         kornia.filters.kernels.get_gaussian_kernel2d(kernel_size, sigma), dim=0
     ).to(x.device)
     sky_mask = kornia.filters.filter2D(sky_mask, kernel, border_type)
-
-    if fire_opts.get("crop_bottom_sky_mask"):
-        i = sky_mask.shape[-2] // 2
-        sky_mask[..., i:, :] = 0.0
 
     filter_ = torch.ones(wildfire_tens.shape, device=x.device)
     filter_[:, 0, :, :] = 255
