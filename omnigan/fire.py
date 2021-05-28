@@ -89,13 +89,15 @@ def add_fire(x, seg_preds, fire_opts):
     wildfire_tens = adjust_brightness(wildfire_tens, brightness_factor=0.73)
 
     sky_mask = retrieve_sky_mask(seg_preds).unsqueeze(1)
+
+    if fire_opts.get("crop_bottom_sky_mask"):
+        i = 2 * sky_mask.shape[-2] // 3
+        sky_mask[..., i:, :] = 0
+
     sky_mask = F.interpolate(
         sky_mask.to(torch.float),
         (wildfire_tens.shape[-2], wildfire_tens.shape[-1]),
     )
-    if fire_opts.get("crop_bottom_sky_mask"):
-        i = 2 * sky_mask.shape[-2] // 3
-        sky_mask[..., i:, :] = 0.0
     sky_mask = increase_sky_mask(sky_mask, 0.18, 0.18)
 
     kernel_size = (fire_opts.get("kernel_size", 301), fire_opts.get("kernel_size", 301))
