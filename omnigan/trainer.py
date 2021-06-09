@@ -2024,7 +2024,7 @@ class Trainer:
                 # TODO: interpolate to d's size
 
         params = self.opts.events.smog
-
+        
         airlight = params.airlight * torch.ones(3)
         airlight = airlight.view(1, -1, 1, 1).to(self.device)
 
@@ -2049,5 +2049,14 @@ class Trainer:
         transmission = torch.exp(d * -beta)
 
         smogged = transmission * irradiance + (1 - transmission) * airlight
-
-        return lrgb2srgb(smogged)
+        
+        smogged = lrgb2srgb(smogged)
+        
+        #add yellow filter
+        alpha = params.alpha / 255
+        yellow_mask = torch.Tensor([params.yellow_color])/255
+        yellow_filter = y.unsqueeze(2).unsqueeze(2).repeat(1,1,smogged.shape[-2], smogged.shape[-1]).to(self.device)
+        
+        smogged=(smogged * (1-alpha) + yellow_filter*alpha) 
+        
+        return(smogged)
