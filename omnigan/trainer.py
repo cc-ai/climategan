@@ -375,7 +375,9 @@ class Trainer:
         elif new_exp is True:
             exp = Experiment(project_name="omnigan", **comet_kwargs)
             exp.log_asset_folder(
-                str(Path(__file__).parent), recursive=True, log_file_name=True,
+                str(Path(__file__).parent),
+                recursive=True,
+                log_file_name=True,
             )
             exp.log_parameters(flatten_opts(opts))
         else:
@@ -1508,7 +1510,8 @@ class Trainer:
         output_classifier = self.C(z)
         # Cross entropy loss (with sigmoid) with fake labels to fool C
         loss = self.losses["G"]["classifier"](
-            output_classifier, fake_domains_to_class_tensor(target, one_hot),
+            output_classifier,
+            fake_domains_to_class_tensor(target, one_hot),
         )
         loss *= self.opts.train.lambdas.G.classifier
         full_loss += loss
@@ -2024,7 +2027,7 @@ class Trainer:
                 # TODO: interpolate to d's size
 
         params = self.opts.events.smog
-        
+
         airlight = params.airlight * torch.ones(3)
         airlight = airlight.view(1, -1, 1, 1).to(self.device)
 
@@ -2049,14 +2052,19 @@ class Trainer:
         transmission = torch.exp(d * -beta)
 
         smogged = transmission * irradiance + (1 - transmission) * airlight
-        
+
         smogged = lrgb2srgb(smogged)
-        
-        #add yellow filter
+
+        # add yellow filter
         alpha = params.alpha / 255
-        yellow_mask = torch.Tensor([params.yellow_color])/255
-        yellow_filter = y.unsqueeze(2).unsqueeze(2).repeat(1,1,smogged.shape[-2], smogged.shape[-1]).to(self.device)
-        
-        smogged=(smogged * (1-alpha) + yellow_filter*alpha) 
-        
-        return(smogged)
+        yellow_mask = torch.Tensor([params.yellow_color]) / 255
+        yellow_filter = (
+            yellow_mask.unsqueeze(2)
+            .unsqueeze(2)
+            .repeat(1, 1, smogged.shape[-2], smogged.shape[-1])
+            .to(self.device)
+        )
+
+        smogged = smogged * (1 - alpha) + yellow_filter * alpha
+
+        return smogged
