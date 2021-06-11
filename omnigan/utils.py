@@ -841,7 +841,16 @@ def get_latest_opts(path):
     opts = get_latest_path(path / "opts.yaml")
     assert opts.exists()
     with opts.open("r") as f:
-        return Dict(yaml.safe_load(f))
+        opts = Dict(yaml.safe_load(f))
+
+    events_path = Path(__file__).parent.parent / "shared" / "trainer" / "events.yaml"
+    if events_path.exists():
+        with events_path.open("r") as f:
+            events_dict = yaml.safe_load(f)
+        events_dict = Dict(events_dict)
+        opts.events = events_dict
+
+    return opts
 
 
 def text_to_array(text, width=640, height=40):

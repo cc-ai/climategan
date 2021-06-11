@@ -332,7 +332,11 @@ if __name__ == "__main__":
             device = xm.xla_device()  # type: ignore
 
         trainer = Trainer.resume_from_path(
-            resume_path, setup=True, inference=True, new_exp=None, device=device,
+            resume_path,
+            setup=True,
+            inference=True,
+            new_exp=None,
+            device=device,
         )
         print()
         print_num_parameters(trainer, True)
@@ -466,7 +470,10 @@ if __name__ == "__main__":
         metrics_dir = Path(__file__).parent / "config" / "metrics"
         metrics_dir.mkdir(exist_ok=True, parents=True)
         now = str(datetime.now()).replace(" ", "_")
-        with open(metrics_dir / f"xla_metrics_{now}.txt", "w",) as f:
+        with open(
+            metrics_dir / f"xla_metrics_{now}.txt",
+            "w",
+        ) as f:
             report = met.metrics_report()  # type: ignore
             print(report, file=f)
 
