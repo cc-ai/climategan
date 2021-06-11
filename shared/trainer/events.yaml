@@ -11,4 +11,4 @@ smog:
   beta: 2
   vr: 1
   yellow_color: [224, 192, 29]
-  alpha: 40
+  alpha: 20
