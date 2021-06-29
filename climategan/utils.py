@@ -547,8 +547,8 @@ def append_task_to_json(
 
     e.g:
         append_json(
-            "/network/tmp1/ccai/data/omnigan/seg/train_r.json",
-            "/network/tmp1/ccai/data/omnigan/seg/train_r_new.json"
+            "/network/tmp1/ccai/data/climategan/seg/train_r.json",
+            "/network/tmp1/ccai/data/climategan/seg/train_r_new.json"
             "/network/tmp1/ccai/data/munit_dataset/trainA_seg_HRNet/unity_labels",
             "s",
         )
@@ -613,7 +613,7 @@ def div_dict(dict1: Union[dict, Dict], div_by: float) -> dict:
 def comet_id_from_url(url: str) -> Optional[str]:
     """
     Get comet exp id from its url:
-    https://www.comet.ml/vict0rsch/omnigan/2a1a4a96afe848218c58ac4e47c5375f
+    https://www.comet.ml/vict0rsch/climategan/2a1a4a96afe848218c58ac4e47c5375f
     -> 2a1a4a96afe848218c58ac4e47c5375f
 
     Args:
@@ -1009,7 +1009,7 @@ def cols():
 
 
 def upload_images_to_exp(
-    path, exp=None, project_name="omnigan-eval", sleep=-1, verbose=0
+    path, exp=None, project_name="climategan-eval", sleep=-1, verbose=0
 ):
     ims = find_images(path)
     end = None

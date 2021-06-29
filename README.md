@@ -1,5 +1,5 @@
-# omnigan
-- [omnigan](#omnigan)
+# ClimateGAN
+- [ClimateGAN](#climategan)
   - [Setup](#setup)
   - [Coding conventions](#coding-conventions)
   - [updates](#updates)
@@ -185,19 +185,19 @@ or
 ```json
 [
     {
-        "x": "/Users/victor/Documents/ccai/github/omnigan/example_data/gsv_000005.jpg",
-        "s": "/Users/victor/Documents/ccai/github/omnigan/example_data/gsv_000005.npy",
-        "d": "/Users/victor/Documents/ccai/github/omnigan/example_data/gsv_000005_depth.jpg"
+        "x": "/Users/victor/Documents/ccai/github/climategan/example_data/gsv_000005.jpg",
+        "s": "/Users/victor/Documents/ccai/github/climategan/example_data/gsv_000005.npy",
+        "d": "/Users/victor/Documents/ccai/github/climategan/example_data/gsv_000005_depth.jpg"
     },
     {
-        "x": "/Users/victor/Documents/ccai/github/omnigan/example_data/gsv_000006.jpg",
-        "s": "/Users/victor/Documents/ccai/github/omnigan/example_data/gsv_000006.npy",
-        "d": "/Users/victor/Documents/ccai/github/omnigan/example_data/gsv_000006_depth.jpg"
+        "x": "/Users/victor/Documents/ccai/github/climategan/example_data/gsv_000006.jpg",
+        "s": "/Users/victor/Documents/ccai/github/climategan/example_data/gsv_000006.npy",
+        "d": "/Users/victor/Documents/ccai/github/climategan/example_data/gsv_000006_depth.jpg"
     }
 ]
 ```
 
-The json files used are located at `/network/tmp1/ccai/data/omnigan/`. In the basenames,  `_s` denotes simulated domain data and `_r` real domain data.
+The json files used are located at `/network/tmp1/ccai/data/climategan/`. In the basenames,  `_s` denotes simulated domain data and `_r` real domain data.
 The `base` folder contains json files with paths to images (`"x"`key) and masks (taken as ground truth for the area that should be flooded, `"m"` key).
 The `seg` folder contains json files and keys `"x"`, `"m"` and `"s"` (segmentation) for each image.
 
@@ -277,10 +277,10 @@ from pathlib import Path
 from skimage.io import imsave
 from tqdm import tqdm
 
-from omnigan.trainer import Trainer
-from omnigan.utils import find_images
-from omnigan.tutils import tensor_ims_to_np_uint8s
-from omnigan.transforms import PrepareInference
+from climategan.trainer import Trainer
+from climategan.utils import find_images
+from climategan.tutils import tensor_ims_to_np_uint8s
+from climategan.transforms import PrepareInference
 
 
 model_path = "some/path/to/output/folder" # not .ckpt
@@ -321,8 +321,8 @@ for i, n in tqdm(zip(im_paths, np_ys), total=len(im_paths)):
 In the `release/` folder
 * create a `model/` folder
 * create folders `model/masker/` and `model/painter/` 
-* add the omnigan code in `release/`: `git clone git@github.com:cc-ai/omnigan.git`
-* move the code to `release/`: `cp omnigan/* . && rm -rf omnigan`
+* add the climategan code in `release/`: `git clone git@github.com:cc-ai/climategan.git`
+* move the code to `release/`: `cp climategan/* . && rm -rf climategan`
 * update `model/masker/opts/events` with `events:` from `shared/trainer/opts.yaml`
 * update `model/masker/opts/val.val_painter` to `"model/painter/checkpoints/latest_ckpt.pth"`
 * update `model/masker/opts/load_paths.m` to `"model/masker/checkpoints/latest_ckpt.pth"`

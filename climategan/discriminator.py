@@ -1,12 +1,12 @@
-"""Discriminator architecture for OmniGAN's GAN components (a and t)
+"""Discriminator architecture for ClimateGAN's GAN components (a and t)
 """
 import functools
 
 import torch
 import torch.nn as nn
 
-from omnigan.blocks import SpectralNorm
-from omnigan.tutils import init_weights
+from climategan.blocks import SpectralNorm
+from climategan.tutils import init_weights
 
 # from torch.optim import lr_scheduler
 

@@ -22,18 +22,18 @@ from torch import autograd, sigmoid, softmax
 from torch.cuda.amp import GradScaler, autocast
 from tqdm import tqdm
 
-from omnigan.classifier import OmniClassifier, get_classifier
-from omnigan.data import get_all_loaders
-from omnigan.discriminator import OmniDiscriminator, create_discriminator
-from omnigan.eval_metrics import accuracy, mIOU
-from omnigan.fid import compute_val_fid
-from omnigan.fire import add_fire
-from omnigan.generator import OmniGenerator, create_generator
-from omnigan.logger import Logger
-from omnigan.losses import get_losses
-from omnigan.optim import get_optimizer
-from omnigan.transforms import DiffTransforms
-from omnigan.tutils import (
+from climategan.classifier import OmniClassifier, get_classifier
+from climategan.data import get_all_loaders
+from climategan.discriminator import OmniDiscriminator, create_discriminator
+from climategan.eval_metrics import accuracy, mIOU
+from climategan.fid import compute_val_fid
+from climategan.fire import add_fire
+from climategan.generator import OmniGenerator, create_generator
+from climategan.logger import Logger
+from climategan.losses import get_losses
+from climategan.optim import get_optimizer
+from climategan.transforms import DiffTransforms
+from climategan.tutils import (
     divide_pred,
     domains_to_class_tensor,
     fake_domains_to_class_tensor,
@@ -47,7 +47,7 @@ from omnigan.tutils import (
     vgg_preprocess,
     zero_grad,
 )
-from omnigan.utils import (
+from climategan.utils import (
     Timer,
     comet_kwargs,
     div_dict,
@@ -358,7 +358,7 @@ class Trainer:
             device (torch.device, optional): Device to use
 
         Returns:
-            omnigan.Trainer: Loaded and resumed trainer
+            climategan.Trainer: Loaded and resumed trainer
         """
         p = Path(path).expanduser().resolve()
         assert p.exists()
@@ -373,7 +373,7 @@ class Trainer:
         if new_exp is None:
             exp = None
         elif new_exp is True:
-            exp = Experiment(project_name="omnigan", **comet_kwargs)
+            exp = Experiment(project_name="climategan", **comet_kwargs)
             exp.log_asset_folder(
                 str(Path(__file__).parent),
                 recursive=True,
@@ -1934,7 +1934,7 @@ class Trainer:
     def functional_test_mode(self):
         import atexit
 
-        self.opts.output_path = Path("~").expanduser() / "omnigan" / "functional_tests"
+        self.opts.output_path = Path("~").expanduser() / "climategan" / "functional_tests"
         Path(self.opts.output_path).mkdir(parents=True, exist_ok=True)
         with open(Path(self.opts.output_path) / "is_functional.test", "w") as f:
             f.write("trainer functional test - delete this dir")

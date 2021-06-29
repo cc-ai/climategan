@@ -20,7 +20,7 @@
 As per `7.` you should set your particular config in `config/local_tests.yaml`. Mine looks like:
 
 ```yaml
-output_path: /Users/victor/Documents/ccai/github/omnigan/example_data
+output_path: /Users/victor/Documents/ccai/github/climategan/example_data
 # -------------------
 # -----  Tasks  -----
 # -------------------
@@ -31,7 +31,7 @@ tasks: [a, d, s, t] # for now no h or w
 # ----------------
 data:
   files: # if one is not none it will override the dirs location
-    base: /Users/victor/Documents/ccai/github/omnigan/example_data
+    base: /Users/victor/Documents/ccai/github/climategan/example_data
   transforms:
   - name: hflip
     ignore: false

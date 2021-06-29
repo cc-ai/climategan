@@ -1,5 +1,5 @@
 import torch.nn as nn
-from omnigan.blocks import ResBlocks
+from climategan.blocks import ResBlocks
 
 affine_par = True
 
@@ -58,7 +58,12 @@ class Bottleneck(nn.Module):
 
 class ResNetMulti(nn.Module):
     def __init__(
-        self, layers, n_res=4, res_norm="instance", activ="lrelu", pad_type="reflect",
+        self,
+        layers,
+        n_res=4,
+        res_norm="instance",
+        activ="lrelu",
+        pad_type="reflect",
     ):
         self.inplanes = 64
         block = Bottleneck

@@ -25,8 +25,8 @@ import sys
 sys.path.append("../")
 
 from eval_masker import crop_and_resize
-from omnigan.eval_metrics import edges_coherence_std_min
-from omnigan.data import encode_mask_label
+from climategan.eval_metrics import edges_coherence_std_min
+from climategan.data import encode_mask_label
 
 
 # -----------------------
@@ -86,7 +86,10 @@ def parsed_args():
         help="CSV containing the results of the ablation study",
     )
     parser.add_argument(
-        "--output_dir", default=None, type=str, help="Output directory",
+        "--output_dir",
+        default=None,
+        type=str,
+        help="Output directory",
     )
     parser.add_argument(
         "--models_log_path",
@@ -107,13 +110,22 @@ def parsed_args():
         help="The string identifier of the best model",
     )
     parser.add_argument(
-        "--dpi", default=200, type=int, help="DPI for the output images",
+        "--dpi",
+        default=200,
+        type=int,
+        help="DPI for the output images",
     )
     parser.add_argument(
-        "--alpha", default=0.5, type=float, help="Transparency of labels shade",
+        "--alpha",
+        default=0.5,
+        type=float,
+        help="Transparency of labels shade",
     )
     parser.add_argument(
-        "--percentile", default=0.05, type=float, help="Transparency of labels shade",
+        "--percentile",
+        default=0.05,
+        type=float,
+        help="Transparency of labels shade",
     )
     parser.add_argument(
         "--seed",
@@ -391,7 +403,10 @@ def plot_images_metric(
         )
         handles.append(
             mpatches.Patch(
-                facecolor=color_may, label="May-be-flooded", linewidth=lw, alpha=0.66,
+                facecolor=color_may,
+                label="May-be-flooded",
+                linewidth=lw,
+                alpha=0.66,
             )
         )
         labels = ["TP", "TN", "FP", "FN", "May-be-flooded"]
@@ -420,7 +435,10 @@ def plot_images_metric(
         )
         handles.append(
             mpatches.Patch(
-                facecolor=color_must, label="Must-be-flooded", linewidth=lw, alpha=0.66,
+                facecolor=color_must,
+                label="Must-be-flooded",
+                linewidth=lw,
+                alpha=0.66,
             )
         )
         labels = ["TP", "Prediction", "Must-be-flooded"]

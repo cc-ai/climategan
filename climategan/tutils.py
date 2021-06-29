@@ -16,7 +16,7 @@ from torch import autograd
 from torch.autograd import Variable
 from torch.nn import init
 
-from omnigan.utils import all_texts_to_array
+from climategan.utils import all_texts_to_array
 
 
 def transforms_string(ts):

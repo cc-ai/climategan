@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from omnigan.blocks import (
+from climategan.blocks import (
     BaseDecoder,
     Conv2dBlock,
     InterpolateNearest2d,

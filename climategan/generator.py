@@ -13,12 +13,12 @@ import yaml
 from addict import Dict
 from torch import softmax
 
-import omnigan.strings as strings
-from omnigan.deeplab import create_encoder, create_segmentation_decoder
-from omnigan.depth import create_depth_decoder
-from omnigan.masker import create_mask_decoder
-from omnigan.painter import create_painter
-from omnigan.tutils import init_weights, mix_noise, normalize
+import climategan.strings as strings
+from climategan.deeplab import create_encoder, create_segmentation_decoder
+from climategan.depth import create_depth_decoder
+from climategan.masker import create_mask_decoder
+from climategan.painter import create_painter
+from climategan.tutils import init_weights, mix_noise, normalize
 
 
 def create_generator(opts, device="cpu", latent_shape=None, no_init=False, verbose=0):

@@ -6,8 +6,8 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from omnigan.deeplab.mobilenet_v3 import SeparableConv2d  # , _ConvBNReLU
-from omnigan.utils import find_target_size
+from climategan.deeplab.mobilenet_v3 import SeparableConv2d
+from climategan.utils import find_target_size
 
 
 class _DeepLabHead(nn.Module):
@@ -149,7 +149,10 @@ https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/deepl
 
 class DeepLabV3Decoder(nn.Module):
     def __init__(
-        self, opts, no_init=False, freeze_bn=False,
+        self,
+        opts,
+        no_init=False,
+        freeze_bn=False,
     ):
         super().__init__()
 

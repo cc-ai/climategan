@@ -7,7 +7,7 @@ from PIL import Image, ImageFilter
 from torchvision.transforms import ToTensor
 from torchvision.transforms.functional import adjust_brightness, adjust_contrast
 
-from omnigan.tutils import normalize, retrieve_sky_mask
+from climategan.tutils import normalize, retrieve_sky_mask
 
 
 def increase_sky_mask(mask, p_w=0, p_h=0):

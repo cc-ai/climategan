@@ -22,17 +22,17 @@ from skimage.transform import resize
 from skimage.util import img_as_ubyte
 from torchvision.transforms import ToTensor
 
-from omnigan.data import encode_mask_label
-from omnigan.eval_metrics import (
+from climategan.data import encode_mask_label
+from climategan.eval_metrics import (
     masker_classification_metrics,
     get_confusion_matrix,
     edges_coherence_std_min,
     boxplot_metric,
     clustermap_metric,
 )
-from omnigan.transforms import PrepareTest
-from omnigan.trainer import Trainer
-from omnigan.utils import find_images
+from climategan.transforms import PrepareTest
+from climategan.trainer import Trainer
+from climategan.utils import find_images
 
 dict_metrics = {
     "names": {
@@ -79,7 +79,9 @@ def parsed_args():
     """
     parser = ArgumentParser()
     parser.add_argument(
-        "--model", type=str, help="Path to a pre-trained model",
+        "--model",
+        type=str,
+        help="Path to a pre-trained model",
     )
     parser.add_argument(
         "--images_dir",
@@ -100,7 +102,10 @@ def parsed_args():
         help="The height and weight of the pre-processed images",
     )
     parser.add_argument(
-        "--max_files", default=-1, type=int, help="Limit loaded samples",
+        "--max_files",
+        default=-1,
+        type=int,
+        help="Limit loaded samples",
     )
     parser.add_argument(
         "--bin_value", default=0.5, type=float, help="Mask binarization threshold"
@@ -480,7 +485,7 @@ if __name__ == "__main__":
                 continue
 
         # Initialize New Comet Experiment
-        exp = Experiment(project_name="omnigan-masker-metrics", display_summary_level=0)
+        exp = Experiment(project_name="climategan-masker-metrics", display_summary_level=0)
 
         # Obtain mask predictions
         # TODO: remove (debug)
@@ -677,7 +682,7 @@ if __name__ == "__main__":
         )
 
         # Initialize New Comet Experiment
-        exp = Experiment(project_name="omnigan-masker-metrics", display_summary_level=0)
+        exp = Experiment(project_name="climategan-masker-metrics", display_summary_level=0)
         if args.tags:
             exp.add_tags(args.tags)
 

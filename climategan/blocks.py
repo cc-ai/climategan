@@ -4,8 +4,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import omnigan.strings as strings
-from omnigan.norms import SPADE, AdaptiveInstanceNorm2d, LayerNorm, SpectralNorm
+import climategan.strings as strings
+from climategan.norms import SPADE, AdaptiveInstanceNorm2d, LayerNorm, SpectralNorm
 
 
 class InterpolateNearest2d(nn.Module):

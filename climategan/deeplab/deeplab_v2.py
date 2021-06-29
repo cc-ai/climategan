@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from omnigan.blocks import InterpolateNearest2d
-from omnigan.utils import find_target_size
+from climategan.blocks import InterpolateNearest2d
+from climategan.utils import find_target_size
 
 
 class _ASPPModule(nn.Module):

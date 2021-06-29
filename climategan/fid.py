@@ -338,7 +338,7 @@ def compute_val_fid(trainer, verbose=0):
     those n validation images
 
     Args:
-        trainer (omnigan.Trainer): trainer to compute the val fid for
+        trainer (climategan.Trainer): trainer to compute the val fid for
 
     Returns:
         float: FID score
@@ -381,7 +381,7 @@ def set_real_val_fid_stats(trainer, model, batch_size, dims):
     This needs to be done only once since nothing changes during training here.
 
     Args:
-        trainer (omnigan.Trainer): trainer instance to compute the stats for
+        trainer (climategan.Trainer): trainer instance to compute the stats for
         model (InceptionV3): inception model to get the activations from
         batch_size (int): inception inference batch size
         dims (int): dimension selected in the model
@@ -402,7 +402,7 @@ def compute_fakes(trainer, verbose=0):
     Compute current fake inferences
 
     Args:
-        trainer (omnigan.Trainer): trainer instance
+        trainer (climategan.Trainer): trainer instance
         verbose (int, optional): Print level. Defaults to 0.
 
     Returns:

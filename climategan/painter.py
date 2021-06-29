@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import omnigan.strings as strings
-from omnigan.blocks import InterpolateNearest2d, SPADEResnetBlock
-from omnigan.norms import SpectralNorm
+import climategan.strings as strings
+from climategan.blocks import InterpolateNearest2d, SPADEResnetBlock
+from climategan.norms import SpectralNorm
 
 
 def create_painter(opts, no_init=False, verbose=0):

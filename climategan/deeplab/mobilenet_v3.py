@@ -8,7 +8,7 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
-from omnigan.blocks import InterpolateNearest2d
+from climategan.blocks import InterpolateNearest2d
 
 
 class SeparableConv2d(nn.Module):

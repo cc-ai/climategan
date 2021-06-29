@@ -21,8 +21,8 @@ import sys
 sys.path.append("../")
 
 from eval_masker import crop_and_resize
-from omnigan.eval_metrics import edges_coherence_std_min
-from omnigan.data import encode_mask_label
+from climategan.eval_metrics import edges_coherence_std_min
+from climategan.data import encode_mask_label
 
 
 # -----------------------

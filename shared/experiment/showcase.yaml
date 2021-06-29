@@ -18,10 +18,10 @@ cpus: 8
 partition: long
 mem: 32G
 gres: "gpu:rtx8000:1"
-codeloc: $HOME/ccai/omnigan
+codeloc: $HOME/ccai/climategan
 
 modules: "module load anaconda/3 && module load pytorch"
-conda: "conda activate omnienv && conda deactivate && conda activate omnienv"
+conda: "conda activate climatenv && conda deactivate && conda activate climatenv"
 
 n_search: -1
 

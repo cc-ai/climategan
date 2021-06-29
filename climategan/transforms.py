@@ -16,7 +16,7 @@ from torchvision.transforms.functional import (
     adjust_saturation,
 )
 
-from omnigan.tutils import normalize
+from climategan.tutils import normalize
 
 
 def interpolation(task):
@@ -553,10 +553,16 @@ def rand_cutout(tensor, ratio=0.5):
     )
     size_ = [tensor.size(0), 1, 1]
     offset_x = torch.randint(
-        0, tensor.size(-2) + (1 - cutout_size[0] % 2), size=size_, device=device_,
+        0,
+        tensor.size(-2) + (1 - cutout_size[0] % 2),
+        size=size_,
+        device=device_,
     )
     offset_y = torch.randint(
-        0, tensor.size(-1) + (1 - cutout_size[1] % 2), size=size_, device=device_,
+        0,
+        tensor.size(-1) + (1 - cutout_size[1] % 2),
+        size=size_,
+        device=device_,
     )
     grid_x = torch.clamp(
         grid_x + offset_x - cutout_size[0] // 2, min=0, max=tensor.size(-2) - 1

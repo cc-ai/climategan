@@ -2,11 +2,11 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
-from omnigan.deeplab.deeplab_v2 import DeepLabV2Decoder
-from omnigan.deeplab.deeplab_v3 import DeepLabV3Decoder
-from omnigan.deeplab.mobilenet_v3 import MobileNetV2
-from omnigan.deeplab.resnet101_v3 import ResNet101
-from omnigan.deeplab.resnetmulti_v2 import ResNetMulti
+from climategan.deeplab.deeplab_v2 import DeepLabV2Decoder
+from climategan.deeplab.deeplab_v3 import DeepLabV3Decoder
+from climategan.deeplab.mobilenet_v3 import MobileNetV2
+from climategan.deeplab.resnet101_v3 import ResNet101
+from climategan.deeplab.resnetmulti_v2 import ResNetMulti
 
 
 def create_encoder(opts, no_init=False, verbose=0):
@@ -82,8 +82,7 @@ def build_v3_backbone(opts, no_init, verbose=0):
 
 class DeeplabV2Encoder(nn.Module):
     def __init__(self, opts, no_init=False, verbose=0):
-        """Deeplab architecture encoder
-        """
+        """Deeplab architecture encoder"""
         super().__init__()
 
         self.model = ResNetMulti(opts.gen.deeplabv2.nblocks, opts.gen.encoder.n_res)

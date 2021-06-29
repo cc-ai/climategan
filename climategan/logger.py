@@ -7,14 +7,14 @@ from addict import Dict
 from PIL import Image
 from torch.nn.functional import interpolate, sigmoid
 
-from omnigan.data import decode_segmap_merged_labels
-from omnigan.tutils import (
+from climategan.data import decode_segmap_merged_labels
+from climategan.tutils import (
     all_texts_to_tensors,
     decode_bucketed_depth,
     normalize_tensor,
     write_architecture,
 )
-from omnigan.utils import flatten_opts
+from climategan.utils import flatten_opts
 
 
 class Logger:

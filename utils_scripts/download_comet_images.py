@@ -220,7 +220,7 @@ if __name__ == "__main__":
         conf = dict(config.get_config())
         exps = api.get_experiments(
             workspace=conf.get("comet.workspace"),
-            project_name=conf.get("comet.project_name") or "omnigan",
+            project_name=conf.get("comet.project_name") or "climategan",
         )
         exps = list(filter(lambda e: has_right_tags(e, keep_tags, remove_tags), exps))
         if args.running:

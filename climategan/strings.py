@@ -1,4 +1,4 @@
-"""custom __str__ methods for OmniGAN's classes
+"""custom __str__ methods for ClimateGAN's classes
 """
 import torch
 import torch.nn as nn

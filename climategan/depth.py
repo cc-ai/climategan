@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from omnigan.blocks import BaseDecoder, Conv2dBlock, InterpolateNearest2d
-from omnigan.utils import find_target_size
+from climategan.blocks import BaseDecoder, Conv2dBlock, InterpolateNearest2d
+from climategan.utils import find_target_size
 
 
 def create_depth_decoder(opts, no_init=False, verbose=0):

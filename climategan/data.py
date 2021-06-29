@@ -14,9 +14,9 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 
-from omnigan.transforms import get_transforms
-from omnigan.tutils import get_normalized_depth_t
-from omnigan.utils import env_to_path, is_image_file
+from climategan.transforms import get_transforms
+from climategan.tutils import get_normalized_depth_t
+from climategan.utils import env_to_path, is_image_file
 
 classes_dict = {
     "s": {  # unity
@@ -110,7 +110,7 @@ def encode_exact_segmap(seg, classes_dict, default_value=14):
 def merge_labels(labels, mapping, default_value=14):
     """
     Maps labels from a source domain to labels of a target domain,
-    typically kitti -> omnigan
+    typically kitti -> climategan
 
     Args:
         labels (np.ndarray): input segmap labels
@@ -136,7 +136,7 @@ def process_kitti_seg(path, kitti_classes, merge_map, default=14):
     Args:
         path (str | pathlib.Path): Segmap RBG path
         kitti_classes (dict): Kitti map label -> rgb
-        merge_map (dict): map kitti_label -> omnigan_label
+        merge_map (dict): map kitti_label -> climategan_label
         default (int, optional): Unknown kitti label. Defaults to 14.
 
     Returns:
@@ -295,7 +295,7 @@ def save_segmap_tensors(path_to_json, path_to_dir, domain):
 
     e.g:
         save_tensors(
-            "/network/tmp1/ccai/data/omnigan/seg/train_s.json",
+            "/network/tmp1/ccai/data/climategan/seg/train_s.json",
             "/network/tmp1/ccai/data/munit_dataset/simdata/Unity11K_res640/Seg_tensors/",
             "s",
         )
@@ -468,7 +468,10 @@ class OmniListDataset(Dataset):
             "data": self.transform(
                 {
                     task: tensor_loader(
-                        env_to_path(path), task, self.domain, self.opts,
+                        env_to_path(path),
+                        task,
+                        self.domain,
+                        self.opts,
                     )
                     for task, path in paths.items()
                 }
