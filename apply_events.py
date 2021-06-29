@@ -15,10 +15,10 @@ import skimage.io as io
 from skimage.color import rgba2rgb
 from skimage.transform import resize
 
-from omnigan.trainer import Trainer
-from omnigan.bn_fusion import bn_fuse
-from omnigan.tutils import normalize, print_num_parameters
-from omnigan.utils import Timer, find_images, get_git_revision_hash, to_128
+from climategan.trainer import Trainer
+from climategan.bn_fusion import bn_fuse
+from climategan.tutils import normalize, print_num_parameters
+from climategan.utils import Timer, find_images, get_git_revision_hash, to_128
 
 import_time = time.time() - import_time
 
@@ -422,7 +422,7 @@ if __name__ == "__main__":
     if outdir is not None or upload:
         if upload:
             print("\n• Uploading")
-            exp = comet_ml.Experiment(project_name="omnigan-apply")
+            exp = comet_ml.Experiment(project_name="climategan-apply")
             exp.log_parameters(vars(args))
         if outdir is not None:
             print("\n• Writing")
