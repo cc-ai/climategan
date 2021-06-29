@@ -199,11 +199,11 @@ def decode_segmap_cityscapes_labels(image, nc=19):
     g = np.zeros_like(image).astype(np.uint8)
     b = np.zeros_like(image).astype(np.uint8)
 
-    for l in range(nc):
-        idx = image == l
-        r[idx] = colormap[l, 0]
-        g[idx] = colormap[l, 1]
-        b[idx] = colormap[l, 2]
+    for col in range(nc):
+        idx = image == col
+        r[idx] = colormap[col, 0]
+        g[idx] = colormap[col, 1]
+        b[idx] = colormap[col, 2]
 
     rgb = np.stack([r, g, b], axis=2)
     return rgb

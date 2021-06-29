@@ -54,7 +54,7 @@ def create_generator(opts, device="cpu", latent_shape=None, no_init=False, verbo
             init_type=opts.gen.encoder.init_type,
             init_gain=opts.gen.encoder.init_gain,
             verbose=verbose,
-            caller=f"create_generator encoder",
+            caller="create_generator encoder",
         )
 
     print("Sending to", device)

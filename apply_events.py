@@ -17,7 +17,7 @@ from skimage.transform import resize
 
 from climategan.trainer import Trainer
 from climategan.bn_fusion import bn_fuse
-from climategan.tutils import normalize, print_num_parameters
+from climategan.tutils import print_num_parameters
 from climategan.utils import Timer, find_images, get_git_revision_hash, to_128
 
 import_time = time.time() - import_time

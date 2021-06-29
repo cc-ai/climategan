@@ -1,7 +1,7 @@
 """
 Compute metrics of the performance of the masker using a set of ground-truth labels
 
-run eval_masker.py --model "/miniscratch/_groups/ccai/checkpoints/masker/victor/no_spade/msd (17)"
+run eval_masker.py --model "/miniscratch/_groups/ccai/checkpoints/model/"
 
 """
 print("Imports...", end="")
@@ -256,7 +256,7 @@ def plot_images(
 
     # FPR (predicted mask on cannot flood)
     axes[0].imshow(img)
-    fp_map_plt = axes[0].imshow(
+    fp_map_plt = axes[0].imshow(  # noqa: F841
         maps_dict["fp"], vmin=vmin, vmax=vmax, cmap=cmap["fp"], alpha=alpha
     )
     axes[0].axis("off")
@@ -264,7 +264,7 @@ def plot_images(
 
     # FNR (missed mask on must flood)
     axes[1].imshow(img)
-    fn_map_plt = axes[1].imshow(
+    fn_map_plt = axes[1].imshow(  # noqa: F841
         maps_dict["fn"], vmin=vmin, vmax=vmax, cmap=cmap["fn"], alpha=alpha
     )
     axes[1].axis("off")
@@ -284,12 +284,12 @@ def plot_images(
     #             1.0 - label_edge, cmap="gray", alpha=alpha_here
     #         )
     else:
-        title = "MNR: {:.2f} | MPR: {:.2f}".format(mnr, mpr)
+        title = "MNR: {:.2f} | MPR: {:.2f}".format(mnr, mpr)  # noqa: F821
     #         alpha_here = alpha / 2.
-    may_neg_map_plt = axes[2].imshow(
+    may_neg_map_plt = axes[2].imshow(  # noqa: F841
         maps_dict["may_neg"], vmin=vmin, vmax=vmax, cmap=cmap["may_neg"], alpha=alpha
     )
-    may_pos_map_plt = axes[2].imshow(
+    may_pos_map_plt = axes[2].imshow(  # noqa: F841
         maps_dict["may_pos"], vmin=vmin, vmax=vmax, cmap=cmap["may_pos"], alpha=alpha
     )
     axes[2].set_title(title, fontsize=fontsize)
@@ -297,7 +297,7 @@ def plot_images(
 
     # Prediction
     axes[3].imshow(img)
-    pred_mask = axes[3].imshow(
+    pred_mask = axes[3].imshow(  # noqa: F841
         pred, vmin=vmin, vmax=vmax, cmap=cmap["pred"], alpha=alpha
     )
     axes[3].set_title("Predicted mask", fontsize=fontsize)
@@ -305,7 +305,7 @@ def plot_images(
 
     # Labels
     axes[4].imshow(img)
-    label_mask = axes[4].imshow(label, alpha=alpha)
+    label_mask = axes[4].imshow(label, alpha=alpha)  # noqa: F841
     axes[4].set_title("Labels", fontsize=fontsize)
     axes[4].axis("off")
 
@@ -447,7 +447,7 @@ if __name__ == "__main__":
 
         imgs = [i.squeeze(0).permute(1, 2, 0).numpy().astype(np.uint8) for i in imgs]
         labels = [
-            l.squeeze(0).permute(1, 2, 0).numpy().astype(np.uint8) for l in labels
+            lab.squeeze(0).permute(1, 2, 0).numpy().astype(np.uint8) for lab in labels
         ]
     imgs = [rgba2rgb(img) if img.shape[-1] == 4 else img for img in imgs]
     print(" Done.")
@@ -485,7 +485,9 @@ if __name__ == "__main__":
                 continue
 
         # Initialize New Comet Experiment
-        exp = Experiment(project_name="climategan-masker-metrics", display_summary_level=0)
+        exp = Experiment(
+            project_name="climategan-masker-metrics", display_summary_level=0
+        )
 
         # Obtain mask predictions
         # TODO: remove (debug)
@@ -682,7 +684,9 @@ if __name__ == "__main__":
         )
 
         # Initialize New Comet Experiment
-        exp = Experiment(project_name="climategan-masker-metrics", display_summary_level=0)
+        exp = Experiment(
+            project_name="climategan-masker-metrics", display_summary_level=0
+        )
         if args.tags:
             exp.add_tags(args.tags)
 

@@ -3,26 +3,20 @@ This scripts plots images from the Masker test set overlaid with their labels.
 """
 print("Imports...", end="")
 from argparse import ArgumentParser
+import os
 import yaml
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from scipy.special import comb
-from scipy.stats import trim_mean
-from tqdm import tqdm
-from collections import OrderedDict
 from pathlib import Path
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-import matplotlib.transforms as transforms
 
 import sys
 
 sys.path.append("../")
 
 from eval_masker import crop_and_resize
-from climategan.eval_metrics import edges_coherence_std_min
-from climategan.data import encode_mask_label
 
 
 # -----------------------

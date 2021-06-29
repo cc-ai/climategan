@@ -1,7 +1,6 @@
 import sys
 from argparse import ArgumentParser
 from pathlib import Path
-from time import sleep
 from comet_ml import Experiment
 
 import numpy as np

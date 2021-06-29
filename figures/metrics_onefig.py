@@ -2,32 +2,27 @@
 This scripts plots examples of the images that get best and worse metrics
 """
 print("Imports...", end="")
+import os
+import sys
 from argparse import ArgumentParser
-import yaml
+from pathlib import Path
+
+import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from scipy.special import comb
-from scipy.stats import trim_mean
-from tqdm import tqdm
-from collections import OrderedDict
-from pathlib import Path
+import yaml
 from imageio import imread
-from sklearn.metrics.pairwise import euclidean_distances
-from skimage.color import rgba2rgb
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-import matplotlib.transforms as transforms
 from matplotlib.gridspec import GridSpec
-
-import sys
+from skimage.color import rgba2rgb
+from sklearn.metrics.pairwise import euclidean_distances
 
 sys.path.append("../")
 
-from eval_masker import crop_and_resize
-from climategan.eval_metrics import edges_coherence_std_min
 from climategan.data import encode_mask_label
-
+from climategan.eval_metrics import edges_coherence_std_min
+from eval_masker import crop_and_resize
 
 # -----------------------
 # -----  Constants  -----
@@ -279,7 +274,7 @@ def plot_edge_coherence(ax, img, metric, label, pred, img_id, n_, add_title, do_
     )
 
     # Standard deviation of the minimum distance from pred to label
-    min_dist = np.min(dist_mat, axis=1)
+    min_dist = np.min(dist_mat, axis=1)  # noqa: F841
 
     #############
     # Make plot #
@@ -289,13 +284,15 @@ def plot_edge_coherence(ax, img, metric, label, pred, img_id, n_, add_title, do_
         np.expand_dims(np.asarray(pred_ec > 0, dtype=float), axis=2), reps=(1, 1, 3)
     )
     pred_ec_colmap = map_color(pred_ec, (1, 1, 1), color_pred)
-    pred_ec_colmap_ma = np.ma.masked_not_equal(pred_ec_colmap, color_pred)
+    pred_ec_colmap_ma = np.ma.masked_not_equal(pred_ec_colmap, color_pred)  # noqa: F841
 
     label_ec = np.tile(
         np.expand_dims(np.asarray(label_ec > 0, dtype=float), axis=2), reps=(1, 1, 3)
     )
     label_ec_colmap = map_color(label_ec, (1, 1, 1), color_must)
-    label_ec_colmap_ma = np.ma.masked_not_equal(label_ec_colmap, color_must)
+    label_ec_colmap_ma = np.ma.masked_not_equal(  # noqa: F841
+        label_ec_colmap, color_must
+    )
 
     # Combined pred and label edges
     combined_ec = pred_ec_colmap + label_ec_colmap

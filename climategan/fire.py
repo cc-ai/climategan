@@ -2,9 +2,6 @@ import torch
 import torch.nn.functional as F
 import random
 import kornia
-import time
-from PIL import Image, ImageFilter
-from torchvision.transforms import ToTensor
 from torchvision.transforms.functional import adjust_brightness, adjust_contrast
 
 from climategan.tutils import normalize, retrieve_sky_mask

@@ -18,7 +18,6 @@ from addict import Dict
 from comet_ml import Experiment
 from uuid import uuid4
 
-from yaml import events
 
 comet_kwargs = {
     "auto_metric_logging": False,
@@ -442,9 +441,9 @@ def get_comet_rest_api_key(
             if not p.exists():
                 raise ValueError("Unable to find your COMET_REST_API_KEY")
     with p.open("r") as f:
-        for l in f:
-            if "rest_api_key" in l:
-                return l.strip().split("=")[-1].strip()
+        for keys in f:
+            if "rest_api_key" in keys:
+                return keys.strip().split("=")[-1].strip()
     raise ValueError("Unable to find your COMET_REST_API_KEY in {}".format(str(p)))
 
 

@@ -4,17 +4,13 @@ human participants chose between an image from ClimateGAN or from a different me
 """
 print("Imports...", end="")
 from argparse import ArgumentParser
+import os
 import yaml
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from scipy.special import comb
-from scipy.stats import trim_mean
-from tqdm import tqdm
-from collections import OrderedDict
 from pathlib import Path
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 
 
 # -----------------------

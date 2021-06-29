@@ -214,7 +214,7 @@ def search_summary_table(summary, summary_dir=None):
     # first column holds the Exp. number
     first_col = {
         "len": 8,  # length of a column, to split columns according to terminal width
-        "str": ["| Exp. |", f"|:----:|"]
+        "str": ["| Exp. |", "|:----:|"]
         + [
             "| {0:^{1}} |".format(i, 4) for i in range(n_searches)
         ],  # list of values to print
