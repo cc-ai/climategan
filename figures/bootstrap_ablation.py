@@ -9,13 +9,12 @@ confidence intervals. The script plots the distribution of the bootrstraped esti
 print("Imports...", end="")
 from argparse import ArgumentParser
 import yaml
+import os
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from scipy.special import comb
 from scipy.stats import trim_mean
 from tqdm import tqdm
-from collections import OrderedDict
 from pathlib import Path
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches

@@ -141,10 +141,10 @@ class TravelLoss(nn.Module):
 
 class TVLoss(nn.Module):
     """Total Variational Regularization: Penalizes differences in
-        neighboring pixel values
+    neighboring pixel values
 
-        source:
-        https://github.com/jxgu1016/Total_Variation_Loss.pytorch/blob/master/TVLoss.py
+    source:
+    https://github.com/jxgu1016/Total_Variation_Loss.pytorch/blob/master/TVLoss.py
     """
 
     def __init__(self, tvloss_weight=1):
@@ -171,10 +171,10 @@ class TVLoss(nn.Module):
 
 class MinentLoss(nn.Module):
     """
-        Loss for the minimization of the entropy map
-        Source for version 1: https://github.com/valeoai/ADVENT
+    Loss for the minimization of the entropy map
+    Source for version 1: https://github.com/valeoai/ADVENT
 
-        Version 2 adds the variance of the entropy map in the computation of the loss
+    Version 2 adds the variance of the entropy map in the computation of the loss
     """
 
     def __init__(self, version=1, lambda_var=0.1):
@@ -222,8 +222,7 @@ class L1Loss(MSELoss):
 
 
 class SIMSELoss(nn.Module):
-    """Scale invariant MSE Loss
-    """
+    """Scale invariant MSE Loss"""
 
     def __init__(self):
         super(SIMSELoss, self).__init__()
@@ -432,18 +431,6 @@ def get_losses(opts, verbose, device=None):
         )
         losses["G"]["tasks"]["m"]["gi"] = GroundIntersectionLoss()
 
-    # -------------------------------
-    # -----  Classifier Losses  -----
-    # -------------------------------
-    if opts.classifier.loss == "l1":
-        loss_classifier = L1Loss()
-    elif opts.classifier.loss == "l2":
-        loss_classifier = MSELoss()
-    else:
-        loss_classifier = CrossEntropy()
-    losses["G"]["classifier"] = loss_classifier
-    losses["C"] = loss_classifier
-
     # ----------------------------------
     # -----  Discriminator Losses  -----
     # ----------------------------------
@@ -473,8 +460,8 @@ def prob_2_entropy(prob):
 
 class CustomBCELoss(nn.Module):
     """
-        The first argument is a tensor and the second argument is an int.
-        There is no need to take sigmoid before calling this function.
+    The first argument is a tensor and the second argument is an int.
+    There is no need to take sigmoid before calling this function.
     """
 
     def __init__(self):
@@ -607,10 +594,10 @@ class HingeLoss(nn.Module):
 
 
 class DADADepthLoss:
-    """ Defines the reverse Huber loss from DADA paper for depth prediction
-        - Samples with larger residuals are penalized more by l2 term
-        - Samples with smaller residuals are penalized more by l1 term
-        From https://github.com/valeoai/DADA/blob/master/dada/utils/func.py
+    """Defines the reverse Huber loss from DADA paper for depth prediction
+    - Samples with larger residuals are penalized more by l2 term
+    - Samples with smaller residuals are penalized more by l1 term
+    From https://github.com/valeoai/DADA/blob/master/dada/utils/func.py
     """
 
     def loss_calc_depth(self, pred, label):

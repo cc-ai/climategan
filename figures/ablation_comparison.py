@@ -12,10 +12,7 @@ import yaml
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from scipy.special import comb
-from scipy.stats import trim_mean
-from tqdm import tqdm
-from collections import OrderedDict
+import os
 from pathlib import Path
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
@@ -154,7 +151,10 @@ def parsed_args():
         help="CSV containing the results of the ablation study",
     )
     parser.add_argument(
-        "--output_dir", default=None, type=str, help="Output directory",
+        "--output_dir",
+        default=None,
+        type=str,
+        help="Output directory",
     )
     parser.add_argument(
         "--models",
@@ -163,13 +163,22 @@ def parsed_args():
         help="Models to display: all, pseudo, no_dada_masker, no_baseline",
     )
     parser.add_argument(
-        "--dpi", default=200, type=int, help="DPI for the output images",
+        "--dpi",
+        default=200,
+        type=int,
+        help="DPI for the output images",
     )
     parser.add_argument(
-        "--n_bs", default=1e6, type=int, help="Number of bootrstrap samples",
+        "--n_bs",
+        default=1e6,
+        type=int,
+        help="Number of bootrstrap samples",
     )
     parser.add_argument(
-        "--alpha", default=0.99, type=float, help="Confidence level",
+        "--alpha",
+        default=0.99,
+        type=float,
+        help="Confidence level",
     )
     parser.add_argument(
         "--bs_seed",
@@ -371,11 +380,11 @@ if __name__ == "__main__":
             df = df.loc[(df.ground == False) & (df.instagan == False)]
         if "pseudo" in args.models.lower():
             df = df.loc[
-                (df.pseudo == True) | (df.ground == True) | (df.instagan == True)
+                (df.pseudo is True) | (df.ground is True) | (df.instagan is True)
             ]
         if "no_dada_mask" in args.models.lower():
             df = df.loc[
-                (df.dada_masker == False) | (df.ground == True) | (df.instagan == True)
+                (df.dada_masker is False) | (df.ground is True) | (df.instagan is True)
             ]
 
     fig = plot_median_metrics(df, do_stripplot=True, dpi=args.dpi, bs_seed=args.bs_seed)

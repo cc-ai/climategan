@@ -22,7 +22,6 @@ from torch import autograd, sigmoid, softmax
 from torch.cuda.amp import GradScaler, autocast
 from tqdm import tqdm
 
-from climategan.classifier import OmniClassifier, get_classifier
 from climategan.data import get_all_loaders
 from climategan.discriminator import OmniDiscriminator, create_discriminator
 from climategan.eval_metrics import accuracy, mIOU
@@ -35,8 +34,6 @@ from climategan.optim import get_optimizer
 from climategan.transforms import DiffTransforms
 from climategan.tutils import (
     divide_pred,
-    domains_to_class_tensor,
-    fake_domains_to_class_tensor,
     get_num_params,
     get_WGAN_gradient,
     lrgb2srgb,
@@ -91,7 +88,7 @@ class Trainer:
         self.logger = Logger(self)
 
         self.losses = None
-        self.G = self.D = self.C = None
+        self.G = self.D = None
         self.real_val_fid_stats = None
         self.use_pl4m = False
         self.is_setup = False
@@ -119,7 +116,6 @@ class Trainer:
             optimizers = [
                 self.opts.gen.opt.optimizer.lower(),
                 self.opts.dis.opt.optimizer.lower(),
-                self.opts.classifier.opt.optimizer.lower(),
             ]
             if "extraadam" in optimizers:
                 raise ValueError(
@@ -127,7 +123,6 @@ class Trainer:
                 )
             self.grad_scaler_d = GradScaler()
             self.grad_scaler_g = GradScaler()
-            self.grad_scaler_c = GradScaler()
 
         # -------------------------------
         # -----  Legacy Overwrites  -----
@@ -404,9 +399,6 @@ class Trainer:
             "step": self.logger.global_step,
         }
 
-        if self.C is not None and get_num_params(self.C) > 0:
-            save_dict["C"] = self.C.state_dict()
-            save_dict["c_opt"] = self.c_opt.state_dict()
         if self.D is not None and get_num_params(self.D) > 0:
             save_dict["D"] = self.D.state_dict()
             save_dict["d_opt"] = self.d_opt.state_dict()
@@ -564,13 +556,6 @@ class Trainer:
             self.D.load_state_dict(checkpoint["D"])
             self.d_opt.load_state_dict(checkpoint["d_opt"])
 
-        # -----------------------
-        # -----  Restore C  -----
-        # -----------------------
-        if self.C is not None and get_num_params(self.C) > 0:
-            self.C.load_state_dict(checkpoint["C"])
-            self.c_opt.load_state_dict(checkpoint["c_opt"])
-
         # ---------------------------
         # -----  Resore logger  -----
         # ---------------------------
@@ -593,8 +578,6 @@ class Trainer:
             self.G.eval()
         if self.D is not None:
             self.D.eval()
-        if self.C is not None:
-            self.C.eval()
         self.current_mode = "eval"
 
     def train_mode(self):
@@ -605,8 +588,7 @@ class Trainer:
             self.G.train()
         if self.D is not None:
             self.D.train()
-        if self.C is not None:
-            self.C.train()
+
         self.current_mode = "train"
 
     def assert_z_matches_x(self, x, z):
@@ -703,30 +685,16 @@ class Trainer:
         else:
             self.d_opt.step()
 
-    def c_opt_step(self):
-        """Run an optimizing step ; if using ExtraAdam, there needs to be an extrapolation
-        step every other step
-        """
-        if "extra" in self.opts.classifier.opt.optimizer.lower() and (
-            self.logger.global_step % 2 == 0
-        ):
-            self.c_opt.extrapolation()
-        else:
-            self.c_opt.step()
-
     def update_learning_rates(self):
         if self.g_scheduler is not None:
             self.g_scheduler.step()
         if self.d_scheduler is not None:
             self.d_scheduler.step()
-        if self.c_scheduler is not None:
-            self.c_scheduler.step()
 
     def setup(self, inference=False):
         """Prepare the trainer before it can be used to train the models:
         * initialize G and D
-        * compute latent space dims and create classifier accordingly
-        * creates 3 optimizers
+        * creates 2 optimizers
         """
         self.logger.global_step = 0
         start_time = time()
@@ -754,7 +722,7 @@ class Trainer:
         print(f"Generator OK in {time() - __t:.1f}s.")
 
         if inference:  # Inference mode: no more than a Generator needed
-            print("Inference mode: no Discriminator, no Classifier, no optimizers")
+            print("Inference mode: no Discriminator, no optimizers")
             print_num_parameters(self)
             self.switch_data(to="base")
             if self.opts.train.resume:
@@ -774,18 +742,6 @@ class Trainer:
         )
         print("Discriminator OK.")
 
-        # ------------------------
-        # -----  Classifier  -----
-        # ------------------------
-
-        self.C: OmniClassifier = None
-        if self.G.encoder is not None and self.opts.train.latent_domain_adaptation:
-            self.latent_shape = self.compute_latent_shape()
-            self.C = get_classifier(self.opts, self.latent_shape, verbose=verbose).to(
-                self.device
-            )
-            print("Classifier OK.")
-
         print_num_parameters(self)
 
         # --------------------------
@@ -802,13 +758,6 @@ class Trainer:
             )
         else:
             self.d_opt, self.d_scheduler = None, None
-
-        if self.C is not None:
-            self.c_opt, self.c_scheduler, self.lr_names["C"] = get_optimizer(
-                self.C, self.opts.classifier.opt, None
-            )
-        else:
-            self.c_opt, self.c_scheduler = None, None
 
         self.losses = get_losses(self.opts, verbose, device=self.device)
 
@@ -969,7 +918,7 @@ class Trainer:
         * checks trainer is setup
         * gets a tuple of batches per domain
         * sends batches to device
-        * updates sequentially G, D, C
+        * updates sequentially G, D
         """
         assert self.is_setup
         self.train_mode()
@@ -1016,16 +965,6 @@ class Trainer:
                     param.requires_grad = True
 
                 self.update_D(multi_domain_batch)
-
-            # -------------------------------
-            # -----  Update Classifier  -----
-            # -------------------------------
-            if (
-                self.opts.train.latent_domain_adaptation
-                and self.C is not None
-                and not self.kitti_pretrain
-            ):
-                self.update_C(multi_domain_batch)
 
             # -------------------------
             # -----  Log Metrics  -----
@@ -1083,59 +1022,6 @@ class Trainer:
 
         self.logger.losses.disc.total_loss = d_loss.item()
         self.logger.log_losses(model_to_update="D", mode="train")
-
-    def update_C(self, multi_domain_batch):
-        """
-        Update the classifier using normal labels
-
-        Args:
-            multi_domain_batch (dict): dictionnary mapping domain names to batches from
-                the trainer's loaders
-
-        """
-        zero_grad(self.C)
-        if self.opts.train.amp:
-            with autocast():
-                c_loss = self.get_C_loss(multi_domain_batch)
-            self.grad_scaler_c.scale(c_loss).backward()
-            self.grad_scaler_c.step(self.c_opt)
-            self.grad_scaler_c.update()
-        else:
-            c_loss = self.get_C_loss(multi_domain_batch)
-            self.logger.losses.classifier = c_loss.item()
-            c_loss.backward()
-            self.c_opt_step()
-
-        self.logger.losses.classifier = c_loss.item()
-
-    def get_C_loss(self, multi_domain_batch):
-        """Compute the loss of the domain classifier with real labels
-
-        Args:
-            multi_domain_batch (dict): dictionnary mapping domain names to batches from
-            the trainer's loaders
-
-        Returns:
-            torch.Tensor: scalar loss tensor, weighted according to opts.train.lambdas.C
-        """
-        loss = 0
-        lambdas = self.opts.train.lambdas
-        one_hot = self.opts.classifier.loss != "cross_entropy"
-        for batch_domain, batch in multi_domain_batch.items():
-            # We don't care about the flooded domain here
-            if batch_domain == "rf":
-                continue
-            z = self.G.encode(batch["data"]["x"])
-            # Forward through classifier, output classifier = (batch_size, 4)
-            output_classifier = self.C(z)
-            # Cross entropy loss (with sigmoid)
-            update_loss = self.losses["C"](
-                output_classifier,
-                domains_to_class_tensor(batch["domain"], one_hot).to(self.device),
-            )
-            loss += update_loss
-
-        return lambdas.C * loss
 
     def get_D_loss(self, multi_domain_batch, verbose=0):
         """Compute the discriminators' losses:
@@ -1292,10 +1178,9 @@ class Trainer:
         but the translation part
 
         * for each batch in available domains:
-            * compute latent classifier loss with fake labels(1)
-            * compute task-specific losses (2)
-            * compute the adaptation and translation decoders' auto-encoding losses (3)
-            * compute the adaptation decoder's translation losses (GAN and Cycle) (4)
+            * compute task-specific losses
+            * compute the adaptation and translation decoders' auto-encoding losses
+            * compute the adaptation decoder's translation losses (GAN and Cycle)
 
         Args:
             multi_domain_batch (dict): dictionnary mapping domain names to batches from
@@ -1312,13 +1197,6 @@ class Trainer:
 
             x = batch["data"]["x"]
             z = self.G.encode(x)
-            # ---------------------------------
-            # -----  classifier loss (1)  -----
-            # ---------------------------------
-            if self.opts.train.latent_domain_adaptation:
-                loss = self.masker_c_loss(z, batch["domain"])
-                m_loss += loss
-                self.logger.losses.gen.classifier[domain] = loss.item()
 
             # --------------------------------------
             # -----  task-specific losses (2)  -----
@@ -1500,24 +1378,6 @@ class Trainer:
 
         return step_loss
 
-    def masker_c_loss(self, z, target, for_="G"):
-        assert for_ in {"G", "D"}
-        full_loss = torch.tensor(0.0, device=self.device)
-        # -------------------
-        # -----  Depth  -----
-        # -------------------
-        one_hot = self.opts.classifier.loss != "cross_entropy"
-        output_classifier = self.C(z)
-        # Cross entropy loss (with sigmoid) with fake labels to fool C
-        loss = self.losses["G"]["classifier"](
-            output_classifier,
-            fake_domains_to_class_tensor(target, one_hot),
-        )
-        loss *= self.opts.train.lambdas.G.classifier
-        full_loss += loss
-
-        return full_loss
-
     def masker_d_loss(self, x, z, target, domain, for_="G"):
         assert for_ in {"G", "D"}
         self.assert_z_matches_x(x, z)
@@ -1644,7 +1504,6 @@ class Trainer:
         assert x.shape[0] == target.shape[0] if target is not None else True
         full_loss = torch.tensor(0.0, device=self.device)
 
-        # ? output features classifier
         pred_logits = self.G.decoders["m"](z, cond=cond, z_depth=z_depth)
         pred_prob = sigmoid(pred_logits)
         pred_prob_complementary = 1 - pred_prob

@@ -25,16 +25,16 @@ def transforms_string(ts):
 
 def init_weights(net, init_type="normal", init_gain=0.02, verbose=0, caller=""):
     """Initialize network weights.
-        Parameters:
-            net (network)     -- network to be initialized
-            init_type (str)   -- the name of an initialization method:
-                                 normal | xavier | kaiming | orthogonal
-            init_gain (float) -- scaling factor for normal, xavier and orthogonal.
+    Parameters:
+        net (network)     -- network to be initialized
+        init_type (str)   -- the name of an initialization method:
+                             normal | xavier | kaiming | orthogonal
+        init_gain (float) -- scaling factor for normal, xavier and orthogonal.
 
-        We use 'normal' in the original pix2pix and CycleGAN paper.
-        But xavier and kaiming might work better for some applications.
-        Feel free to try yourself.
-        """
+    We use 'normal' in the original pix2pix and CycleGAN paper.
+    But xavier and kaiming might work better for some applications.
+    Feel free to try yourself.
+    """
 
     if not init_type:
         print(
@@ -414,8 +414,7 @@ def get_num_params(model):
 
 
 def vgg_preprocess(batch):
-    """Preprocess batch to use VGG model
-    """
+    """Preprocess batch to use VGG model"""
     tensortype = type(batch.data)
     (r, g, b) = torch.chunk(batch, 3, dim=1)
     batch = torch.cat((b, g, r), dim=1)  # convert RGB to BGR
@@ -529,8 +528,6 @@ def print_num_parameters(trainer, force=False):
                 f"{get_num_params(trainer.D[d]):12,}",
             )
 
-    if trainer.C is not None:
-        print("{:21}:".format("num params classif"), f"{get_num_params(trainer.C):12,}")
     print("-" * 35)
 
 

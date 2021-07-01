@@ -221,10 +221,10 @@ class Logger:
         """Logs metrics on comet.ml
 
         Args:
-            model_to_update (str, optional): One of "G", "D" or "C". Defaults to "G".
+            model_to_update (str, optional): One of "G", "D". Defaults to "G".
         """
         trainer = self.trainer
-        loss_names = {"G": "gen", "D": "disc", "C": "classifier"}
+        loss_names = {"G": "gen", "D": "disc"}
 
         if trainer.opts.train.log_level < 1:
             return
@@ -235,7 +235,6 @@ class Logger:
         assert model_to_update in {
             "G",
             "D",
-            "C",
         }, "unknown model to log losses {}".format(model_to_update)
 
         loss_to_update = self.losses[loss_names[model_to_update]]
@@ -269,11 +268,7 @@ class Logger:
                 trainer.lr_names["D"], trainer.d_scheduler.get_last_lr()
             ):
                 lrs[f"lr_D_{name}"] = lr
-        if trainer.c_scheduler is not None:
-            for name, lr in zip(
-                trainer.lr_names["C"], trainer.c_scheduler.get_last_lr()
-            ):
-                lrs[f"lr_C_{name}"] = lr
+
         trainer.exp.log_metrics(lrs, step=self.global_step)
 
     def log_step_time(self, time):

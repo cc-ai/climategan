@@ -46,14 +46,16 @@ dict_metrics = {
     "key_metrics": ["error", "f05", "edge_coherence"],
 }
 
-dict_techniques = OrderedDict([
-    ("pseudo", "Pseudo labels"),
-    ("depth", "Depth (D)"),
-    ("seg", "Seg. (S)"),
-    ("spade", "SPADE"),
-    ("dada_seg", "DADA (S)"),
-    ("dada_masker", "DADA (M)"),
-])
+dict_techniques = OrderedDict(
+    [
+        ("pseudo", "Pseudo labels"),
+        ("depth", "Depth (D)"),
+        ("seg", "Seg. (S)"),
+        ("spade", "SPADE"),
+        ("dada_seg", "DADA (S)"),
+        ("dada_masker", "DADA (M)"),
+    ]
+)
 
 # Model features
 model_feats = [
@@ -74,11 +76,7 @@ palette_metrics = [crest[0], crest[3], crest[6]]
 sns.palplot(palette_metrics)
 
 # Markers
-dict_markers = {
-        'error': 'o',
-        'f05': 's',
-        'edge_coherence': '^'
-}
+dict_markers = {"error": "o", "f05": "s", "edge_coherence": "^"}
 
 
 def parsed_args():
@@ -184,14 +182,13 @@ if __name__ == "__main__":
     # Read CSV
     df = pd.read_csv(args.input_csv, index_col="model_img_idx")
 
-
     # Build data set
-    dfbs = pd.DataFrame(columns=['diff', 'technique', 'metric'])
+    dfbs = pd.DataFrame(columns=["diff", "technique", "metric"])
     for technique in model_feats:
-        
+
         # Get pairs
         model_pairs = find_model_pairs(technique, model_feats)
-        
+
         # Compute differences
         for m_with, m_without in model_pairs:
             df_with = df.loc[df.model_feats == m_with]
@@ -201,18 +198,16 @@ if __name__ == "__main__":
                     df_with.sort_values(by="img_idx")[metric].values
                     - df_without.sort_values(by="img_idx")[metric].values
                 )
-                dfm = pd.DataFrame.from_dict({
-                    'metric': metric,
-                    'technique': technique,
-                    'diff': diff
-                })
+                dfm = pd.DataFrame.from_dict(
+                    {"metric": metric, "technique": technique, "diff": diff}
+                )
                 dfbs = dfbs.append(dfm, ignore_index=True)
 
     ### Plot
 
     # Set up plot
     sns.reset_orig()
-    sns.set(style='whitegrid')
+    sns.set(style="whitegrid")
     plt.rcParams.update({"font.family": "serif"})
     plt.rcParams.update(
         {
@@ -233,18 +228,22 @@ if __name__ == "__main__":
         }
     )
 
-    fig, axes = plt.subplots(nrows=1, ncols=3, sharey=True, dpi=args.dpi, figsize=(6, 3))
+    fig, axes = plt.subplots(
+        nrows=1, ncols=3, sharey=True, dpi=args.dpi, figsize=(6, 3)
+    )
 
-    metrics = ['error', 'f05', 'edge_coherence']
+    metrics = ["error", "f05", "edge_coherence"]
     dict_ci = {m: {} for m in metrics}
 
-    for idx, metric in enumerate(dict_metrics['key_metrics']): 
+    for idx, metric in enumerate(dict_metrics["key_metrics"]):
 
         ax = sns.pointplot(
             ax=axes[idx],
-            data=dfbs.loc[dfbs.metric.isin(['error', 'f05', 'edge_coherence'])],
+            data=dfbs.loc[dfbs.metric.isin(["error", "f05", "edge_coherence"])],
             order=dict_techniques.keys(),
-            x='diff', y='technique', hue='metric',
+            x="diff",
+            y="technique",
+            hue="metric",
             hue_order=[metric],
             markers=dict_markers[metric],
             palette=[palette_metrics[idx]],
@@ -252,17 +251,30 @@ if __name__ == "__main__":
             scale=0.6,
             join=False,
             estimator=trim_mean_wrapper,
-            ci=int(args.alpha * 100), n_boot=args.n_bs, seed=args.bs_seed
+            ci=int(args.alpha * 100),
+            n_boot=args.n_bs,
+            seed=args.bs_seed,
         )
 
         # Retrieve confidence intervals and update results dictionary
         for line, technique in zip(ax.lines, dict_techniques.keys()):
-            dict_ci[metric].update({technique: {
-                '20_trimmed_mean': float(trim_mean_wrapper(dfbs.loc[(dfbs.technique ==
-                    technique) & (dfbs.metric == metrics[idx]), 'diff'].values)),
-                'ci_left': float(line.get_xdata()[0]),
-                'ci_right': float(line.get_xdata()[1])
-                }})
+            dict_ci[metric].update(
+                {
+                    technique: {
+                        "20_trimmed_mean": float(
+                            trim_mean_wrapper(
+                                dfbs.loc[
+                                    (dfbs.technique == technique)
+                                    & (dfbs.metric == metrics[idx]),
+                                    "diff",
+                                ].values
+                            )
+                        ),
+                        "ci_left": float(line.get_xdata()[0]),
+                        "ci_right": float(line.get_xdata()[1]),
+                    }
+                }
+            )
 
         leg_handles, leg_labels = ax.get_legend_handles_labels()
 
@@ -270,65 +282,74 @@ if __name__ == "__main__":
         sns.despine(left=True, bottom=True)
 
         # Set Y-label
-        ax.set_ylabel(None);
+        ax.set_ylabel(None)
 
         # Y-tick labels
-        ax.set_yticklabels(
-                list(dict_techniques.values()), fontsize='medium'
-        )
+        ax.set_yticklabels(list(dict_techniques.values()), fontsize="medium")
 
         # Set X-label
-        ax.set_xlabel(None);
+        ax.set_xlabel(None)
 
         # X-ticks
         xticks = ax.get_xticks()
         xticklabels = xticks
         ax.set_xticks(xticks)
-        ax.set_xticklabels(xticklabels, fontsize='x-small')
-        
+        ax.set_xticklabels(xticklabels, fontsize="x-small")
+
         # Y-lim
         display2data = ax.transData.inverted()
         ax2display = ax.transAxes
-        _, y_bottom = display2data.transform(ax.transAxes.transform((0., 0.02)))
-        _, y_top = display2data.transform(ax.transAxes.transform((0., 0.98)))
+        _, y_bottom = display2data.transform(ax.transAxes.transform((0.0, 0.02)))
+        _, y_top = display2data.transform(ax.transAxes.transform((0.0, 0.98)))
         ax.set_ylim(bottom=y_bottom, top=y_top)
 
         # Draw line at H0
         y = np.arange(ax.get_ylim()[1], ax.get_ylim()[0], 0.1)
-        x = 0. * np.ones(y.shape[0])
+        x = 0.0 * np.ones(y.shape[0])
         ax.plot(x, y, linestyle=":", linewidth=1.5, color="black")
-        
+
         # Draw gray area
         xlim = ax.get_xlim()
         ylim = ax.get_ylim()
-        if metric == 'error':
+        if metric == "error":
             x0 = xlim[0]
             width = np.abs(x0)
         else:
-            x0 = 0.
+            x0 = 0.0
             width = np.abs(xlim[1])
-        trans = transforms.blended_transform_factory(
-            ax.transData, ax.transAxes)
-        rect = mpatches.Rectangle(xy=(x0, 0.), width=width, height=1,
-                                  transform=trans,
-                                  linewidth=0., edgecolor='none', facecolor='gray', alpha=0.05)
+        trans = transforms.blended_transform_factory(ax.transData, ax.transAxes)
+        rect = mpatches.Rectangle(
+            xy=(x0, 0.0),
+            width=width,
+            height=1,
+            transform=trans,
+            linewidth=0.0,
+            edgecolor="none",
+            facecolor="gray",
+            alpha=0.05,
+        )
         ax.add_patch(rect)
-        
-        # Legend 
+
+        # Legend
         leg_handles, leg_labels = ax.get_legend_handles_labels()
-        leg_labels = [dict_metrics['names'][metric] for metric in leg_labels]
+        leg_labels = [dict_metrics["names"][metric] for metric in leg_labels]
         leg = ax.legend(
-            handles=leg_handles, labels=leg_labels, 
-            loc='center', title='',
-            bbox_to_anchor=(-0.2, 1.05, 1., 0.),
-            framealpha=1.,
+            handles=leg_handles,
+            labels=leg_labels,
+            loc="center",
+            title="",
+            bbox_to_anchor=(-0.2, 1.05, 1.0, 0.0),
+            framealpha=1.0,
             frameon=False,
             handletextpad=-0.2,
         )
 
     # Set X-label (title)                                                                                                     │
-    fig.suptitle('20 % trimmed mean difference and bootstrapped confidence intervals',
-                 y=0., fontsize='x-small');
+    fig.suptitle(
+        "20 % trimmed mean difference and bootstrapped confidence intervals",
+        y=0.0,
+        fontsize="x-small",
+    )
 
     # Save figure
     output_fig = output_dir / "bootstrap_summary.png"
