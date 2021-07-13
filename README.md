@@ -103,3 +103,45 @@ The painter expects input images and binary masks to train using the [GauGAN](ht
 ```
 
 And put those files as values to `data.files.<train or val>.rf: <path/to/a/json/file>` in the configuration.
+
+## Coding conventions
+
+* Tasks
+  * `x` is an input image, in [-1, 1]
+  * `s` is a segmentation target with `long` classes
+  * `d` is a depth map target in R, may be actually `log(depth)` or `1/depth`
+  * `m` is a binary mask with 1s where water is/should be
+* Domains
+  * `r` is the *real* domain for the masker. Input images are real pictures of urban/suburban/rural areas
+  * `s` is the *simulated* domain for the masker. Input images are taken from our Unity world
+  * `rf` is the *real flooded* domain for the painter. Training images are pairs `(x, m)` of flooded scenes for which the water should be reconstructed, in the validation data input images are not flooded and we provide a manually labeled mask `m`
+  * `kitti` is a special `s` domain to pre-train the masker on [Virtual Kitti 2](https://europe.naverlabs.com/research/computer-vision/proxy-virtual-worlds-vkitti-2/)
+    * it alters the `trainer.loaders` dict to select relevant data sources from `trainer.all_loaders` in `trainer.switch_data()`. The rest of the code is identical.
+* Flow
+  * This describes the call stack for the trainers standard training procedure
+  * `train()`
+    * `run_epoch()`
+      * `update_G()`
+        * `zero_grad(G)`
+        * `get_G_loss()`
+          * `get_masker_loss()`
+            * `masker_m_loss()`  -> masking loss
+            * `masker_s_loss()`  -> segmentation loss
+            * `masker_d_loss()`  -> depth estimation loss
+          * `get_painter_loss()` -> painter's loss
+        * `g_loss.backward()`
+        * `g_opt_step()`
+      * `update_D()`
+        * `zero_grad(D)`
+        * `get_D_loss()`
+          * painter's disc losses
+          * `masker_m_loss()` -> masking AdvEnt disc loss
+          * `masker_s_loss()` -> segmentation AdvEnt disc loss
+        * `d_loss.backward()`
+        * `d_opt_step()`
+      * `update_learning_rates()` -> update learning rates according to schedules defined in `opts.gen.opt` and `opts.dis.opt`
+    * `run_validation()`
+      * compute val losses
+      * `eval_images()` -> compute metrics
+      * `log_comet_images()` -> compute and upload inferences
+    * `save()`
