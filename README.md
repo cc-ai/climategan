@@ -31,8 +31,17 @@ If you want to use Comet, make sure you have the [appropriate configuration in p
 
 ### Inference
 
-1. Download and unzip the weights [from this link](https://drive.google.com/file/d/1nAXs6injZS5pMohlwWRWrM8ORdgM79BS/view?usp=sharing) (checkout [`gdown`](https://github.com/wkentaro/gdown) for a commandline interface)
-2. Put them in `config/`
+1. Download and unzip the weights [from this link](https://drive.google.com/u/0/uc?id=1nAXs6injZS5pMohlwWRWrM8ORdgM79BS&export=download) (checkout [`gdown`](https://github.com/wkentaro/gdown) for a commandline interface) and put them in `config/`
+
+  ```
+  $ pip install gdown
+  $ cd config
+  $ gdown https://drive.google.com/u/0/uc?id=1nAXs6injZS5pMohlwWRWrM8ORdgM79BS
+  $ unzip release-github.zip
+  $ cd .. 
+  ```
+
+2. Run from the repo's root:
     
     1. With `comet`:
 
