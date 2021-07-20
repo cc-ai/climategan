@@ -22,7 +22,7 @@ In this section we'll explain how to produce the `Painted Input` along with the 
 
 ```bash
 $ git clone git@github.com/cc-ai/climategan.git
-$ pip install -r requirements-3.8.2.txt
+$ pip install -r requirements-3.8.2.txt # or `requirements-any.txt` for other Python versions (not tested but expected to be fine)
 ```
 
 Our pipeline uses [comet.ml](https://comet.ml) to log images. You don't *have* to use their services but we recommend you do as images can be uploaded on your workspace instead of being written to disk.
@@ -31,7 +31,7 @@ If you want to use Comet, make sure you have the [appropriate configuration in p
 
 ### Inference
 
-1. Download and unzip the weights [from this link](https://drive.google.com/file/d/1nAXs6injZS5pMohlwWRWrM8ORdgM79BS/view?usp=sharing)
+1. Download and unzip the weights [from this link](https://drive.google.com/file/d/1nAXs6injZS5pMohlwWRWrM8ORdgM79BS/view?usp=sharing) (checkout [`gdown`](https://github.com/wkentaro/gdown) for a commandline interface)
 2. Put them in `config/`
     
     1. With `comet`:

@@ -1,0 +1,17 @@
+addict
+codecarbon
+comet_ml
+ipython
+hydra-core==0.11.3
+omegaconf==1.4.1
+matplotlib
+numpy
+pandas
+PyYAML
+scikit-image
+scikit-learn
+scipy
+torch
+torch-optimizer
+torchvision
+tqdm
