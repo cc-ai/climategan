@@ -4,17 +4,13 @@ human participants chose between an image from ClimateGAN or from a different me
 """
 print("Imports...", end="")
 from argparse import ArgumentParser
+import os
 import yaml
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from scipy.special import comb
-from scipy.stats import trim_mean
-from tqdm import tqdm
-from collections import OrderedDict
 from pathlib import Path
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 
 
 # -----------------------
@@ -32,7 +28,7 @@ comparables_dict = {
 
 # Colors
 palette_colorblind = sns.color_palette("colorblind")
-color_omnigan = palette_colorblind[9]
+color_climategan = palette_colorblind[9]
 
 palette_colorblind = sns.color_palette("colorblind")
 color_munit = palette_colorblind[1]
@@ -119,10 +115,10 @@ if __name__ == "__main__":
 
     # Sort Y labels
     comparables = df.comparable.unique()
-    is_omnigan_sum = [
-        df.loc[df.comparable == c, "is_omnigan"].sum() for c in comparables
+    is_climategan_sum = [
+        df.loc[df.comparable == c, "climategan"].sum() for c in comparables
     ]
-    comparables = comparables[np.argsort(is_omnigan_sum)[::-1]]
+    comparables = comparables[np.argsort(is_climategan_sum)[::-1]]
 
     # Plot setup
     sns.set(style="whitegrid")
@@ -165,12 +161,12 @@ if __name__ == "__main__":
     # Plot the left
     sns.barplot(
         data=df.loc[df.is_valid],
-        x="is_omnigan",
+        x="climategan",
         y="comparable",
         order=comparables,
         orient="h",
-        label="omnigan",
-        color=color_omnigan,
+        label="climategan",
+        color=color_climategan,
         ci=99,
         n_boot=args.n_bs,
         seed=args.bs_seed,
@@ -208,5 +204,5 @@ if __name__ == "__main__":
     sns.despine(left=True, bottom=True)
 
     # Save figure
-    output_fig = output_dir / "human_evaluation_rate_omnigan.png"
+    output_fig = output_dir / "human_evaluation_rate_climategan.png"
     fig.savefig(output_fig, dpi=fig.dpi, bbox_inches="tight")

@@ -9,15 +9,16 @@ from datetime import datetime
 from pathlib import Path
 
 import comet_ml  # noqa: F401
+import torch
 import numpy as np
 import skimage.io as io
 from skimage.color import rgba2rgb
 from skimage.transform import resize
 
-from omnigan.trainer import Trainer
-from omnigan.bn_fusion import bn_fuse
-from omnigan.tutils import normalize, print_num_parameters
-from omnigan.utils import Timer, find_images, get_git_revision_hash, to_128
+from climategan.trainer import Trainer
+from climategan.bn_fusion import bn_fuse
+from climategan.tutils import print_num_parameters
+from climategan.utils import Timer, find_images, get_git_revision_hash, to_128
 
 import_time = time.time() - import_time
 
@@ -325,13 +326,17 @@ if __name__ == "__main__":
     print("\n• Initializing trainer\n")
 
     with Timer(store=stores.get("setup", [])):
-
+        torch.set_grad_enabled(False)
         device = None
         if XLA:
             device = xm.xla_device()  # type: ignore
 
         trainer = Trainer.resume_from_path(
-            resume_path, setup=True, inference=True, new_exp=None, device=device,
+            resume_path,
+            setup=True,
+            inference=True,
+            new_exp=None,
+            device=device,
         )
         print()
         print_num_parameters(trainer, True)
@@ -368,6 +373,7 @@ if __name__ == "__main__":
             data = [resize(d, ns, anti_aliasing=True) for d, ns in zip(data, new_sizes)]
         else:
             data = [resize_and_crop(d, 640) for d in data]
+            new_sizes = [(640, 640) for _ in data]
         # normalize to -1:1
         # normalize is not necessary as resize outputs -1:1
         # data = [(normalize(d.astype(np.float32)) - 0.5) * 2 for d in data]
@@ -416,7 +422,8 @@ if __name__ == "__main__":
     if outdir is not None or upload:
         if upload:
             print("\n• Uploading")
-            exp = comet_ml.Experiment(project_name="omnigan-apply")
+            exp = comet_ml.Experiment(project_name="climategan-apply")
+            exp.log_parameters(vars(args))
         if outdir is not None:
             print("\n• Writing")
         n_written = 0
@@ -434,9 +441,14 @@ if __name__ == "__main__":
                     idx = b * batch_size + i
                     idx = idx % len(base_data_paths)
                     stem = Path(data_paths[idx]).stem
+                    width = new_sizes[idx][1]
+                    if args.keep_ratio_128:
+                        ar = "_AR"
+                    else:
+                        ar = ""
 
                     for event in events:
-                        im_path = Path(f"{stem}_{event}.png")
+                        im_path = Path(f"{stem}_{event}_{width}{ar}.png")
                         if outdir is not None:
                             im_path = outdir / im_path
                         im_data = events[event][i]
@@ -458,7 +470,10 @@ if __name__ == "__main__":
         metrics_dir = Path(__file__).parent / "config" / "metrics"
         metrics_dir.mkdir(exist_ok=True, parents=True)
         now = str(datetime.now()).replace(" ", "_")
-        with open(metrics_dir / f"xla_metrics_{now}.txt", "w",) as f:
+        with open(
+            metrics_dir / f"xla_metrics_{now}.txt",
+            "w",
+        ) as f:
             report = met.metrics_report()  # type: ignore
             print(report, file=f)
 

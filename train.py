@@ -9,8 +9,8 @@ from addict import Dict
 from comet_ml import ExistingExperiment, Experiment
 from omegaconf import OmegaConf
 
-from omnigan.trainer import Trainer
-from omnigan.utils import (
+from climategan.trainer import Trainer
+from climategan.utils import (
     comet_kwargs,
     copy_run_files,
     env_to_path,
@@ -130,9 +130,9 @@ def main(opts):
         if exp is None:
             # Create new experiment
             print("Starting new experiment")
-            exp = Experiment(project_name="omnigan", **comet_kwargs)
+            exp = Experiment(project_name="climategan", **comet_kwargs)
             exp.log_asset_folder(
-                str(Path(__file__).parent / "omnigan"),
+                str(Path(__file__).parent / "climategan"),
                 recursive=True,
                 log_file_name=True,
             )

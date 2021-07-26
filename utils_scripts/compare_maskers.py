@@ -1,7 +1,6 @@
 import sys
 from argparse import ArgumentParser
 from pathlib import Path
-from time import sleep
 from comet_ml import Experiment
 
 import numpy as np
@@ -16,7 +15,7 @@ from tqdm import tqdm
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-import omnigan
+import climategan
 
 GROUND_MODEL = "/miniscratch/_groups/ccai/experiments/runs/ablation-v1/out--ground"
 
@@ -139,14 +138,14 @@ def load_images_and_labels(
     ims_path = p / "imgs"
     lab_path = p / "labels"
 
-    ims = sorted(omnigan.utils.find_images(ims_path), key=lambda x: x.name)
+    ims = sorted(climategan.utils.find_images(ims_path), key=lambda x: x.name)
     labs = sorted(
-        omnigan.utils.find_images(lab_path),
+        climategan.utils.find_images(lab_path),
         key=lambda x: x.name.replace("_labeled.", "."),
     )
 
-    xs = omnigan.transforms.PrepareInference()(ims)
-    ys = omnigan.transforms.PrepareInference(is_label=True)(labs)
+    xs = climategan.transforms.PrepareInference()(ims)
+    ys = climategan.transforms.PrepareInference(is_label=True)(labs)
 
     return xs, ys, ims, labs
 
@@ -177,7 +176,7 @@ def get_or_load_inferences(
             print("Successfully loaded existing inferences")
             return outputs
 
-    trainer = omnigan.trainer.Trainer.resume_from_path(
+    trainer = climategan.trainer.Trainer.resume_from_path(
         m_path if not is_ground else ground_model,
         inference=True,
         new_exp=None,
@@ -212,10 +211,10 @@ def numpify(outputs):
         p = (o["p"][0].permute(1, 2, 0).numpy() + 1) / 2
         data = {"m": m, "p": p, "x": x}
         if "s" in o:
-            s = omnigan.data.decode_segmap_merged_labels(o["s"], "r", False) / 255.0
+            s = climategan.data.decode_segmap_merged_labels(o["s"], "r", False) / 255.0
             data["s"] = s[0].permute(1, 2, 0).numpy()
         if "d" in o:
-            d = omnigan.tutils.normalize_tensor(o["d"]).squeeze().numpy()
+            d = climategan.tutils.normalize_tensor(o["d"]).squeeze().numpy()
             data["d"] = d
         nps.append({k: img_as_ubyte(v) for k, v in data.items()})
     return nps
@@ -331,7 +330,7 @@ if __name__ == "__main__":
 
         np_outs[name] = nps
 
-    exp = Experiment(project_name="omnigan-inferences", display_summary_level=0)
+    exp = Experiment(project_name="climategan-inferences", display_summary_level=0)
     exp.log_parameter("names", names)
     exp.add_tags(tags)
 

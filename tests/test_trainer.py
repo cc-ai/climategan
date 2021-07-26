@@ -11,10 +11,10 @@ from argparse import ArgumentParser
 from copy import deepcopy
 
 import comet_ml
-import omnigan
+import climategan
 from comet_ml.api import API
-from omnigan.trainer import Trainer
-from omnigan.utils import get_comet_rest_api_key
+from climategan.trainer import Trainer
+from climategan.utils import get_comet_rest_api_key
 
 logging.basicConfig()
 logging.getLogger().setLevel(logging.ERROR)
@@ -165,7 +165,7 @@ if __name__ == "__main__":
     # --------------------------------------
     print("Creating comet Experiment...", end="", flush=True)
     global_exp = comet_ml.Experiment(
-        project_name="omnigan-test", display_summary_level=0
+        project_name="climategan-test", display_summary_level=0
     )
     print("Done.")
 
@@ -179,7 +179,7 @@ if __name__ == "__main__":
     # -----  Base Test Scenario Opts  -----
     # -------------------------------------
     print("Loading opts...", end="", flush=True)
-    base_opts = omnigan.utils.load_opts()
+    base_opts = climategan.utils.load_opts()
     base_opts.data.check_samples = False
     base_opts.train.fid.n_images = 5
     base_opts.comet.display_size = 5
@@ -265,7 +265,10 @@ if __name__ == "__main__":
             "gen.m.use_dada": False,
             "gen.s.use_dada": False,
         },
-        {"__doc": "MSD Resnet V3+ backbone", "gen.deeplabv3.backbone": "resnet",},  # 13
+        {
+            "__doc": "MSD Resnet V3+ backbone",
+            "gen.deeplabv3.backbone": "resnet",
+        },  # 13
         {
             "__use_comet": False,
             "__doc": "MSD SPADE 12 (without x)",
@@ -347,7 +350,11 @@ if __name__ == "__main__":
 
         try:
             # create trainer
-            trainer = Trainer(opts=test_opts, verbose=verbose, comet_exp=test_exp,)
+            trainer = Trainer(
+                opts=test_opts,
+                verbose=verbose,
+                comet_exp=test_exp,
+            )
             trainer.functional_test_mode()
 
             # set (or not) painter loss for masker (= end-to-end)

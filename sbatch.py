@@ -203,14 +203,18 @@ def search_summary_table(summary, summary_dir=None):
     # print section title
     print(
         "{}{}{}Varying values across {} experiments:{}\n".format(
-            C.OKBLUE, C.BOLD, C.UNDERLINE, n_searches, C.ENDC,
+            C.OKBLUE,
+            C.BOLD,
+            C.UNDERLINE,
+            n_searches,
+            C.ENDC,
         )
     )
 
     # first column holds the Exp. number
     first_col = {
         "len": 8,  # length of a column, to split columns according to terminal width
-        "str": ["| Exp. |", f"|:----:|"]
+        "str": ["| Exp. |", "|:----:|"]
         + [
             "| {0:^{1}} |".format(i, 4) for i in range(n_searches)
         ],  # list of values to print
@@ -672,8 +676,8 @@ if __name__ == "__main__":
     exp_path = None
     resume = None
     force_sbatchs = False
-    sbatch_base = Path(home) / "omnigan_sbatchs"
-    summary_dir = Path(home) / "omnigan_exp_summaries"
+    sbatch_base = Path(home) / "climategan_sbatchs"
+    summary_dir = Path(home) / "climategan_exp_summaries"
 
     hp_search_private = set(["n_search", "template", "search", "summary_dir"])
 

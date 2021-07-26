@@ -220,7 +220,7 @@ if __name__ == "__main__":
         conf = dict(config.get_config())
         exps = api.get_experiments(
             workspace=conf.get("comet.workspace"),
-            project_name=conf.get("comet.project_name") or "omnigan",
+            project_name=conf.get("comet.project_name") or "climategan",
         )
         exps = list(filter(lambda e: has_right_tags(e, keep_tags, remove_tags), exps))
         if args.running:
@@ -247,12 +247,11 @@ if __name__ == "__main__":
         ddir = (download_dir / cropped_id).resolve()
         if not args.dev:
             ddir.mkdir(parents=True, exist_ok=True)
-            os.chdir(ddir)
 
         # ------------------------------
         # -----  Fetch image list  -----
         # ------------------------------
-        ims = exp.get_asset_list(asset_type="image")
+        ims = [asset for asset in exp.get_asset_list() if asset["image"] is True]
 
         # -----------------------------------
         # -----  Filter images by step  -----
@@ -265,9 +264,11 @@ if __name__ == "__main__":
         else:
             curr_step = step
 
-        ims = [i for i in ims if i["step"] == curr_step]
+        ims = [i for i in ims if (i["step"] == curr_step) or (step == "all")]
 
         ddir = ddir / str(curr_step)
+        if not args.dev:
+            ddir.mkdir(parents=True, exist_ok=True)
 
         # ----------------------------------------------
         # -----  Store experiment's link and opts  -----
@@ -297,8 +298,14 @@ if __name__ == "__main__":
                     )
                 )
                 if not args.dev:
-                    os.system(
-                        im["curlDownload"] + "_{}_{}.png".format(cropped_id, curr_step)
+                    assert len(im["curlDownload"].split(" > ")) == 2
+                    curl_command = im["curlDownload"].split(" > ")[0]
+                    file_stem = Path(im["curlDownload"].split(" > ")[1]).stem
+
+                    file_path = (
+                        f'"{str(ddir / file_stem)}_{cropped_id}_{curr_step}.png"'
                     )
+
+                    signal = os.system(f"{curl_command} > {file_path}")
         for p in post_processes:
             p(locals())
