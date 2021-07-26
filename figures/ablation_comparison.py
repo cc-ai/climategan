@@ -302,7 +302,7 @@ def plot_median_metrics(
         }
     )
 
-    fig_h = 0.33 * len(df.model_feats.unique())
+    fig_h = 0.4 * len(df.model_feats.unique())
     fig, axes = plt.subplots(
         nrows=1, ncols=3, sharey=True, dpi=dpi, figsize=(18, fig_h)
     )
@@ -380,11 +380,11 @@ if __name__ == "__main__":
             df = df.loc[(df.ground == False) & (df.instagan == False)]
         if "pseudo" in args.models.lower():
             df = df.loc[
-                (df.pseudo is True) | (df.ground is True) | (df.instagan is True)
+                (df.pseudo == True) | (df.ground == True) | (df.instagan == True)
             ]
         if "no_dada_mask" in args.models.lower():
             df = df.loc[
-                (df.dada_masker is False) | (df.ground is True) | (df.instagan is True)
+                (df.dada_masker == False) | (df.ground == True) | (df.instagan == True)
             ]
 
     fig = plot_median_metrics(df, do_stripplot=True, dpi=args.dpi, bs_seed=args.bs_seed)

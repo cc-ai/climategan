@@ -229,7 +229,7 @@ if __name__ == "__main__":
     )
 
     fig, axes = plt.subplots(
-        nrows=1, ncols=3, sharey=True, dpi=args.dpi, figsize=(6, 3)
+        nrows=1, ncols=3, sharey=True, dpi=args.dpi, figsize=(9, 3)
     )
 
     metrics = ["error", "f05", "edge_coherence"]
@@ -294,7 +294,7 @@ if __name__ == "__main__":
         xticks = ax.get_xticks()
         xticklabels = xticks
         ax.set_xticks(xticks)
-        ax.set_xticklabels(xticklabels, fontsize="x-small")
+        ax.set_xticklabels(xticklabels, fontsize="small")
 
         # Y-lim
         display2data = ax.transData.inverted()
@@ -348,7 +348,7 @@ if __name__ == "__main__":
     fig.suptitle(
         "20 % trimmed mean difference and bootstrapped confidence intervals",
         y=0.0,
-        fontsize="x-small",
+        fontsize="medium",
     )
 
     # Save figure
