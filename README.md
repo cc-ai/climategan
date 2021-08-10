@@ -2,19 +2,12 @@
 - [omnigan](#omnigan)
   - [Setup](#setup)
   - [Coding conventions](#coding-conventions)
-    - [Resuming](#resuming)
-    - [Generator](#generator)
-    - [Discriminator](#discriminator)
   - [updates](#updates)
   - [interfaces](#interfaces)
-    - [batches](#batches)
-    - [data](#data)
-      - [json files](#json-files)
-    - [losses](#losses)
   - [Logging on comet](#logging-on-comet)
-    - [Tests](#tests)
   - [Resources](#resources)
   - [Example](#example)
+  - [Release process](#release-process)
 
 ## Setup
 
@@ -171,7 +164,8 @@ batch = Dict({
 | train_r_nopeople.json, val_r_nopeople.json     |   r    | Same training data as above with people removed                            |   Sasha   |
 | train_rf_with_sim.json                         |   rf   | Doubled train_rf's size with sim data  (randomly chosen)                   |  Victor   |
 | train_rf.json                                  |   rf   | UPDATE (12/12/20): added 50 ims & masks from ADE20K Outdoors               |  Victor   |
-
+| train_allres.json, val_allres.json             |   rf   | includes both lowres and highres from ORCA_water_seg                       |  Tianyu   |
+| train_highres_only.json, val_highres_only.json |   rf   | includes only highres from ORCA_water_seg                                  |  Tianyu   |
 
 
 ```yaml
@@ -321,3 +315,14 @@ np_ys = [tensor_ims_to_np_uint8s(y) for y in tqdm(ys)]
 for i, n in tqdm(zip(im_paths, np_ys), total=len(im_paths)):
     imsave(Path(output_path) / i.name, n)
 ```
+
+## Release process
+
+In the `release/` folder
+* create a `model/` folder
+* create folders `model/masker/` and `model/painter/` 
+* add the omnigan code in `release/`: `git clone git@github.com:cc-ai/omnigan.git`
+* move the code to `release/`: `cp omnigan/* . && rm -rf omnigan`
+* update `model/masker/opts/events` with `events:` from `shared/trainer/opts.yaml`
+* update `model/masker/opts/val.val_painter` to `"model/painter/checkpoints/latest_ckpt.pth"`
+* update `model/masker/opts/load_paths.m` to `"model/masker/checkpoints/latest_ckpt.pth"`

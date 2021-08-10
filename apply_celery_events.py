@@ -11,6 +11,8 @@ import_time = time.time()
 import sys
 from io import BytesIO
 from PIL import Image
+
+from azure.storage.blob import ContentSettings
 # from omnigan.data import is_image_file
 from omnigan.tutils import normalize
 from skimage.color import rgba2rgb
@@ -28,6 +30,8 @@ from omnigan.utils import (
     to_128,
     # find_images,
 )
+
+upload_settings = ContentSettings(content_type='image/jpeg', content_disposition='inline')
 
 import_time = time.time() - import_time
 
@@ -181,7 +185,8 @@ def upload_blobs(container_client, all_events, image_paths, stores):
             container_client.upload_blob(
                 str(im_path),
                 imagefile.getvalue(),
-                overwrite=True
+                overwrite=True,
+                content_settings=upload_settings
                 )            
 
     print("\n• Writing")
