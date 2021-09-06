@@ -103,7 +103,7 @@ def add_fire(x, seg_preds, fire_opts):
     kernel = torch.unsqueeze(
         kornia.filters.kernels.get_gaussian_kernel2d(kernel_size, sigma), dim=0
     ).to(x.device)
-    sky_mask = kornia.filters.filter2D(sky_mask, kernel, border_type)
+    sky_mask = kornia.filters.filter2d(sky_mask, kernel, border_type)
 
     filter_ = torch.ones(wildfire_tens.shape, device=x.device)
     filter_[:, 0, :, :] = 255
