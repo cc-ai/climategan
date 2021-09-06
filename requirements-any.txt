@@ -1,13 +1,13 @@
 addict
 codecarbon
 comet_ml
-ipython
 hydra-core==0.11.3
 kornia
 omegaconf==1.4.1
 matplotlib
 numpy
 opencv-python
+packaging
 pandas
 PyYAML
 scikit-image
