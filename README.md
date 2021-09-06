@@ -31,13 +31,13 @@ If you want to use Comet, make sure you have the [appropriate configuration in p
 
 ### Inference
 
-1. Download and unzip the weights [from this link](https://drive.google.com/u/0/uc?id=1nAXs6injZS5pMohlwWRWrM8ORdgM79BS&export=download) (checkout [`gdown`](https://github.com/wkentaro/gdown) for a commandline interface) and put them in `config/`
+1. Download and unzip the weights [from this link](https://drive.google.com/u/0/uc?id=18OCUIy7JQ2Ow_-cC5xn_hhDn-Bp45N1K&export=download) (checkout [`gdown`](https://github.com/wkentaro/gdown) for a commandline interface) and put them in `config/`
 
   ```
   $ pip install gdown
   $ cd config
-  $ gdown https://drive.google.com/u/0/uc?id=1nAXs6injZS5pMohlwWRWrM8ORdgM79BS
-  $ unzip release-github.zip
+  $ gdown https://drive.google.com/u/0/uc?id=18OCUIy7JQ2Ow_-cC5xn_hhDn-Bp45N1K
+  $ unzip release-github-v1.zip
   $ cd .. 
   ```
 
