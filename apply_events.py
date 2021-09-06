@@ -420,23 +420,25 @@ if __name__ == "__main__":
     # -----  Write events to output directory  -----
     # ----------------------------------------------
     if outdir is not None or upload:
+
         if upload:
             print("\n• Uploading")
             exp = comet_ml.Experiment(project_name="climategan-apply")
             exp.log_parameters(vars(args))
+
         if outdir is not None:
             print("\n• Writing")
+            n_writes = sum([len(list(events.values())[0]) for e in all_events])
+
         n_written = 0
         with Timer(store=stores.get("write", [])):
-            for b, events in enumerate(all_events):
-                for i in range(len(list(events.values())[0])):
+            for b, events in enumerate(all_events):  # for each batch
+                n_ims = len(list(events.values())[0])
+
+                for i in range(n_ims):  # for each image in the batch
 
                     print(" " * 30, end="\r", flush=True)
-                    print(
-                        f"{n_written+1}/{len(base_data_paths)} ...",
-                        end="\r",
-                        flush=True,
-                    )
+                    print(f"{n_written+1}/{n_writes} ...", end="\r", flush=True)
 
                     idx = b * batch_size + i
                     idx = idx % len(base_data_paths)
