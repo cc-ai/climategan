@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import time
+import torch
 import traceback
 from pathlib import Path
 from typing import Any, List, Optional, Union
@@ -898,26 +899,40 @@ def all_texts_to_array(texts, width=640, height=40):
 
 
 class Timer:
-    def __init__(self, name="", store=None, precision=3, ignore=False):
+    def __init__(self, name="", store=None, precision=3, ignore=False, cuda=True):
         self.name = name
         self.store = store
         self.precision = precision
         self.ignore = ignore
+        self.cuda = cuda
+
+        if cuda:
+            self._start_event = torch.cuda.Event(enable_timing=True)
+            self._end_event = torch.cuda.Event(enable_timing=True)
 
     def format(self, n):
         return f"{n:.{self.precision}f}"
 
     def __enter__(self):
         """Start a new timer as a context manager"""
-        self._start_time = time.perf_counter()
+        if self.cuda:
+            self._start_event.record()
+        else:
+            self._start_time = time.perf_counter()
         return self
 
     def __exit__(self, *exc_info):
         """Stop the context manager timer"""
         if self.ignore:
             return
-        t = time.perf_counter()
-        new_time = t - self._start_time
+
+        if self.cuda:
+            self._end_event.record()
+            torch.cuda.synchronize()
+            new_time = self._start_event.elapsed_time(self._end_event) / 1000
+        else:
+            t = time.perf_counter()
+            new_time = t - self._start_time
 
         if self.store is not None:
             assert isinstance(self.store, list)
