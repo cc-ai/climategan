@@ -15,12 +15,16 @@ dash-bootstrap-components==0.13.0
 dash-core-components==2.0.0
 dash-html-components==2.0.0
 dash-table==5.0.0
+dataclasses==0.6
 decorator==5.0.9
 dulwich==0.20.25
 everett==2.0.1
+filelock==3.0.12
 fire==0.4.0
 Flask==2.0.1
 Flask-Compress==1.10.1
+future==0.18.2
+gdown==3.13.0
 hydra-core==0.11.3
 idna==3.2
 imageio==2.9.0
@@ -54,6 +58,7 @@ Pygments==2.10.0
 pynvml==11.0.0
 pyparsing==2.4.7
 pyrsistent==0.18.0
+PySocks==1.7.1
 python-dateutil==2.8.2
 pytorch-ranger==0.1.1
 pytz==2021.1
@@ -71,9 +76,9 @@ tenacity==8.0.1
 termcolor==1.1.0
 threadpoolctl==2.2.0
 tifffile==2021.8.30
-torch==1.9.0
+torch==1.7.0
 torch-optimizer==0.1.0
-torchvision==0.10.0
+torchvision==0.8.1
 tqdm==4.62.2
 traitlets==5.1.0
 typing-extensions==3.10.0.2
