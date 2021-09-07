@@ -117,9 +117,11 @@ def parse_args():
         "--keep_ratio_128",
         action="store_true",
         default=False,
-        help="When loading the input images, resize and crop to keep to match multiples"
+        help="When loading the input images, resize and crop them in order for their "
+        + "dimensions to match the closest multiples"
         + " of 128. Will force a batch size of 1 since images"
-        + " now have different dimensions.",
+        + " now have different dimensions. "
+        + "Use --max_images to cap the resulting dimensions.",
     )
     parser.add_argument(
         "--fuse",
