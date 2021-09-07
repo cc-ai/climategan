@@ -56,6 +56,8 @@ If you want to use Comet, make sure you have the [appropriate configuration in p
     python apply_events.py -b 4 --half -i path/to/a/folder -r config/model/masker --output_path path/to/a/folder
     ```
 
+The `apply_events.py` script has many options, for instance to use a different output size than the default systematic `640 x 640` pixels, look at the code or `python apply_events.py --help`.
+
 ## Training from scratch
 
 ClimateGAN is split in two main components: the Masker producing a binary mask of where water should go and the Painter generating water within this mask given an initial image's context.
