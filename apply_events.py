@@ -8,7 +8,7 @@ def parse_args():
         "--batch_size",
         type=int,
         default=4,
-        help="Batch size to process input images to events",
+        help="Batch size to process input images to events. Defaults to 4",
     )
     parser.add_argument(
         "-i",
@@ -23,15 +23,15 @@ def parse_args():
         type=str,
         default=None,
         help="Path to a directory were events should be written. "
-        + "Will NOT write anything if this flag is not used.",
+        + "Will NOT write anything to disk if this flag is not used.",
     )
     parser.add_argument(
         "-s",
         "--save_input",
         action="store_true",
         default=False,
-        help="Binary flag to save the input image to the model (after crop and resize):"
-        + " in the output path or on comet depending on saving options.",
+        help="Binary flag to include the input image to the model (after crop and"
+        + " resize) in the images written or uploaded (depending on saving options.)",
     )
     parser.add_argument(
         "-r",
@@ -39,7 +39,9 @@ def parse_args():
         type=str,
         default=None,
         help="Path to a directory containing the trainer to resume."
-        + " In particular it must contain opts.yaml and checkpoints/",
+        + " In particular it must contain `opts.yam` and `checkpoints/`."
+        + " Typically this points to a Masker, which holds the path to a"
+        + " Painter in its opts",
     )
     parser.add_argument(
         "--no_time",
@@ -53,7 +55,18 @@ def parse_args():
         type=float,
         default=0.5,
         help="Value to use to binarize masks (mask > value). "
-        + "Set to -1 (default) to use soft masks (not binarized)",
+        + "Set to -1 to use soft masks (not binarized). Defaults to 0.5.",
+    )
+    parser.add_argument(
+        "-t",
+        "--target_size",
+        type=int,
+        default=640,
+        help="Output image size (when not using `keep_ratio_128`): images are resized"
+        + " such that their smallest side is `target_size` then cropped in the middle"
+        + " of the largest side such that the resulting input image (and output images)"
+        + " has height and width `target_size x target_size`. **Must** be a multiple of"
+        + " 2^7=128 (up/downscaling inside the models). Defaults to 640.",
     )
     parser.add_argument(
         "--half",
@@ -66,15 +79,18 @@ def parse_args():
         "--n_images",
         default=-1,
         type=int,
-        help="Limit the number of images processed",
+        help="Limit the number of images processed (if you have 100 images in "
+        + "a directory but n is 10 then only the first 10 images will be loaded"
+        + " for processing)",
     )
     parser.add_argument(
         "-x",
         "--xla_purge_samples",
         type=int,
         default=-1,
-        help="XLA compile time induces extra computations."
-        + " Ignore -x samples when computing time averages",
+        help="(TPU) XLA compile time induces extra computations."
+        + " Use this flag to ignore x samples when computing time averages."
+        + " Defaults to -1 (no purge)",
     )
     parser.add_argument(
         "--no_conf",
@@ -86,20 +102,24 @@ def parse_args():
         "--overwrite",
         action="store_true",
         default=False,
-        help="Do not check for existing outdir",
+        help="Do not check for existing outdir, i.e. force overwrite"
+        + " potentially existing files in the output path",
     )
     parser.add_argument(
         "--no_cloudy",
         action="store_true",
         default=False,
         help="Prevent the use of the cloudy intermediate"
-        + " image to create the flood image",
+        + " image to create the flood image. Rendering will"
+        + " be more colorful but may seem less realistic",
     )
     parser.add_argument(
         "--keep_ratio_128",
         action="store_true",
         default=False,
-        help="Keeps approximately the aspect ratio to match multiples of 128",
+        help="When loading the input images, resize and crop to keep to match multiples"
+        + " of 128. Will force a batch size of 1 since images"
+        + " now have different dimensions.",
     )
     parser.add_argument(
         "--fuse",
@@ -111,9 +131,14 @@ def parse_args():
         "--max_im_width",
         type=int,
         default=-1,
-        help="Maximum image width: will downsample larger images",
+        help="When using --keep_ratio_128, some images may still be too large."
+        + " Use --max_im_width to cap the resized image's width. Defaults to -1 (no cap).",
     )
-    parser.add_argument("--upload", action="store_true", help="Upload to comet")
+    parser.add_argument(
+        "--upload",
+        action="store_true",
+        help="Upload to comet.ml in a project called `climategan-apply`",
+    )
     return parser.parse_args()
 
 
@@ -279,12 +304,18 @@ if __name__ == "__main__":
     cloudy = not args.no_cloudy
     time_inference = not args.no_time
     images_paths = Path(args.images_paths).expanduser().resolve()
+    target_size = args.target_size
     outdir = (
         Path(args.output_path).expanduser().resolve()
         if args.output_path is not None
         else None
     )
     if args.keep_ratio_128:
+        if target_size != 640:
+            print(
+                "\nWARNING: using --keep_ratio_128 overwrites target_size"
+                + " which is ignored."
+            )
         if batch_size != 1:
             print("\nWARNING: batch_size overwritten to 1 when using keep_ratio_128")
             batch_size = 1
@@ -297,6 +328,11 @@ if __name__ == "__main__":
                 )
             )
             args.max_im_width = new_im_width
+    else:
+        if target_size % 128 != 0:
+            print(f"\nWarning: target size {target_size} is not a multiple of 128.")
+            target_size = target_size - (target_size % 128)
+            print(f"Setting target_size to {target_size}.")
 
     if outdir is not None:
         if outdir.exists() and not args.overwrite:
@@ -386,8 +422,8 @@ if __name__ == "__main__":
             new_sizes = [to_128(d, args.max_im_width) for d in data]
             data = [resize(d, ns, anti_aliasing=True) for d, ns in zip(data, new_sizes)]
         else:
-            data = [resize_and_crop(d, 640) for d in data]
-            new_sizes = [(640, 640) for _ in data]
+            data = [resize_and_crop(d, target_size) for d in data]
+            new_sizes = [(target_size, target_size) for _ in data]
         # normalize to -1:1
         # normalize is not necessary as resize outputs -1:1
         # data = [(normalize(d.astype(np.float32)) - 0.5) * 2 for d in data]
