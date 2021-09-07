@@ -127,7 +127,9 @@ def print_store(store, purge=-1):
 
 
 def write_apply_config(out):
-    command = " ".join(sys.argv)
+    cwd = Path.cwd().expanduser().resolve()
+    command = f"cd {str(cwd)}\n"
+    command += " ".join(sys.argv)
     git_hash = get_git_revision_hash()
     with (out / "command.txt").open("w") as f:
         f.write(command)
@@ -158,6 +160,14 @@ def parse_args():
         default=None,
         help="Path to a directory were events should be written. "
         + "Will NOT write anything if this flag is not used.",
+    )
+    parser.add_argument(
+        "-s",
+        "--save_input",
+        action="store_true",
+        default=False,
+        help="Binary flag to save the input image to the model (after crop and resize):"
+        + " in the output path or on comet depending on saving options.",
     )
     parser.add_argument(
         "-r",
@@ -412,6 +422,9 @@ if __name__ == "__main__":
                 cloudy=cloudy,
             )
 
+            if args.save_input:
+                events["input"] = ((images + 1) / 2 * 255).astype(np.uint8)
+
             # store events to write after inference loop
             all_events.append(events)
     print()
@@ -444,6 +457,7 @@ if __name__ == "__main__":
                     idx = idx % len(base_data_paths)
                     stem = Path(data_paths[idx]).stem
                     width = new_sizes[idx][1]
+
                     if args.keep_ratio_128:
                         ar = "_AR"
                     else:
