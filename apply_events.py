@@ -373,7 +373,7 @@ if __name__ == "__main__":
     # -------------------------------------
     print("\n• Initializing trainer\n")
 
-    with Timer(store=stores.get("setup", [])):
+    with Timer(store=stores.get("setup", []), ignore=time_inference):
         torch.set_grad_enabled(False)
         device = None
         if XLA:
@@ -410,7 +410,7 @@ if __name__ == "__main__":
         data_paths = base_data_paths * repeats
         data_paths = data_paths[:n_images]
 
-    with Timer(store=stores.get("data pre-processing", [])):
+    with Timer(store=stores.get("data pre-processing", []), ignore=time_inference):
         # read images to numpy arrays
         data = [io.imread(str(d)) for d in data_paths]
         # rgba to rgb
@@ -440,7 +440,7 @@ if __name__ == "__main__":
 
     all_events = []
 
-    with Timer(store=stores.get("inference on all images", [])):
+    with Timer(store=stores.get("inference on all images", []), ignore=time_inference):
         for b in range(n_batchs):
             print(f"Batch {b + 1}/{n_batchs}", end="\r")
             images = data[b * batch_size : (b + 1) * batch_size]
@@ -482,7 +482,7 @@ if __name__ == "__main__":
             n_writes = sum([len(list(events.values())[0]) for e in all_events])
 
         n_written = 0
-        with Timer(store=stores.get("write", [])):
+        with Timer(store=stores.get("write", []), ignore=time_inference):
             for b, events in enumerate(all_events):  # for each batch
                 n_ims = len(list(events.values())[0])
 

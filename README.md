@@ -36,6 +36,7 @@ If you want to use Comet, make sure you have the [appropriate configuration in p
 
   ```
   $ pip install gdown
+  $ mkdir config
   $ cd config
   $ gdown https://drive.google.com/u/0/uc?id=18OCUIy7JQ2Ow_-cC5xn_hhDn-Bp45N1K
   $ unzip release-github-v1.zip

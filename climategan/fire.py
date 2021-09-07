@@ -6,6 +6,11 @@ from torchvision.transforms.functional import adjust_brightness, adjust_contrast
 
 from climategan.tutils import normalize, retrieve_sky_mask
 
+try:
+    from kornia.filters import filter2d
+except ImportError:
+    from kornia.filters import filter2D as filter2d
+
 
 def increase_sky_mask(mask, p_w=0, p_h=0):
     """
@@ -103,7 +108,7 @@ def add_fire(x, seg_preds, fire_opts):
     kernel = torch.unsqueeze(
         kornia.filters.kernels.get_gaussian_kernel2d(kernel_size, sigma), dim=0
     ).to(x.device)
-    sky_mask = kornia.filters.filter2d(sky_mask, kernel, border_type)
+    sky_mask = filter2d(sky_mask, kernel, border_type)
 
     filter_ = torch.ones(wildfire_tens.shape, device=x.device)
     filter_[:, 0, :, :] = 255
