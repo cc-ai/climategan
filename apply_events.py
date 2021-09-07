@@ -166,7 +166,7 @@ from skimage.transform import resize
 from climategan.trainer import Trainer
 from climategan.bn_fusion import bn_fuse
 from climategan.tutils import print_num_parameters
-from climategan.utils import Timer, find_images, get_git_revision_hash, to_128
+from climategan.utils import Timer, find_images, get_git_revision_hash, to_128, resolve
 
 import_time = time.time() - import_time
 
@@ -305,13 +305,9 @@ if __name__ == "__main__":
     n_images = args.n_images
     cloudy = not args.no_cloudy
     time_inference = not args.no_time
-    images_paths = Path(args.images_paths).expanduser().resolve()
+    images_paths = resolve(args.images_paths)
     target_size = args.target_size
-    outdir = (
-        Path(args.output_path).expanduser().resolve()
-        if args.output_path is not None
-        else None
-    )
+    outdir = resolve(args.output_path) if args.output_path is not None else None
     if args.keep_ratio_128:
         if target_size != 640:
             print(

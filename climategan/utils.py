@@ -8,17 +8,17 @@ import re
 import shutil
 import subprocess
 import time
-import torch
 import traceback
+from os.path import expandvars
 from pathlib import Path
 from typing import Any, List, Optional, Union
+from uuid import uuid4
 
 import numpy as np
+import torch
 import yaml
 from addict import Dict
 from comet_ml import Experiment
-from uuid import uuid4
-
 
 comet_kwargs = {
     "auto_metric_logging": False,
@@ -33,6 +33,17 @@ IMG_EXTENSIONS = set(
 )
 
 
+def resolve(path):
+    """
+    fully resolve a path:
+    resolve env vars ($HOME etc.) -> expand user (~) -> make absolute
+
+    Returns:
+        pathlib.Path: resolved absolute path
+    """
+    return Path(expandvars(str(path))).expanduser().resolve()
+
+
 def copy_run_files(opts: Dict) -> None:
     """
     Copy the opts's sbatch_file to output_path
@@ -41,15 +52,15 @@ def copy_run_files(opts: Dict) -> None:
         opts (addict.Dict): options
     """
     if opts.sbatch_file:
-        p = Path(opts.sbatch_file)
+        p = resolve(opts.sbatch_file)
         if p.exists():
-            o = Path(opts.output_path)
+            o = resolve(opts.output_path)
             if o.exists():
                 shutil.copyfile(p, o / p.name)
     if opts.exp_file:
-        p = Path(opts.exp_file)
+        p = resolve(opts.exp_file)
         if p.exists():
-            o = Path(opts.output_path)
+            o = resolve(opts.output_path)
             if o.exists():
                 shutil.copyfile(p, o / p.name)
 
@@ -115,10 +126,15 @@ def load_opts(
     """
 
     if path is None and default is None:
-        path = Path(__file__).parent.parent / "shared" / "trainer" / "defaults.yaml"
+        path = (
+            resolve(Path(__file__)).parent.parent
+            / "shared"
+            / "trainer"
+            / "defaults.yaml"
+        )
 
     if path:
-        path = Path(path).resolve()
+        path = resolve(path)
 
     if default is None:
         default_opts = {}
@@ -180,7 +196,9 @@ def load_opts(
     if opts.gen.s.depth_feat_fusion is True or opts.gen.s.depth_dada_fusion is True:
         opts.gen.s.use_dada = True
 
-    events_path = Path(__file__).parent.parent / "shared" / "trainer" / "events.yaml"
+    events_path = (
+        resolve(Path(__file__)).parent.parent / "shared" / "trainer" / "events.yaml"
+    )
     if events_path.exists():
         with events_path.open("r") as f:
             events_dict = yaml.safe_load(f)
@@ -305,7 +323,7 @@ def get_increased_path(path: Union[str, Path], use_date: bool = False) -> Path:
     Returns:
         pathlib.Path: increased path
     """
-    fp = Path(path).resolve()
+    fp = resolve(path)
     if not fp.exists():
         return fp
 
@@ -434,7 +452,7 @@ def get_comet_rest_api_key(
     if "COMET_REST_API_KEY" in os.environ and path_to_config_file is None:
         return os.environ["COMET_REST_API_KEY"]
     if path_to_config_file is not None:
-        p = Path(path_to_config_file)
+        p = resolve(path_to_config_file)
     else:
         p = Path() / ".comet.config"
         if not p.exists():

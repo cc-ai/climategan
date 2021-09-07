@@ -45,7 +45,6 @@ from climategan.tutils import (
     zero_grad,
 )
 from climategan.utils import (
-    Timer,
     comet_kwargs,
     div_dict,
     find_target_size,
@@ -54,7 +53,9 @@ from climategan.utils import (
     get_existing_comet_id,
     get_latest_opts,
     merge,
+    resolve,
     sum_dict,
+    Timer,
 )
 
 try:
@@ -355,7 +356,7 @@ class Trainer:
         Returns:
             climategan.Trainer: Loaded and resumed trainer
         """
-        p = Path(path).expanduser().resolve()
+        p = resolve(path)
         assert p.exists()
 
         c = p / "checkpoints"
@@ -370,7 +371,7 @@ class Trainer:
         elif new_exp is True:
             exp = Experiment(project_name="climategan", **comet_kwargs)
             exp.log_asset_folder(
-                str(Path(__file__).parent),
+                str(resolve(Path(__file__)).parent),
                 recursive=True,
                 log_file_name=True,
             )
