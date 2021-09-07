@@ -1,8 +1,129 @@
+import argparse
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-b",
+        "--batch_size",
+        type=int,
+        default=4,
+        help="Batch size to process input images to events",
+    )
+    parser.add_argument(
+        "-i",
+        "--images_paths",
+        type=str,
+        required=True,
+        help="Path to a directory with image files",
+    )
+    parser.add_argument(
+        "-o",
+        "--output_path",
+        type=str,
+        default=None,
+        help="Path to a directory were events should be written. "
+        + "Will NOT write anything if this flag is not used.",
+    )
+    parser.add_argument(
+        "-s",
+        "--save_input",
+        action="store_true",
+        default=False,
+        help="Binary flag to save the input image to the model (after crop and resize):"
+        + " in the output path or on comet depending on saving options.",
+    )
+    parser.add_argument(
+        "-r",
+        "--resume_path",
+        type=str,
+        default=None,
+        help="Path to a directory containing the trainer to resume."
+        + " In particular it must contain opts.yaml and checkpoints/",
+    )
+    parser.add_argument(
+        "--no_time",
+        action="store_true",
+        default=False,
+        help="Binary flag to prevent the timing of operations.",
+    )
+    parser.add_argument(
+        "-m",
+        "--flood_mask_binarization",
+        type=float,
+        default=0.5,
+        help="Value to use to binarize masks (mask > value). "
+        + "Set to -1 (default) to use soft masks (not binarized)",
+    )
+    parser.add_argument(
+        "--half",
+        action="store_true",
+        default=False,
+        help="Binary flag to use half precision (float16). Defaults to False.",
+    )
+    parser.add_argument(
+        "-n",
+        "--n_images",
+        default=-1,
+        type=int,
+        help="Limit the number of images processed",
+    )
+    parser.add_argument(
+        "-x",
+        "--xla_purge_samples",
+        type=int,
+        default=-1,
+        help="XLA compile time induces extra computations."
+        + " Ignore -x samples when computing time averages",
+    )
+    parser.add_argument(
+        "--no_conf",
+        action="store_true",
+        default=False,
+        help="disable writing the apply_events hash and command in the output folder",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        default=False,
+        help="Do not check for existing outdir",
+    )
+    parser.add_argument(
+        "--no_cloudy",
+        action="store_true",
+        default=False,
+        help="Prevent the use of the cloudy intermediate"
+        + " image to create the flood image",
+    )
+    parser.add_argument(
+        "--keep_ratio_128",
+        action="store_true",
+        default=False,
+        help="Keeps approximately the aspect ratio to match multiples of 128",
+    )
+    parser.add_argument(
+        "--fuse",
+        action="store_true",
+        default=False,
+        help="Use batch norm fusion to speed up inference",
+    )
+    parser.add_argument(
+        "--max_im_width",
+        type=int,
+        default=-1,
+        help="Maximum image width: will downsample larger images",
+    )
+    parser.add_argument("--upload", action="store_true", help="Upload to comet")
+    return parser.parse_args()
+
+
+args = parse_args()
+
+
 print("\n• Imports\n")
 import time
 
 import_time = time.time()
-import argparse
 import sys
 from collections import OrderedDict
 from datetime import datetime
@@ -137,128 +258,11 @@ def write_apply_config(out):
         f.write(git_hash)
 
 
-def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "-b",
-        "--batch_size",
-        type=int,
-        default=4,
-        help="Batch size to process input images to events",
-    )
-    parser.add_argument(
-        "-i",
-        "--images_paths",
-        type=str,
-        required=True,
-        help="Path to a directory with image files",
-    )
-    parser.add_argument(
-        "-o",
-        "--output_path",
-        type=str,
-        default=None,
-        help="Path to a directory were events should be written. "
-        + "Will NOT write anything if this flag is not used.",
-    )
-    parser.add_argument(
-        "-s",
-        "--save_input",
-        action="store_true",
-        default=False,
-        help="Binary flag to save the input image to the model (after crop and resize):"
-        + " in the output path or on comet depending on saving options.",
-    )
-    parser.add_argument(
-        "-r",
-        "--resume_path",
-        type=str,
-        default=None,
-        help="Path to a directory containing the trainer to resume."
-        + " In particular it must contain opts.yaml and checkpoints/",
-    )
-    parser.add_argument(
-        "--no_time",
-        action="store_true",
-        default=False,
-        help="Binary flag to prevent the timing of operations.",
-    )
-    parser.add_argument(
-        "-m",
-        "--flood_mask_binarization",
-        type=float,
-        default=0.5,
-        help="Value to use to binarize masks (mask > value). "
-        + "Set to -1 (default) to use soft masks (not binarized)",
-    )
-    parser.add_argument(
-        "--half",
-        action="store_true",
-        default=False,
-        help="Binary flag to use half precision (float16). Defaults to False.",
-    )
-    parser.add_argument(
-        "-n",
-        "--n_images",
-        default=-1,
-        type=int,
-        help="Limit the number of images processed",
-    )
-    parser.add_argument(
-        "-x",
-        "--xla_purge_samples",
-        type=int,
-        default=-1,
-        help="XLA compile time induces extra computations."
-        + " Ignore -x samples when computing time averages",
-    )
-    parser.add_argument(
-        "--no_conf",
-        action="store_true",
-        default=False,
-        help="disable writing the apply_events hash and command in the output folder",
-    )
-    parser.add_argument(
-        "--overwrite",
-        action="store_true",
-        default=False,
-        help="Do not check for existing outdir",
-    )
-    parser.add_argument(
-        "--no_cloudy",
-        action="store_true",
-        default=False,
-        help="Prevent the use of the cloudy intermediate"
-        + " image to create the flood image",
-    )
-    parser.add_argument(
-        "--keep_ratio_128",
-        action="store_true",
-        default=False,
-        help="Keeps approximately the aspect ratio to match multiples of 128",
-    )
-    parser.add_argument(
-        "--fuse",
-        action="store_true",
-        default=False,
-        help="Use batch norm fusion to speed up inference",
-    )
-    parser.add_argument(
-        "--max_im_width",
-        type=int,
-        default=-1,
-        help="Maximum image width: will downsample larger images",
-    )
-    parser.add_argument("--upload", action="store_true", help="Upload to comet")
-    return parser.parse_args()
-
-
 if __name__ == "__main__":
 
-    # ------------------------------------------------------
-    # -----  Parse Arguments and initialize variables  -----
-    # ------------------------------------------------------
-    args = parse_args()
+    # -----------------------------------------
+    # -----  Initialize script variables  -----
+    # -----------------------------------------
     print(
         "• Using args\n\n"
         + "\n".join(["{:25}: {}".format(k, v) for k, v in vars(args).items()]),
