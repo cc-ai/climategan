@@ -20,6 +20,8 @@ In this section we'll explain how to produce the `Painted Input` along with the 
 
 ### Installation
 
+This repository and associated model have been developed using Python 3.8.2 and **Pytorch 1.7.0**.
+
 ```bash
 $ git clone git@github.com:cc-ai/climategan.git
 $ cd climategan

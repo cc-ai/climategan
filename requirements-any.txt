@@ -14,7 +14,7 @@ scikit-image
 scikit-learn
 scipy
 seaborn
-torch
+torch==1.7.0
 torch-optimizer
-torchvision
+torchvision==0.8.1
 tqdm
