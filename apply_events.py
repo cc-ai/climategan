@@ -163,12 +163,34 @@ import_time = time.time() - import_time
 
 
 def to_m1_p1(img, i):
+    """
+    rescales a [0, 1] image to [-1, +1]
+
+    Args:
+        img (np.array): float32 numpy array of an image in [0, 1]
+        i (int): Index of the image being rescaled
+
+    Raises:
+        ValueError: If the image is not in [0, 1]
+
+    Returns:
+        np.array(np.float32): array in [-1, +1]
+    """
     if img.min() >= 0 and img.max() <= 1:
         return (img.astype(np.float32) - 0.5) * 2
     raise ValueError(f"Data range mismatch for image {i} : ({img.min()}, {img.max()})")
 
 
 def uint8(array):
+    """
+    convert an array to np.uint8 (does not rescale or anything else than changing dtype)
+
+    Args:
+        array (np.array): array to modify
+
+    Returns:
+        np.array(np.uint8): converted array
+    """
     return array.astype(np.uint8)
 
 
@@ -256,6 +278,9 @@ def print_store(store, purge=-1):
 
 
 def write_apply_config(out):
+    """
+    Saves the args to `apply_events.py` in a text file for future reference
+    """
     cwd = Path.cwd().expanduser().resolve()
     command = f"cd {str(cwd)}\n"
     command += " ".join(sys.argv)
@@ -264,6 +289,44 @@ def write_apply_config(out):
         f.write(command)
     with (out / "hash.txt").open("w") as f:
         f.write(git_hash)
+
+
+def make_outdir(outdir, overwrite):
+    """
+    creates the output directory if it does not exist. If it does exist,
+    prompts the user for confirmation (except if `overwrite` is True)
+    """
+    if outdir.exists() and not overwrite:
+        print(
+            f"\nWARNING: outdir ({str(outdir)}) already exists."
+            + " Files with existing names will be overwritten"
+        )
+        if "n" in input(">>> Continue anyway? [y / n] (default: y) : "):
+            print("Interrupting execution from user input.")
+            sys.exit()
+        print()
+    outdir.mkdir(exist_ok=True, parents=True)
+
+
+def get_time_stores(import_time):
+    return OrderedDict(
+        {
+            "imports": [import_time],
+            "setup": [],
+            "data pre-processing": [],
+            "encode": [],
+            "mask": [],
+            "flood": [],
+            "depth": [],
+            "segmentation": [],
+            "smog": [],
+            "wildfire": [],
+            "all events": [],
+            "numpy": [],
+            "inference on all images": [],
+            "write": [],
+        }
+    )
 
 
 if __name__ == "__main__":
@@ -277,18 +340,24 @@ if __name__ == "__main__":
     )
 
     batch_size = args.batch_size
-    upload = args.upload
-    half = args.half
-    fuse = args.fuse
     bin_value = args.flood_mask_binarization
-    resume_path = args.resume_path
-    n_images = args.n_images
     cloudy = not args.no_cloudy
-    time_inference = not args.no_time
+    fuse = args.fuse
+    half = args.half
     images_paths = resolve(args.images_paths)
-    target_size = args.target_size
+    keep_ratio = args.keep_ratio_128
+    max_im_width = args.max_im_width
+    n_images = args.n_images
     outdir = resolve(args.output_path) if args.output_path is not None else None
-    if args.keep_ratio_128:
+    resume_path = args.resume_path
+    target_size = args.target_size
+    time_inference = not args.no_time
+    upload = args.upload
+
+    # -------------------------------------
+    # -----  Validate size arguments  -----
+    # -------------------------------------
+    if keep_ratio:
         if target_size != 640:
             print(
                 "\nWARNING: using --keep_ratio_128 overwrites target_size"
@@ -297,63 +366,37 @@ if __name__ == "__main__":
         if batch_size != 1:
             print("\nWARNING: batch_size overwritten to 1 when using keep_ratio_128")
             batch_size = 1
-        if args.max_im_width > 0 and args.max_im_width % 128 != 0:
-            new_im_width = int(args.max_im_width / 128) * 128
+        if max_im_width > 0 and max_im_width % 128 != 0:
+            new_im_width = int(max_im_width / 128) * 128
             print("\nWARNING: max_im_width should be <0 or a multiple of 128.")
             print(
                 "            Was {} but is now overwritten to {}".format(
-                    args.max_im_width, new_im_width
+                    max_im_width, new_im_width
                 )
             )
-            args.max_im_width = new_im_width
+            max_im_width = new_im_width
     else:
         if target_size % 128 != 0:
             print(f"\nWarning: target size {target_size} is not a multiple of 128.")
             target_size = target_size - (target_size % 128)
             print(f"Setting target_size to {target_size}.")
 
+    # -------------------------------------
+    # -----  Create output directory  -----
+    # -------------------------------------
     if outdir is not None:
-        if outdir.exists() and not args.overwrite:
-            print(
-                f"\nWARNING: outdir ({str(outdir)}) already exists."
-                + " Files with existing names will be overwritten"
-            )
-            if "n" in input(">>> Continue anyway? [y / n] (default: y) : "):
-                print("Interrupting execution from user input.")
-                sys.exit()
-            print()
-        outdir.mkdir(exist_ok=True, parents=True)
+        make_outdir(outdir, args.overwrite)
 
     # -------------------------------
     # -----  Create time store  -----
     # -------------------------------
-    stores = {}
-    if time_inference:
-        stores = OrderedDict(
-            {
-                "imports": [import_time],
-                "setup": [],
-                "data pre-processing": [],
-                "encode": [],
-                "mask": [],
-                "flood": [],
-                "depth": [],
-                "segmentation": [],
-                "smog": [],
-                "wildfire": [],
-                "all events": [],
-                "numpy": [],
-                "inference on all images": [],
-                "write": [],
-            }
-        )
+    stores = get_time_stores(import_time)
 
-    # -------------------------------------
-    # -----  Resume Trainer instance  -----
-    # -------------------------------------
-    print("\n• Initializing trainer\n")
-
+    # -----------------------------------
+    # -----  Load Trainer instance  -----
+    # -----------------------------------
     with Timer(store=stores.get("setup", []), ignore=time_inference):
+        print("\n• Initializing trainer\n")
         torch.set_grad_enabled(False)
         trainer = Trainer.resume_from_path(
             resume_path,
@@ -390,16 +433,16 @@ if __name__ == "__main__":
         data = [io.imread(str(d)) for d in data_paths]
         # rgba to rgb
         data = [im if im.shape[-1] == 3 else uint8(rgba2rgb(im) * 255) for im in data]
-        # resize to standard input size 640 x 640
-        if args.keep_ratio_128:
-            new_sizes = [to_128(d, args.max_im_width) for d in data]
+        # resize images to target_size or
+        if keep_ratio:
+            # to closest multiples of 128 <= max_im_width, keeping aspect ratio
+            new_sizes = [to_128(d, max_im_width) for d in data]
             data = [resize(d, ns, anti_aliasing=True) for d, ns in zip(data, new_sizes)]
         else:
+            # to args.target_size
             data = [resize_and_crop(d, target_size) for d in data]
             new_sizes = [(target_size, target_size) for _ in data]
-        # normalize to -1:1
-        # normalize is not necessary as resize outputs -1:1
-        # data = [(normalize(d.astype(np.float32)) - 0.5) * 2 for d in data]
+        # resize() produces [0, 1] images, rescale to [-1, 1]
         data = [to_m1_p1(d, i) for i, d in enumerate(data)]
 
     n_batchs = len(data) // batch_size
@@ -411,20 +454,21 @@ if __name__ == "__main__":
     # --------------------------------------------
     # -----  Batch-process images to events  -----
     # --------------------------------------------
-    print(f"\n• Creating events on {str(trainer.device)}\n")
+    print(f"\n• Using device {str(trainer.device)}\n")
 
     all_events = []
 
     with Timer(store=stores.get("inference on all images", []), ignore=time_inference):
         for b in range(n_batchs):
             print(f"Batch {b + 1}/{n_batchs}", end="\r")
+
             images = data[b * batch_size : (b + 1) * batch_size]
             if not images:
                 continue
+
             # concatenate images in a batch batch_size x height x width x 3
             images = np.stack(images)
-
-            # Retreive numpy events as a dict {event: array}
+            # Retreive numpy events as a dict {event: array[BxHxWxC]}
             events = trainer.infer_all(
                 images,
                 numpy=True,
@@ -434,26 +478,27 @@ if __name__ == "__main__":
                 cloudy=cloudy,
             )
 
+            # save resized and cropped image
             if args.save_input:
-                events["input"] = ((images + 1) / 2 * 255).astype(np.uint8)
+                events["input"] = uint8((images + 1) / 2 * 255)
 
             # store events to write after inference loop
             all_events.append(events)
     print()
 
-    # ----------------------------------------------
-    # -----  Write events to output directory  -----
-    # ----------------------------------------------
+    # --------------------------------------------
+    # -----  Save (write/upload) inferences  -----
+    # --------------------------------------------
     if outdir is not None or upload:
 
         if upload:
-            print("\n• Uploading")
+            print("\n• Creating comet Experiment")
             exp = comet_ml.Experiment(project_name="climategan-apply")
             exp.log_parameters(vars(args))
 
-        # ----------------------------------------------------------------
-        # -----  Change resulting data structure to a list of dicts  -----
-        # ----------------------------------------------------------------
+        # --------------------------------------------------------------
+        # -----  Change inferred data structure to a list of dicts  -----
+        # --------------------------------------------------------------
         to_write = []
         events_names = list(all_events[0].keys())
         for events_data in all_events:
@@ -471,6 +516,9 @@ if __name__ == "__main__":
             if upload:
                 print("\n• Uploading")
 
+        # ------------------------------------
+        # -----  Save individual images  -----
+        # ------------------------------------
         with Timer(store=stores.get("write", []), ignore=time_inference):
 
             # for each image
@@ -481,7 +529,7 @@ if __name__ == "__main__":
                 stem = Path(data_paths[idx]).stem
                 width = new_sizes[idx][1]
 
-                if args.keep_ratio_128:
+                if keep_ratio:
                     ar = "_AR"
                 else:
                     ar = ""
@@ -501,8 +549,6 @@ if __name__ == "__main__":
 
                     if outdir is not None:
                         im_path = outdir / im_path
-
-                    if outdir is not None:
                         io.imsave(im_path, im_data)
 
                     if upload:
@@ -515,5 +561,8 @@ if __name__ == "__main__":
         print("\n• Timings\n")
         print_store(stores)
 
+    # ---------------------------------------------
+    # -----  Save apply_events.py run config  -----
+    # ---------------------------------------------
     if not args.no_conf and outdir is not None:
         write_apply_config(outdir)
