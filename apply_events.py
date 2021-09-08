@@ -532,7 +532,7 @@ if __name__ == "__main__":
                         io.imsave(im_path, im_data)
 
                     if upload:
-                        exp.log_image(im_data, im_path.name)
+                        exp.log_image(im_data, name=im_path.name)
 
     # ---------------------------
     # -----  Print timings  -----
