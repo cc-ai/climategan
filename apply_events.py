@@ -50,7 +50,7 @@ def parse_args():
         help="Binary flag to prevent the timing of operations.",
     )
     parser.add_argument(
-        "-m",
+        "-f",
         "--flood_mask_binarization",
         type=float,
         default=0.5,
@@ -130,11 +130,12 @@ def parse_args():
         help="Use batch norm fusion to speed up inference",
     )
     parser.add_argument(
+        "-m",
         "--max_im_width",
         type=int,
         default=-1,
-        help="When using --keep_ratio_128, some images may still be too large."
-        + " Use --max_im_width to cap the resized image's width. Defaults to -1 (no cap).",
+        help="When using --keep_ratio_128, some images may still be too large. Use "
+        + "--max_im_width to cap the resized image's width. Defaults to -1 (no cap).",
     )
     parser.add_argument(
         "--upload",
@@ -193,15 +194,14 @@ def uint8(array):
 def resize_and_crop(img, to=640):
     """
     Resizes an image so that it keeps the aspect ratio and the smallest dimensions
-    is 640, then crops this resized image in its center so that the output is 640x640
+    is `to`, then crops this resized image in its center so that the output is `to x to`
     without aspect ratio distortion
 
     Args:
-        image_path (Path or str): Path to an image
-        label_path (Path or str): Path to the image's associated label
+        img (np.array): np.uint8 255 image
 
     Returns:
-        tuple((np.ndarray, np.ndarray)): (new image, new label)
+        np.array: [0, 1] np.float32 image
     """
     # resize keeping aspect ratio: smallest dim is 640
     h, w = img.shape[:2]
@@ -219,7 +219,7 @@ def resize_and_crop(img, to=640):
     top = (H - to) // 2
     left = (W - to) // 2
 
-    rc_img = r_img[top : top + 640, left : left + 640, :]
+    rc_img = r_img[top : top + to, left : left + to, :]
 
     return rc_img / 255.0
 
@@ -477,41 +477,62 @@ if __name__ == "__main__":
             exp = comet_ml.Experiment(project_name="climategan-apply")
             exp.log_parameters(vars(args))
 
+        # ----------------------------------------------------------------
+        # -----  Change resulting data structure to a list of dicts  -----
+        # ----------------------------------------------------------------
+        to_write = []
+        events_names = list(all_events[0].keys())
+        for events_data in all_events:
+            n_ims = len(events_data[events_names[0]])
+            for i in range(n_ims):
+                item = {event: events_data[event][i] for event in events_names}
+                to_write.append(item)
+
         if outdir is not None:
-            print("\n• Writing")
-            n_writes = sum([len(list(events.values())[0]) for e in all_events])
+            if upload:
+                print("\n• Writing & Uploading")
+            else:
+                print("\n• Writing")
+        else:
+            if upload:
+                print("\n• Uploading")
 
-        n_written = 0
         with Timer(store=stores.get("write", []), ignore=time_inference):
-            for b, events in enumerate(all_events):  # for each batch
-                n_ims = len(list(events.values())[0])
 
-                for i in range(n_ims):  # for each image in the batch
+            # for each image
+            n_writes = len(to_write) * len(events_names)
+            for t, event_dict in enumerate(to_write):
+
+                idx = t % len(base_data_paths)
+                stem = Path(data_paths[idx]).stem
+                width = new_sizes[idx][1]
+
+                if args.keep_ratio_128:
+                    ar = "_AR"
+                else:
+                    ar = ""
+
+                # for each event type
+                for e, (event, im_data) in enumerate(event_dict.items()):
 
                     print(" " * 30, end="\r", flush=True)
-                    print(f"{n_written+1}/{n_writes} ...", end="\r", flush=True)
+                    print(f"{t + e + 1}/{n_writes} ...", end="\r", flush=True)
 
-                    idx = b * batch_size + i
-                    idx = idx % len(base_data_paths)
-                    stem = Path(data_paths[idx]).stem
-                    width = new_sizes[idx][1]
-
-                    if args.keep_ratio_128:
-                        ar = "_AR"
+                    if args.no_cloudy:
+                        suffix = ar + "_no_cloudy"
                     else:
-                        ar = ""
+                        suffix = ar
 
-                    for event in events:
-                        im_path = Path(f"{stem}_{event}_{width}{ar}.png")
-                        if outdir is not None:
-                            im_path = outdir / im_path
-                        im_data = events[event][i]
-                        if outdir is not None:
-                            io.imsave(im_path, im_data)
-                        if upload:
-                            exp.log_image(im_data, im_path.name)
+                    im_path = Path(f"{stem}_{event}_{width}{suffix}.png")
 
-                    n_written += 1
+                    if outdir is not None:
+                        im_path = outdir / im_path
+
+                    if outdir is not None:
+                        io.imsave(im_path, im_data)
+
+                    if upload:
+                        exp.log_image(im_data, im_path.name)
 
     # ---------------------------
     # -----  Print timings  -----
