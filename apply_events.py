@@ -112,7 +112,7 @@ def parse_args():
         + "dimensions to match the closest multiples"
         + " of 128. Will force a batch size of 1 since images"
         + " now have different dimensions. "
-        + "Use --max_images to cap the resulting dimensions.",
+        + "Use --max_im_width to cap the resulting dimensions.",
     )
     parser.add_argument(
         "--fuse",
@@ -558,7 +558,7 @@ if __name__ == "__main__":
     # -----  Print timings  -----
     # ---------------------------
     if time_inference:
-        print("\n• Timings\n")
+        print("\n\n• Timings\n")
         print_store(stores)
 
     # ---------------------------------------------
