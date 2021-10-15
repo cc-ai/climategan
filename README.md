@@ -1,6 +1,6 @@
 # ClimateGAN: Raising Awareness about Climate Change by Generating Images of Floods
 
-This repository contains the code used to train the model presented in our **[paper]()**.
+This repository contains the code used to train the model presented in our **[paper](https://arxiv.org/abs/2110.02871)**.
 
 It is not simply a presentation repository but the code we have used over the past 30 months to come to our final architecture. As such, you will find many scripts, classes, blocks and options which we actively use for our own development purposes but are not directly relevant to reproduce results or use pretrained weights.
 
