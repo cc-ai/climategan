@@ -133,6 +133,12 @@ def parse_args():
         action="store_true",
         help="Upload to comet.ml in a project called `climategan-apply`",
     )
+    parser.add_argument(
+        "--zip_outdir",
+        "-z",
+        action="store_true",
+        help="Zip the output directory as '{outdir.parent}/{outdir.name}.zip'",
+    )
     return parser.parse_args()
 
 
@@ -144,6 +150,7 @@ import time
 
 import_time = time.time()
 import sys
+import shutil
 from collections import OrderedDict
 from pathlib import Path
 
@@ -384,6 +391,7 @@ if __name__ == "__main__":
     target_size = args.target_size
     time_inference = not args.no_time
     upload = args.upload
+    zip_outdir = args.zip_outdir
 
     # -------------------------------------
     # -----  Validate size arguments  -----
@@ -549,6 +557,7 @@ if __name__ == "__main__":
         if outdir is not None:
             if upload:
                 progress_bar_desc = "Writing & Uploading events"
+                print("Output directory:", str(outdir))
             else:
                 progress_bar_desc = "Writing events"
         else:
@@ -597,6 +606,13 @@ if __name__ == "__main__":
 
                     if upload:
                         exp.log_image(im_data, name=im_path.name)
+    if zip_outdir:
+        print("Zipping output directory...", end="", flush=True)
+        archive_path = Path(
+            shutil.make_archive(outdir.name, "zip", root_dir=outdir.parent)
+        )
+        archive_path.rename(outdir.parent, archive_path.name)
+        print("Ok.")
 
     # ---------------------------
     # -----  Print timings  -----
