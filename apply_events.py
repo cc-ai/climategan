@@ -153,6 +153,7 @@ import numpy as np
 import skimage.io as io
 from skimage.color import rgba2rgb
 from skimage.transform import resize
+from tqdm import tqdm
 
 from climategan.trainer import Trainer
 from climategan.bn_fusion import bn_fuse
@@ -498,7 +499,7 @@ if __name__ == "__main__":
     all_events = []
 
     with Timer(store=stores.get("inference on all images", []), ignore=time_inference):
-        for b in range(n_batchs):
+        for b in tqdm(range(n_batchs), desc="Infering, batch"):
             print(f"Batch {b + 1}/{n_batchs}", end="\r")
 
             images = data[b * batch_size : (b + 1) * batch_size]
@@ -562,8 +563,10 @@ if __name__ == "__main__":
 
             # for each image
             n_writes = len(to_write) * len(events_names)
-            written = 1
-            for t, event_dict in enumerate(to_write):
+            progress_bar = tqdm(
+                enumerate(to_write), desc="Writing image files", total=n_writes
+            )
+            for t, event_dict in progress_bar:
 
                 idx = t % len(base_data_paths)
                 stem = Path(data_paths[idx]).stem
@@ -576,9 +579,6 @@ if __name__ == "__main__":
 
                 # for each event type
                 for e, (event, im_data) in enumerate(event_dict.items()):
-
-                    print(" " * 30, end="\r", flush=True)
-                    print(f"{written}/{n_writes} ...", end="\r", flush=True)
 
                     if args.no_cloudy:
                         suffix = ar + "_no_cloudy"
@@ -593,7 +593,7 @@ if __name__ == "__main__":
 
                     if upload:
                         exp.log_image(im_data, name=im_path.name)
-                    written += 1
+                    progress_bar.update()
 
     # ---------------------------
     # -----  Print timings  -----
