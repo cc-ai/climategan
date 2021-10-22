@@ -555,9 +555,9 @@ if __name__ == "__main__":
 
         progress_bar_desc = ""
         if outdir is not None:
+            print("\n• Output directory:", str(outdir))
             if upload:
                 progress_bar_desc = "Writing & Uploading events"
-                print("Output directory:", str(outdir))
             else:
                 progress_bar_desc = "Writing events"
         else:
@@ -588,7 +588,10 @@ if __name__ == "__main__":
 
                 # for each event type
                 event_bar = tqdm(
-                    enumerate(event_dict.items()), leave=False, total=len(events_names)
+                    enumerate(event_dict.items()),
+                    leave=False,
+                    total=len(events_names),
+                    unit="event",
                 )
                 for e, (event, im_data) in event_bar:
                     event_bar.set_description(
@@ -613,14 +616,15 @@ if __name__ == "__main__":
         archive_path = Path(
             shutil.make_archive(outdir.name, "zip", root_dir=outdir.parent)
         )
-        archive_path.rename(outdir.parent / archive_path.name)
-        print("Ok.")
+        archive_path = archive_path.rename(outdir.parent / archive_path.name)
+        print("Done in:")
+        print(str(archive_path))
 
     # ---------------------------
     # -----  Print timings  -----
     # ---------------------------
     if time_inference:
-        print("\n\n• Timings\n")
+        print("\n• Timings\n")
         print_store(stores)
 
     # ---------------------------------------------
