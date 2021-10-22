@@ -311,7 +311,8 @@ def get_outdir_name(half, keep_ratio, max_im_width, target_size, bin_value, clou
     if max_im_width and keep_ratio:
         name_items.append(f"{max_im_width}")
     if target_size and not keep_ratio:
-        name_items.append(f"square{target_size}")
+        name_items.append("S")
+        name_items.append(f"{target_size}")
     if bin_value != 0.5:
         name_items.append(f"bin{bin_value}")
     if not cloudy:
