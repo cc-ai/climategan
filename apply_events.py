@@ -335,6 +335,7 @@ def make_outdir(
             sys.exit()
         print()
     outdir.mkdir(exist_ok=True, parents=True)
+    return outdir
 
 
 def get_time_stores(import_time):
@@ -414,7 +415,7 @@ if __name__ == "__main__":
     # -----  Create output directory  -----
     # -------------------------------------
     if outdir is not None:
-        make_outdir(
+        outdir = make_outdir(
             outdir,
             args.overwrite,
             half,
