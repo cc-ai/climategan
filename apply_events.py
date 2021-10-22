@@ -613,9 +613,7 @@ if __name__ == "__main__":
                         exp.log_image(im_data, name=im_path.name)
     if zip_outdir:
         print("\n• Zipping output directory...", end="", flush=True)
-        archive_path = Path(
-            shutil.make_archive(outdir.name, "zip", root_dir=outdir.parent)
-        )
+        archive_path = Path(shutil.make_archive(outdir.name, "zip", root_dir=outdir))
         archive_path = archive_path.rename(outdir.parent / archive_path.name)
         print("Done in:")
         print(str(archive_path))
