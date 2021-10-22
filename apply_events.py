@@ -555,7 +555,8 @@ if __name__ == "__main__":
 
         progress_bar_desc = ""
         if outdir is not None:
-            print("\n• Output directory:", str(outdir))
+            print("\n• Output directory:\n")
+            print(str(outdir), "\n")
             if upload:
                 progress_bar_desc = "Writing & Uploading events"
             else:
@@ -612,10 +613,10 @@ if __name__ == "__main__":
                     if upload:
                         exp.log_image(im_data, name=im_path.name)
     if zip_outdir:
-        print("\n• Zipping output directory...", end="", flush=True)
+        print("\n• Zipping output directory... ", end="", flush=True)
         archive_path = Path(shutil.make_archive(outdir.name, "zip", root_dir=outdir))
         archive_path = archive_path.rename(outdir.parent / archive_path.name)
-        print("Done in:")
+        print("Done:\n")
         print(str(archive_path))
 
     # ---------------------------
