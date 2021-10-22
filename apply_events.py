@@ -306,14 +306,14 @@ def get_outdir_name(half, keep_ratio, max_im_width, target_size, bin_value, no_c
         name_items.append(f"{target_size}")
     if bin_value != 0.5:
         name_items.append(f"bin{bin_value}")
-    if no_cloudy:
+    if not cloudy:
         name_items.append("no_cloudy")
 
     return "-".join(name_items)
 
 
 def make_outdir(
-    outdir, overwrite, half, keep_ratio, max_im_width, target_size, bin_value, no_cloudy
+    outdir, overwrite, half, keep_ratio, max_im_width, target_size, bin_value, cloudy
 ):
     """
     Creates the output directory if it does not exist. If it does exist,
@@ -323,7 +323,7 @@ def make_outdir(
     """
     if outdir.name == "_auto_":
         outdir = outdir.parent / get_outdir_name(
-            half, keep_ratio, max_im_width, target_size, bin_value, no_cloudy
+            half, keep_ratio, max_im_width, target_size, bin_value, cloudy
         )
     if outdir.exists() and not overwrite:
         print(
@@ -414,7 +414,16 @@ if __name__ == "__main__":
     # -----  Create output directory  -----
     # -------------------------------------
     if outdir is not None:
-        make_outdir(outdir, args.overwrite, half, keep_ratio, max_im_width, target_size)
+        make_outdir(
+            outdir,
+            args.overwrite,
+            half,
+            keep_ratio,
+            max_im_width,
+            target_size,
+            bin_value,
+            cloudy,
+        )
 
     # -------------------------------
     # -----  Create time store  -----
