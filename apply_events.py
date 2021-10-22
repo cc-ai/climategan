@@ -523,6 +523,7 @@ if __name__ == "__main__":
 
             # for each image
             n_writes = len(to_write) * len(events_names)
+            written = 1
             for t, event_dict in enumerate(to_write):
 
                 idx = t % len(base_data_paths)
@@ -538,7 +539,7 @@ if __name__ == "__main__":
                 for e, (event, im_data) in enumerate(event_dict.items()):
 
                     print(" " * 30, end="\r", flush=True)
-                    print(f"{t + e + 1}/{n_writes} ...", end="\r", flush=True)
+                    print(f"{written}/{n_writes} ...", end="\r", flush=True)
 
                     if args.no_cloudy:
                         suffix = ar + "_no_cloudy"
@@ -553,6 +554,7 @@ if __name__ == "__main__":
 
                     if upload:
                         exp.log_image(im_data, name=im_path.name)
+                    written += 1
 
     # ---------------------------
     # -----  Print timings  -----
