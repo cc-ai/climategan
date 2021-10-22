@@ -561,11 +561,11 @@ if __name__ == "__main__":
         with Timer(store=stores.get("write", []), ignore=time_inference):
 
             # for each image
-            n_writes = len(to_write) * len(events_names)
             for t, event_dict in tqdm(
                 enumerate(to_write),
                 desc=progress_bar_desc,
                 unit="input image",
+                total=len(to_write),
             ):
 
                 idx = t % len(base_data_paths)
@@ -578,9 +578,11 @@ if __name__ == "__main__":
                     ar = ""
 
                 # for each event type
-                event_bar = tqdm(enumerate(event_dict.items()), leave=False)
+                event_bar = tqdm(
+                    enumerate(event_dict.items()), leave=False, total=len(events_names)
+                )
                 for e, (event, im_data) in event_bar:
-                    event_bar.set_description(f"{event}:<10")
+                    event_bar.set_description(f"{event:<10}")
 
                     if args.no_cloudy:
                         suffix = ar + "_no_cloudy"
