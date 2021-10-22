@@ -591,7 +591,9 @@ if __name__ == "__main__":
                     enumerate(event_dict.items()), leave=False, total=len(events_names)
                 )
                 for e, (event, im_data) in event_bar:
-                    event_bar.set_description(f"{event:<10}")
+                    event_bar.set_description(
+                        f"  {event.capitalize():<{len(progress_bar_desc) - 2}}"
+                    )
 
                     if args.no_cloudy:
                         suffix = ar + "_no_cloudy"
@@ -607,11 +609,11 @@ if __name__ == "__main__":
                     if upload:
                         exp.log_image(im_data, name=im_path.name)
     if zip_outdir:
-        print("Zipping output directory...", end="", flush=True)
+        print("\n• Zipping output directory...", end="", flush=True)
         archive_path = Path(
             shutil.make_archive(outdir.name, "zip", root_dir=outdir.parent)
         )
-        archive_path.rename(outdir.parent, archive_path.name)
+        archive_path.rename(outdir.parent / archive_path.name)
         print("Ok.")
 
     # ---------------------------
