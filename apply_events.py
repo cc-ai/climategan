@@ -562,13 +562,11 @@ if __name__ == "__main__":
 
             # for each image
             n_writes = len(to_write) * len(events_names)
-            progress_bar = tqdm(
+            for t, event_dict in tqdm(
                 enumerate(to_write),
                 desc=progress_bar_desc,
-                total=n_writes,
-                unit="image",
-            )
-            for t, event_dict in progress_bar:
+                unit="input image",
+            ):
 
                 idx = t % len(base_data_paths)
                 stem = Path(data_paths[idx]).stem
@@ -580,7 +578,9 @@ if __name__ == "__main__":
                     ar = ""
 
                 # for each event type
-                for e, (event, im_data) in enumerate(event_dict.items()):
+                event_bar = tqdm(enumerate(event_dict.items()), leave=False)
+                for e, (event, im_data) in event_bar:
+                    event_bar.set_description(f"{event}:<10")
 
                     if args.no_cloudy:
                         suffix = ar + "_no_cloudy"
@@ -595,7 +595,6 @@ if __name__ == "__main__":
 
                     if upload:
                         exp.log_image(im_data, name=im_path.name)
-                    progress_bar.update()
 
     # ---------------------------
     # -----  Print timings  -----
