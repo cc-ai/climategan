@@ -291,11 +291,40 @@ def write_apply_config(out):
         f.write(git_hash)
 
 
-def make_outdir(outdir, overwrite):
+def get_outdir_name(half, keep_ratio, max_im_width, target_size, bin_value, no_cloudy):
     """
-    creates the output directory if it does not exist. If it does exist,
-    prompts the user for confirmation (except if `overwrite` is True)
+    Create the output directory's name based on uer-provided arguments
     """
+    name_items = []
+    if half:
+        name_items.append("half")
+    if keep_ratio:
+        name_items.append("AR")
+    if max_im_width and keep_ratio:
+        name_items.append(f"{max_im_width}")
+    if target_size and not keep_ratio:
+        name_items.append(f"{target_size}")
+    if bin_value != 0.5:
+        name_items.append(f"bin{bin_value}")
+    if no_cloudy:
+        name_items.append("no_cloudy")
+
+    return "-".join(name_items)
+
+
+def make_outdir(
+    outdir, overwrite, half, keep_ratio, max_im_width, target_size, bin_value, no_cloudy
+):
+    """
+    Creates the output directory if it does not exist. If it does exist,
+    prompts the user for confirmation (except if `overwrite` is True).
+    If the output directory's name is "_auto_" then it is created as:
+        outdir.parent / get_outdir_name(...)
+    """
+    if outdir.name == "_auto_":
+        outdir = outdir.parent / get_outdir_name(
+            half, keep_ratio, max_im_width, target_size, bin_value, no_cloudy
+        )
     if outdir.exists() and not overwrite:
         print(
             f"\nWARNING: outdir ({str(outdir)}) already exists."
@@ -385,7 +414,7 @@ if __name__ == "__main__":
     # -----  Create output directory  -----
     # -------------------------------------
     if outdir is not None:
-        make_outdir(outdir, args.overwrite)
+        make_outdir(outdir, args.overwrite, half, keep_ratio, max_im_width, target_size)
 
     # -------------------------------
     # -----  Create time store  -----
