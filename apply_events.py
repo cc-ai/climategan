@@ -499,8 +499,7 @@ if __name__ == "__main__":
     all_events = []
 
     with Timer(store=stores.get("inference on all images", []), ignore=time_inference):
-        for b in tqdm(range(n_batchs), desc="Infering, batch"):
-            print(f"Batch {b + 1}/{n_batchs}", end="\r")
+        for b in tqdm(range(n_batchs), desc="Inference", unit="batch"):
 
             images = data[b * batch_size : (b + 1) * batch_size]
             if not images:
@@ -547,14 +546,18 @@ if __name__ == "__main__":
                 item = {event: events_data[event][i] for event in events_names}
                 to_write.append(item)
 
+        progress_bar_desc = ""
         if outdir is not None:
             if upload:
                 print("\n• Writing & Uploading")
+                progress_bar_desc = "Writing & Uploading events"
             else:
                 print("\n• Writing")
+                progress_bar_desc = "Writing events"
         else:
             if upload:
                 print("\n• Uploading")
+                progress_bar_desc = "Uploading events"
 
         # ------------------------------------
         # -----  Save individual images  -----
@@ -564,7 +567,10 @@ if __name__ == "__main__":
             # for each image
             n_writes = len(to_write) * len(events_names)
             progress_bar = tqdm(
-                enumerate(to_write), desc="Writing image files", total=n_writes
+                enumerate(to_write),
+                desc=progress_bar_desc,
+                total=n_writes,
+                unit="image",
             )
             for t, event_dict in progress_bar:
 
