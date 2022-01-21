@@ -28,7 +28,7 @@ gdown==3.13.0
 hydra-core==0.11.3
 idna==3.2
 imageio==2.9.0
-ipython==7.27.0
+ipython==7.31.1
 itsdangerous==2.0.1
 jedi==0.18.0
 Jinja2==3.0.1
