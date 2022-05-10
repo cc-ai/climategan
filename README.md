@@ -6,6 +6,18 @@ It is not simply a presentation repository but the code we have used over the pa
 
 ![flood processing](images/flood.png)
 
+If you use this code, data or pre-trained weights, please cite our ICLR 2022 paper:
+
+```
+@inproceedings{schmidt2022climategan,
+  title     = {Climate{GAN}: Raising Climate Change Awareness by Generating Images of Floods},
+  author    = {Victor Schmidt and Alexandra Luccioni and M{\'e}lisande Teng and Tianyu Zhang and Alexia Reynaud and Sunand Raghupathi and Gautier Cosne and Adrien Juraver and Vahe Vardanyan and Alex Hern{\'a}ndez-Garc{\'\i}a and Yoshua Bengio},
+  booktitle = {International Conference on Learning Representations},
+  year      = {2022},
+  url       = {https://openreview.net/forum?id=EZNOb_uNpJk}
+}
+```
+
 ## Using pre-trained weights
 
 In the paper, we present ClimateGAN as a solution to produce images of floods. It can actually do **more**: 
