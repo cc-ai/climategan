@@ -121,6 +121,12 @@ def parse_args():
         help="Use batch norm fusion to speed up inference",
     )
     parser.add_argument(
+        "--save_masks",
+        action="store_true",
+        default=False,
+        help="Save output masks along events",
+    )
+    parser.add_argument(
         "-m",
         "--max_im_width",
         type=int,
@@ -383,6 +389,7 @@ if __name__ == "__main__":
     cloudy = not args.no_cloudy
     fuse = args.fuse
     half = args.half
+    save_masks = args.save_masks
     images_paths = resolve(args.images_paths)
     keep_ratio = args.keep_ratio_128
     max_im_width = args.max_im_width
@@ -524,6 +531,7 @@ if __name__ == "__main__":
                 bin_value=bin_value,
                 half=half,
                 cloudy=cloudy,
+                return_masks=save_masks,
             )
 
             # save resized and cropped image

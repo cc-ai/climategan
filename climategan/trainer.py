@@ -187,10 +187,10 @@ class Trainer:
             zw = self.G.painter.z_w
             # adapt latent shape to approximately keep the resolution
             self.G.painter.z_h = (
-                image_batch.shape[-2] // 2 ** self.opts.gen.p.spade_n_up
+                image_batch.shape[-2] // 2**self.opts.gen.p.spade_n_up
             )
             self.G.painter.z_w = (
-                image_batch.shape[-1] // 2 ** self.opts.gen.p.spade_n_up
+                image_batch.shape[-1] // 2**self.opts.gen.p.spade_n_up
             )
 
             painted = self.G.paint(mask_batch, image_batch)
@@ -226,6 +226,7 @@ class Trainer:
         cloudy=False,
         auto_resize_640=False,
         ignore_event=set(),
+        return_masks=False,
     ):
         """
         Create a dictionnary of events from a numpy or tensor,
@@ -324,7 +325,13 @@ class Trainer:
                 smog = (smog * 255).astype(np.uint8)
                 wildfire = (wildfire * 255).astype(np.uint8)
 
-        return {"flood": flood, "wildfire": wildfire, "smog": smog}
+        output_data = {"flood": flood, "wildfire": wildfire, "smog": smog}
+        if return_masks:
+            output_data["mask"] = (
+                ((mask > bin_value) * 255).cpu().numpy().astype(np.uint8)
+            )
+
+        return output_data
 
     @classmethod
     def resume_from_path(
