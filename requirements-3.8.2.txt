@@ -76,9 +76,9 @@ tenacity==8.0.1
 termcolor==1.1.0
 threadpoolctl==2.2.0
 tifffile==2021.8.30
-torch==1.7.0
+torch==1.7.1
 torch-optimizer==0.1.0
-torchvision==0.8.1
+torchvision==0.8.2
 tqdm==4.62.2
 traitlets==5.1.0
 typing-extensions==3.10.0.2
